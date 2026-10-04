@@ -243,7 +243,7 @@ handle to give the thread list more room.
 - **Mobile heading controls** keep 44px touch targets, and the scoped
   project heading always shows its clear icon.
 
-<p align="center"><img src="docs/screenshots/rail-desktop.webp" width="420" alt="Radar Sidebar with Navigation rail enabled beside its thread list"></p>
+<p align="center"><img src="docs/screenshots/rail-desktop.png" width="420" alt="Radar Sidebar with Navigation rail enabled beside its thread list"></p>
 
 ### Labelled rail (experimental, off by default)
 
@@ -262,8 +262,8 @@ sidebar. This integration was live-checked on BB 0.45.1 nightly, with tests
 and typechecking against SDK 0.5.29. Earlier rail prototypes were checked
 on BB 0.44.1 and 0.45.0; those runtimes have not been rerun for this integration.
 
-<p align="center"><img src="docs/screenshots/rail-wide.webp" width="420" alt="The optional labelled rail with BB’s footer actions"></p>
-<p align="center"><img src="docs/screenshots/rail-mobile.webp" width="240" alt="The project rail beside the thread list in the mobile drawer"></p>
+<p align="center"><img src="docs/screenshots/rail-wide.png" width="420" alt="The optional labelled rail with BB’s footer actions"></p>
+<p align="center"><img src="docs/screenshots/rail-mobile.png" width="240" alt="The project rail beside the thread list in the mobile drawer"></p>
 
 ## Compatibility notes
 
