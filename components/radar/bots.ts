@@ -71,13 +71,15 @@ export function botState(
   thread: PluginSidebarThread | undefined,
   pulse: Pulse | null,
   rollover: string | null,
+  family: { live: number; needsUser: number; failed: number } = { live: 0, needsUser: 0, failed: 0 },
 ): BotState {
   if (!thread) return "idle";
   if (thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error") return "failed";
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") return "needs-you";
-  if (thread.status === "active" || thread.status === "starting" || thread.activity.backgroundAgents > 0) return "working";
-  if (rollover) return "rollover";
+  // A decision Salem has not seen outranks whatever the workers are doing.
   if (thread.isUnread && pulse?.decision) return "decision";
+  if (thread.status === "active" || thread.status === "starting" || thread.activity.backgroundAgents > 0 || family.live > 0) return "working";
+  if (rollover) return "rollover";
   if (thread.isUnread && !pulse?.quiet) return "unread";
   return "idle";
 }

@@ -1907,7 +1907,7 @@ export function RadarThreadList({
                   <RadarBotCard
                     thread={root}
                     name={bot?.name ?? root.displayTitle}
-                    state={botState(root, pulse, bot?.rollover ?? null)}
+                    state={botState(root, pulse, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}
                     pulse={pulse}
                     group={group}
                     isCollapsed={isCollapsed}

@@ -30,6 +30,9 @@ describe("botState", () => {
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: false }, null)).toBe("unread");
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: true }, null)).toBe("idle");
     expect(botState(makeThread(base), { subject: "x", decision: "pay?", quiet: false }, null)).toBe("idle");
+    // A running worker makes the bot "working"; an unseen decision still wins.
+    expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: false }, null, { live: 1, needsUser: 0, failed: 0 })).toBe("working");
+    expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: "pay?", quiet: false }, null, { live: 1, needsUser: 0, failed: 0 })).toBe("decision");
   });
   it("needsYou covers questions, approvals and unseen failures", () => {
     expect(needsYou(makeThread({ id: "a", hasPendingInteraction: true }))).toBe(true);
