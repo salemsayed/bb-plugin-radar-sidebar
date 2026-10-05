@@ -4011,3 +4011,12 @@ a.radar-row-main:hover {
 .radar-bot-count { font-variant-numeric: tabular-nums; }
 .radar-group-needs-you .radar-group-header { color: var(--warning, #d97706); }
 .radar-group-needs-you .radar-group-icon { color: var(--warning, #d97706); }
+
+/* Narrow sidebars: keep the faces and rings, drop the words. */
+.radar-bot-group, .radar-crew-header { container-type: inline-size; }
+@container (max-width: 170px) {
+  .radar-bot-body, .radar-bot-toggle { display: none; }
+  .radar-bot-card { padding: 6px; justify-content: center; }
+  .radar-bot-main { justify-content: center; gap: 0; }
+  .radar-crew-digest { display: none; }
+}
