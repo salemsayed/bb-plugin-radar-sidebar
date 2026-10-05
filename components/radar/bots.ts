@@ -29,9 +29,12 @@ export interface Pulse {
 function cleanLine(line: string): string {
   return line
     .replace(/^[\s#>*\-•]+/, "")
-    .replace(/[*_`]+/g, "")
+    .replace(/\*\*|__|`/g, "")
     .trim();
 }
+
+/** Protocol lines the coordinator plugin asks for; never what Salem wants to read. */
+const PROTOCOL_LINE = /^(?:(?:BOT|PERSONAL)_READY|HANDOFF)_[a-z0-9_]+\b|^SESSION_OK\b/i;
 
 /**
  * Coordinators end relays with exactly "Nothing to do." or "Decision needed: …"
@@ -39,7 +42,7 @@ function cleanLine(line: string): string {
  */
 export function parsePulse(text: string | null | undefined): Pulse | null {
   if (!text) return null;
-  const lines = text.split(/\r?\n/).map(cleanLine).filter(Boolean);
+  const lines = text.split(/\r?\n/).map(cleanLine).filter((line) => line && !PROTOCOL_LINE.test(line));
   if (lines.length === 0) return null;
   const decisionLine = [...lines].reverse().find((line) => /^decision needed:/i.test(line)) ?? null;
   const decision = decisionLine ? decisionLine.replace(/^decision needed:\s*/i, "").trim() : null;

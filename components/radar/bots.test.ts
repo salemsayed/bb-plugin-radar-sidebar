@@ -9,6 +9,10 @@ describe("parsePulse", () => {
     expect(parsePulse("JUMAN transfer leg moved.\n- Keep watching.\nDecision needed: alert on update proposals too?"))
       .toEqual({ subject: "JUMAN transfer leg moved.", decision: "alert on update proposals too?", quiet: false });
     expect(parsePulse("Hi Salem, nothing is waiting on me.")).toEqual({ subject: "Hi Salem, nothing is waiting on me.", decision: null, quiet: false });
+    expect(parsePulse("BOT_READY_muus5eu3_z5am1up\n\nNo unfinished user request remains.")).toEqual({ subject: "No unfinished user request remains.", decision: null, quiet: false });
+    expect(parsePulse("HANDOFF_abc_123\nUnfinished: none.")).toEqual({ subject: "Unfinished: none.", decision: null, quiet: false });
+    expect(parsePulse("BOT_READY_x_y")).toBeNull();
+    expect(parsePulse("snake_case_name stays intact.")?.subject).toBe("snake_case_name stays intact.");
     expect(parsePulse("")).toBeNull();
     expect(parsePulse(null)).toBeNull();
   });
