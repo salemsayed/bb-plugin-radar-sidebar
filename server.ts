@@ -17,6 +17,31 @@ export default async function plugin(bb: BbPluginApi) {
   // Read in the frontend through useSettings(); every value has a default,
   // so the sidebar keeps working before the first load resolves.
   bb.settings.define({
+    botsDeck: {
+      type: "boolean",
+      label: "Bots deck",
+      description:
+        "Show registered bot coordinators (from bb-salem-bots) as cards at the top: state, last reply, and their workers folded beneath.",
+      default: true,
+    },
+    needsYouLane: {
+      type: "boolean",
+      label: "Needs-you lane",
+      description: "One group above everything else for threads waiting on you: questions, approvals and unseen failures.",
+      default: true,
+    },
+    nestByOwner: {
+      type: "boolean",
+      label: "Nest workers under their owner",
+      description: "A thread without a parent nests under the thread that owns its lifecycle, so plugin-run workers sit under their coordinator.",
+      default: true,
+    },
+    hideEmptySections: {
+      type: "boolean",
+      label: "Hide empty sections",
+      description: "In section view, leave out sections with nothing shown. Drag onto a section still works while it has threads.",
+      default: false,
+    },
     hoverCard: {
       type: "boolean",
       label: "Hover peek card",

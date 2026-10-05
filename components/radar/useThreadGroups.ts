@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { needsYou } from "./bots";
 import type {
   PluginSidebarProject,
   PluginSidebarSection,
@@ -57,6 +58,8 @@ function comparePinned(a: PluginSidebarThread, b: PluginSidebarThread): number {
 }
 
 export const UNFILED_GROUP_ID = "section:__unfiled__";
+export const NEEDS_YOU_GROUP_ID = "needs-you";
+const EMPTY_IDS: readonly string[] = [];
 
 /**
  * Everything the list shows, derived from the host's thread array: which rows
@@ -72,6 +75,12 @@ export function useThreadGroups(args: {
   projects: readonly PluginSidebarProject[];
   sections: readonly PluginSidebarSection[];
   now: number;
+  /** Nest a thread under its lifecycle owner when it has no parent (plugin-run workers). */
+  nestByOwner?: boolean;
+  /** Section view: leave out sections with nothing shown in them. */
+  hideEmptySections?: boolean;
+  /** Coordinator threads, in deck order; each becomes its own group and leaves the pinned block. */
+  botThreadIds?: readonly string[];
 }) {
   const {
     threads,
@@ -82,6 +91,9 @@ export function useThreadGroups(args: {
     projects,
     sections,
     now,
+    nestByOwner = false,
+    hideEmptySections = false,
+    botThreadIds = EMPTY_IDS,
   } = args;
 
   const projectById = useMemo(
@@ -113,8 +125,9 @@ export function useThreadGroups(args: {
   const parentOf = useMemo(() => {
     const map = new Map<string, string>();
     for (const thread of allRows) {
-      if (thread.parentThreadId && rowById.has(thread.parentThreadId)) {
-        map.set(thread.id, thread.parentThreadId);
+      const parentId = thread.parentThreadId ?? (nestByOwner ? thread.lifecycleOwnerThreadId : null);
+      if (parentId && parentId !== thread.id && rowById.has(parentId)) {
+        map.set(thread.id, parentId);
       }
     }
     for (const thread of allRows) {
@@ -131,7 +144,7 @@ export function useThreadGroups(args: {
       }
     }
     return map;
-  }, [allRows, rowById]);
+  }, [allRows, rowById, nestByOwner]);
   const childrenOf = useMemo(() => {
     const map = new Map<string, PluginSidebarThread[]>();
     for (const thread of allRows) {
@@ -354,15 +367,39 @@ export function useThreadGroups(args: {
     [countSubtree],
   );
 
+  // Coordinators get a card each, in roster order, and leave the pinned block.
+  const botGroups = useMemo<ThreadGroup[]>(() => {
+    const rootIds = new Set(roots.map((root) => root.id));
+    return botThreadIds.flatMap((id) => {
+      const thread = rowById.get(id);
+      return thread && rootIds.has(id) ? [assembleGroup(`bot:${id}`, thread.displayTitle, "Bot", [thread])] : [];
+    });
+  }, [botThreadIds, rowById, roots, assembleGroup]);
+
+  // Everything blocked on the user, across projects, in one lane above the rest.
+  const needsYouGroup = useMemo<ThreadGroup | null>(() => {
+    const bots = new Set(botThreadIds);
+    const list = roots
+      .filter((root) => !bots.has(root.id) && needsYou(root))
+      .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
+    return list.length === 0 ? null : assembleGroup(NEEDS_YOU_GROUP_ID, "Needs you", "AlertCircle", list);
+  }, [roots, botThreadIds, subtreeActivity, assembleGroup]);
+
+  const takenIds = useMemo(() => {
+    const taken = new Set(botThreadIds);
+    for (const root of needsYouGroup?.roots ?? []) taken.add(root.id);
+    return taken;
+  }, [botThreadIds, needsYouGroup]);
+
   const pinnedGroup = useMemo<ThreadGroup | null>(() => {
-    const pinnedRoots = roots.filter((root) => root.isPinned).sort(comparePinned);
+    const pinnedRoots = roots.filter((root) => root.isPinned && !takenIds.has(root.id)).sort(comparePinned);
     if (pinnedRoots.length === 0) return null;
     return assembleGroup("pinned", "Pinned", "Pin", pinnedRoots);
-  }, [roots, assembleGroup]);
+  }, [roots, assembleGroup, takenIds]);
 
   const groups = useMemo<ThreadGroup[]>(() => {
     const rest = roots
-      .filter((root) => !root.isPinned)
+      .filter((root) => !root.isPinned && !takenIds.has(root.id))
       .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
     if (grouping === "project") {
       const byProject = new Map<string, PluginSidebarThread[]>();
@@ -445,7 +482,7 @@ export function useThreadGroups(args: {
           null,
         ),
       );
-      return ordered;
+      return hideEmptySections ? ordered.filter((group) => group.roots.length > 0) : ordered;
     }
     const buckets = new Map<string, PluginSidebarThread[]>();
     for (const root of rest) {
@@ -473,10 +510,14 @@ export function useThreadGroups(args: {
     now,
     subtreeActivity,
     assembleGroup,
+    takenIds,
+    hideEmptySections,
   ]);
 
   const shownTotal =
     (pinnedGroup?.total ?? 0) +
+    (needsYouGroup?.total ?? 0) +
+    botGroups.reduce((count, group) => count + group.total, 0) +
     groups.reduce((count, group) => count + group.total, 0);
 
   return {
@@ -490,6 +531,8 @@ export function useThreadGroups(args: {
     countSubtree,
     subtreeActivity,
     pinnedGroup,
+    botGroups,
+    needsYouGroup,
     groups,
     shownTotal,
     projectNameFor,

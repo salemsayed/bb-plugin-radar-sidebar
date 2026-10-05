@@ -1,6 +1,6 @@
 import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeThread, makeProject, NOW, HOUR } from "./fixtures";
+import { makeThread, makeProject, makeSection, NOW, HOUR } from "./fixtures";
 import { useThreadGroups } from "./useThreadGroups";
 
 type Args = Parameters<typeof useThreadGroups>[0];
@@ -95,5 +95,38 @@ describe("family derivation cache", () => {
     const hook = renderHook(() => useThreadGroups(argsFor(threads)));
     expect(hook.result.current.countSubtree(threads[0]).total).toBe(27);
     expect(hook.result.current.subtreeActivity(threads[0])).toBe(threads[26].latestAttentionAt);
+  });
+});
+
+describe("salem fork: owner nesting, bot cards, needs-you lane, empty sections", () => {
+  it("nests a parentless worker under its lifecycle owner only when asked", () => {
+    const owner = makeThread({ id: "coord", title: "Personal Bot", isPinned: true });
+    const worker = makeThread({ id: "run", lifecycleOwnerThreadId: "coord" });
+    const off = renderHook(() => useThreadGroups(argsFor([owner, worker])));
+    expect(off.result.current.roots.map((t) => t.id).sort()).toEqual(["coord", "run"]);
+    const on = renderHook(() => useThreadGroups({ ...argsFor([owner, worker]), nestByOwner: true }));
+    expect(on.result.current.roots.map((t) => t.id)).toEqual(["coord"]);
+    expect(on.result.current.shownChildren.get("coord")?.map((t) => t.id)).toEqual(["run"]);
+  });
+  it("gives each coordinator its own group and lifts blocked threads into a needs-you lane", () => {
+    const coord = makeThread({ id: "coord", title: "Personal Bot", isPinned: true });
+    const other = makeThread({ id: "other", title: "Pinned note", isPinned: true });
+    const asking = makeThread({ id: "ask", title: "Chat · Sherif", hasPendingInteraction: true });
+    const failed = makeThread({ id: "boom", indicator: "unread-error", isUnread: true });
+    const plain = makeThread({ id: "plain" });
+    const hook = renderHook(() => useThreadGroups({ ...argsFor([coord, other, asking, failed, plain]), botThreadIds: ["coord", "missing"] }));
+    const { botGroups, needsYouGroup, pinnedGroup, groups, shownTotal } = hook.result.current;
+    expect(botGroups.map((g) => g.id)).toEqual(["bot:coord"]);
+    expect(needsYouGroup?.roots.map((t) => t.id).sort()).toEqual(["ask", "boom"]);
+    expect(pinnedGroup?.roots.map((t) => t.id)).toEqual(["other"]);
+    expect(groups.flatMap((g) => g.roots.map((t) => t.id))).toEqual(["plain"]);
+    expect(shownTotal).toBe(5);
+  });
+  it("hides empty sections in section view when asked", () => {
+    const filed = makeThread({ id: "f", sectionId: "sec_desk" });
+    const base = { ...argsFor([filed]), grouping: "section" as const,
+      sections: [makeSection({ id: "sec_desk", name: "Chat desk" }), makeSection({ id: "sec_empty", name: "Bots" })] };
+    expect(renderHook(() => useThreadGroups(base)).result.current.groups.map((g) => g.label)).toEqual(["Chat desk", "Bots", "Unfiled"]);
+    expect(renderHook(() => useThreadGroups({ ...base, hideEmptySections: true })).result.current.groups.map((g) => g.label)).toEqual(["Chat desk"]);
   });
 });

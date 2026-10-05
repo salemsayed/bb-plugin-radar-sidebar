@@ -51,6 +51,10 @@ import {
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { RadarThreadRow } from "./RadarThreadRow";
+import { RadarBotCard } from "./RadarBotCard";
+import { botState } from "./bots";
+import { useBotRoster } from "./useBotRoster";
+import { useThreadPulses } from "./useThreadPulses";
 import { activityTime, isRunningThread, timeAgo } from "./time";
 import {
   GroupHeader,
@@ -146,6 +150,10 @@ function useSidebarSettings() {
   }, [loaded, defaultDensity, wrapTitles]);
   return {
     railNav: flag("railNav", false),
+    botsDeck: flag("botsDeck", true),
+    needsYouLane: flag("needsYouLane", true),
+    nestByOwner: flag("nestByOwner", true),
+    hideEmptySections: flag("hideEmptySections", false),
     hoverCard: flag("hoverCard", true),
     celebrate: flag("celebrate", true),
     motion: flag("motion", true),
@@ -543,6 +551,14 @@ export function RadarThreadList({
 
   const celebrateIds = useArrivals(threads);
 
+  const roster = useBotRoster(settings.botsDeck);
+  const botThreadIds = useMemo(() => roster.map((bot) => bot.current), [roster]);
+  const botRows = useMemo(
+    () => botThreadIds.flatMap((id) => { const row = threads.find((thread) => thread.id === id); return row ? [row] : []; }),
+    [botThreadIds, threads],
+  );
+  const pulses = useThreadPulses(botRows, settings.botsDeck);
+
   const {
     allRows,
     rowById,
@@ -551,6 +567,8 @@ export function RadarThreadList({
     shownChildren,
     countSubtree,
     pinnedGroup,
+    botGroups,
+    needsYouGroup: needsYouLane,
     groups,
     shownTotal,
     projectNameFor,
@@ -564,7 +582,11 @@ export function RadarThreadList({
     projects,
     sections,
     now,
+    nestByOwner: settings.nestByOwner,
+    hideEmptySections: settings.hideEmptySections,
+    botThreadIds,
   });
+  const needsYouGroup = settings.needsYouLane ? needsYouLane : null;
 
   const activeGroup = useMemo(
     () => (dragActiveId ? (groups.find((g) => g.id === dragActiveId) ?? null) : null),
@@ -583,10 +605,12 @@ export function RadarThreadList({
 
   const allGroupIds = useMemo(
     () => [
+      ...(needsYouGroup ? [needsYouGroup.id] : []),
+      ...botGroups.map((g) => g.id),
       ...(pinnedGroup ? [pinnedGroup.id] : []),
       ...groups.map((g) => g.id),
     ],
-    [pinnedGroup, groups],
+    [needsYouGroup, botGroups, pinnedGroup, groups],
   );
 
   const areAllGroupsCollapsed = useMemo(() => {
@@ -712,6 +736,13 @@ export function RadarThreadList({
         }
       }
     };
+    if (needsYouGroup && !collapsedGroupIds.has(needsYouGroup.id)) {
+      walk(needsYouGroup.roots);
+    }
+    for (const group of botGroups) {
+      // The card stands in for the coordinator's own row; only its workers are rows.
+      if (!collapsedGroupIds.has(group.id)) walk(shownChildren.get(group.roots[0]!.id) ?? [], 1);
+    }
     if (pinnedGroup && !collapsedGroupIds.has(pinnedGroup.id)) {
       walk(pinnedGroup.roots);
     }
@@ -721,7 +752,7 @@ export function RadarThreadList({
       }
     }
     return list;
-  }, [pinnedGroup, groups, collapsedGroupIds, collapseIds, shownChildren]);
+  }, [needsYouGroup, botGroups, pinnedGroup, groups, collapsedGroupIds, collapseIds, shownChildren]);
   const visibleThreadIds = useMemo(
     () => new Set(visibleFlattenedThreadIds),
     [visibleFlattenedThreadIds],
@@ -1416,6 +1447,7 @@ export function RadarThreadList({
           className={cn(
             "radar-group",
             group.projectId && "radar-group-project",
+            group.id === "needs-you" && "radar-group-needs-you",
             isCollapsed ? "radar-group-collapsed" : "radar-group-expanded",
           )}
         >
@@ -1859,6 +1891,43 @@ export function RadarThreadList({
                 {shownTotal} of {allRows.length} threads
               </p>
             ) : null}
+            {needsYouGroup ? renderGroup(needsYouGroup, false) : null}
+            {botGroups.map((group) => {
+              const root = group.roots[0]!;
+              const isCollapsed = collapsedGroupIds.has(group.id);
+              const bot = roster.find((entry) => entry.current === root.id);
+              const pulse = pulses.get(root.id) ?? null;
+              const kids = shownChildren.get(root.id) ?? [];
+              return (
+                <section
+                  key={group.id}
+                  aria-label={group.label}
+                  className={cn("radar-group radar-bot-group", isCollapsed ? "radar-group-collapsed" : "radar-group-expanded")}
+                >
+                  <RadarBotCard
+                    thread={root}
+                    name={bot?.name ?? root.displayTitle}
+                    state={botState(root, pulse, bot?.rollover ?? null)}
+                    pulse={pulse}
+                    group={group}
+                    isCollapsed={isCollapsed}
+                    hasChildren={kids.length > 0}
+                    timeText={timeAgo(activityTime(root, now), now)}
+                    onToggle={() => toggleGroup(group.id)}
+                    onNavigate={onNavigate}
+                  />
+                  {kids.length > 0 ? (
+                    <Fold collapsed={isCollapsed} role="list" label={`${group.label} threads`}>
+                      {() =>
+                        kids.map((child, index) =>
+                          renderSubtree(child, 1, renderRow, shownChildren, null, collapseIds, index === kids.length - 1, false, isCollapsed),
+                        )
+                      }
+                    </Fold>
+                  ) : null}
+                </section>
+              );
+            })}
             {pinnedGroup ? renderGroup(pinnedGroup, false) : null}
             {grouping === "section" ? (
               <DndContext

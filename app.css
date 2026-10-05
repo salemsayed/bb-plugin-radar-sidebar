@@ -3927,3 +3927,59 @@ a.radar-row-main:hover {
   .radar-double-navigation-compact .radar-double-heading-scope { min-height: 44px; }
   .radar-double-navigation-compact .radar-double-new-thread { min-width: 44px; height: 44px; flex: none; }
 }
+
+
+/* ---- Bots deck and needs-you lane (salem fork) ---------------------------- */
+.radar-bot-group { margin-top: 2px; }
+.radar-bot-group + .radar-bot-group { margin-top: 4px; }
+.radar-bot-card {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--sidebar, var(--background)) 92%, transparent);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.radar-bot-card:hover { background: color-mix(in srgb, var(--foreground) 5%, var(--sidebar, var(--background))); }
+.radar-bot-main { display: flex; flex: 1; min-width: 0; gap: 8px; align-items: center; text-decoration: none; color: inherit; }
+.radar-bot-avatar {
+  flex: none; width: 28px; height: 28px; border-radius: 8px;
+  display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary);
+}
+.radar-bot-body { display: flex; flex-direction: column; min-width: 0; gap: 1px; flex: 1; }
+.radar-bot-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-bot-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.radar-bot-chip {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.radar-bot-time { margin-left: auto; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.radar-bot-line { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-bot-line-decision { color: var(--foreground); font-weight: 500; }
+.radar-bot-line-prefix { color: var(--warning, #d97706); font-weight: 600; }
+.radar-bot-unread .radar-bot-name::after {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 999px;
+  background: var(--primary); vertical-align: middle;
+}
+.radar-bot-card.radar-bot-decision,
+.radar-bot-card.radar-bot-needs-you {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 55%, transparent);
+  background: color-mix(in srgb, var(--warning, #d97706) 9%, var(--sidebar, var(--background)));
+}
+.radar-bot-card.radar-bot-failed {
+  border-color: color-mix(in srgb, var(--destructive) 55%, transparent);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--sidebar, var(--background)));
+}
+.radar-bot-card.radar-bot-working { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.radar-bot-toggle {
+  display: flex; align-items: center; gap: 4px; padding: 0 4px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted-foreground); font-size: 11px; cursor: pointer;
+}
+.radar-bot-toggle:hover { background: color-mix(in srgb, var(--foreground) 8%, transparent); color: var(--foreground); }
+.radar-bot-count { font-variant-numeric: tabular-nums; }
+.radar-group-needs-you .radar-group-header { color: var(--warning, #d97706); }
+.radar-group-needs-you .radar-group-icon { color: var(--warning, #d97706); }
