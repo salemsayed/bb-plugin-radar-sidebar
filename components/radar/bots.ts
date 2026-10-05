@@ -24,6 +24,8 @@ export interface Pulse {
   subject: string;
   decision: string | null;
   quiet: boolean;
+  /** Context window used, 0..1, when the provider reports an exact figure. */
+  context?: number | null;
 }
 
 function cleanLine(line: string): string {
@@ -96,4 +98,33 @@ export function needsYou(thread: PluginSidebarThread): boolean {
 
 export function shortBotName(name: string): string {
   return name.replace(/\s+Bot$/i, "");
+}
+
+/** A face and a colour per bot, so the deck reads at a glance. Unknown keys get a stable hue from their name. */
+const KNOWN_STYLE: Record<string, { emoji: string; hue: number }> = {
+  personal: { emoji: "🧭", hue: 212 },
+  home: { emoji: "🏠", hue: 146 },
+  bricks: { emoji: "🧱", hue: 24 },
+  work: { emoji: "💼", hue: 268 },
+  erbareeq: { emoji: "⚡", hue: 44 },
+};
+export function botStyle(key: string, name: string): { emoji: string; hue: number } {
+  const known = KNOWN_STYLE[key];
+  if (known) return known;
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return { emoji: shortBotName(name).slice(0, 1).toUpperCase(), hue: Math.abs(hash) % 360 };
+}
+
+/** One line for the crew header: what, across all bots, is waiting on Salem or still moving. */
+export function crewDigest(states: readonly BotState[]): string {
+  const count = (state: BotState) => states.filter((s) => s === state).length;
+  const parts: string[] = [];
+  const decisions = count("decision") + count("needs-you");
+  if (count("failed")) parts.push(`${count("failed")} failed`);
+  if (decisions) parts.push(`${decisions} waiting on you`);
+  if (count("working")) parts.push(`${count("working")} working`);
+  if (count("rollover")) parts.push(`${count("rollover")} rolling over`);
+  if (count("unread")) parts.push(`${count("unread")} new`);
+  return parts.length ? parts.join(" · ") : "All quiet";
 }

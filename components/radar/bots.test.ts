@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeThread } from "./fixtures";
-import { botState, needsYou, parsePulse, shortBotName } from "./bots";
+import { botState, botStyle, crewDigest, needsYou, parsePulse, shortBotName } from "./bots";
 
 describe("parsePulse", () => {
   it("reads the subject, a decision line and the quiet marker", () => {
@@ -43,5 +43,18 @@ describe("botState", () => {
   it("shortens bot names for cards", () => {
     expect(shortBotName("Personal Bot")).toBe("Personal");
     expect(shortBotName("ERBareeq Bot")).toBe("ERBareeq");
+  });
+});
+
+describe("deck flavour", () => {
+  it("gives known bots a face and colour and unknown ones a stable fallback", () => {
+    expect(botStyle("home", "Home Bot")).toEqual({ emoji: "🏠", hue: 146 });
+    const a = botStyle("newbot", "New Bot"), b = botStyle("newbot", "New Bot");
+    expect(a).toEqual(b);
+    expect(a.emoji).toBe("N");
+  });
+  it("summarises the crew in one line", () => {
+    expect(crewDigest(["idle", "idle"])).toBe("All quiet");
+    expect(crewDigest(["decision", "needs-you", "working", "failed", "unread"])).toBe("1 failed · 2 waiting on you · 1 working · 1 new");
   });
 });

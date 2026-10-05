@@ -52,7 +52,7 @@ import {
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { RadarThreadRow } from "./RadarThreadRow";
 import { RadarBotCard } from "./RadarBotCard";
-import { botState } from "./bots";
+import { botState, botStyle, crewDigest } from "./bots";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
 import { activityTime, isRunningThread, timeAgo } from "./time";
@@ -1892,8 +1892,21 @@ export function RadarThreadList({
               </p>
             ) : null}
             {needsYouGroup ? renderGroup(needsYouGroup, false) : null}
+            {botGroups.length > 0 ? (
+              <div className="radar-crew-header" role="status">
+                <span className="radar-crew-label">Crew</span>
+                <span className="radar-crew-digest">
+                  {crewDigest(botGroups.map((group) => {
+                    const root = group.roots[0]!;
+                    const bot = roster.find((entry) => entry.current === root.id);
+                    return botState(root, pulses.get(root.id) ?? null, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed });
+                  }))}
+                </span>
+              </div>
+            ) : null}
             {botGroups.map((group) => {
               const root = group.roots[0]!;
+              const style = botStyle(roster.find((entry) => entry.current === root.id)?.key ?? root.id, root.displayTitle);
               const isCollapsed = collapsedGroupIds.has(group.id);
               const bot = roster.find((entry) => entry.current === root.id);
               const pulse = pulses.get(root.id) ?? null;
@@ -1907,6 +1920,9 @@ export function RadarThreadList({
                   <RadarBotCard
                     thread={root}
                     name={bot?.name ?? root.displayTitle}
+                    emoji={style.emoji}
+                    hue={style.hue}
+                    motion={settings.motion}
                     state={botState(root, pulse, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}
                     pulse={pulse}
                     group={group}
