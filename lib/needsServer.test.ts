@@ -43,7 +43,10 @@ async function setup() {
     throw new Error(`Unexpected ${method}`);
   });
   const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { plugins: { callRpc }, threads: { get, output: outputFn,
-    interactions: { list: async () => [] }, events: { list: async () => answered ? [{ seq: 5, createdAt: version - 1, data: { initiator: "user", input: [{ type: "text", text: "Approve it." }] } }] : [] } } } as never });
+    interactions: { list: async () => [] }, events: { list: async () => answered ? [
+      { seq: 6, createdAt: version, type: "item/completed", data: { item: { type: "agentMessage", text: output } } },
+      { seq: 5, createdAt: version - 1, type: "client/turn/requested", data: { initiator: "user", input: [{ type: "text", text: "Approve it." }] } },
+    ] : [] } } } as never });
   await plugin(bb); disposers.push(() => harness.lifecycle.dispose());
   const ask = (at = version || 1) => { version = at; return harness.behavior.callRpc("crew_asks", { threads: [{ threadId: "coord", version: at }] }) as Promise<{ judgements: { version: number; ask: string | null; itemId?: string | null; dismissed?: boolean }[] }>; };
   return { harness, items, callRpc, get, acknowledge: () => { version = NEEDS_NOW + 10; answered = true; output = "You approved it. Recorded your decision."; },

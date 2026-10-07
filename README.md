@@ -236,7 +236,10 @@ handle to give the thread list more room.
   Open asks, pending input and unread failures keep a hidden bot visible. Reading a failure lets the hide preference take effect; reading an ask does not resolve it. Hidden coordinators and their workers stay out of ordinary thread groups, including Pinned.
   Radar-captured decisions close automatically only when a newer human answer and
   coordinator acknowledgment clearly resolve that exact ask (Jev confidence at least
-  0.95). Manual reminders and automation asks are untouched. Uncertain or unavailable
+  0.8, judged over the conversation since the oldest open decision, including its
+  preceding question). Manual reminders and automation asks are untouched. History
+  beyond 1,200 matching events or 96 KiB of classifier input leaves asks open, logs
+  the limit and retries after five minutes. Uncertain or unavailable
   evidence leaves the card for manual action, marked "reply seen, not confirmed" when
   you did reply after it was saved; same-reply Undo and concurrent Snooze changes are
   respected. The check runs at coordinator idle, when the sidebar first sees a newer

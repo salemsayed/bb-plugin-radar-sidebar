@@ -101,12 +101,15 @@ retryable. Snoozed asks collapse into a short summary and expand on demand;
 due and overdue labels are explicit. Loading/unavailable decisions show status
 and Retry. A later unconfirmed human reply is marked “Reply seen, not confirmed”.
 Radar-captured decision keys (`threadId:24hex`) reconcile at coordinator idle
-and Crew reads. Jev must give at least 0.95 confidence that a newer human reply
+and Crew reads. Jev must give at least 0.8 confidence, judging the conversation
+since the oldest open decision and retaining each preceding question, that a newer human reply
 answered that exact request and the coordinator acknowledged or performed it.
 Automation inputs, unrelated and partial replies never suffice. Active work,
 queues and pending interactions defer checks. Manual reminders and automation
 asks never auto-close. The resolver rechecks the version and saved state before
 writing Done, preserves same-reply Undo and retries failures after five minutes.
+History beyond 12 pages of 100 matching events or 96 KiB of serialized classifier
+input leaves asks open, logs the limit and retries after five minutes.
 Live context refreshes every 15 seconds; coordinator identities survive rollover.
 This mode hides the duplicate in-list deck and coordinator rows. Turning either
 flag off shows all threads immediately and restores the deck if `botsDeck` is on.
