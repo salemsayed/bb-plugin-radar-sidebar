@@ -13,10 +13,15 @@ through BB's own flows (pins, reads, renames, archives, deletes).
 
 - **Thread list** (`experimental_threadList`, id `radar`): pinned threads,
   then Today / Yesterday / Previous 7 days / Previous 30 days / Older — or
-  group by project, or by **section** for drag-to-organise. The header holds
-  a text filter, an Active / Archived / All switch, grouping + expand-all +
-  density toggles, status chips, and the smart-views bar (New thread lives
-  in the nav above, so the list keeps no duplicate). Preferences persist per
+  group by project, or by **section** for drag-to-organise. The header is
+  one row: a text filter and a view-options button (`RadarViewOptions.tsx`)
+  whose panel holds status chips + smart views, Active / Archived / All,
+  grouping, density (hidden on touch, which is always compact) and
+  expand/collapse all. Active filters show as removable pills under the
+  search; a bot or crew scope is the first pill (crew keeps only that pill
+  and the +, since it has no search). The rail renders no heading: it hands
+  New thread to a + at the end of the header row via `railNewThread.ts`,
+  and its host styles hide BB's back/forward reserve row. Preferences persist per
   client in `localStorage` (`radar-sidebar:*:v1` keys).
 - **Navigation** (`experimental_sidebarNavigation`, id `radar`): a primary
   New thread button, inline destination rows, and a **More** popover (count
@@ -38,28 +43,69 @@ through BB's own flows (pins, reads, renames, archives, deletes).
 Enable **Navigation rail** (`railNav`, default `false`) under Settings →
 Installed plugins → Radar Sidebar. Both slots keep id `radar`. Off restores
 navigation above the list, including the touch toolbar, and ignores the
-remembered rail project filter. Turning it back on restores that choice.
+remembered bot filter. Turning it back on restores that choice.
 
 The rail sits beside the list on desktop (60px) and in the mobile drawer
 (56px). BB still supplies destination order, visibility and actions. Search
-stays on the rail; **Home** only clears the project filter and never creates
-or opens a thread. **New thread** remains BB's action in the list heading.
-Project tiles show visible, unarchived threads, newest project first; click a
-tile to filter, click it again or Home/the heading to clear. A project with
-only archives keeps its scope. A deleted project clears once the directory
-is ready; loading/error snapshots preserve the saved choice. When using
-another navigation provider with `railNav` enabled, the list has its own
-clear-project button.
+stays on the rail; **Home** only clears the bot filter and never creates
+or opens a thread. **New thread** remains BB's action, run from the + in
+the list's header row.
+Project tiles are removed in all modes; their saved filter is ignored.
+Enable **Bot rail (experimental)** (`botRail`, default `false`) in Radar's settings
+with `railNav` on to render faces below the plugin destinations. Coordinators
+and their workers tuck into the rail. Tapping a face opens its coordinator and
+shows only that bot's worker family, linked by parent or lifecycle owner across
+projects; project membership alone never includes a thread. From a worker, the
+face returns to the coordinator; from the coordinator, it shows all threads again,
+as do Home and the scope pill's X; the pill's name opens the coordinator. The hover
+card's View workers filters without opening anything.
+**Crew** (above the faces, scope key `__crew__`) replaces the list with the
+crew as a group chat. Each bot with something to say speaks in a bubble, most
+urgent first: failures (red, "!" badge, Check), asks (amber, "?" badge, Reply),
+work in flight (typing dots and the newest running worker), then unread replies.
+Asks include a coordinator reply that is waiting on Salem, which stays open
+after being read until the coordinator replies again: a `Decision needed:` line,
+or else Jev's verdict on that reply (probability at least 0.5, quoting the
+sentence it picked). Radar's server RPC `crew_asks` judges each settled
+coordinator reply once per `latestAttentionAt`, through Auto Effort's plugin-only
+`jev_decide` RPC (Auto Effort's key and model), and caches the verdict in plugin
+storage for every client; rollovers and new bots are judged on first sight.
+Without Auto Effort or its key, only `Decision needed:` counts, retried every
+5 minutes. Asks also include worker questions, unseen worker failures,
+and failed or stalled automations (watchers three intervals late) from
+saelmbot-automations' `automations_overview`. "+N more" counts the rest. Bots with
+nothing new sit below under **Resting** as a grid of tiles: sleeping face with
+its context ring, name, age of the last reply and jobs started today; each opens
+its coordinator and shows the last line as a tooltip. **Today** is a timeline of
+every job the crew started today: live workers (hidden run threads included)
+plus archived ones from `threads.list`. Consecutive jobs by one bot fold into a
+card on the timeline, with the bot's face as the node (pulsing while a job runs),
+a time range, done/failed/running tallies when it holds more than one job, and
+up to 3 jobs before "+N more"; 6 cards show before "Show the whole day". Tapping a bubble opens the thread it is about. Selection uses the stable bot key, following
+rollover; roster refreshes on thread creation/archive changes and every minute.
+State dots describe only the coordinator family, with state words in accessible
+labels and tooltips. Context rings and worker-count badges remain visible.
+Live context refreshes every 15 seconds; coordinator identities survive rollover.
+This mode hides the duplicate in-list deck and coordinator rows. Turning either
+flag off shows all threads immediately and restores the deck if `botsDeck` is on.
+An empty or unavailable roster leaves all threads accessible. New thread keeps
+BB's usual project picker. The list also has its own clear-bot button if another
+navigation provider is selected.
 
-Desktop hover/focus tooltips include shortcuts, accessories and project
-counts (including queued/background work). Arrow keys wrap between enabled
+Desktop bot hover/focus cards show the latest reply, decision requests, worker
+titles and states (waiting and failed first), context percentage and token counts,
+model and machine. Open the coordinator or a worker directly, or choose View
+workers to filter the list. The card stays open while the pointer crosses to it;
+Tab enters its actions and Escape returns focus to the bot. Other rail tooltips
+include shortcuts and accessories. Arrow keys wrap between enabled
 controls; Home/End focus the first/last. Right-click destinations for Move to
 More / Keep in sidebar, Move up/down, Open in split and Plugin details.
-Customize opens BB's editor beside the desktop rail; mobile uses BB's full
-editor. Narrow lists fold status chips at 284px while keeping accessible labels.
+The rail's More is always present: hidden destinations, then Show/Hide labels
+(when allowed) and Customize sidebar. Customize opens BB's editor beside the
+desktop rail (More reads as open meanwhile); mobile uses BB's full editor.
 
 **Labelled rail** (`wideRail`, default `false`) requires `railNav`. It adds a
-Show labels / Hide labels control on desktop. The 168px rail expands the
+Show labels / Hide labels entry to the rail's More on desktop. The 168px rail expands the
 sidebar by its extra width so the thread list keeps its room. It probes the
 host sidebar/footer/width structure and hides the toggle when unavailable.
 The gutter, footer stacking and Customize layout use host `data-sidebar`
@@ -94,7 +140,7 @@ are desktop-only; safe-area padding and reduced motion are respected.
   or Escape to cancel.
   Threads cannot be moved between *projects*: BB's update API has no
   `projectId` field, so project grouping is view-only.
-- **Smart views** (`RadarSmartViews.tsx`): the bar under the filters offers a
+- **Smart views** (`RadarSmartViews.tsx`): the view-options panel offers a
   Pinned preset plus any saved view. Configure query + status chip +
   lifecycle, hit **Save view**, name it — stored in
   `radar-sidebar:smart-views:v1`. Click a pill to apply (click again to
@@ -271,8 +317,10 @@ rows paint at their final height.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `railNav` | `false` | Navigation rail beside the list, with project filters; off keeps navigation above the list. |
+| `railNav` | `false` | Navigation rail beside the list; off keeps navigation above the list. |
+| `botRail` | `false` | Experimental bot faces, family state dots and bot scoping; requires `railNav`. |
 | `wideRail` | `false` | Experimental labelled desktop rail; requires `railNav` and a recognised host shell. |
+| `hideWorking` | `false` | Families with any live work (turn running, follow-up queued, background agents, commands, workflows, goals or plan mode — anything with a spinner) and nothing waiting on the user leave their group for a **Working** drawer pinned under the list, folded by default (open state: `radar-sidebar:working-open:v1`). Needs-you, pinned, bot coordinators and the open thread's family stay put; search or a status filter shows them in place. Hovering the drawer's header (mouse only) opens the Working peek (`RadarWorkingPeek.tsx`): every live thread in the drawer with a server-side digest from its latest timeline segment (`working_digest` RPC, `lib/workingDigest.ts`, cached 4s, polled every 6s while open) — latest words, newest step, phase, steps, todos, goal, context, and flags for quiet 5m+, 2+ failing commands, 80%+ context, a model fallback, background work or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
@@ -286,7 +334,7 @@ rows paint at their final height.
 
 ## Rail storage keys
 
-- `radar-sidebar:rail-scope:v1`: selected project id; absence means all projects.
+- `radar-sidebar:rail-bot-scope:v1`: selected bot key; absence means all threads. The retired `rail-scope:v1` project filter is ignored.
 - `radar-sidebar:rail-wide:v1`: `1` for expanded labels, `0` for icons.
 
 These are client preferences inside the same plugin, alongside the existing

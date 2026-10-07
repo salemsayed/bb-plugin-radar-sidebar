@@ -1,6 +1,6 @@
 // Behavior regressions found during the deep plugin review.
 import { createElement } from "react";
-import { act, cleanup, fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
@@ -17,6 +17,14 @@ const probes = vi.hoisted(() => ({
   onDragStart: null as ((event: unknown) => void) | null,
   onDragEnd: null as ((event: unknown) => void) | null,
 }));
+/** List settings sit in the panel behind the header's View options button. */
+function viewOptions() {
+  if (!screen.queryByRole("dialog", { name: "View options" })) {
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  }
+  return within(screen.getByRole("dialog", { name: "View options" }));
+}
+
 vi.mock("@get-bb/plugin-sdk/app", async importOriginal => {
   const actual = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
   return {
@@ -128,14 +136,16 @@ describe("sidebar behavior regressions", () => {
     const slot = mount([makeThread({ id: "parent" }), makeThread({ id: "child", parentThreadId: "parent" })]);
     fireEvent.click(slot.container.querySelector('[data-sidebar-thread-id="child"]')!, { ctrlKey: true });
     expect(screen.getByText("1 selected")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: fold === "family" ? "Collapse replies" : "Collapse all folders" }));
+    fireEvent.click(fold === "family"
+      ? screen.getByRole("button", { name: "Collapse replies" })
+      : viewOptions().getByRole("button", { name: "Collapse all folders" }));
     expect(screen.queryByText("1 selected")).toBeNull();
   });
 
   it("does not archive the last keyboard target after its group is folded", () => {
     const slot = mount([makeThread({ id: "hidden-target" })]);
     fireEvent.keyDown(document.body, { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Collapse all folders" }));
     fireEvent.keyDown(document.body, { key: "e" });
     expect(slot.inspection.sidebarActionCalls.filter(call => call.method === "archive")).toEqual([]);
   });

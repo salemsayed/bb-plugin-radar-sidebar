@@ -8,6 +8,10 @@ describe("railReserve", () => {
     expect(railReserve(900, 700, 40, 58, 280)).toBe(900 - 280 - 20);
   });
 
+  it("reserves the crew before the host footer on short desktop windows", () => {
+    expect(railReserve(633, 480, 112, 64, 250, 300)).toBe(633 - 157 - 20);
+  });
+
   it("keeps the full list reserve when the shell cannot be measured", () => {
     expect(railReserve(0, 700, 40, 58, 280)).toBe(798);
   });

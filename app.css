@@ -112,49 +112,6 @@
   color: var(--primary-foreground, #fff);
   box-shadow: 0 0 0 2px var(--sidebar, var(--background));
 }
-.radar-double-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 48px;
-  padding: 6px 8px 6px 12px;
-  color: var(--foreground);
-}
-.radar-double-heading-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.radar-double-new-thread {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px 0 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
-  border-radius: 9999px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
-}
-.radar-double-new-thread:hover:not(:disabled) {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-foreground, #fff);
-}
-.radar-double-new-thread svg { width: 14px; height: 14px; }
-.radar-double-new-thread [data-icon-root] { width: 14px; height: 14px; }
-.radar-double-new-thread:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.radar-double-new-thread:disabled { opacity: 0.5; cursor: default; }
 .radar-double-shortcut {
   position: absolute;
   inset: auto 0 0 auto;
@@ -217,8 +174,7 @@
   .radar-rail-tip { animation: none; }
   .radar-double-rail .radar-nav-icon-button,
   .radar-double-rail .radar-nav-icon-button svg,
-  .radar-double-rail .radar-nav-icon-button::before,
-  .radar-double-new-thread { transition: none; }
+  .radar-double-rail .radar-nav-icon-button::before { transition: none; }
   .radar-double-rail .radar-nav-icon-button:hover:not(:disabled) svg,
   .radar-double-rail .radar-nav-icon-button:active:not(:disabled) { transform: none; }
 }
@@ -233,25 +189,6 @@
     height: 32px;
   }
 
-}
-
-/* Narrow list (the rail beside a default-width sidebar, or the drawer on
-   a 360px phone): status chips fold to their glyph and count so the row stays on
-   one line. "All" has no glyph and keeps its word; the chips keep their
-   aria-label and title. Keyed off the list's own width, so a wide mobile
-   drawer still shows the words. */
-@container radar-thread-list (max-width: 284px) {
-  .radar-chip-iconic .radar-chip-label {
-    display: none;
-  }
-  .radar-chip-iconic {
-    padding: 0 7px;
-  }
-  .radar-chip-iconic .radar-chip-indicator,
-  .radar-chip-iconic .radar-dot,
-  .radar-chip-iconic .radar-unread {
-    margin-inline: 1px;
-  }
 }
 
 .radar-list {
@@ -282,36 +219,8 @@
   }
 }
 
-/* ---- Sticky header: New button, filter, lifecycle + grouping controls. ---- */
+/* ---- Sticky header: search, the view-options button, active filters. ---- */
 
-/* A scoped list remains usable when another navigation provider is chosen.
-   The rail's heading is the clear control while it is present. */
-.radar-list-scope {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--muted);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.radar-list-scope span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-.radar-list-scope [data-icon-root] { width: 14px; height: 14px; flex: none; }
-.radar-list-scope:hover { background: var(--accent, var(--muted)); }
-.radar-list-scope:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 .radar-list-header {
   position: sticky;
@@ -325,8 +234,215 @@
   border-bottom: 1px solid var(--border);
 }
 
+.radar-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .radar-search {
   position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Every list setting lives behind one button; the panel hangs from the
+   sticky header (its containing block) and spans the list's width. */
+.radar-view-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.radar-view-button:hover,
+.radar-view-button-open {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.radar-view-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-view-button [data-icon-root] { width: 15px; height: 15px; }
+
+.radar-view-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(480px, 70vh);
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.16),
+    0 2px 6px rgb(0 0 0 / 0.08);
+}
+.radar-view-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.radar-view-label {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.radar-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* Inside the panel the chips wrap instead of scrolling. */
+.radar-view-panel .radar-status-chips {
+  flex-wrap: wrap;
+  width: auto;
+  gap: 6px;
+  overflow: visible;
+  padding: 0;
+}
+.radar-view-panel .radar-smart-views-bar { padding: 0; }
+.radar-view-panel .radar-smart-views-scroll { flex-wrap: wrap; overflow: visible; }
+.radar-view-panel .radar-segmented { display: flex; width: 100%; }
+.radar-view-panel .radar-segmented-button { flex: 1; min-height: 28px; }
+.radar-view-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.radar-view-action:hover { background: var(--muted); }
+.radar-view-action:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-view-action [data-icon-root] { width: 14px; height: 14px; }
+
+/* New thread, handed over by the rail when its mobile heading is hidden. */
+.radar-new-thread-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  margin-left: auto; /* the right edge, even beside the crew pill alone */
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  cursor: pointer;
+}
+.radar-new-thread-button:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+.radar-new-thread-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-new-thread-button [data-icon-root] { width: 16px; height: 16px; }
+
+/* Only while something narrows the list: one removable pill per filter. */
+.radar-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.radar-active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px 0 9px;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.radar-active-filter:hover { background: color-mix(in srgb, var(--primary) 20%, transparent); }
+.radar-active-filter:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-active-filter [data-icon-root] { width: 11px; height: 11px; color: var(--muted-foreground); }
+
+/* A bot scope: the name opens its coordinator, the X clears the scope. */
+.radar-scope-pill {
+  display: inline-flex;
+  align-items: stretch;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  overflow: hidden;
+}
+.radar-scope-open,
+.radar-scope-clear {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.radar-scope-open {
+  gap: 4px;
+  padding: 0 7px 0 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.radar-scope-open[aria-current="page"] { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.radar-scope-clear {
+  justify-content: center;
+  width: 22px;
+  border-left: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--muted-foreground);
+}
+.radar-scope-open:hover,
+.radar-scope-clear:hover { background: color-mix(in srgb, var(--primary) 22%, transparent); }
+.radar-scope-open:focus-visible,
+.radar-scope-clear:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.radar-scope-clear [data-icon-root] { width: 11px; height: 11px; }
+
+@media (pointer: coarse) {
+  /* Doubled up to outrank the base rules below. */
+  .radar-search .radar-search-input { height: 36px; }
+  .radar-search .radar-search-shortcut { display: none; }
+  .radar-view-button,
+  .radar-new-thread-button { width: 36px; height: 36px; }
+  .radar-view-panel .radar-segmented-button,
+  .radar-view-action { min-height: 36px; }
+  .radar-view-panel .radar-chip,
+  .radar-view-panel .radar-smart-view-pill,
+  .radar-view-panel .radar-smart-view-add {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  .radar-view-panel .radar-smart-view-del { width: 28px; height: 28px; opacity: 0.7; }
+  .radar-active-filter { height: 32px; padding: 0 10px 0 12px; font-size: 13px; }
+  .radar-scope-pill { height: 32px; }
+  .radar-scope-open { padding: 0 10px 0 12px; font-size: 13px; }
+  .radar-scope-clear { width: 34px; }
 }
 
 .radar-search-icon {
@@ -425,15 +541,6 @@
   color: var(--destructive);
   font-size: 12px;
   overflow-wrap: anywhere;
-}
-
-.radar-filters {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  row-gap: 6px;
 }
 
 .radar-status-chips {
@@ -1180,6 +1287,11 @@
   );
   color: var(--foreground);
 }
+
+/* Touch lists spend less height between groups; the header stays a
+   full-width tap target. */
+.radar-list-compact .radar-group-header { padding-block: 3px; }
+.radar-list-compact .radar-group-expanded + .radar-group { margin-top: 4px; }
 
 .radar-group-expanded > .radar-group-header {
   box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 40%, transparent);
@@ -1975,12 +2087,15 @@ a.radar-row-main:hover {
 
 .radar-spinner {
   display: inline-flex;
+  /* Animate the HTML box, not the SVG: its pixels can be reused between
+     frames. Tiny status icons need 12 positions, not the monitor's 120Hz. */
+  animation: radar-spin 1s steps(12, end) infinite;
+  will-change: transform;
 }
 
 .radar-spinner [data-icon-root] {
   width: 14px;
   height: 14px;
-  animation: radar-spin 1s linear infinite;
 }
 
 @keyframes radar-spin {
@@ -1990,8 +2105,9 @@ a.radar-row-main:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .radar-spinner [data-icon-root] {
+  .radar-spinner {
     animation: none;
+    will-change: auto;
   }
 }
 
@@ -2543,7 +2659,13 @@ a.radar-row-main:hover {
 
 .radar-tone-running {
   color: var(--primary);
-  animation: radar-pulse 1.6s ease-in-out infinite;
+  animation: radar-pulse 1.6s steps(12, end) infinite;
+}
+
+/* A running spinner already communicates activity. Pulsing its wrapper too
+   would replace the rotation animation and create a second paint loop. */
+.radar-spinner.radar-tone-running {
+  animation: radar-spin 1s steps(12, end) infinite;
 }
 
 /* Success tones mix toward the foreground so they stay readable in light
@@ -2718,11 +2840,11 @@ a.radar-row-main:hover {
 }
 
 .radar-dot-pulse {
-  animation: radar-pulse 1.6s ease-in-out infinite;
+  animation: radar-pulse 1.6s steps(12, end) infinite;
 }
 
 .radar-icon-pulse {
-  animation: radar-pulse 1.6s ease-in-out infinite;
+  animation: radar-pulse 1.6s steps(12, end) infinite;
 }
 
 @keyframes radar-pulse {
@@ -2738,8 +2860,10 @@ a.radar-row-main:hover {
 @media (prefers-reduced-motion: reduce) {
   .radar-dot-pulse,
   .radar-icon-pulse,
-  .radar-tone-running {
+  .radar-tone-running,
+  .radar-spinner.radar-tone-running {
     animation: none;
+    will-change: auto;
   }
 }
 
@@ -3259,6 +3383,20 @@ a.radar-row-main:hover {
   min-height: 32px;
 }
 
+.radar-nav-more-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.radar-nav-more-actions-split {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.radar-nav-more-actions .radar-nav-row { min-height: 32px; }
+.radar-nav-more-actions .radar-nav-icon { display: inline-grid; place-items: center; }
+.radar-nav-more-actions .radar-nav-icon :is(svg, [data-icon-root]) { width: 15px; height: 15px; }
+
 .radar-nav-accessory {
   display: inline-flex;
   align-items: center;
@@ -3710,7 +3848,7 @@ a.radar-row-main:hover {
   animation: radar-rail-label-in 140ms ease-out 140ms both;
 }
 .radar-double-navigation-wide .radar-double-rail .radar-nav-row-active,
-.radar-double-navigation-wide .radar-double-rail .radar-rail-project-active {
+.radar-double-navigation-wide .radar-double-rail .radar-rail-bot-active {
   animation: radar-rail-label-in 200ms linear both;
 }
 .radar-double-navigation-wide .radar-double-rail {
@@ -3764,132 +3902,33 @@ a.radar-row-main:hover {
   .radar-double-navigation-wide *::after { animation: none !important; }
 }
 
-/* ---- Project scope tiles on the rail. ---- */
-
-.radar-rail-projects {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding-top: 2px;
+/* Bot rail: faces and state dots stay readable in both rail widths. */
+.radar-rail-bots { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.radar-rail-divider { display: block; width: 24px; height: 1px; margin: 4px 0 6px; background: var(--border); }
+/* Keep the ring at avatar size and rotation despite generic rail icon rules. */
+.radar-rail-bot { --bot-color: oklch(0.65 0.14 var(--bot-hue)); }
+.radar-double-rail .radar-rail-bot .radar-bot-avatar .radar-bot-ring,
+.radar-double-rail .radar-rail-bot:hover:not(:disabled) .radar-bot-avatar .radar-bot-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.radar-rail-worker-count { position: absolute; bottom: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px; display: grid; place-items: center; border-radius: 7px; font-size: 9px; font-weight: 700; line-height: 1; background: var(--sidebar, var(--background)); box-shadow: 0 0 0 1px var(--border); }
+.radar-double-navigation-wide .radar-rail-worker-count { right: 7px; bottom: 3px; }
+@media (min-width: 768px) and (max-height: 760px) {
+  .radar-double-navigation-bots .radar-double-rail { gap: 8px; padding-bottom: 8px; }
+  .radar-double-navigation-bots .radar-double-rail-items,
+  .radar-double-navigation-bots .radar-double-rail-footer,
+  .radar-double-navigation-bots .radar-rail-bots { gap: 4px; }
+  .radar-double-navigation-bots .radar-double-rail .radar-nav-icon-button { height: 36px; }
+  .radar-double-navigation-bots .radar-bot-avatar { width: 34px; height: 34px; }
+  .radar-double-navigation-bots .radar-double-rail-footer .radar-nav-icon-button { height: 32px; }
+  .radar-double-navigation-bots .radar-double-rail-footer .radar-rail-divider { margin-block: 0; }
 }
-.radar-rail-divider {
-  display: block;
-  width: 24px;
-  height: 1px;
-  margin: 4px 0 6px;
-  background: var(--border);
-}
-.radar-rail-monogram {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  color: oklch(0.42 0.11 var(--radar-project-hue));
-  background: oklch(0.93 0.045 var(--radar-project-hue));
-  transition:
-    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    border-radius 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 120ms ease,
-    color 120ms ease;
-}
-@media (prefers-color-scheme: dark) {
-  .radar-rail-monogram {
-    color: oklch(0.88 0.08 var(--radar-project-hue));
-    background: oklch(0.32 0.06 var(--radar-project-hue));
-  }
-}
-.dark .radar-rail-monogram,
-[data-theme="dark"] .radar-rail-monogram {
-  color: oklch(0.88 0.08 var(--radar-project-hue));
-  background: oklch(0.32 0.06 var(--radar-project-hue));
-}
-.radar-double-rail .radar-rail-project { color: var(--muted-foreground); }
-.radar-double-rail .radar-rail-project:hover:not(:disabled) .radar-rail-monogram {
-  border-radius: 7px;
-  transform: scale(1.08);
-}
-/* Scoped: the tile fills with its hue and the edge pill lights up. */
-.radar-double-rail .radar-rail-project-active { background: transparent; }
-.radar-double-rail .radar-rail-project-active::before {
-  height: 22px;
-  background: oklch(0.55 0.16 var(--radar-project-hue));
-}
-.radar-double-rail .radar-rail-project-active .radar-rail-monogram,
-.radar-double-rail .radar-rail-project-active:hover:not(:disabled) .radar-rail-monogram {
-  color: #fff;
-  background: oklch(0.55 0.16 var(--radar-project-hue));
-  border-radius: 9px;
-  transform: none;
-}
-.radar-rail-project-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  background: var(--warning, #b98533);
-  box-shadow: 0 0 0 2px var(--sidebar, var(--background));
-}
-
-/* Wide mode: tiles become rows with the monogram as the leading glyph. */
-.radar-double-navigation-wide .radar-rail-projects { align-items: stretch; }
+.radar-double-rail .radar-rail-bot-active { background: oklch(0.7 0.14 var(--bot-hue) / 0.18); }
+.radar-double-rail .radar-rail-bot-active::before { height: 22px; background: oklch(0.65 0.14 var(--bot-hue)); }
+.radar-rail-bot-dot { position: absolute; top: 6px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--sidebar, var(--background)); }
+.radar-double-navigation-wide .radar-rail-bots { align-items: stretch; }
 .radar-double-navigation-wide .radar-rail-divider { width: auto; margin: 4px 10px 6px; }
-.radar-double-navigation-wide .radar-double-rail .radar-rail-project { padding-left: 9px; }
-.radar-double-navigation-wide .radar-double-rail .radar-rail-monogram { width: 28px; height: 28px; }
-.radar-double-navigation-wide .radar-double-rail .radar-rail-project-active {
-  background: oklch(0.55 0.16 var(--radar-project-hue) / 0.12);
-}
-.radar-double-navigation-wide .radar-double-rail .radar-rail-project-active .radar-rail-label {
-  color: var(--foreground);
-  font-weight: 600;
-}
-.radar-double-navigation-wide .radar-rail-project-dot { top: 50%; right: 10px; transform: translateY(-50%); }
+.radar-double-navigation-wide .radar-rail-bot-dot { top: 5px; right: 8px; }
 
-/* Heading: when scoped, the title becomes the project with a clear affordance. */
-.radar-double-heading-scope {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 2px 6px 2px 2px;
-  margin-left: -2px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--foreground);
-  cursor: pointer;
-}
-.radar-double-heading-scope .radar-rail-monogram { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
-.radar-double-heading-scope .radar-double-heading-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.radar-double-heading-clear {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: var(--muted-foreground);
-  opacity: 1;
-}
-.radar-double-heading-scope:hover { background: var(--muted); }
-.radar-double-heading-scope:focus-visible { outline: 2px solid var(--ring); }
 
-@media (prefers-reduced-motion: reduce) {
-  .radar-rail-monogram { transition: none; }
-  .radar-double-rail .radar-rail-project:hover:not(:disabled) .radar-rail-monogram { transform: none; }
-}
-/* Scoped heading needs the room: New thread drops to its icon. */
-.radar-double-heading:has(.radar-double-heading-scope) .radar-double-new-thread { padding: 0; width: 28px; }
-.radar-double-heading:has(.radar-double-heading-scope) .radar-double-new-thread > span { display: none; }
 
 /* Both stacks retain their full control width. A visible scroll thumb in
    the rail's edge tracks the viewport without fading the final item or
@@ -3923,9 +3962,6 @@ a.radar-row-main:hover {
     width: 44px;
     height: 44px;
   }
-  .radar-double-navigation-compact .radar-double-heading { min-height: 44px; padding-top: 4px; }
-  .radar-double-navigation-compact .radar-double-heading-scope { min-height: 44px; }
-  .radar-double-navigation-compact .radar-double-new-thread { min-width: 44px; height: 44px; flex: none; }
 }
 
 
@@ -4012,6 +4048,20 @@ a.radar-row-main:hover {
 .radar-group-needs-you .radar-group-header { color: var(--warning, #d97706); }
 .radar-group-needs-you .radar-group-icon { color: var(--warning, #d97706); }
 
+/* Working drawer: pinned under the list, folded by default, and scrolling on
+   its own when open so a busy afternoon never pushes the list off screen. */
+.radar-working-drawer {
+  flex: none;
+  max-height: 40%;
+  margin: 0;
+  padding: 4px 4px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 /* Narrow sidebars: keep the faces and rings, drop the words. */
 .radar-bot-group, .radar-crew-header { container-type: inline-size; }
 @container (max-width: 170px) {
@@ -4019,4 +4069,352 @@ a.radar-row-main:hover {
   .radar-bot-card { padding: 6px; justify-content: center; }
   .radar-bot-main { justify-content: center; gap: 0; }
   .radar-crew-digest { display: none; }
+}
+
+.radar-bot-ring-unknown .radar-bot-ring-track { stroke-dasharray: 3 3; }
+
+/* Bot details replace the terse rail tooltip without adding list rows. */
+.radar-bot-hover {
+  --bot-color: oklch(0.65 0.14 var(--bot-hue));
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: min(520px, calc(100vh - 16px));
+  overflow-y: auto;
+  padding: 14px;
+  gap: 12px;
+  pointer-events: auto;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+.radar-bot-hover::before { display: none; }
+.radar-bot-hover-head { display: flex; align-items: center; gap: 9px; }
+.radar-bot-hover-head > strong { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.radar-bot-hover-state { font-size: 10px; font-weight: 650; white-space: nowrap; }
+.radar-bot-hover-section { display: flex; flex-direction: column; gap: 6px; }
+.radar-bot-hover-section + .radar-bot-hover-section { padding-top: 10px; border-top: 1px solid var(--border); }
+.radar-bot-hover-section-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--muted-foreground); }
+.radar-bot-hover-section-head > :first-child { font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; }
+.radar-bot-hover p { margin: 0; }
+.radar-bot-hover-reply { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.radar-bot-hover-muted { color: var(--muted-foreground); font-size: 11px; }
+.radar-bot-hover-decision { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: color-mix(in srgb, var(--warning, #d97706) 10%, transparent); }
+.radar-bot-hover-decision > strong { color: var(--warning, #d97706); font-size: 11px; }
+.radar-bot-hover-workers { display: flex; flex-direction: column; gap: 3px; }
+.radar-bot-hover-worker { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 6px; margin-inline: -6px; border-radius: 6px; text-decoration: none; color: var(--foreground); }
+.radar-bot-hover-worker > :first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.radar-bot-hover-worker > :last-child { flex: none; font-size: 10px; }
+.radar-bot-hover-worker:hover { background: var(--muted); }
+.radar-bot-hover-context { height: 5px; overflow: hidden; border-radius: 3px; background: var(--muted); }
+.radar-bot-hover-context > span { display: block; height: 100%; border-radius: inherit; background: var(--bot-color); }
+.radar-bot-hover-context-hot > span { background: var(--destructive); }
+.radar-bot-hover-context-warm > span { background: var(--warning, #d97706); }
+.radar-bot-hover-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted-foreground); font-size: 10px; }
+.radar-bot-hover-meta > span { min-width: 0; overflow-wrap: anywhere; }
+.radar-bot-hover-actions { display: flex; gap: 8px; }
+.radar-bot-hover-actions > * { flex: 1; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; font-size: 11px; color: var(--foreground); background: transparent; cursor: pointer; }
+.radar-bot-hover-actions > a { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.radar-bot-hover-actions > *:hover { background: var(--muted); }
+.radar-bot-hover a:focus-visible, .radar-bot-hover button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* Crew overview: the crew as a group chat. Bots with something to say speak in
+   bubbles, most urgent first; the rest rest on one line. */
+.radar-crew-view { display: flex; flex-direction: column; gap: 12px; padding: 8px 4px 16px; }
+.radar-crew-feed { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.radar-crew-say {
+  --bot-color: hsl(var(--bot-hue) 70% 50%);
+  --tone: var(--bot-color);
+  animation: radar-crew-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.radar-crew-say-ask { --tone: var(--warning, #b98533); }
+.radar-crew-say-failed { --tone: var(--destructive, #d43d3d); }
+.radar-crew-say-running { --tone: var(--primary); }
+@keyframes radar-crew-in { from { opacity: 0; transform: translateY(4px); } }
+.radar-crew-say-button {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 0;
+  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.radar-crew-say-button:focus-visible { outline: none; }
+.radar-crew-say-button:focus-visible .radar-crew-bubble { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* The speaker: face, context ring and a badge that says why it is talking. */
+.radar-crew-speaker { position: relative; flex: none; margin-top: 2px; }
+.radar-crew-speaker .radar-bot-avatar { width: 34px; height: 34px; }
+.radar-crew-speaker .radar-bot-face { font-size: 16px; }
+.radar-crew-say-ask .radar-crew-speaker,
+.radar-crew-say-failed .radar-crew-speaker { animation: radar-crew-nudge 5s ease-in-out 1s infinite; transform-origin: 50% 90%; }
+@keyframes radar-crew-nudge {
+  0%, 84%, 100% { transform: rotate(0); }
+  87% { transform: rotate(-12deg); }
+  90% { transform: rotate(10deg); }
+  93% { transform: rotate(-6deg); }
+  96% { transform: rotate(3deg); }
+}
+.radar-crew-badge {
+  position: absolute; right: -3px; bottom: -2px; z-index: 2;
+  display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
+  font-size: 10px; font-weight: 800; line-height: 1; color: #fff;
+  background: var(--tone); box-shadow: 0 0 0 2px var(--sidebar, var(--background));
+}
+.radar-crew-badge-busy {
+  background: var(--sidebar, var(--background));
+  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary);
+  width: 13px; height: 13px; box-shadow: none;
+  animation: radar-crew-spin 0.9s linear infinite;
+}
+@keyframes radar-crew-spin { to { transform: rotate(360deg); } }
+
+/* The bubble: squared toward the speaker, tinted by why it is talking. */
+.radar-crew-bubble {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+  padding: 7px 10px 8px; border-radius: 4px 14px 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--border));
+  background: color-mix(in srgb, var(--tone) 7%, var(--card, var(--background)));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent);
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+.radar-crew-say-ask .radar-crew-bubble,
+.radar-crew-say-failed .radar-crew-bubble {
+  border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
+  background: color-mix(in srgb, var(--tone) 12%, var(--card, var(--background)));
+}
+.radar-crew-say-button:hover .radar-crew-bubble { border-color: color-mix(in srgb, var(--tone) 60%, var(--border)); }
+.radar-crew-say-button:active .radar-crew-bubble { transform: scale(0.985); }
+.radar-crew-bubble-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.radar-crew-sender {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 78%, var(--foreground));
+}
+.radar-crew-bubble-head .radar-unread { flex: none; }
+.radar-crew-when { margin-left: auto; flex: none; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.radar-crew-text {
+  font-size: 13px; line-height: 1.35; color: var(--foreground); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.radar-crew-say-ask .radar-crew-text, .radar-crew-say-failed .radar-crew-text { font-weight: 550; }
+.radar-crew-say-failed .radar-crew-text { color: color-mix(in srgb, var(--tone) 75%, var(--foreground)); }
+.radar-crew-say-new .radar-crew-text { -webkit-line-clamp: 3; }
+.radar-crew-say-running .radar-crew-text { -webkit-line-clamp: 2; color: color-mix(in srgb, var(--foreground) 85%, transparent); }
+.radar-crew-bubble-foot { display: flex; align-items: center; gap: 8px; margin-top: 1px; }
+.radar-crew-more { font-size: 11px; color: var(--muted-foreground); }
+.radar-crew-action {
+  margin-left: auto; padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 650; color: #fff; background: var(--tone);
+}
+
+/* Typing dots: this bot is working right now. */
+.radar-crew-typing { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 2px; }
+.radar-crew-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); animation: radar-crew-type 1.2s ease-in-out infinite; }
+.radar-crew-typing i:nth-child(2) { animation-delay: 0.15s; }
+.radar-crew-typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes radar-crew-type { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* Section labels below the bubbles. */
+.radar-crew-label {
+  display: flex; align-items: center; gap: 6px; margin: 0 6px 6px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted-foreground);
+}
+.radar-crew-label > span[aria-hidden] { font-size: 12px; letter-spacing: 0; filter: saturate(0.8); }
+.radar-crew-label-count {
+  margin-left: auto; padding: 1px 7px; border-radius: 999px; letter-spacing: 0; text-transform: none; font-weight: 600;
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+}
+
+/* Resting: a bench of tiles, each a sleeping face with how recently it spoke and how busy its day was. */
+/* Rows always fill: --cols balances the count (4 → 2×2), and a short last row stretches. */
+.radar-crew-tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.radar-crew-tiles > .radar-crew-tile { flex: 1 1 max(84px, calc((100% - (var(--cols, 3) - 1) * 6px) / var(--cols, 3))); }
+.radar-crew-tile {
+  --bot-color: hsl(var(--bot-hue) 70% 50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
+  padding: 9px 6px 7px; border-radius: 14px; font: inherit; color: inherit; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--bot-color) 20%, var(--border));
+  background: linear-gradient(170deg, hsl(var(--bot-hue) 70% 50% / 0.13), transparent 75%), var(--card, var(--background));
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.radar-crew-tile:hover { border-color: color-mix(in srgb, var(--bot-color) 45%, var(--border)); box-shadow: 0 2px 8px color-mix(in srgb, var(--bot-color) 14%, transparent); }
+.radar-crew-tile:active { transform: scale(0.96); }
+.radar-crew-tile:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-crew-tile-face { position: relative; margin-bottom: 2px; }
+.radar-crew-tile-face .radar-bot-avatar { width: 34px; height: 34px; }
+.radar-crew-tile-face .radar-bot-face { font-size: 16px; filter: saturate(0.75); }
+/* A small "z" drifts off each sleeping face. */
+.radar-crew-tile-face::after {
+  content: "z"; position: absolute; top: -6px; right: -7px; z-index: 2;
+  font-size: 11px; font-weight: 800; font-style: italic; color: color-mix(in srgb, var(--bot-color) 70%, var(--muted-foreground));
+  animation: radar-crew-snore 3.6s ease-in-out infinite;
+}
+.radar-crew-tile:nth-child(2n) .radar-crew-tile-face::after { animation-delay: 1.2s; }
+.radar-crew-tile:nth-child(3n) .radar-crew-tile-face::after { animation-delay: 2.1s; }
+@keyframes radar-crew-snore {
+  0% { opacity: 0; transform: translate(0, 2px) scale(0.7); }
+  30% { opacity: 1; }
+  70% { opacity: 0.9; transform: translate(3px, -4px) scale(1); }
+  100% { opacity: 0; transform: translate(5px, -7px) scale(1.1); }
+}
+.radar-crew-tile-name {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 60%, var(--foreground));
+}
+.radar-crew-tile-meta { display: flex; gap: 3px; max-width: 100%; font-size: 10.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; }
+.radar-crew-tile-meta > span + span::before { content: "·"; margin-right: 3px; }
+.radar-crew-tile-busy { color: color-mix(in srgb, var(--bot-color) 55%, var(--foreground)); font-weight: 600; }
+
+/* Today: a timeline whose nodes are bot faces; each run of one bot's jobs is one card. */
+.radar-crew-day { margin-top: 2px; }
+.radar-crew-day-empty { margin: 0 6px; font-size: 12px; color: var(--muted-foreground); }
+.radar-crew-story { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.radar-crew-story::before {
+  content: ""; position: absolute; top: 14px; bottom: 14px; left: 14px; width: 2px; border-radius: 1px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--border) 100%, transparent), color-mix(in srgb, var(--border) 30%, transparent));
+}
+.radar-crew-chapter { --bot-color: hsl(var(--bot-hue) 70% 50%); position: relative; display: flex; align-items: flex-start; gap: 8px; }
+.radar-crew-node {
+  position: relative; z-index: 1; flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin-top: 2px;
+  border-radius: 50%; font-size: 14px;
+  background: color-mix(in srgb, var(--bot-color) 14%, var(--sidebar, var(--background)));
+  box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 3px color-mix(in srgb, var(--bot-color) 45%, transparent);
+}
+.radar-crew-chapter-live .radar-crew-node { animation: radar-crew-beat 1.8s ease-in-out infinite; }
+@keyframes radar-crew-beat {
+  0%, 100% { box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 3px color-mix(in srgb, var(--primary) 55%, transparent); }
+  50% { box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 6px color-mix(in srgb, var(--primary) 18%, transparent); }
+}
+.radar-crew-card {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 7px 9px 8px; border-radius: 4px 12px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--bot-color) 18%, var(--border));
+  background: linear-gradient(160deg, hsl(var(--bot-hue) 70% 50% / 0.07), transparent 65%), var(--card, var(--background));
+}
+.radar-crew-card-head { display: flex; align-items: baseline; gap: 6px; }
+.radar-crew-card-bot { font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 65%, var(--foreground)); }
+.radar-crew-card-range { margin-left: auto; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.radar-crew-card-tally { display: flex; flex-wrap: wrap; gap: 4px; }
+.radar-crew-tally { padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 650; }
+.radar-crew-tally-done { color: color-mix(in srgb, var(--success, #3f9a6b) 80%, var(--foreground)); background: color-mix(in srgb, var(--success, #3f9a6b) 13%, transparent); }
+.radar-crew-tally-failed { color: var(--destructive, #d43d3d); background: color-mix(in srgb, var(--destructive, #d43d3d) 12%, transparent); }
+.radar-crew-tally-running { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.radar-crew-jobs { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.radar-crew-job {
+  display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 3px 4px; margin: 0 -4px; box-sizing: content-box;
+  border: 0; border-radius: 6px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.radar-crew-job:hover { background: color-mix(in srgb, var(--bot-color) 10%, transparent); }
+.radar-crew-job:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.radar-crew-job-mark { flex: none; width: 12px; margin-top: 1px; text-align: center; font-size: 10.5px; font-weight: 800; }
+.radar-crew-job-done .radar-crew-job-mark { color: var(--success, #3f9a6b); }
+.radar-crew-job-failed .radar-crew-job-mark, .radar-crew-job-failed .radar-crew-job-title { color: var(--destructive, #d43d3d); }
+.radar-crew-job-title {
+  flex: 1; min-width: 0; font-size: 12px; line-height: 1.35; color: color-mix(in srgb, var(--foreground) 82%, transparent); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.radar-crew-job-running .radar-crew-job-title { color: var(--foreground); font-weight: 550; }
+.radar-crew-job-spin {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: 0;
+  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary);
+  animation: radar-crew-spin 0.9s linear infinite;
+}
+.radar-crew-card-more, .radar-crew-day-more {
+  align-self: flex-start; padding: 2px 0; border: 0; background: none;
+  font: inherit; font-size: 11px; font-weight: 650; color: color-mix(in srgb, var(--bot-color, var(--primary)) 70%, var(--foreground)); cursor: pointer;
+}
+.radar-crew-day-more { margin: 8px 0 0 38px; color: var(--primary); }
+@media (pointer: coarse) {
+  .radar-crew-job { min-height: 32px; align-items: center; }
+  .radar-crew-card-more, .radar-crew-day-more { min-height: 36px; }
+}
+
+/* Everyone resting. */
+.radar-crew-calm { display: flex; align-items: center; gap: 8px; margin: 2px 8px; font-size: 13px; font-weight: 600; }
+.radar-crew-calm-moon { font-size: 16px; animation: radar-crew-float 4s ease-in-out infinite; }
+@keyframes radar-crew-float { 0%, 100% { transform: translateY(0); opacity: 0.75; } 50% { transform: translateY(-3px); opacity: 1; } }
+
+[data-radar-motion="off"] .radar-crew-view *,
+[data-radar-motion="off"] .radar-crew-say { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .radar-crew-view *, .radar-crew-say { animation: none !important; }
+}
+
+/* ---- Working peek: hover the Working drawer's header (salem fork) ---------- */
+.radar-working-peek {
+  --radar-hover-w: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.radar-working-peek::before,
+.radar-working-peek::after { display: none; }
+.radar-peek-head { display: flex; align-items: baseline; gap: 6px; }
+.radar-peek-head strong { font-size: 13px; }
+.radar-peek-count {
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.radar-peek-head-meta { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-summary { margin: 0; font-size: 11px; font-weight: 500; }
+.radar-peek-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.radar-peek-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.radar-peek-item:hover { background: var(--muted); }
+.radar-peek-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-peek-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-peek-title .radar-dot { flex: none; margin-top: 0; }
+.radar-peek-title-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.radar-peek-time { flex: none; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.radar-peek-meta,
+.radar-peek-muted { color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-peek-muted { margin: 0; }
+.radar-peek-line { font-size: 11px; color: var(--foreground); }
+.radar-peek-line b { color: var(--muted-foreground); font-weight: 600; }
+.radar-peek-saying {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--foreground);
+  font-style: italic;
+}
+.radar-peek-doing { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-doing > span:not(.radar-peek-doing-icon) { flex: none; }
+.radar-peek-doing-icon { display: inline-flex; flex: none; }
+.radar-peek-doing-icon [data-icon-root] { width: 12px; height: 12px; }
+.radar-peek-doing code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 10.5px;
+}
+.radar-peek-todos { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--muted-foreground); }
+.radar-peek-todos > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-peek-progress { flex: none; width: 44px; height: 4px; border-radius: 9999px; background: var(--muted); overflow: hidden; }
+.radar-peek-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.radar-peek-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+.radar-peek-flag {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
 }

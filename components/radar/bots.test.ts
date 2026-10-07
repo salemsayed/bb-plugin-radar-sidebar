@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeThread } from "./fixtures";
-import { botState, botStyle, crewDigest, needsYou, parsePulse, shortBotName } from "./bots";
+import { botState, botStyle, crewDigest, needsYou, parsePulse, pulsePreview, shortBotName } from "./bots";
 
 describe("parsePulse", () => {
   it("reads the subject, a decision line and the quiet marker", () => {
@@ -56,5 +56,20 @@ describe("deck flavour", () => {
   it("summarises the crew in one line", () => {
     expect(crewDigest(["idle", "idle"])).toBe("All quiet");
     expect(crewDigest(["decision", "needs-you", "working", "failed", "unread"])).toBe("1 failed · 2 waiting on you · 1 working · 1 new");
+  });
+});
+
+
+describe("hover reply preview", () => {
+  it("keeps useful prose and removes protocol and duplicate decision lines", () => {
+    expect(pulsePreview("BOT_READY_x\n**Checked the schedule.**\nNothing to do.\nDecision needed: approve?" )).toBe("Checked the schedule.");
+    expect(pulsePreview("Decision needed: approve?" )).toBeNull();
+  });
+  it("marks a long excerpt instead of stopping mid-word", () => {
+    const text = "A useful update with details. ".repeat(25);
+    const preview = pulsePreview(text)!;
+    expect(preview.length).toBeLessThanOrEqual(321);
+    expect(preview).toMatch(/…$/);
+    expect(text.startsWith(preview.slice(0, -1))).toBe(true);
   });
 });

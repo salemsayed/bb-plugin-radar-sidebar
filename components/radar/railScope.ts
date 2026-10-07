@@ -1,15 +1,13 @@
 import { useEffect, useSyncExternalStore } from "react";
-import type { PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
+import type { RosterBot } from "./bots";
 
-/**
- * The project scope chosen on the navigation rail, shared with the thread
- * list. A double navigation's rail picks *where*; the list shows *what is
- * there*. Both slots live in this bundle, so a module-level store is all
- * the bridge they need. Remembered per client so a reload lands you back
- * in the project you were working in.
- */
+/** Bot identity shared between the rail and list, remembered per client.
+ * A new storage key intentionally ignores the retired project tile filter. */
 
-const SCOPE_KEY = "radar-sidebar:rail-scope:v1";
+const SCOPE_KEY = "radar-sidebar:rail-bot-scope:v1";
+
+/** Scope for the crew overview: every bot's card at once, no single bot chosen. */
+export const CREW_SCOPE = "__crew__";
 
 function readScope(): string | null {
   try {
@@ -22,11 +20,11 @@ function readScope(): string | null {
 let scope: string | null = readScope();
 const listeners = new Set<() => void>();
 
-export function setRailScope(projectId: string | null): void {
-  if (projectId === scope) return;
-  scope = projectId;
+export function setRailScope(botKey: string | null): void {
+  if (botKey === scope) return;
+  scope = botKey;
   try {
-    if (projectId) localStorage.setItem(SCOPE_KEY, projectId);
+    if (botKey) localStorage.setItem(SCOPE_KEY, botKey);
     else localStorage.removeItem(SCOPE_KEY);
   } catch {
     // Preference simply won't persist.
@@ -42,7 +40,7 @@ export function subscribeRailScope(listener: () => void): () => void {
   };
 }
 
-/** The scoped project id, or null for every project. */
+/** The selected bot key, or null for all threads. */
 export function useRailScope(): string | null {
   return useSyncExternalStore(
     subscribeRailScope,
@@ -51,22 +49,26 @@ export function useRailScope(): string | null {
   );
 }
 
-/** Validate against the project directory, not the active-thread tiles.
- * A project with no active threads can still have archives. Loading/error
- * snapshots cannot tell us whether a remembered project was deleted. */
-export function useValidatedRailScope({
-  projects,
-  status,
-}: Pick<PluginSidebarThreadsState, "projects" | "status">): string | null {
-  const chosenScope = useRailScope();
-  const invalid =
-    status === "ready" &&
-    chosenScope !== null &&
-    !projects.some((project) => project.id === chosenScope);
+/** Disabled/empty/unavailable rosters always leave all threads accessible.
+ * Keep the saved key through reloads and transient failures. */
+export function useValidatedRailScope(bots: readonly RosterBot[], enabled: boolean): string | null {
+  const chosen = useRailScope();
+  if (!enabled) return null;
+  if (chosen === CREW_SCOPE) return bots.length > 0 ? chosen : null;
+  return bots.some(bot => bot.key === chosen) ? chosen : null;
+}
+
+// The list owns BB's mobile-drawer dismissal callback. Share it with the
+// coordinator link in the navigation slot, without touching host DOM.
+const navigationHandlers = new Set<() => void>();
+export function useRailThreadNavigation(onNavigate: () => void): void {
   useEffect(() => {
-    if (invalid) setRailScope(null);
-  }, [invalid, chosenScope]);
-  return invalid ? null : chosenScope;
+    navigationHandlers.add(onNavigate);
+    return () => { navigationHandlers.delete(onNavigate); };
+  }, [onNavigate]);
+}
+export function notifyRailThreadNavigation(): void {
+  for (const handler of navigationHandlers) handler();
 }
 
 /** Test hook: clear the scope and every subscriber. */
@@ -78,27 +80,4 @@ export function resetRailScope(): void {
   } catch {
     // Ignore.
   }
-}
-
-/** Two-letter monogram for a project tile: "bb-plugin-radar" → "BP". */
-export function monogram(name: string): string {
-  const words = name
-    .split(/[\s\-_./]+/)
-    .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ""))
-    .filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
-  return (words[0]![0]! + words[1]![0]!).toUpperCase();
-}
-
-/** Stable hue per project so tiles keep their colour across sessions. */
-export function projectHue(id: string): number {
-  // FNV-1a, then a golden-angle spread so ids that share a prefix (every
-  // "proj_…") still land on distinct hues.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < id.length; i += 1) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return Math.round((hash % 1000) * 137.508) % 360;
 }

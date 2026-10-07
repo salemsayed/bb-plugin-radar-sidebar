@@ -1,59 +1,65 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { parsePulse, type Pulse } from "./bots";
+import { parsePulse, pulsePreview, type Pulse } from "./bots";
 
-type Snapshot = { usedTokens?: number; contextWindowTokens?: number; modelContextWindow?: number; estimated?: boolean };
+type Snapshot = { model?: string; usedTokens?: number; contextWindowTokens?: number; modelContextWindow?: number; estimated?: boolean };
 
-/**
- * The latest reply of each given thread, fetched once per `updatedAt` and never
- * while the thread is mid-turn. A handful of coordinators, so sequential is fine.
- */
+/** Read settled replies once; refresh live context without fetching streaming output. */
 export function useThreadPulses(threads: readonly PluginSidebarThread[], enabled: boolean): ReadonlyMap<string, Pulse> {
   const sdk = useSdk();
-  const cache = useRef(new Map<string, { updatedAt: number; pulse: Pulse | null }>());
+  const cache = useRef(new Map<string, { updatedAt: number | null; pulse: Pulse }>());
+  const latest = useRef(threads);
+  latest.current = threads;
   const [version, setVersion] = useState(0);
-  const key = threads.map((thread) => `${thread.id}:${thread.updatedAt}:${thread.status}`).join("|");
+  // Streaming timestamps must not restart polling or cancel an in-flight context read.
+  const key = threads.map(t => `${t.id}:${t.status}:${t.status === "active" ? "live" : t.updatedAt}`).join("|");
   useEffect(() => {
     if (!enabled) return;
-    const stale = threads.filter(
-      (thread) => thread.status !== "active" && cache.current.get(thread.id)?.updatedAt !== thread.updatedAt,
-    );
-    if (stale.length === 0) return;
     let cancelled = false;
-    void (async () => {
-      for (const thread of stale) {
-        let pulse: Pulse | null = null;
-        try {
-          const result = (await sdk.threads.output({ threadId: thread.id })) as { output?: string | null };
-          pulse = parsePulse(result.output ?? null) ?? { subject: "", decision: null, quiet: false };
-        } catch {
-          pulse = null;
+    let loading = false;
+    const refresh = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        for (const thread of latest.current) {
+          const cached = cache.current.get(thread.id);
+          const live = thread.status === "active";
+          if (!live && cached?.updatedAt === thread.updatedAt) continue;
+          let pulse: Pulse = { ...(cached?.pulse ?? { subject: "", decision: null, quiet: false }) };
+          if (!live) {
+            try {
+              const result = (await sdk.threads.output({ threadId: thread.id })) as { output?: string | null };
+              const reply = parsePulse(result.output ?? null) ?? { subject: "", decision: null, quiet: false };
+              pulse = { ...pulse, ...reply, preview: pulsePreview(result.output) };
+            } catch {
+              // A context gauge is useful even when output is unavailable.
+            }
+          }
+          try {
+            const ctx = (await sdk.threads.context({ threadId: thread.id })) as { usage?: { snapshot?: Snapshot | null } & Snapshot | null };
+            const u = ctx.usage?.snapshot ?? ctx.usage;
+            const window = u?.contextWindowTokens ?? u?.modelContextWindow;
+            pulse.context = u && typeof u.usedTokens === "number" && window ? u.usedTokens / window : null;
+            pulse.contextUsedTokens = typeof u?.usedTokens === "number" ? u.usedTokens : null;
+            pulse.contextWindowTokens = window ?? null;
+            pulse.contextEstimated = u?.estimated ?? false;
+            pulse.contextModel = ctx.usage?.snapshot?.model ?? null;
+          } catch {
+            // Keep the last known gauge through transient failures.
+          }
+          if (cancelled) return;
+          cache.current.set(thread.id, { updatedAt: live ? null : thread.updatedAt, pulse });
+          setVersion(v => v + 1);
         }
-        try {
-          // bb reports either a flat usage or a snapshot; an estimate is good enough for a gauge.
-          const ctx = (await sdk.threads.context({ threadId: thread.id })) as { usage?: { snapshot?: Snapshot | null } & Snapshot | null };
-          const u = ctx.usage?.snapshot ?? ctx.usage;
-          const window = u?.contextWindowTokens ?? u?.modelContextWindow;
-          const ratio = u && typeof u.usedTokens === "number" && window ? u.usedTokens / window : null;
-          if (pulse) pulse.context = ratio;
-        } catch {
-          // No context figure: the ring simply stays empty.
-        }
-        if (cancelled) return;
-        cache.current.set(thread.id, { updatedAt: thread.updatedAt, pulse });
-        setVersion((v) => v + 1);
+      } finally {
+        loading = false;
       }
-    })();
-    return () => {
-      cancelled = true;
     };
-    // `key` folds the ids, timestamps and statuses that decide what is stale.
+    void refresh();
+    const timer = threads.some(t => t.status === "active") ? setInterval(() => void refresh(), 15_000) : null;
+    return () => { cancelled = true; if (timer !== null) clearInterval(timer); };
+    // The key covers reply freshness and live/settled transitions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled, sdk]);
-  return useMemo(() => {
-    const map = new Map<string, Pulse>();
-    for (const [id, entry] of cache.current) if (entry.pulse) map.set(id, entry.pulse);
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version]);
+  return useMemo(() => new Map([...cache.current].map(([id, entry]) => [id, entry.pulse])), [version]);
 }

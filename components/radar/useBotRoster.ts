@@ -24,9 +24,10 @@ function writeCache(bots: RosterBot[]): void {
 
 /**
  * The registered coordinators, from bb-salem-bots. An absent or failing plugin
- * yields an empty roster, so the deck simply does not render.
+ * yields an empty roster on a fresh client; a validated cached roster survives
+ * transient reloads and errors.
  */
-export function useBotRoster(enabled: boolean): RosterBot[] {
+export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   const sdk = useSdk();
   // The last roster paints immediately, so coordinators never flash as pinned rows before the RPC answers.
   const [bots, setBots] = useState<RosterBot[]>(() => (enabled ? readCache() : []));
@@ -36,14 +37,16 @@ export function useBotRoster(enabled: boolean): RosterBot[] {
       return;
     }
     let cancelled = false;
+    let request = 0;
     const load = async () => {
+      const current = ++request;
       try {
         const result = await sdk.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
-        if (cancelled) return;
+        if (cancelled || current !== request) return;
         setBots(result.bots);
         writeCache(result.bots);
       } catch {
-        if (!cancelled) setBots([]);
+        // Keep a previously validated roster during transient reload/RPC failures.
       }
     };
     void load();
@@ -55,6 +58,6 @@ export function useBotRoster(enabled: boolean): RosterBot[] {
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [sdk, enabled]);
+  }, [sdk, enabled, refreshKey]);
   return bots;
 }

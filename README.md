@@ -183,8 +183,8 @@ bb plugin install path:$PWD --yes
 
 | Where | What |
 | --- | --- |
-| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, status chips, grouping and density toggles, and expand/collapse all. |
-| **Smart views bar** | Saved query-plus-filter presets, and a shortcut to save the current one. |
+| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one view-options panel for status, lifecycle, grouping, density and expand/collapse all. |
+| **Smart views** | Saved query-plus-filter presets in the view-options panel, and a shortcut to save the current one. |
 | **Navigation above the list** | New thread, your inline destinations, and More for the rest. |
 | **Row hover** | Pin, rename, archive and a fuller menu; a peek card after a short pause. |
 | **Settings → Appearance** | Choose Radar for the thread list and the navigation. |
@@ -198,8 +198,8 @@ the touch toolbar, until you enable it. Under Appearance, choose **Radar** for S
 
 On desktop a 60px icon rail sits beside the thread list. It follows BB's
 saved navigation order and visibility: visible destinations inline, hidden
-ones in **More** (with a count on the icon), **Customize sidebar** at the
-foot. BB's own footer controls (Settings, Mobile apps, usage, Report a bug,
+ones in **More** (with a count on the icon), which also holds Show labels
+and **Customize sidebar**. BB's own footer controls (Settings, Mobile apps, usage, Report a bug,
 updates, account) stack at the bottom of the same column; their disclosures
 open beside the rail. Below 768px the same rail (56px) runs down the left of
 BB's mobile drawer with the thread list beside it, like a chat app's
@@ -208,22 +208,25 @@ and the labelled rail are desktop-only. Resize the sidebar with BB's normal
 handle to give the thread list more room.
 
 <details>
-<summary><b>Project scope, tooltips, keyboard and more</b></summary>
+<summary><b>Bot scope, tooltips, keyboard and more</b></summary>
 
-- **Project scope.** Below the destinations, every project with an active
-  thread gets a coloured monogram tile, most recently active first; an
-  amber dot marks a project with a thread waiting on you. Click a tile and
-  the thread list shows only that project, its heading becomes the project
-  name, and the tile fills with its colour. Click it again, the heading, or
-  Home to see every project. Home only clears the filter; **New thread** in
-  the heading remains BB’s create-thread action. Tooltips carry the tally ("4 threads ·
-  1 waiting · 2 live"). Live and waiting counts follow the thread list's
-  rules, including background and queued work. Remembered per client. A
-  project with only archived threads keeps its scope and clear heading;
-  deleted projects clear once the project directory has loaded. If you
-  choose another navigation provider while keeping this thread list, a
-  project filter button above Search lets you return to every project. Turning
-  `railNav` off shows all projects while preserving the choice for next time.
+- **Bot rail experiment.** Project tiles are removed. Enable **Bot rail (experimental)**
+  (`botRail`, default off) in Radar's plugin settings to put bot faces below the plugin destinations.
+  Coordinators and their workers tuck into the rail, freeing space in Home.
+  Tap a face to show only its worker family, linked by parent or lifecycle owner
+  across projects; unrelated threads in the same project stay outside the filter. Tap again, Home, or X to
+  show all threads. The scope shows as a pill under the search: its name opens
+  the coordinator, its X clears the scope.
+  Selection follows the bot key through rollover. State dots describe the coordinator
+  family. Context rings remain visible and worker-count badges reveal children;
+  hover cards show the latest reply, decision requests, worker titles and states,
+  context percentage and token counts, model and machine. Open the coordinator
+  or a worker directly, or select View workers to filter the list. The duplicate bots deck
+  and coordinator rows are hidden while this experiment is on.
+  Turning the experiment or Navigation rail off immediately shows all threads
+  and restores the deck when enabled. Empty/unavailable rosters never trap the list
+  in a filter. The retired project tile scope is ignored. **New thread** remains
+  BB's create-thread action with its usual project picker.
 - **Tooltips.** Pause on a rail icon (or focus it from the keyboard) for
   the destination's name, its shortcut as a key cap, and the panel's
   accessory that the icon can't fit; a dot on the icon marks that an
@@ -242,14 +245,16 @@ handle to give the thread list more room.
   stack takes what is left and scrolls internally, so destinations and
   Customize stay visible on small screens. Visible position indicators
   show when either stack scrolls, without fading the last item.
-- **Status chips fold** to glyph and count when the list is 284px or less,
-  so the filter row stays on one line.
-- **Mobile heading controls** keep 44px touch targets, and the scoped
-  project heading always shows its clear icon.
+- **One-row header**: search sits beside a single view-options button that
+  opens status, Active / Archived / All, grouping, density and collapse-all
+  in a panel. While a filter narrows the list, a removable pill per filter
+  shows under the search, a bot or crew scope among them. New thread sits
+  at the end of the row as a +, so there is no separate heading row, and
+  with the rail on BB's back/forward row is hidden too.
 
 </details>
 
-<p align="center"><img src="docs/screenshots/rail-desktop.png" width="360" alt="Radar Sidebar with Navigation rail enabled: destinations, project tiles with waiting dots, and BB's footer controls in the rail beside the thread list"></p>
+<p align="center"><img src="docs/screenshots/rail-desktop.png" width="360" alt="Radar Sidebar with Navigation rail enabled: destinations and BB's footer controls in the rail beside the thread list"></p>
 
 ### Labelled rail (experimental, off by default)
 
@@ -338,14 +343,16 @@ flowchart LR
 
 | Setting | Default | |
 | --- | --- | --- |
-| `railNav` | `false` | Navigation rail with project filters beside the thread list. |
+| `railNav` | `false` | Navigation rail beside the thread list; project tiles are removed. |
+| `botRail` | `false` | Experimental bot faces and bot scope; requires `railNav`. Off restores the in-list deck. |
 | `wideRail` | `false` | Experimental labelled desktop rail; requires `railNav`. |
+| `hideWorking` | `false` | Move threads with work in flight into a folded **Working** drawer under the list. They come back when they finish or need you; pinned threads and the open thread stay put, and search or a status filter shows them in place. On desktop, hover the drawer's header to peek at every running thread: its latest words and step, todo progress, run time, context use, and flags for stalls, failing commands, a full context or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
 | `loudUnread` | `true` | Wash and accent bar on finished-but-unseen threads. Off keeps the icon and pip only. |
 | `adaptiveCollapse` | `true` | Fold quiet read-idle rows down to title, project and time. |
-| `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in the header, which is remembered per client. |
+| `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in view options, which is remembered per client. |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |

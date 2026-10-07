@@ -7,14 +7,19 @@ import {
   useState,
   type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
+import { RadarBotHoverCard } from "./RadarBotHoverCard";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import ArrowLeftDoubleIcon from "@hugeicons/core-free-icons/ArrowLeftDoubleIcon";
 import ArrowRightDoubleIcon from "@hugeicons/core-free-icons/ArrowRightDoubleIcon";
+import UserGroupIcon from "@hugeicons/core-free-icons/UserGroupIcon";
 import {
   experimental_Icon as HostIcon,
   experimental_useSidebarNavigation,
   experimental_useSidebarThreads,
+  useBbContext,
+  useBbNavigate,
   useSettings,
   type ExperimentalSidebarNavigationItem,
   type ExperimentalSidebarNavigationProps,
@@ -22,107 +27,27 @@ import {
 import { cn } from "@/lib/utils";
 import { RadarMenu, type RadarMenuItem } from "./RadarMenu";
 import {
-  monogram,
-  projectHue,
+  CREW_SCOPE,
   setRailScope,
+  notifyRailThreadNavigation,
   useValidatedRailScope,
 } from "./railScope";
-import { activityTime, isLiveThread } from "./time";
+import { useBotRoster } from "./useBotRoster";
+import { useThreadPulses } from "./useThreadPulses";
+import { botStyle, shortBotName, STATE_LABELS } from "./bots";
+import { BotAvatar } from "./BotAvatar";
+import { botRailState, botWorkers, rosterRefreshKey } from "./botScope";
 import {
   hintFor,
   RowIcon,
   NavigationButton,
   MorePopover,
+  type MoreAction,
 } from "./navigationControls";
 import { RailTooltip, moveRailFocus, type RailTip } from "./railTooltip";
 import { useRailHostStructure, useRailMeasurements } from "./railLayout";
 import { railHostCss } from "./railHostStyles";
-
-type RailProject = {
-  id: string;
-  name: string;
-  threads: number;
-  live: number;
-  waiting: number;
-  unread: number;
-  latest: number;
-};
-
-function sameRailProjects(
-  a: readonly RailProject[],
-  b: readonly RailProject[],
-): boolean {
-  return (
-    a.length === b.length &&
-    a.every((project, index) => {
-      const other = b[index]!;
-      return (
-        project.id === other.id &&
-        project.name === other.name &&
-        project.threads === other.threads &&
-        project.live === other.live &&
-        project.waiting === other.waiting &&
-        project.unread === other.unread
-      );
-    })
-  );
-}
-
-/** Projects with at least one visible thread, most recently active first. */
-function useRailProjects() {
-  const { threads, projects, status } = experimental_useSidebarThreads();
-  const previous = useRef<RailProject[]>([]);
-  const railProjects = useMemo(() => {
-    const now = Date.now();
-    const byId = new Map<string, RailProject>();
-    for (const thread of threads) {
-      if (thread.isHidden || thread.isArchived) continue;
-      let entry = byId.get(thread.projectId);
-      if (!entry) {
-        const project = projects.find(
-          (candidate) => candidate.id === thread.projectId,
-        );
-        if (!project) continue;
-        entry = {
-          id: project.id,
-          name: project.isPersonal ? "Personal" : project.name,
-          threads: 0,
-          live: 0,
-          waiting: 0,
-          unread: 0,
-          latest: 0,
-        };
-        byId.set(project.id, entry);
-      }
-      entry.threads += 1;
-      if (isLiveThread(thread)) entry.live += 1;
-      if (
-        thread.indicator === "waiting-for-input" ||
-        thread.indicator === "queued-waiting"
-      ) {
-        entry.waiting += 1;
-      }
-      if (thread.isUnread) entry.unread += 1;
-      entry.latest = Math.max(entry.latest, activityTime(thread, now));
-    }
-    const next = [...byId.values()].sort((a, b) => b.latest - a.latest);
-    // Every thread update lands here. Keep the previous list when nothing
-    // the tiles show moved, so they skip rendering.
-    return sameRailProjects(previous.current, next) ? previous.current : next;
-  }, [threads, projects]);
-  previous.current = railProjects;
-  return { railProjects, projects, status };
-}
-
-function projectTally(project: RailProject): string {
-  const parts = [
-    `${project.threads} ${project.threads === 1 ? "thread" : "threads"}`,
-    project.waiting > 0 ? `${project.waiting} waiting` : null,
-    project.live > 0 ? `${project.live} live` : null,
-    project.unread > 0 ? `${project.unread} unread` : null,
-  ].filter((part): part is string => part !== null);
-  return parts.join(" · ");
-}
+import { setRailNewThread } from "./railNewThread";
 
 const RAIL_WIDE_KEY = "radar-sidebar:rail-wide:v1";
 
@@ -165,14 +90,16 @@ function RailNavigationBody({
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const railRef = useRef<HTMLElement | null>(null);
   const [wideChoice, setWide] = useState(readRailWide);
-  const { railProjects, projects, status: projectStatus } = useRailProjects();
-  const scope = useValidatedRailScope({ projects, status: projectStatus });
-  const project = scope
-    ? projects.find((candidate) => candidate.id === scope)
-    : null;
-  const scopedProject = project
-    ? { id: project.id, name: project.isPersonal ? "Personal" : project.name }
-    : null;
+  const { values: settingValues } = useSettings();
+  const botRail = settingValues?.botRail === true;
+  const { threads } = experimental_useSidebarThreads();
+  const bots = useBotRoster(botRail, rosterRefreshKey(threads));
+  const scope = useValidatedRailScope(bots, botRail);
+  const crew = scope === CREW_SCOPE;
+  const navigate = useBbNavigate();
+  const { threadId: openThreadId } = useBbContext();
+  const botRows = useMemo(() => threads.filter(t => bots.some(bot => bot.current === t.id)), [threads, bots]);
+  const pulses = useThreadPulses(botRows, botRail);
 
   const toggleWide = () => {
     setWide((previous) => {
@@ -183,16 +110,14 @@ function RailNavigationBody({
   // Wide mode restyles BB's own sidebar markup, so it ships off and needs
   // the plugin setting on, plus the host structure it relies on. Without
   // either, the toggle is hidden and the rail stays narrow.
-  const { values: settingValues } = useSettings();
   const wideAllowed = settingValues?.wideRail === true && !isCompactViewport;
   const hostSupportsWide = useRailHostStructure(railRef);
   const wide = wideChoice && wideAllowed && hostSupportsWide;
   // BB's sidebar is restyled from the rail's own <style> elements below,
   // never by writing to BB's elements, so unmounting releases it.
-  const scoped = scopedProject !== null;
   const hostCss = useMemo(
-    () => railHostCss({ wide, compact: isCompactViewport, scoped }),
-    [wide, isCompactViewport, scoped],
+    () => railHostCss({ wide, compact: isCompactViewport }),
+    [wide, isCompactViewport],
   );
   const hostValuesRef = useRef<HTMLStyleElement | null>(null);
 
@@ -200,17 +125,38 @@ function RailNavigationBody({
   // leave, blur, click, right-click, or when any overlay opens.
   const [tip, setTip] = useState<RailTip | null>(null);
   const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipTrigger = useRef<HTMLElement | null>(null);
+  const keepTip = useCallback(() => {
+    if (tipCloseTimer.current !== null) clearTimeout(tipCloseTimer.current);
+    tipCloseTimer.current = null;
+  }, []);
   const hideTip = useCallback(() => {
+    keepTip();
     if (tipTimer.current !== null) clearTimeout(tipTimer.current);
     tipTimer.current = null;
     setTip(null);
-  }, []);
+  }, [keepTip]);
+  const leaveBotTip = useCallback(() => {
+    if (tipTimer.current !== null) clearTimeout(tipTimer.current);
+    tipTimer.current = null;
+    keepTip();
+    tipCloseTimer.current = setTimeout(() => {
+      if (!document.querySelector("[data-radar-bot-hover]")?.contains(document.activeElement)) hideTip();
+    }, 180);
+  }, [hideTip, keepTip]);
+  const closeBotTip = useCallback(() => {
+    tipTrigger.current?.focus();
+    hideTip();
+  }, [hideTip]);
   const showTip = useCallback(
     (
       target: HTMLElement,
       next: Omit<RailTip, "top" | "left">,
       delay: number,
     ) => {
+      keepTip();
+      tipTrigger.current = target;
       if (tipTimer.current !== null) clearTimeout(tipTimer.current);
       const show = () => {
         tipTimer.current = null;
@@ -224,15 +170,34 @@ function RailNavigationBody({
       if (delay === 0) show();
       else tipTimer.current = setTimeout(show, delay);
     },
-    [],
+    [keepTip],
   );
   useEffect(() => hideTip, [hideTip]);
   useEffect(() => {
     if (isCompactViewport) hideTip();
   }, [isCompactViewport, hideTip]);
 
+  useEffect(() => {
+    if (!tip?.botKey) return;
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !tipTrigger.current?.contains(event.target) &&
+          !document.querySelector("[data-radar-bot-hover]")?.contains(event.target)) hideTip();
+    };
+    const scroll = (event: Event) => {
+      if (!(event.target instanceof Element) || (tipTrigger.current && event.target.contains(tipTrigger.current))) hideTip();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", hideTip);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", hideTip);
+    };
+  }, [tip?.botKey, hideTip]);
+
   // Callbacks and derived lists stay stable across thread updates so the
-  // memoized destination buttons and project tiles below skip rendering.
+  // memoized destination buttons below skip rendering.
   const activate = useCallback(
     (item: ExperimentalSidebarNavigationItem, openInSplit: boolean) => {
       if (item.isDisabled || item.isLoading) return;
@@ -256,7 +221,19 @@ function RailNavigationBody({
     };
   }, [items]);
 
-  useRailMeasurements(railRef, hostValuesRef, items, railProjects.length, wide);
+  // No heading of its own: New thread ends the list's header row, and the
+  // list shows a bot or crew scope as a removable pill.
+  useEffect(() => {
+    if (!newThread) return;
+    setRailNewThread({
+      open: (openInSplit) => activate(newThread, openInSplit),
+      label: hintFor(newThread),
+      keyShortcuts: newThread.shortcut?.ariaKeyShortcuts,
+    });
+    return () => setRailNewThread(null);
+  }, [newThread, activate]);
+
+  useRailMeasurements(railRef, hostValuesRef, items, bots.length, wide, botRail ? Math.min(560, (bots.length + inlineDestinations.length + 2) * 42 + 20) : 200);
 
   const overflowActive =
     activeItemId !== null && overflow.some((item) => item.id === activeItemId);
@@ -277,13 +254,17 @@ function RailNavigationBody({
         ? {
             onPointerEnter: (event: React.PointerEvent<HTMLElement>) =>
               showTip(event.currentTarget, next, 220),
-            onPointerLeave: hideTip,
+            onPointerLeave: next.botKey ? leaveBotTip : hideTip,
             onFocus: (event: React.FocusEvent<HTMLElement>) =>
               showTip(event.currentTarget, next, 0),
-            onBlur: hideTip,
+            onBlur: (event: React.FocusEvent<HTMLElement>) => {
+              if (next.botKey && event.relatedTarget instanceof Element && event.relatedTarget.closest("[data-radar-bot-hover]")) keepTip();
+              else if (next.botKey) leaveBotTip();
+              else hideTip();
+            },
           }
         : {},
-    [isCompactViewport, showTip, hideTip],
+    [isCompactViewport, showTip, hideTip, keepTip, leaveBotTip],
   );
 
   const menuItem = menu
@@ -370,17 +351,43 @@ function RailNavigationBody({
     setMoreAt({ x, y: rect.top });
   };
 
-  const renderMoreRow = () => {
-    if (overflow.length === 0) return null;
+  // Show labels and Customize are rare, so they live in More, not on the rail.
+  const moreActions: MoreAction[] = [
+    ...(wideAllowed && hostSupportsWide
+      ? [{
+          key: "wide",
+          label: wide ? "Hide labels" : "Show labels",
+          icon: <HugeiconsIcon icon={wide ? ArrowLeftDoubleIcon : ArrowRightDoubleIcon} />,
+          onSelect: () => {
+            setMoreAt(null);
+            toggleWide();
+          },
+        }]
+      : []),
+    {
+      key: "customize",
+      label: "Customize sidebar",
+      icon: <HostIcon name="SlidersHorizontal" />,
+      onSelect: () => {
+        setMoreAt(null);
+        actions.openCustomize();
+      },
+    },
+  ];
 
+  const renderMoreRow = () => {
     return (
       <button
         key="__more"
         ref={moreTriggerRef}
         type="button"
-        aria-label={`More navigation, ${overflow.length} items`}
+        aria-label={
+          overflow.length > 0
+            ? `More navigation, ${overflow.length} items`
+            : "More navigation"
+        }
         aria-expanded={moreAt !== null}
-        title={!isCompactViewport ? undefined : `More (${overflow.length})`}
+        title={!isCompactViewport ? undefined : "More"}
         onClick={(event) =>
           moreAt !== null ? setMoreAt(null) : openMore(event)
         }
@@ -392,22 +399,39 @@ function RailNavigationBody({
           key: "__more",
           label: "More",
           shortcut: null,
-          hint: `${overflow.length} hidden ${overflow.length === 1 ? "destination" : "destinations"}`,
+          hint: overflow.length > 0
+            ? `${overflow.length} hidden ${overflow.length === 1 ? "destination" : "destinations"}, labels and Customize`
+            : "Labels and Customize",
           Accessory: null,
         })}
       >
         <HostIcon name="MoreHorizontal" aria-hidden="true" />
         <span className="radar-rail-label">More</span>
-        <span className="radar-nav-count" aria-hidden="true">
-          {overflow.length}
-        </span>
+        {overflow.length > 0 ? (
+          <span className="radar-nav-count" aria-hidden="true">
+            {overflow.length}
+          </span>
+        ) : null}
       </button>
     );
   };
 
+  const renderTip = () => {
+    if (isCompactViewport || !tip || moreAt || menu) return null;
+    if (!tip.botKey) return <RailTooltip tip={tip} />;
+    const bot = bots.find(bot => bot.key === tip.botKey);
+    if (!bot) return null;
+    const pulse = pulses.get(bot.current) ?? null;
+    return createPortal(<RadarBotHoverCard bot={bot} tip={tip} pulse={pulse}
+      coordinator={threads.find(thread => thread.id === bot.current)} workers={botWorkers(threads, bot)}
+      state={botRailState(threads, bot, pulse)} onKeepOpen={keepTip} onLeave={leaveBotTip}
+      onClose={closeBotTip} onNavigate={() => { hideTip(); notifyRailThreadNavigation(); }}
+      onViewWorkers={() => { hideTip(); setRailScope(bot.key); }} />, document.body);
+  };
+
   const renderOverlays = () => (
     <>
-      {moreAt !== null && overflow.length > 0 ? (
+      {moreAt !== null ? (
         <MorePopover
           x={moreAt.x}
           y={moreAt.y}
@@ -417,6 +441,7 @@ function RailNavigationBody({
           onOpenMenu={openMenu}
           onClose={closeMore}
           triggerRef={moreTriggerRef}
+          actions={moreActions}
         />
       ) : null}
       {menu && menuItem ? (
@@ -442,7 +467,7 @@ function RailNavigationBody({
           onClose={() => setMenu(null)}
         />
       ) : null}
-      {!isCompactViewport && tip && !moreAt && !menu ? <RailTooltip tip={tip} /> : null}
+      {renderTip()}
     </>
   );
 
@@ -501,60 +526,62 @@ function RailNavigationBody({
     ],
   );
 
-  const projectTiles = useMemo(
-    () =>
-      railProjects.length > 0 ? (
-        <div role="group" aria-label="Projects" className="radar-rail-projects">
-          <span className="radar-rail-divider" aria-hidden="true" />
-          {railProjects.map((project) => {
-            const isScoped = project.id === scope;
-            return (
-              <button
-                key={project.id}
-                type="button"
-                aria-pressed={isScoped}
-                aria-label={`${project.name}: ${isScoped ? "show every project" : "show only this project"}`}
-                className={cn(
-                  "radar-nav-icon-button radar-rail-project",
-                  isScoped && "radar-rail-project-active",
-                )}
-                style={
-                  {
-                    "--radar-project-hue": projectHue(project.id),
-                  } as React.CSSProperties
-                }
-                onClick={() => {
-                  hideTip();
-                  setRailScope(isScoped ? null : project.id);
-                }}
-                {...tipProps({
-                  key: `project:${project.id}`,
-                  label: project.name,
-                  shortcut: null,
-                  hint: `${projectTally(project)}${isScoped ? " — click to clear" : ""}`,
-                  Accessory: null,
-                })}
-              >
-                <span className="radar-rail-monogram" aria-hidden="true">
-                  {monogram(project.name)}
-                </span>
-                <span className="radar-rail-label">{project.name}</span>
-                {project.waiting > 0 ? (
-                  <span className="radar-rail-project-dot" aria-hidden="true" />
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null,
-    [railProjects, scope, hideTip, tipProps],
-  );
+  const botTiles = botRail && bots.length > 0 ? (
+    <div role="group" aria-label="Bots" className="radar-rail-bots">
+      <span className="radar-rail-divider" aria-hidden="true" />
+      <button type="button" aria-pressed={crew}
+        aria-label={crew ? "Crew: show all threads" : "Crew: every bot at a glance"}
+        title={isCompactViewport ? "Crew" : undefined}
+        className={cn("radar-nav-icon-button radar-rail-crew", crew && "radar-nav-row-active")}
+        onClick={() => { hideTip(); setRailScope(crew ? null : CREW_SCOPE); }}
+        {...tipProps({ key: "__crew", label: "Crew", shortcut: null, hint: "Every bot at a glance", Accessory: null })}>
+        <HugeiconsIcon icon={UserGroupIcon} aria-hidden="true" />
+        <span className="radar-rail-label">Crew</span>
+      </button>
+      {bots.map(bot => {
+        const selected = bot.key === scope;
+        // From the coordinator itself, a second tap goes back to every thread.
+        const releases = selected && openThreadId === bot.current;
+        const style = botStyle(bot.key, bot.name);
+        const state = botRailState(threads, bot, pulses.get(bot.current) ?? null);
+        const label = STATE_LABELS[state];
+        const workers = botWorkers(threads, bot);
+        const context = pulses.get(bot.current)?.context ?? null;
+        const details = `${label.text} · ${workers.length} worker${workers.length === 1 ? "" : "s"} · ${context === null ? "Context unavailable" : `${Math.round(context * 100)}% context used`}`;
+        return (
+          <button key={bot.key} type="button" aria-pressed={selected}
+            aria-haspopup={isCompactViewport ? undefined : "dialog"}
+            aria-expanded={isCompactViewport ? undefined : tip?.botKey === bot.key}
+            aria-controls={tip?.botKey === bot.key ? "radar-bot-hover-card" : undefined}
+            aria-label={`${bot.name}, ${label.text}: ${releases ? "show all threads" : "open coordinator and its workers"}; ${details}`}
+            title={isCompactViewport ? `${bot.name}: ${details}` : undefined}
+            className={cn("radar-nav-icon-button radar-rail-bot", selected && "radar-rail-bot-active")}
+            style={{ "--bot-hue": style.hue } as React.CSSProperties}
+            onClick={() => {
+              hideTip();
+              if (releases) { setRailScope(null); return; }
+              setRailScope(bot.key);
+              navigate.toThread(bot.current);
+              notifyRailThreadNavigation();
+            }}
+            {...tipProps({ key: `bot:${bot.key}`, botKey: bot.key, label: bot.name, shortcut: null,
+              hint: null, Accessory: null })}>
+            <BotAvatar emoji={style.emoji} context={context} />
+            {workers.length > 0 ? <span className={cn("radar-rail-worker-count", label.tone)} aria-hidden="true">{workers.length > 99 ? "99+" : workers.length}</span> : null}
+            <span className="radar-rail-label">{shortBotName(bot.name)}</span>
+            {state !== "idle" ? <span className={cn("radar-rail-bot-dot", label.tone)} aria-hidden="true" /> : null}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
 
   return (
     <div
       className={cn(
         "radar-double-navigation",
         wide && "radar-double-navigation-wide",
+        botRail && "radar-double-navigation-bots",
         isCompactViewport && "radar-double-navigation-compact",
       )}
     >
@@ -563,14 +590,21 @@ function RailNavigationBody({
         aria-label="Primary"
         className={cn("radar-nav radar-nav-compact", "radar-double-rail")}
         style={{ bottom: footerHeight }}
-        onKeyDown={moveRailFocus}
+        onKeyDown={event => {
+          if (event.key === "Escape") { hideTip(); return; }
+          if (event.key === "Tab" && !event.shiftKey && tip?.botKey && event.target === tipTrigger.current) {
+            const first = document.querySelector<HTMLAnchorElement>("[data-radar-bot-hover] a");
+            if (first) { event.preventDefault(); first.focus(); keepTip(); return; }
+          }
+          moveRailFocus(event);
+        }}
       >
         <div className={"radar-double-rail-items"}>
           <button
             type="button"
             aria-label="Home"
             aria-pressed={scope === null}
-            title={isCompactViewport ? "Show every project" : undefined}
+            title={isCompactViewport ? "Show all threads" : undefined}
             className="radar-nav-icon-button radar-nav-icon-primary"
             onClick={() => {
               hideTip();
@@ -582,7 +616,7 @@ function RailNavigationBody({
               key: "__home",
               label: "Home",
               shortcut: null,
-              hint: "Show every project",
+              hint: "Show all threads",
               Accessory: null,
             })}
           >
@@ -591,101 +625,12 @@ function RailNavigationBody({
           </button>
           {destinationButtons}
           {renderMoreRow()}
-          {projectTiles}
+          {botTiles}
         </div>
         <div className="radar-double-rail-footer">
           <span className="radar-rail-divider" aria-hidden="true" />
-          {wideAllowed && hostSupportsWide ? (
-            <button
-              type="button"
-              className="radar-nav-icon-button radar-rail-toggle"
-              aria-label={wide ? "Hide labels" : "Show labels"}
-              aria-pressed={wide}
-              onClick={() => {
-                hideTip();
-                toggleWide();
-              }}
-              {...tipProps({
-                key: "__wide",
-                label: wide ? "Hide labels" : "Show labels",
-                shortcut: null,
-                hint: wide ? "Back to the icon rail" : "Widen the rail",
-                Accessory: null,
-              })}
-            >
-              <HugeiconsIcon
-                icon={wide ? ArrowLeftDoubleIcon : ArrowRightDoubleIcon}
-                aria-hidden="true"
-              />
-              <span className="radar-rail-label">Collapse</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="radar-nav-icon-button"
-            aria-label="Customize sidebar"
-            onClick={() => {
-              hideTip();
-              actions.openCustomize();
-            }}
-            {...tipProps({
-              key: "__customize",
-              label: "Customize",
-              shortcut: null,
-              hint: "Reorder and hide destinations",
-              Accessory: null,
-            })}
-          >
-            <HostIcon name="SlidersHorizontal" aria-hidden="true" />
-            <span className="radar-rail-label">Customize</span>
-          </button>
         </div>
       </nav>
-      <div className="radar-double-heading">
-        {scopedProject ? (
-          <button
-            type="button"
-            className="radar-double-heading-scope"
-            aria-label={`Showing ${scopedProject.name} only. Show every project`}
-            title="Show every project"
-            onClick={() => setRailScope(null)}
-          >
-            <span
-              className="radar-rail-monogram"
-              aria-hidden="true"
-              style={
-                {
-                  "--radar-project-hue": projectHue(scopedProject.id),
-                } as React.CSSProperties
-              }
-            >
-              {monogram(scopedProject.name)}
-            </span>
-            <span className="radar-double-heading-title">
-              {scopedProject.name}
-            </span>
-            <HostIcon
-              name="X"
-              aria-hidden="true"
-              className="radar-double-heading-clear"
-            />
-          </button>
-        ) : (
-          <span className="radar-double-heading-title">Threads</span>
-        )}
-        {newThread ? (
-          <NavigationButton
-            item={newThread}
-            isActive={false}
-            onActivate={activate}
-            className="radar-double-new-thread"
-            title={`${hintFor(newThread)} — Option-click opens in a split`}
-          >
-            <RowIcon item={newThread} />
-            <span>New thread</span>
-          </NavigationButton>
-        ) : null}
-      </div>
       {renderOverlays()}
       <style>{hostCss}</style>
       <style ref={hostValuesRef} />

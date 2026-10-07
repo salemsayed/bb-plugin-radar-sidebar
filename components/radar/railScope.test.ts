@@ -1,47 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import {
-  monogram,
-  projectHue,
+  CREW_SCOPE,
   resetRailScope,
   setRailScope,
   subscribeRailScope,
   useRailScope,
+  useValidatedRailScope,
 } from "./railScope";
-
-describe("monogram", () => {
-  it.each([
-    ["bb-plugin-radar-sidebar", "BP"],
-    ["bb", "BB"],
-    ["ERBareeq", "ER"],
-    ["Personal", "PE"],
-    ["my app", "MA"],
-    ["", "?"],
-    ["---", "?"],
-  ])("%s → %s", (name, expected) => {
-    expect(monogram(name)).toBe(expected);
-  });
-});
-
-describe("projectHue", () => {
-  it("is stable and spreads sibling ids apart", () => {
-    const ids = [
-      "proj_wj4ziacq3f",
-      "proj_wj4ziacq3g",
-      "proj_abc123",
-      "proj_abc124",
-      "proj_zzzzzz",
-    ];
-    const hues = ids.map(projectHue);
-    expect(ids.map(projectHue)).toEqual(hues);
-    for (const hue of hues) expect(hue).toBeGreaterThanOrEqual(0);
-    for (const hue of hues) expect(hue).toBeLessThan(360);
-    const sorted = [...hues].sort((a, b) => a - b);
-    for (let i = 1; i < sorted.length; i += 1) {
-      expect(sorted[i]! - sorted[i - 1]!).toBeGreaterThanOrEqual(10);
-    }
-  });
-});
 
 afterEach(() => {
   cleanup();
@@ -59,11 +25,11 @@ describe("rail scope store", () => {
     setRailScope("proj_a");
     expect(listener).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem("radar-sidebar:rail-scope:v1")).toBe("proj_a");
+    expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe("proj_a");
     setRailScope(null);
     setRailScope(null);
     expect(listener).toHaveBeenCalledTimes(2);
-    expect(localStorage.getItem("radar-sidebar:rail-scope:v1")).toBeNull();
+    expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBeNull();
     unsubscribe();
   });
 
@@ -96,5 +62,16 @@ describe("rail scope store", () => {
     expect(result.current).toBeNull();
     unmount();
     expect(() => setRailScope("proj_b")).not.toThrow();
+  });
+});
+
+describe("crew scope", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
+  it("holds while there are bots and the rail is on, and falls back to every thread otherwise", () => {
+    setRailScope(CREW_SCOPE);
+    expect(renderHook(() => useValidatedRailScope([bot], true)).result.current).toBe(CREW_SCOPE);
+    expect(renderHook(() => useValidatedRailScope([], true)).result.current).toBeNull();
+    expect(renderHook(() => useValidatedRailScope([bot], false)).result.current).toBeNull();
+    expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe(CREW_SCOPE);
   });
 });

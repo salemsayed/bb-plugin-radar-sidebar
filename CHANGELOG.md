@@ -6,6 +6,28 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+
+- Fold the thread list header into one row: the search field and a view
+  options button. Status chips, smart views, Active / Archived / All,
+  grouping, density and collapse-all open in a panel under it. While a
+  filter narrows the list, a removable pill per filter shows under the
+  search. Density is hidden on touch viewports, which are always compact.
+- Drop the rail's heading row: New thread moves to a + at the end of the
+  list's header row, and a bot or crew scope shows as a removable pill, so
+  the main, bot and crew screens share one header. A bot pill's name opens
+  its coordinator; its X clears the scope. With the rail on, BB's back/forward row
+  is hidden too, so the header sits at the top of the sidebar. Time groups
+  lose their clock icon, and touch lists tighten the space around group
+  headers.
+- Hover the Working drawer's header for a peek at every running thread:
+  what it last said and did, its phase, steps, todo progress, run time and
+  context use, with flags for stalls, failing commands, a nearly full
+  context or a waiting question. Click one to open it. Digests are built on
+  the server, so the card stays light over a remote connection.
+- Move Show labels and Customize sidebar from the foot of the rail into its
+  More popover, which is now always on the rail.
+
 ## 0.5.2 - 2026-10-04
 
 ### Fixed

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 export type RailTip = {
   key: string;
+  botKey?: string;
   label: string;
   shortcut: string | null;
   hint: string | null;

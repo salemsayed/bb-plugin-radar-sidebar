@@ -21,8 +21,6 @@ export interface RailHostState {
   wide: boolean;
   /** BB's compact viewport: the rail in the mobile drawer. */
   compact: boolean;
-  /** The rail's heading shows a project scope. */
-  scoped: boolean;
 }
 
 const BLOCKS: readonly (readonly [keyof RailHostState | null, string])[] = [
@@ -228,8 +226,11 @@ const BLOCKS: readonly (readonly [keyof RailHostState | null, string])[] = [
   overflow: visible;
 }
 `],
-  ["scoped", `
-[data-sidebar="sidebar"] .radar-list-scope { display: none; }
+  [null, `
+/* BB's top reserve row only holds the back/forward pair, which the rail
+   drops; the list header takes the top of the column instead. BB's toggle
+   is a fixed overlay above the rail, so nothing else lives there. */
+[data-sidebar="sidebar"] [data-testid="app-sidebar-top-reserve-row"] { display: none; }
 `],
   [null, `
 [data-sidebar="sidebar"] > [data-sidebar="footer"]::before {
@@ -429,8 +430,8 @@ const BLOCKS: readonly (readonly [keyof RailHostState | null, string])[] = [
       0 12px 32px rgb(0 0 0 / 0.18),
       0 2px 6px rgb(0 0 0 / 0.08);
   }
-  /* The rail's own Customize button reads as "open" while editing. */
-  [data-sidebar="sidebar"]:has([data-sidebar-navigation-customize-mode="true"]) .radar-double-rail-footer button[aria-label="Customize sidebar"] {
+  /* More, which holds Customize, reads as "open" while editing. */
+  [data-sidebar="sidebar"]:has([data-sidebar-navigation-customize-mode="true"]) .radar-double-rail button[aria-label^="More navigation"] {
     background: color-mix(in srgb, var(--primary) 12%, transparent);
     color: var(--primary);
   }

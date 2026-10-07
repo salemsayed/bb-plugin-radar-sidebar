@@ -3,8 +3,13 @@
 // The sidebar itself is frontend-only: thread state flows through the host's
 // sidebar hooks and the public SDK. What the backend owns is the plugin's
 // settings, which gate the more assertive visual behaviours so a user can
-// turn down anything they find noisy without editing code.
+// turn down anything they find noisy without editing code, the crew view's
+// judgement of whether each bot is waiting on Salem, and the Working peek's
+// per-thread digests.
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { crewRpcContract } from "./lib/crewAsk";
+import { createCrewJudge } from "./lib/crewJudge";
+import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
 import {
   DEFAULT_SWIPE_LEFT,
   DEFAULT_SWIPE_RIGHT,
@@ -35,6 +40,12 @@ export default async function plugin(bb: BbPluginApi) {
       label: "Nest workers under their owner",
       description: "A thread without a parent nests under the thread that owns its lifecycle, so plugin-run workers sit under their coordinator.",
       default: true,
+    },
+    hideWorking: {
+      type: "boolean",
+      label: "Hide working threads",
+      description: "Threads with work in flight leave the list for a folded Working drawer at the bottom, and come back when they finish or need you. Pinned threads and the one you have open stay put.",
+      default: false,
     },
     hideEmptySections: {
       type: "boolean",
@@ -95,7 +106,13 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "Navigation rail",
       description:
-        "Show a vertical navigation rail with project filters beside the thread list on desktop and mobile. Off keeps navigation above the list.",
+        "Show a vertical navigation rail beside the thread list on desktop and mobile. Off keeps navigation above the list.",
+      default: false,
+    },
+    botRail: {
+      type: "boolean",
+      label: "Bot rail (experimental)",
+      description: "Requires Navigation rail. Replace the in-list bots deck with bot faces: tap to show their workers, then open the coordinator from the heading. Coordinators and workers tuck into the rail. Off restores the full list. Project tiles stay removed in both modes.",
       default: false,
     },
     wideRail: {
@@ -126,6 +143,28 @@ export default async function plugin(bb: BbPluginApi) {
       options: SWIPE_ACTION_OPTION_LABELS,
       default: DEFAULT_SWIPE_LEFT,
     },
+  });
+
+  const judge = createCrewJudge(bb);
+  // Several sidebars peeking at once share one timeline read per thread.
+  const digests = new Map<string, { at: number; digest: Promise<WorkingDigest | null> }>();
+  const DIGEST_FRESH_MS = 4_000;
+  const digest = (threadId: string): Promise<WorkingDigest | null> => {
+    const cached = digests.get(threadId);
+    if (cached && Date.now() - cached.at < DIGEST_FRESH_MS) return cached.digest;
+    const next = bb.sdk.threads
+      .timeline({ threadId, segmentLimit: "1" })
+      .then((timeline) => digestTimeline(threadId, timeline as TimelineLike))
+      .catch(() => null);
+    for (const [id, entry] of digests) if (Date.now() - entry.at >= DIGEST_FRESH_MS) digests.delete(id);
+    digests.set(threadId, { at: Date.now(), digest: next });
+    return next;
+  };
+  bb.rpc.register({ ...crewRpcContract, ...workingRpcContract }, {
+    crew_asks: async (input) => ({ judgements: await judge(input.threads) }),
+    working_digest: async (input) => ({
+      digests: (await Promise.all(input.threadIds.map(digest))).filter((entry): entry is WorkingDigest => entry !== null),
+    }),
   });
 
   bb.onDispose(() => {

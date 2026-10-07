@@ -8,6 +8,7 @@ export const rosterSchema = z.object({
       key: z.string(),
       name: z.string(),
       current: z.string(),
+      coordinatorIds: z.array(z.string()).optional(),
       projectId: z.string(),
       projects: z.array(z.string()),
       hostId: z.string(),
@@ -22,10 +23,15 @@ export type RosterBot = z.infer<typeof rosterSchema>["bots"][number];
 /** The gist of a coordinator's latest reply: what it was about and whether it asked for a decision. */
 export interface Pulse {
   subject: string;
+  preview?: string | null;
   decision: string | null;
   quiet: boolean;
   /** Context window used, 0..1, when the provider reports an exact figure. */
   context?: number | null;
+  contextUsedTokens?: number | null;
+  contextWindowTokens?: number | null;
+  contextEstimated?: boolean;
+  contextModel?: string | null;
 }
 
 function cleanLine(line: string): string {
@@ -54,6 +60,16 @@ export function parsePulse(text: string | null | undefined): Pulse | null {
     decision: decision ? decision.slice(0, 160) : null,
     quiet: !decision && /^nothing to do\.?$/i.test(last),
   };
+}
+
+/** A longer hover excerpt, without protocol markers or a duplicate decision footer. */
+export function pulsePreview(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).map(cleanLine).filter(line => line && !PROTOCOL_LINE.test(line) && !/^decision needed:/i.test(line));
+  const prose = lines.filter(line => !/^nothing to do\.?$/i.test(line));
+  const preview = (prose.length ? prose : lines).join(" ");
+  if (!preview) return null;
+  return preview.length <= 320 ? preview : `${preview.slice(0, 320).replace(/\s+\S*$/, "")}…`;
 }
 
 export type BotState = "failed" | "needs-you" | "working" | "rollover" | "decision" | "unread" | "idle";

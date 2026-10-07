@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 describe("groupGlyph", () => {
-  it("gives every grouping mode a distinct, correct icon", async () => {
+  it("gives every non-time grouping mode a distinct, correct icon", async () => {
     const { groupGlyph } = await import("./RadarGroupHeader");
-    // Regression: the sortable path rendered a folder for the Pinned group,
-    // and time/section groups rendered no icon at all.
+    // Regression: the sortable path rendered a folder for the Pinned group.
     expect(groupGlyph({ id: "pinned", icon: "Pin", projectId: null }, true)).toBe(
       "Pin",
     );
@@ -19,7 +18,7 @@ describe("groupGlyph", () => {
     ).toBe("FolderOpen");
     expect(
       groupGlyph({ id: "time:today", icon: "Clock", projectId: null }, false),
-    ).toBe("Clock");
+    ).toBeNull();
     expect(
       groupGlyph(
         { id: "section:s1", icon: "SectionMove", projectId: null },

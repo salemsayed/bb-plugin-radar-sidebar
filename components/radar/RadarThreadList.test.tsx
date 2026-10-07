@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { createElement, Fragment, type FunctionComponent } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
@@ -7,6 +7,8 @@ import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
 import { resetRailScope, setRailScope } from "./railScope";
+import { setRailNewThread } from "./railNewThread";
+import { startOfToday } from "./crew";
 
 // Expose configurable test exports while retaining the SDK's slot runtime.
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => ({
@@ -49,20 +51,24 @@ function renderThreads(
     execution?: Record<string, unknown> | null;
     archived?: PluginSidebarThreadsState["experimental_archived"];
     sdk?: Record<string, unknown>;
+    rpc?: Record<string, (input: unknown) => unknown>;
+    isCompactViewport?: boolean;
+    onNavigate?: () => void;
   } = {},
 ) {
+  const { isCompactViewport = false, onNavigate = () => {}, ...harness } = options;
   return renderSlot(
     threadList,
     {
       activeThreadId: null,
       activeProjectId: "proj_a",
-      isCompactViewport: false,
-      onNavigate: () => {},
+      isCompactViewport,
+      onNavigate,
       searchQuery: "",
     },
     {
       sdk: sdkFakes(options.execution),
-      ...options,
+      ...harness,
       sidebarThreads: {
         status: "ready",
         threads,
@@ -76,6 +82,14 @@ function renderThreads(
 
 /** Row anchors are the stable handle: ThreadTitle renders empty in the
  * harness, so title text is not queryable — the id attribute is. */
+/** List settings sit in the panel behind the header's View options button. */
+function viewOptions() {
+  if (!screen.queryByRole("dialog", { name: "View options" })) {
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  }
+  return within(screen.getByRole("dialog", { name: "View options" }));
+}
+
 function visibleRowIds(container: HTMLElement): string[] {
   return Array.from(
     container.querySelectorAll("[data-sidebar-thread-id]"),
@@ -103,45 +117,177 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("project scope without the navigation rail", () => {
-  it("shows every project when railNav is off and restores the saved filter when enabled", () => {
+describe("retired project tile scope", () => {
+  it("never applies a legacy project filter, with or without the bot experiment", () => {
+    localStorage.setItem("radar-sidebar:rail-scope:v1", "proj_a");
     const threads = [makeThread({ id: "a", projectId: "proj_a" }), makeThread({ id: "b", projectId: "proj_b" })];
-    const projects = [makeProject({ id: "proj_a", name: "Alpha" }), makeProject({ id: "proj_b", name: "Beta" })];
-    setRailScope("proj_a");
-    const slot = renderThreads(threads, { settings: { railNav: false }, projects });
+    const slot = renderThreads(threads, { settings: { railNav: true }, projects: [makeProject({ id: "proj_a" }), makeProject({ id: "proj_b" })] });
     expect(visibleRowIds(slot.container).sort()).toEqual(["a", "b"]);
-    expect(screen.queryByRole("button", { name: "Clear project filter: Alpha" })).toBeNull();
-    expect(localStorage.getItem("radar-sidebar:rail-scope:v1")).toBe("proj_a");
-    slot.lifecycle.unmount();
-    const enabled = renderThreads(threads, { settings: { railNav: true }, projects });
-    expect(visibleRowIds(enabled.container)).toEqual(["a"]);
   });
+});
 
-  it("shows the scope and lets another navigation provider's user restore every project", () => {
-    setRailScope("proj_a");
-    const slot = renderThreads([
-      makeThread({ id: "a", projectId: "proj_a" }),
-      makeThread({ id: "b", projectId: "proj_b" }),
-    ], { settings: { railNav: true }, projects: [makeProject({ id: "proj_a", name: "Alpha" }), makeProject({ id: "proj_b", name: "Beta" })] });
-    expect(visibleRowIds(slot.container)).toEqual(["a"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear project filter: Alpha" }));
-    expect(visibleRowIds(slot.container).sort()).toEqual(["a", "b"]);
-    expect(localStorage.getItem("radar-sidebar:rail-scope:v1")).toBeNull();
+describe("bot scope and experiment fallback", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: ["proj_b"], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
+  const projects = ["proj_a", "proj_b", "elsewhere", "other"].map(id => makeProject({ id }));
+  const threads = [
+    makeThread({ id: "root", projectId: "proj_a", pinnedAt: NOW }),
+    makeThread({ id: "owned", projectId: "proj_b" }),
+    makeThread({ id: "worker", projectId: "elsewhere", lifecycleOwnerThreadId: "root" }),
+    makeThread({ id: "hidden", projectId: "elsewhere", parentThreadId: "root", isHidden: true }),
+    makeThread({ id: "other", projectId: "other" }),
+  ];
+  const sdk = { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [bot] }) } };
+  it("tucks pinned coordinators and workers into the rail, selects only workers, and preserves unrelated threads", async () => {
+    setRailScope("personal");
+    const slot = renderThreads(threads, { projects, sdk, settings: { railNav: true, botRail: true } });
+    await waitFor(() => expect(visibleRowIds(slot.container).sort()).toEqual(["worker"]));
+    expect(slot.container.querySelector(".radar-bot-card")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
+    expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]);
   });
+  it("keeps the main header in a bot or crew scope, with the scope as a pill", async () => {
+    setRailScope("personal");
+    const slot = renderThreads(threads, { projects, sdk, settings: { railNav: true, botRail: true } });
+    const pill = await screen.findByRole("button", { name: "Clear bot filter: Personal Bot" });
+    expect(pill.closest(".radar-active-filters")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Personal Bot" }).textContent).toContain("Personal");
+    expect(screen.getByRole("searchbox", { name: "Filter threads" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "View options" })).toBeTruthy();
 
-  it("clears a deleted project with the list selected on its own", () => {
-    setRailScope("deleted_project");
-    const slot = renderThreads([makeThread({ id: "a" })]);
-    expect(visibleRowIds(slot.container)).toEqual(["a"]);
-    expect(localStorage.getItem("radar-sidebar:rail-scope:v1")).toBeNull();
+    act(() => setRailScope("__crew__"));
+    const crew = await screen.findByRole("button", { name: "Clear bot filter: Crew" });
+    expect(crew.closest(".radar-search-row")).toBeTruthy();
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    fireEvent.click(crew);
+    expect(visibleRowIds(slot.container)).toContain("other");
   });
-
-  it("retains a valid scope when only archived threads remain", () => {
-    localStorage.setItem("radar-sidebar:lifecycles:v1", "archived");
-    setRailScope("proj_a");
-    const slot = renderThreads([makeThread({ id: "a", isArchived: true })], { settings: { railNav: true }, projects: [makeProject({ id: "proj_a", name: "Alpha" })] });
-    expect(visibleRowIds(slot.container)).toEqual(["a"]);
-    expect(screen.getByRole("button", { name: "Clear project filter: Alpha" })).toBeTruthy();
+  it("opens the coordinator from the scope pill's name, keeping the scope", async () => {
+    setRailScope("personal");
+    const navigated = vi.fn();
+    const slot = renderThreads(threads, { projects, sdk, settings: { railNav: true, botRail: true }, onNavigate: navigated });
+    fireEvent.click(await screen.findByRole("button", { name: "Open Personal Bot" }));
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+    expect(navigated).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" })).toBeTruthy();
+  });
+  it("offers the coordinator when a bot has no workers", async () => {
+    setRailScope("personal");
+    const slot = renderThreads(threads.filter(thread => thread.id !== "worker"), { projects, sdk, settings: { railNav: true, botRail: true } });
+    fireEvent.click(await screen.findByRole("button", { name: "Open Personal" }));
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+  });
+  it("shows a bot's working threads in its view, and hides them again outside it", async () => {
+    const running = threads.map(thread => thread.id === "worker" || thread.id === "other" ? { ...thread, status: "active" as const } : thread);
+    setRailScope("personal");
+    const slot = renderThreads(running, { projects, sdk, settings: { railNav: true, botRail: true, hideWorking: true } });
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
+    expect(slot.container.querySelector(".radar-working-drawer")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
+    expect(visibleRowIds(slot.container)).toEqual(["owned"]);
+    expect(screen.getByRole("button", { name: "Working, 1 thread" })).toBeTruthy();
+  });
+  it("replaces the list with the crew overview: bots with something to say speak, the rest rest", async () => {
+    const today = (ago: number) => Math.max(startOfToday(Date.now()), Date.now() - ago);
+    const home = { ...bot, key: "home", name: "Home Bot", current: "home", projects: [] };
+    const work = { ...bot, key: "work", name: "Work Bot", current: "work", projects: [] };
+    const quiet = { ...bot, key: "quiet", name: "Quiet Bot", current: "quiet", projects: [] };
+    const crewThreads = [
+      makeThread({ id: "root", projectId: "proj_a" }),
+      makeThread({ id: "home", projectId: "proj_a" }),
+      makeThread({ id: "work", projectId: "proj_a" }),
+      makeThread({ id: "quiet", projectId: "proj_a" }),
+      makeThread({ id: "worker", projectId: "elsewhere", lifecycleOwnerThreadId: "root", status: "active", title: "Review fe!974", createdAt: today(5 * 60_000) }),
+      makeThread({ id: "other", projectId: "other" }),
+    ];
+    const stalled = {
+      id: "auto_gate", projectId: "proj_a", name: "Work Bot: inbox gate", enabled: true,
+      trigger: { triggerType: "schedule", cron: "*/5 * * * *", timezone: "UTC" }, execution: { worker: { owner: { bot: "work" } } },
+      nextRunAt: Date.now() - 30 * 60_000, lastRunAt: Date.now() - 35 * 60_000, lastRunStatus: "skipped", lastRunThreadId: null, lastError: null,
+    };
+    const fakes = sdkFakes();
+    const crewSdk = {
+      ...fakes,
+      threads: {
+        ...(fakes.threads as object),
+        list: async ({ parentThreadId }: { parentThreadId: string }) => parentThreadId !== "root" ? [] : [
+          { id: "done", title: "Finished run", status: "idle", createdAt: today(10 * 60_000) },
+          { id: "boom", title: "Broken run", status: "error", createdAt: today(20 * 60_000) },
+          { id: "old", title: "Yesterday's run", status: "idle", createdAt: startOfToday(Date.now()) - 3_600_000 },
+        ],
+        output: async ({ threadId }: { threadId: string }) => ({ output: threadId === "home" ? "Deploy paused at the prompt.\nDecision needed: type your sudo password" : "Inbox is clear.\nNothing to do." }),
+      },
+      plugins: { callRpc: async ({ pluginId }: { pluginId: string }) => pluginId === "orchestrator-mode" ? { bots: [bot, home, work, quiet] } : { automations: [{ automation: stalled, project: { id: "proj_a", name: "A" } }] } },
+    };
+    setRailScope("__crew__");
+    const slot = renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true, hideWorking: true } });
+    const bubbles = () => Array.from(slot.container.querySelectorAll(".radar-crew-say")).map((say) => [say.getAttribute("data-bot"), say.className.replace(/.*radar-crew-say-/, "")]);
+    await waitFor(() => expect(bubbles()).toEqual([["work", "failed"], ["home", "ask"], ["personal", "running"]]));
+    expect(visibleRowIds(slot.container)).toEqual([]);
+    expect(screen.queryByRole("searchbox", { name: "Filter threads" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Work: inbox gate hasn't run in 30m" }).textContent).toContain("Check ›");
+    expect(screen.getByRole("button", { name: "Home: Type your sudo password" }).textContent).toContain("Reply ›");
+    expect(Array.from(slot.container.querySelectorAll(".radar-crew-tile-name")).map((name) => name.textContent)).toEqual(["Quiet"]);
+    await waitFor(() => expect(Array.from(slot.container.querySelectorAll(".radar-crew-job")).map((job) => job.className.replace("radar-crew-job radar-crew-job-", "") + ":" + job.querySelector(".radar-crew-job-title")?.textContent))
+      .toEqual(["running:Review fe!974", "done:Finished run", "failed:Broken run"]));
+    expect(slot.container.querySelector(".radar-crew-day .radar-crew-label-count")?.textContent).toBe("3 jobs");
+    expect(slot.container.querySelector(".radar-crew-chapter .radar-crew-card-tally")?.textContent).toBe("1 running1 done1 failed");
+    expect(slot.container.querySelector(".radar-crew-tile-meta")?.textContent).toMatch(/idle$/);
+    fireEvent.click(screen.getByRole("button", { name: "Personal: working on Review fe!974" }));
+    fireEvent.click(screen.getByRole("button", { name: "Home: Type your sudo password" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Open Quiet Bot, resting, last reply \S+ ago, 0 jobs today: Inbox is clear\.$/ }));
+    expect(slot.navigateCalls).toEqual([{ method: "toThread", threadId: "worker" }, { method: "toThread", threadId: "home" }, { method: "toThread", threadId: "quiet" }]);
+  });
+  it("asks the server which replies are waiting on Salem and quotes the chosen sentence", async () => {
+    const plain = { ...bot, key: "plain", name: "Plain Bot", current: "plain", projects: [] };
+    const crewThreads = [
+      makeThread({ id: "root", projectId: "proj_a", latestAttentionAt: 100 }),
+      makeThread({ id: "plain", projectId: "proj_a", latestAttentionAt: 200 }),
+    ];
+    const fakes = sdkFakes();
+    const crewSdk = {
+      ...fakes,
+      threads: { ...(fakes.threads as object), output: async ({ threadId }: { threadId: string }) => ({ output: threadId === "plain" ? "Tickets are EGP 800.\nShould I book two for Saturday?" : "Inbox is clear." }) },
+      plugins: { callRpc: async ({ pluginId }: { pluginId: string }) => pluginId === "orchestrator-mode" ? { bots: [bot, plain] } : { automations: [] } },
+    };
+    const asked: unknown[] = [];
+    setRailScope("__crew__");
+    const slot = renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true }, rpc: {
+      crew_asks: (raw) => {
+        const input = raw as { threads: { threadId: string; version: number }[] };
+        asked.push(input);
+        return { judgements: input.threads.map(({ threadId, version }) => threadId === "plain"
+          ? { threadId, version, waiting: 0.94, ask: "Should I book two for Saturday?" }
+          : { threadId, version, waiting: 0.03, ask: null }) };
+      },
+    } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Plain: Should I book two for Saturday?" }).textContent).toContain("Reply ›"));
+    expect(asked).toEqual([{ threads: [{ threadId: "root", version: 100 }, { threadId: "plain", version: 200 }] }]);
+    expect(Array.from(slot.container.querySelectorAll(".radar-crew-tile-name")).map((name) => name.textContent)).toEqual(["Personal"]);
+  });
+  it.each([{ railNav: false, botRail: true }, { railNav: true, botRail: false }])("ignores a saved bot filter with either flag off: %j", async settings => {
+    setRailScope("personal");
+    const slot = renderThreads(threads, { projects, sdk, settings: { ...settings, botsDeck: false } });
+    await act(async () => {});
+    expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned", "root", "worker"]);
+    expect(screen.queryByRole("button", { name: /Clear bot filter/ })).toBeNull();
+  });
+  it("restores all threads and the deck when the switch changes on a mounted list", async () => {
+    const settings = vi.spyOn(pluginSdk, "useSettings");
+    settings.mockReturnValue({ values: { railNav: true, botRail: true }, isLoading: false });
+    setRailScope("personal");
+    const slot = renderThreads(threads, { projects, sdk });
+    await waitFor(() => expect(visibleRowIds(slot.container).sort()).toEqual(["worker"]));
+    settings.mockReturnValue({ values: { railNav: true, botRail: false }, isLoading: false });
+    slot.rerender(createElement(threadList.component, { activeThreadId: null, activeProjectId: "proj_a", isCompactViewport: false, onNavigate: () => {}, searchQuery: "" }));
+    expect(slot.container.querySelector(".radar-bot-card[data-thread-id='root']")).toBeTruthy();
+    expect(visibleRowIds(slot.container)).toContain("other");
+    expect(screen.queryByRole("button", { name: /Clear bot filter/ })).toBeNull();
+  });
+  it("leaves the entire list accessible when the roster fails", async () => {
+    setRailScope("personal");
+    const slot = renderThreads(threads, { projects, settings: { railNav: true, botRail: true }, sdk: { ...sdkFakes(), plugins: { callRpc: async () => { throw new Error("Unavailable"); } } } });
+    await act(async () => {});
+    expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned", "root", "worker"]);
   });
 });
 
@@ -236,7 +382,7 @@ describe("thread families", () => {
     ["search", () => fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "kid" },
     })],
-    ["status filter", () => fireEvent.click(screen.getByTitle("Filter unread threads"))],
+    ["status filter", () => fireEvent.click(viewOptions().getByTitle("Filter unread threads"))],
   ])("numbers a folded family's rows while a %s forces it open", (_, filter) => {
     const parent = makeThread({ id: "p", title: "Family head kid", isUnread: true });
     const child = makeThread({
@@ -1134,10 +1280,10 @@ describe("density", () => {
     const slot = renderThreads([makeThread({ id: "t", title: "One" })]);
     expect(root(slot).classList.contains("radar-density-compact")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Compact view" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Compact view" }));
     expect(root(slot).classList.contains("radar-density-compact")).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Comfortable view" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Comfortable view" }));
     expect(root(slot).classList.contains("radar-density-compact")).toBe(false);
   });
 
@@ -1148,14 +1294,112 @@ describe("density", () => {
       settings: { defaultDensity: "compact" },
     });
     // Server says compact, so the button offers the comfortable option.
-    fireEvent.click(screen.getByRole("button", { name: "Comfortable view" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Comfortable view" }));
     expect(localStorage.getItem("radar-sidebar:density:v1")).toBe(
       "comfortable",
     );
 
     // Toggling back onto the server default stores "auto", not an override.
-    fireEvent.click(screen.getByRole("button", { name: "Compact view" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Compact view" }));
     expect(localStorage.getItem("radar-sidebar:density:v1")).toBe("auto");
+  });
+});
+
+describe("working drawer", () => {
+  const threads = [
+    makeThread({ id: "run", title: "Long refactor", status: "active" }),
+    makeThread({ id: "done", latestAttentionAt: NOW - HOUR }),
+  ];
+
+  it("folds running threads into a drawer under the list and remembers it open", () => {
+    const slot = renderThreads(threads, { settings: { hideWorking: true } });
+    const drawer = slot.container.querySelector<HTMLElement>(".radar-working-drawer");
+    expect(drawer?.previousElementSibling?.classList.contains("radar-list-body")).toBe(true);
+    expect(visibleRowIds(slot.container)).toEqual(["done"]);
+    const toggle = screen.getByRole("button", { name: "Working, 1 thread" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(visibleRowIds(drawer!)).toEqual(["run"]);
+    expect(localStorage.getItem("radar-sidebar:working-open:v1")).toBe("open");
+  });
+
+  it("peeks into running threads on hover, with what each is doing", async () => {
+    const navigated = vi.fn();
+    const asked: unknown[] = [];
+    const started = Date.now() - 20 * 60_000;
+    const slot = renderThreads(threads, { settings: { hideWorking: true }, onNavigate: navigated, rpc: {
+      working_digest: (input) => {
+        asked.push(input);
+        return { digests: [{
+          threadId: "run", runningSince: started, lastActivityAt: Date.now() - 30_000,
+          saying: "Running the tests now.", doing: { label: "Running command", detail: "npx vitest run", pending: true, at: Date.now() },
+          phase: "testing", steps: 12, failingStreak: 2, todos: { done: 2, total: 5, current: "Fix the flaky test" },
+          goal: null, context: 0.42, background: 0, fallback: null,
+        }] };
+      },
+    } });
+    const header = screen.getByRole("button", { name: "Working, 1 thread" }).closest(".radar-group-header")!.parentElement!;
+    fireEvent.pointerEnter(header, { pointerType: "mouse" });
+    const card = await screen.findByRole("dialog", { name: "Working threads" });
+    await waitFor(() => expect(within(card).getByText("“Running the tests now.”")).toBeTruthy());
+    expect(asked).toEqual([{ threadIds: ["run"] }]);
+    expect(within(card).getByText("Long refactor")).toBeTruthy();
+    expect(within(card).getByText("20m")).toBeTruthy();
+    expect(within(card).getByText(/Testing · 12 steps · 42% context/)).toBeTruthy();
+    expect(within(card).getByText("npx vitest run")).toBeTruthy();
+    expect(within(card).getByText("2/5 · Fix the flaky test")).toBeTruthy();
+    expect(within(card).getByText("2 failed commands in a row")).toBeTruthy();
+    expect(within(card).getByText("1 failing")).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole("button", { name: /Long refactor/ }));
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "run" });
+    expect(navigated).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Working threads" })).toBeNull();
+  });
+
+  it("closes the peek when the pointer leaves, and never opens it on touch", async () => {
+    renderThreads(threads, { settings: { hideWorking: true }, rpc: { working_digest: () => ({ digests: [] }) } });
+    const header = screen.getByRole("button", { name: "Working, 1 thread" }).closest(".radar-group-header")!.parentElement!;
+    fireEvent.pointerEnter(header, { pointerType: "mouse" });
+    await screen.findByRole("dialog", { name: "Working threads" });
+    fireEvent.pointerLeave(header);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Working threads" })).toBeNull());
+    fireEvent.pointerEnter(header, { pointerType: "touch" });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(screen.queryByRole("dialog", { name: "Working threads" })).toBeNull();
+  });
+
+  it("counts running threads in the drawer header, not their idle replies", () => {
+    const family = [
+      makeThread({ id: "lead", status: "active" }),
+      makeThread({ id: "reply1", parentThreadId: "lead", isUnread: true, indicator: "unread-success" }),
+      makeThread({ id: "reply2", parentThreadId: "lead" }),
+      makeThread({ id: "busy", parentThreadId: "lead", status: "active" }),
+    ];
+    renderThreads([...family, threads[1]!], { settings: { hideWorking: true } });
+    const toggle = screen.getByRole("button", { name: "Working, 2 threads" });
+    expect(toggle.querySelector(".radar-group-count")?.textContent).toBe("2");
+    expect(toggle.querySelector(".radar-group-unread")).toBeNull();
+  });
+
+  it("keeps a thread that left a background command running in the drawer", () => {
+    const server = makeThread({ id: "server", activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 1, planMode: 0, goals: 0 } });
+    const slot = renderThreads([server, threads[1]!], { settings: { hideWorking: true } });
+    expect(visibleRowIds(slot.container)).toEqual(["done"]);
+    expect(screen.getByRole("button", { name: "Working, 1 thread" })).toBeTruthy();
+  });
+
+  it("shows waiting threads in their group when the needs-you lane is off", () => {
+    const asking = makeThread({ id: "ask", hasPendingInteraction: true });
+    const slot = renderThreads([asking, threads[1]!], { settings: { needsYouLane: false } });
+    expect(visibleRowIds(slot.container).sort()).toEqual(["ask", "done"]);
+    expect(slot.container.querySelector(".radar-group-needs-you")).toBeNull();
+  });
+
+  it("stays out of the way when the setting is off", () => {
+    const slot = renderThreads(threads);
+    expect(slot.container.querySelector(".radar-working-drawer")).toBeNull();
+    expect(visibleRowIds(slot.container)).toEqual(["run", "done"]);
   });
 });
 
@@ -1543,10 +1787,106 @@ describe("Pinned smart view", () => {
     const slot = renderThreads([pinned, other]);
     expect(visibleRowIds(slot.container)).toContain("other");
 
-    fireEvent.click(screen.getByTitle("Pinned threads"));
+    fireEvent.click(viewOptions().getByTitle("Pinned threads"));
     await waitFor(() =>
       expect(visibleRowIds(slot.container)).toEqual(["pin"]),
     );
+  });
+
+  it("hands over to a status filter instead of staying selected", async () => {
+    renderThreads([makeThread({ id: "pin", isPinned: true, pinnedAt: NOW })]);
+    fireEvent.click(viewOptions().getByTitle("Pinned threads"));
+    fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Clear Unread filter" })).toBeTruthy(),
+    );
+    expect(screen.queryByRole("button", { name: "Clear Pinned filter" })).toBeNull();
+  });
+});
+
+describe("new thread handoff", () => {
+  afterEach(() => setRailNewThread(null));
+
+  it("shows New thread beside the search only while the rail hands it over", () => {
+    const navigated = vi.fn();
+    renderSlot(
+      threadList,
+      { activeThreadId: null, activeProjectId: "proj_a", isCompactViewport: true, onNavigate: navigated, searchQuery: "" },
+      { sdk: sdkFakes(), sidebarThreads: { status: "ready", threads: [], projects: [], sections: [], experimental_archived: null } },
+    );
+    expect(screen.queryByRole("button", { name: "New thread" })).toBeNull();
+
+    const open = vi.fn();
+    act(() => setRailNewThread({ open, label: "New thread (⌘N)", keyShortcuts: "Meta+N" }));
+    const button = screen.getByRole("button", { name: "New thread" });
+    expect(button.getAttribute("aria-keyshortcuts")).toBe("Meta+N");
+    expect(button.getAttribute("title")).toContain("New thread (⌘N)");
+    fireEvent.click(button);
+    expect(open).toHaveBeenCalledWith(false);
+    expect(navigated).toHaveBeenCalledOnce();
+
+    act(() => setRailNewThread(null));
+    expect(screen.queryByRole("button", { name: "New thread" })).toBeNull();
+  });
+});
+
+describe("view options", () => {
+  const dialog = () => screen.queryByRole("dialog", { name: "View options" });
+  const button = () => screen.getByRole("button", { name: "View options" });
+
+  it("keeps every list setting out of the header until asked", () => {
+    renderThreads([makeThread({ id: "t" })]);
+    expect(dialog()).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Status filter" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Thread lifecycle" })).toBeNull();
+
+    fireEvent.click(button());
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+    for (const name of ["Status filter", "Thread lifecycle", "Grouping", "Row density"]) {
+      expect(viewOptions().getByRole(name === "Status filter" ? "radiogroup" : "group", { name })).toBeTruthy();
+    }
+  });
+
+  it("drops density on touch viewports, which are always compact", () => {
+    renderThreads([makeThread({ id: "t" })], { isCompactViewport: true });
+    expect(viewOptions().queryByRole("group", { name: "Row density" })).toBeNull();
+    expect(viewOptions().getByRole("button", { name: "Collapse all folders" })).toBeTruthy();
+  });
+
+  it("stays open across changes and closes on Escape or an outside tap", () => {
+    renderThreads([makeThread({ id: "t" })]);
+    fireEvent.click(viewOptions().getByRole("button", { name: "Archived" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Group by project" }));
+    expect(dialog()).not.toBeNull();
+
+    fireEvent.keyDown(viewOptions().getByRole("button", { name: "Archived" }), { key: "Escape" });
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(button());
+
+    fireEvent.click(button());
+    fireEvent.pointerDown(document.body);
+    expect(dialog()).toBeNull();
+  });
+
+  it("shows a removable pill for each filter narrowing the list", async () => {
+    const slot = renderThreads([
+      makeThread({ id: "read", title: "Read" }),
+      makeThread({ id: "unread", title: "Unread", isUnread: true }),
+    ]);
+    expect(screen.queryByRole("group", { name: "Active filters" })).toBeNull();
+
+    fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
+    fireEvent.click(viewOptions().getByRole("button", { name: "All" }));
+    fireEvent.keyDown(viewOptions().getByRole("button", { name: "All" }), { key: "Escape" });
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["unread"]));
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear Unread filter" }));
+    await waitFor(() => expect(visibleRowIds(slot.container)).toContain("read"));
+    expect(localStorage.getItem("radar-sidebar:status-filter:v1")).toBe("all");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear Archived too filter" }));
+    expect(localStorage.getItem("radar-sidebar:lifecycles:v1")).toBe("active");
+    expect(screen.queryByRole("group", { name: "Active filters" })).toBeNull();
   });
 });
 
@@ -1704,7 +2044,7 @@ describe("review regressions", () => {
       const slot = renderThreads([
         makeThread({ id: "needle", title: "Needle", isPinned: grouping === "pinned" }),
       ]);
-      fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+      fireEvent.click(viewOptions().getByRole("button", { name: "Collapse all folders" }));
       const stored = localStorage.getItem("radar-sidebar:collapsed:v1");
       const row = () => slot.container.querySelector('[data-sidebar-thread-id="needle"]')!;
       expect(row().closest('[aria-hidden="true"]')).not.toBeNull();
@@ -1723,9 +2063,9 @@ describe("review regressions", () => {
 
   it("reveals matches in collapsed groups for status filters too", () => {
     const slot = renderThreads([makeThread({ id: "unread", isUnread: true })]);
-    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Collapse all folders" }));
     expect(shortcutTargetIds(slot.container)).toEqual([]);
-    fireEvent.click(screen.getByTitle("Filter unread threads"));
+    fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
     expect(shortcutTargetIds(slot.container)).toEqual(["unread"]);
     expect(
       slot.container.querySelector('[data-sidebar-thread-id="unread"]')!
@@ -1737,7 +2077,7 @@ describe("review regressions", () => {
     renderThreads([makeThread({ id: "unfiled" })], {
       sections: [makeSection({ id: "empty", name: "Empty bucket" })],
     });
-    fireEvent.click(screen.getByRole("button", {
+    fireEvent.click(viewOptions().getByRole("button", {
       name: "Group by section (drag threads between them)",
     }));
     expect(screen.getByRole("region", { name: "Empty bucket" })).toBeTruthy();
@@ -1764,7 +2104,7 @@ describe("review regressions", () => {
 });
 
 describe("section creation", () => {
-  const sectionMode = () => fireEvent.click(screen.getByRole("button", {
+  const sectionMode = () => fireEvent.click(viewOptions().getByRole("button", {
     name: "Group by section (drag threads between them)",
   }));
   const openForm = () => {
@@ -1875,7 +2215,7 @@ describe("selection", () => {
     fireEvent.keyDown(document.body, { key: "x" });
     expect(screen.getByText("1 selected")).toBeTruthy();
 
-    fireEvent.click(screen.getByTitle("Filter unread threads"));
+    fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
     await waitFor(() =>
       expect(visibleRowIds(slot.container)).toEqual(["unread"]),
     );

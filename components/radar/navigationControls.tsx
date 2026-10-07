@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   experimental_SidebarNavigationIcon as SidebarNavigationIcon,
@@ -81,6 +81,14 @@ export function NavigationButton({
   );
 }
 
+/** A sidebar action listed under the destinations in the More popover. */
+export interface MoreAction {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+}
+
 /**
  * The "More" overflow popover: fixed to the side of the trigger (like BB's
  * stock popover), scrollable, closes on selection, Escape, resize, or an
@@ -95,6 +103,7 @@ export function MorePopover({
   onOpenMenu,
   onClose,
   triggerRef,
+  actions = [],
 }: {
   x: number;
   y: number;
@@ -111,10 +120,15 @@ export function MorePopover({
   ) => void;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  /** Rarely used sidebar controls, kept here instead of on the rail. */
+  actions?: readonly MoreAction[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = 248;
-  const estimatedHeight = Math.min(items.length * 34 + 56, 420);
+  const estimatedHeight = Math.min(
+    (items.length + actions.length) * 34 + 64,
+    420,
+  );
   const left = Math.max(8, Math.min(x, window.innerWidth - width - 8));
   const top = Math.max(
     8,
@@ -169,7 +183,9 @@ export function MorePopover({
     >
       <div className="radar-nav-more-head">
         <span className="radar-nav-more-title">More</span>
-        <span className="radar-nav-more-hint">Right-click to arrange</span>
+        {items.length > 0 ? (
+          <span className="radar-nav-more-hint">Right-click to arrange</span>
+        ) : null}
       </div>
       <div className="radar-nav-more-list">
         {items.map((item) => {
@@ -207,6 +223,28 @@ export function MorePopover({
           );
         })}
       </div>
+      {actions.length > 0 ? (
+        <div
+          className={cn(
+            "radar-nav-more-actions",
+            items.length > 0 && "radar-nav-more-actions-split",
+          )}
+        >
+          {actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              className="radar-nav-row"
+              onClick={action.onSelect}
+            >
+              <span className="radar-nav-icon" aria-hidden="true">
+                {action.icon}
+              </span>
+              <span className="radar-nav-label">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>,
     document.body,
   );

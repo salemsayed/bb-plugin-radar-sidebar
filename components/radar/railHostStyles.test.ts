@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { railHostCss, railHostValuesCss } from "./railHostStyles";
 
-const base = { wide: false, compact: false, scoped: false };
+const base = { wide: false, compact: false };
 
 describe("railHostCss", () => {
   it("adds each state's rules only in that state, after the shared ones", () => {
@@ -17,8 +17,13 @@ describe("railHostCss", () => {
     expect(wide.indexOf("--radar-rail-width: var(--radar-rail-wide)"))
       .toBeGreaterThan(wide.indexOf("--radar-rail-width: var(--radar-rail-narrow)"));
 
-    expect(railHostCss({ ...base, scoped: true })).toContain('[data-sidebar="sidebar"] .radar-list-scope { display: none; }');
     expect(railHostCss({ ...base, compact: true })).toContain("--radar-rail-width: var(--radar-rail-mobile)");
+  });
+
+  it("drops BB's back/forward row in every state", () => {
+    for (const wide of [false, true]) for (const compact of [false, true]) {
+      expect(railHostCss({ wide, compact })).toContain('[data-sidebar="sidebar"] [data-testid="app-sidebar-top-reserve-row"] { display: none; }');
+    }
   });
 
   it("aligns BB's toggle from its own expanded state, not a copy of it", () => {

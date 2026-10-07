@@ -2,6 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { STATE_LABELS, shortBotName, type BotState, type Pulse } from "./bots";
+import { BotAvatar } from "./BotAvatar";
 import type { GroupHeaderData } from "./RadarGroupHeader";
 
 interface Props {
@@ -20,9 +21,6 @@ interface Props {
   onNavigate: () => void;
 }
 
-const RING_R = 17;
-const RING_C = 2 * Math.PI * RING_R;
-
 /**
  * One coordinator as a card: a face in its colour, a ring that fills as its
  * context window does (rollover at 75%), the state, and the one line that
@@ -34,8 +32,6 @@ export function RadarBotCard({ thread, name, emoji, hue, state, pulse, group, is
   const line = pulse?.decision ? pulse.decision : pulse?.subject || "No reply yet";
   const kids = Math.max(0, group.total - 1);
   const context = pulse?.context ?? null;
-  const fill = context === null ? 0 : Math.min(1, Math.max(0, context));
-  const ringTone = context === null ? "" : fill >= 0.75 ? "radar-bot-ring-hot" : fill >= 0.6 ? "radar-bot-ring-warm" : "";
   return (
     <div
       className={cn("radar-bot-card", `radar-bot-${state}`, thread.isUnread && "radar-bot-unread", motion && "radar-bot-motion")}
@@ -43,20 +39,7 @@ export function RadarBotCard({ thread, name, emoji, hue, state, pulse, group, is
       data-thread-id={thread.id}
     >
       <a className="radar-bot-main" href={thread.href} onClick={() => onNavigate()} aria-label={`${name}, ${label.text}`} title={line}>
-        <span className="radar-bot-avatar" aria-hidden="true">
-          <svg className={cn("radar-bot-ring", ringTone)} viewBox="0 0 40 40">
-            <circle className="radar-bot-ring-track" cx="20" cy="20" r={RING_R} />
-            <circle
-              className="radar-bot-ring-fill"
-              cx="20"
-              cy="20"
-              r={RING_R}
-              strokeDasharray={RING_C}
-              strokeDashoffset={RING_C * (1 - fill)}
-            />
-          </svg>
-          <span className="radar-bot-face">{emoji}</span>
-        </span>
+        <BotAvatar emoji={emoji} context={context} />
         <span className="radar-bot-body">
           <span className="radar-bot-head">
             <span className="radar-bot-name">{short}</span>

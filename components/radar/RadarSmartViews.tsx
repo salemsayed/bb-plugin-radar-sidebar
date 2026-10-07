@@ -76,6 +76,7 @@ export function RadarSmartViews({
   currentLifecycle: "all" | "active" | "archived";
   onSelectView: (view: {
     id: string;
+    name: string;
     query: string;
     statusFilter: StatusFilter;
     lifecycle: "all" | "active" | "archived";
@@ -156,6 +157,7 @@ export function RadarSmartViews({
             } else {
               onSelectView({
                 id: "preset_pinned",
+                name: "Pinned",
                 query: "",
                 statusFilter: "pinned",
                 lifecycle: "active",

@@ -20,14 +20,15 @@ export interface GroupHeaderData {
 /**
  * One glyph rule for every grouping mode. Previously the sortable and plain
  * paths each hard-coded their own, so the Pinned group rendered a folder in
- * project view while time and section groups rendered no icon at all.
+ * project view. Time groups get none: "Today" already says it is a time.
  */
 export function groupGlyph(
   group: Pick<GroupHeaderData, "id" | "icon" | "projectId">,
   isCollapsed: boolean,
-): string {
+): string | null {
   if (group.id === "pinned") return "Pin";
   if (group.projectId) return isCollapsed ? "Folder" : "FolderOpen";
+  if (group.id.startsWith("time:")) return null;
   return group.icon;
 }
 
@@ -99,6 +100,7 @@ export function GroupHeader({
     group.unread > 0
       ? `${group.unread} unread of ${group.total}`
       : plural(group.total, "thread");
+  const glyph = groupGlyph(group, isCollapsed);
   return (
     <div
       className={cn(
@@ -127,11 +129,9 @@ export function GroupHeader({
           aria-hidden="true"
           className="radar-group-chevron"
         />
-        <Icon
-          name={groupGlyph(group, isCollapsed)}
-          aria-hidden="true"
-          className="radar-group-icon"
-        />
+        {glyph ? (
+          <Icon name={glyph} aria-hidden="true" className="radar-group-icon" />
+        ) : null}
         <span className="radar-group-label">{group.label}</span>
         <span className="radar-group-meta">
           <GroupStatus group={group} />

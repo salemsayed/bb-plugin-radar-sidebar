@@ -16,10 +16,10 @@ const css = readFileSync(
 );
 
 /** Every rail state the host sheet can take. */
-const hostStates = [false, true].flatMap((wide) => [false, true].flatMap((compact) =>
-  [false, true].map((scoped) => ({ wide, compact, scoped }))));
+const hostStates = [false, true].flatMap((wide) =>
+  [false, true].map((compact) => ({ wide, compact })));
 /** The host sheet with every state on: each block, in cascade order. */
-const hostCss = railHostCss({ wide: true, compact: true, scoped: true });
+const hostCss = railHostCss({ wide: true, compact: true });
 
 /** Every `selector { body }` block, with comments stripped. */
 function rules(source = css): { selector: string; body: string }[] {
@@ -83,18 +83,9 @@ describe("app.css", () => {
 
   it("separates the touch toolbar grid from the rail's vertical flex layout", () => {
     expect(rules().find(rule => rule.selector === ".radar-double-navigation .radar-double-rail")?.body).toMatch(/display:\s*flex/);
-    expect(railHostCss({ wide: false, compact: true, scoped: false })).toMatch(/@media \(max-width: 767px\)[\s\S]*--radar-rail-width: var\(--radar-rail-mobile\)/);
+    expect(railHostCss({ wide: false, compact: true })).toMatch(/@media \(max-width: 767px\)[\s\S]*--radar-rail-width: var\(--radar-rail-mobile\)/);
     expect(css).toContain("env(safe-area-inset-top");
     expect(css).toContain("prefers-reduced-motion");
-  });
-
-  it("documents the chip-fold threshold consistently", () => {
-    expect(css).toContain("@container radar-thread-list (max-width: 284px)");
-    for (const file of ["README.md", "CHANGELOG.md"]) {
-      const copy = readFileSync(resolve(import.meta.dirname, file), "utf8");
-      expect(copy).toContain("284px");
-      expect(copy).not.toMatch(/(?:270|285)px/);
-    }
   });
 
   it("lets a swiped-away row fold shut whatever its density", () => {

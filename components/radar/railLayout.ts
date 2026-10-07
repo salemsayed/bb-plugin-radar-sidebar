@@ -16,11 +16,12 @@ export function railReserve(
   railFooter: number,
   chrome: number,
   hostContent: number,
+  minimumItems = MIN_ITEMS,
 ): number {
-  if (!(shell >= MIN_ITEMS + FOOTER_FLOOR)) {
+  if (!(shell >= minimumItems + FOOTER_FLOOR)) {
     return Math.ceil(itemsHeight + railFooter + chrome);
   }
-  const available = shell - railFooter - chrome - MIN_ITEMS;
+  const available = shell - railFooter - chrome - minimumItems;
   const footerRoom = Math.min(
     Math.max(hostContent, FOOTER_FLOOR),
     Math.max(FOOTER_FLOOR, available),
@@ -54,8 +55,9 @@ export function useRailMeasurements(
   /** The rail's own <style> for measured host values (railHostValuesCss). */
   hostValuesRef: RefObject<HTMLStyleElement | null>,
   items: readonly ExperimentalSidebarNavigationItem[],
-  projectCount: number,
+  tileCount: number,
   wide: boolean,
+  minimumItems = MIN_ITEMS,
 ) {
   // The rail and BB's footer share one column. Publish how much height the
   // rail needs (every destination plus its own footer, unscrolled) so the
@@ -138,7 +140,7 @@ export function useRailMeasurements(
         length(styles.paddingBottom) +
         length(styles.rowGap || styles.gap);
       reserve = sidebar
-        ? railReserve(sidebar.clientHeight, items.scrollHeight, footer.offsetHeight, chrome, hostMenu?.scrollHeight ?? 0)
+        ? railReserve(sidebar.clientHeight, items.scrollHeight, footer.offsetHeight, chrome, hostMenu?.scrollHeight ?? 0, minimumItems)
         : null;
       updateScroll();
     };
@@ -168,5 +170,5 @@ export function useRailMeasurements(
       rail.style.removeProperty("--radar-scroll-height");
       navRoot?.removeAttribute("data-rail-overflow");
     };
-  }, [railRef, hostValuesRef, wide, items, projectCount]);
+  }, [railRef, hostValuesRef, wide, items, tileCount, minimumItems]);
 }

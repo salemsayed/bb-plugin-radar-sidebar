@@ -59,6 +59,7 @@ function comparePinned(a: PluginSidebarThread, b: PluginSidebarThread): number {
 
 export const UNFILED_GROUP_ID = "section:__unfiled__";
 export const NEEDS_YOU_GROUP_ID = "needs-you";
+export const WORKING_GROUP_ID = "working";
 const EMPTY_IDS: readonly string[] = [];
 
 /**
@@ -81,6 +82,12 @@ export function useThreadGroups(args: {
   hideEmptySections?: boolean;
   /** Coordinator threads, in deck order; each becomes its own group and leaves the pinned block. */
   botThreadIds?: readonly string[];
+  /** Lift threads waiting on the user into one lane; off leaves them in their groups. */
+  needsYouLane?: boolean;
+  /** Move families with work in flight out of their group into a Working drawer. */
+  hideWorking?: boolean;
+  /** The open thread: its family stays where it is rather than vanishing on send. */
+  activeThreadId?: string | null;
 }) {
   const {
     threads,
@@ -94,6 +101,9 @@ export function useThreadGroups(args: {
     nestByOwner = false,
     hideEmptySections = false,
     botThreadIds = EMPTY_IDS,
+    needsYouLane = true,
+    hideWorking = false,
+    activeThreadId = null,
   } = args;
 
   const projectById = useMemo(
@@ -378,18 +388,70 @@ export function useThreadGroups(args: {
 
   // Everything blocked on the user, across projects, in one lane above the rest.
   const needsYouGroup = useMemo<ThreadGroup | null>(() => {
+    if (!needsYouLane) return null;
     const bots = new Set(botThreadIds);
     const list = roots
       .filter((root) => !bots.has(root.id) && needsYou(root))
       .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
     return list.length === 0 ? null : assembleGroup(NEEDS_YOU_GROUP_ID, "Needs you", "AlertCircle", list);
-  }, [roots, botThreadIds, subtreeActivity, assembleGroup]);
+  }, [needsYouLane, roots, botThreadIds, subtreeActivity, assembleGroup]);
 
   const takenIds = useMemo(() => {
     const taken = new Set(botThreadIds);
     for (const root of needsYouGroup?.roots ?? []) taken.add(root.id);
     return taken;
   }, [botThreadIds, needsYouGroup]);
+
+  // A family is working while anything in it is live and nothing in it waits
+  // on the user. The open thread's family never counts, so sending a message
+  // does not pull the row out from under you.
+  const isWorkingFamily = useMemo(() => {
+    const cache = new Map<string, boolean>();
+    return (root: PluginSidebarThread): boolean => {
+      const cached = cache.get(root.id);
+      if (cached !== undefined) return cached;
+      let live = false;
+      const calm = (thread: PluginSidebarThread, depth: number): boolean => {
+        if (thread.id === activeThreadId || needsYou(thread)) return false;
+        if (isLiveThread(thread)) live = true;
+        if (depth > 25) return true;
+        return (shownChildren.get(thread.id) ?? []).every((child) => calm(child, depth + 1));
+      };
+      const working = calm(root, 0) && live;
+      cache.set(root.id, working);
+      return working;
+    };
+  }, [shownChildren, activeThreadId]);
+
+  // Filtering shows matches in place, so the drawer only exists unfiltered.
+  // Pinned threads stay pinned: pinning means "keep this in view".
+  const workingGroup = useMemo<ThreadGroup | null>(() => {
+    if (!hideWorking || query.trim() !== "" || statusFilter !== "all") return null;
+    const list = roots
+      .filter((root) => !root.isPinned && !takenIds.has(root.id) && isWorkingFamily(root))
+      .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
+    return list.length === 0 ? null : assembleGroup(WORKING_GROUP_ID, "Working", "Play", list);
+  }, [hideWorking, query, statusFilter, roots, takenIds, isWorkingFamily, subtreeActivity, assembleGroup]);
+
+  // The drawer counts what is actually running, not every member of its
+  // families: one live coordinator with eight idle replies is one.
+  const workingCount = useMemo(() => {
+    let count = 0;
+    const walk = (thread: PluginSidebarThread, depth: number) => {
+      if (isLiveThread(thread)) count += 1;
+      if (depth > 25) return;
+      for (const child of shownChildren.get(thread.id) ?? []) walk(child, depth + 1);
+    };
+    for (const root of workingGroup?.roots ?? []) walk(root, 0);
+    return count;
+  }, [workingGroup, shownChildren]);
+
+  const listedIds = useMemo(() => {
+    if (!workingGroup) return takenIds;
+    const listed = new Set(takenIds);
+    for (const root of workingGroup.roots) listed.add(root.id);
+    return listed;
+  }, [takenIds, workingGroup]);
 
   const pinnedGroup = useMemo<ThreadGroup | null>(() => {
     const pinnedRoots = roots.filter((root) => root.isPinned && !takenIds.has(root.id)).sort(comparePinned);
@@ -399,7 +461,7 @@ export function useThreadGroups(args: {
 
   const groups = useMemo<ThreadGroup[]>(() => {
     const rest = roots
-      .filter((root) => !root.isPinned && !takenIds.has(root.id))
+      .filter((root) => !root.isPinned && !listedIds.has(root.id))
       .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
     if (grouping === "project") {
       const byProject = new Map<string, PluginSidebarThread[]>();
@@ -510,13 +572,14 @@ export function useThreadGroups(args: {
     now,
     subtreeActivity,
     assembleGroup,
-    takenIds,
+    listedIds,
     hideEmptySections,
   ]);
 
   const shownTotal =
     (pinnedGroup?.total ?? 0) +
     (needsYouGroup?.total ?? 0) +
+    (workingGroup?.total ?? 0) +
     botGroups.reduce((count, group) => count + group.total, 0) +
     groups.reduce((count, group) => count + group.total, 0);
 
@@ -533,6 +596,8 @@ export function useThreadGroups(args: {
     pinnedGroup,
     botGroups,
     needsYouGroup,
+    workingGroup,
+    workingCount,
     groups,
     shownTotal,
     projectNameFor,
