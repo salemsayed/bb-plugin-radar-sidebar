@@ -2,17 +2,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { parsePulse, pulsePreview, type Pulse } from "./bots";
 
+/** When the last reply landed; falls back to updatedAt for threads without an attention stamp. */
+function replyStamp(thread: PluginSidebarThread): number {
+  return thread.latestAttentionAt ?? thread.updatedAt;
+}
+
 type Snapshot = { model?: string; usedTokens?: number; contextWindowTokens?: number; modelContextWindow?: number; estimated?: boolean };
 
 /** Read settled replies once; refresh live context without fetching streaming output. */
 export function useThreadPulses(threads: readonly PluginSidebarThread[], enabled: boolean): ReadonlyMap<string, Pulse> {
   const sdk = useSdk();
-  const cache = useRef(new Map<string, { updatedAt: number | null; pulse: Pulse }>());
+  const cache = useRef(new Map<string, { attentionAt: number | null; pulse: Pulse }>());
   const latest = useRef(threads);
   latest.current = threads;
   const [version, setVersion] = useState(0);
   // Streaming timestamps must not restart polling or cancel an in-flight context read.
-  const key = threads.map(t => `${t.id}:${t.status}:${t.status === "active" ? "live" : t.updatedAt}`).join("|");
+  // A reply moves latestAttentionAt; a mark-read only moves updatedAt, so it must not refetch.
+  const key = threads.map(t => `${t.id}:${t.status}:${t.status === "active" ? "live" : replyStamp(t)}`).join("|");
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -24,7 +30,7 @@ export function useThreadPulses(threads: readonly PluginSidebarThread[], enabled
         for (const thread of latest.current) {
           const cached = cache.current.get(thread.id);
           const live = thread.status === "active";
-          if (!live && cached?.updatedAt === thread.updatedAt) continue;
+          if (!live && cached?.attentionAt === replyStamp(thread)) continue;
           let pulse: Pulse = { ...(cached?.pulse ?? { subject: "", decision: null, quiet: false }) };
           if (!live) {
             try {
@@ -48,7 +54,7 @@ export function useThreadPulses(threads: readonly PluginSidebarThread[], enabled
             // Keep the last known gauge through transient failures.
           }
           if (cancelled) return;
-          cache.current.set(thread.id, { updatedAt: live ? null : thread.updatedAt, pulse });
+          cache.current.set(thread.id, { attentionAt: live ? null : replyStamp(thread), pulse });
           setVersion(v => v + 1);
         }
       } finally {

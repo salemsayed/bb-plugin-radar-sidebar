@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeThread } from "./fixtures";
-import { botState, botStyle, crewDigest, needsYou, parsePulse, pulsePreview, shortBotName } from "./bots";
+import { askPulse, botState, botStyle, coordinatorAsk, crewDigest, needsYou, parsePulse, pulsePreview, shortBotName } from "./bots";
 
 describe("parsePulse", () => {
   it("reads the subject, a decision line and the quiet marker", () => {
@@ -21,18 +21,26 @@ describe("parsePulse", () => {
 describe("botState", () => {
   const base = { id: "bot", title: "Personal Bot" };
   it("ranks attention, execution, rollover, then what the reply asked", () => {
-    expect(botState(undefined, null, null)).toBe("idle");
+    expect(botState(undefined, null, null)).toBe("unavailable");
     expect(botState(makeThread({ ...base, indicator: "unread-error", isUnread: true }), null, null)).toBe("failed");
     expect(botState(makeThread({ ...base, hasPendingInteraction: true }), null, null)).toBe("needs-you");
     expect(botState(makeThread({ ...base, status: "active" }), null, null)).toBe("working");
     expect(botState(makeThread(base), null, "summary")).toBe("rollover");
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: "pay?", quiet: false }, null)).toBe("decision");
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: false }, null)).toBe("unread");
-    expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: true }, null)).toBe("idle");
-    expect(botState(makeThread(base), { subject: "x", decision: "pay?", quiet: false }, null)).toBe("idle");
+    expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: true }, null)).toBe("unread");
+    expect(botState(makeThread(base), { subject: "x", decision: "pay?", quiet: false }, null)).toBe("decision");
     // A running worker makes the bot "working"; an unseen decision still wins.
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: null, quiet: false }, null, { live: 1, needsUser: 0, failed: 0 })).toBe("working");
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: "pay?", quiet: false }, null, { live: 1, needsUser: 0, failed: 0 })).toBe("decision");
+  });
+  it("distinguishes queued, failed-queue, background work, handover and an answered decision", () => {
+    expect(botState(makeThread({ ...base, queuedWork: "waiting" }), null, null)).toBe("queued");
+    expect(botState(makeThread({ ...base, queuedWork: "failed" }), null, null)).toBe("failed");
+    expect(botState(makeThread({ ...base, activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 1, planMode: 0, goals: 0 } }), null, null)).toBe("working");
+    expect(botState(makeThread({ ...base, status: "active" }), null, "summary")).toBe("rollover");
+    expect(botState(makeThread({ ...base, status: "active" }), { subject: "x", decision: "pay?", quiet: false }, null)).toBe("working");
+    expect(botState(makeThread(base), { subject: "Paid", decision: null, quiet: true }, null)).toBe("idle");
   });
   it("needsYou covers questions, approvals and unseen failures", () => {
     expect(needsYou(makeThread({ id: "a", hasPendingInteraction: true }))).toBe(true);
@@ -71,5 +79,33 @@ describe("hover reply preview", () => {
     expect(preview.length).toBeLessThanOrEqual(321);
     expect(preview).toMatch(/…$/);
     expect(text.startsWith(preview.slice(0, -1))).toBe(true);
+  });
+});
+
+describe("the single ask record", () => {
+  const thread = makeThread({ id: "coord", latestAttentionAt: 200 });
+  const pulse = { subject: "Tickets are EGP 800 each.", decision: null, quiet: false };
+  const judged = { threadId: "coord", version: 200, waiting: 0.9, ask: "Should I book two?", itemId: "n1" };
+  it("reads the judged reply, falls back to the decision line, and honours Done", () => {
+    expect(coordinatorAsk(thread, pulse, judged)).toEqual({ text: "Should I book two?", itemId: "n1" });
+    expect(coordinatorAsk(thread, pulse, null)).toBeNull();
+    expect(coordinatorAsk(thread, { ...pulse, decision: "book two? Prices rise Monday." }, null)).toEqual({ text: "book two? Prices rise Monday.", itemId: null });
+    // The judgement of this reply is the record: an older reply's verdict, a low score, or Jev down defer to the line.
+    expect(coordinatorAsk(thread, pulse, { ...judged, version: 100 })).toBeNull();
+    expect(coordinatorAsk(thread, pulse, { ...judged, waiting: 0.2 })).toBeNull();
+    expect(coordinatorAsk(thread, { ...pulse, decision: "go?" }, { ...judged, waiting: null, ask: null, itemId: null })).toEqual({ text: "go?", itemId: null });
+    expect(coordinatorAsk(thread, { ...pulse, decision: "go?" }, { ...judged, dismissed: true })).toBeNull();
+    expect(coordinatorAsk({ ...thread, status: "active" }, { ...pulse, decision: "go?" }, judged)).toBeNull();
+    expect(coordinatorAsk(thread, null, { ...judged, ask: null, itemId: null })).toEqual({ text: "Waiting for your answer", itemId: null });
+  });
+  it("gives the rail a pulse whose decision is that record", () => {
+    expect(askPulse(thread, pulse, judged)).toEqual({ ...pulse, decision: "Should I book two?" });
+    expect(askPulse(thread, null, judged)).toEqual({ subject: "Should I book two?", quiet: false, decision: "Should I book two?" });
+    expect(askPulse(thread, { ...pulse, decision: "go?" }, { ...judged, dismissed: true })).toEqual({ ...pulse, decision: null });
+    expect(askPulse(thread, null, null)).toBeNull();
+    const running = { ...thread, status: "active" as const };
+    expect(askPulse(running, { ...pulse, decision: "go?" }, judged)).toEqual({ ...pulse, decision: "go?" });
+    expect(botState(thread, askPulse(thread, pulse, { ...judged, dismissed: true }), null)).toBe("idle");
+    expect(botState(thread, askPulse(thread, pulse, judged), null)).toBe("decision");
   });
 });

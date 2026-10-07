@@ -217,8 +217,8 @@ handle to give the thread list more room.
   across projects; unrelated threads in the same project stay outside the filter. Tap again, Home, or X to
   show all threads. The scope shows as a pill under the search: its name opens
   the coordinator, its X clears the scope.
-  Selection follows the bot key through rollover. State dots describe the coordinator
-  family. Context rings remain visible and worker-count badges reveal children;
+  Selection follows the bot key through rollover. State symbols describe the coordinator
+  family. A blue tile and dot mark an unread reply until BB marks it read, even while workers run. Attention badges replace the dot without removing the unread light. The Loud unread setting reduces the cue to the dot (or an accent beside an attention badge). Automatically read routine reports stay quiet. Selection uses a neutral fill and the bot’s hue bar. Context usage stays in the hover card and high usage is shown on the Crew row; worker counts live in labelled rails and hover details;
   hover cards show the latest reply, decision requests, worker titles and states,
   context percentage and token counts, model and machine. Open the coordinator
   or a worker directly, or select View workers to filter the list. The duplicate bots deck
@@ -227,6 +227,24 @@ handle to give the thread list more room.
   and restores the deck when enabled. Empty/unavailable rosters never trap the list
   in a filter. The retired project tile scope is ignored. **New thread** remains
   BB's create-thread action with its usual project picker.
+  States are **Failed**, **Needs you**, **Decision**, **Handover**, **Working**,
+  **Queued**, **New reply**, **Idle** and **Unavailable**. Idle is the plain face. Failed has a red ! badge; Needs you and Decision share an amber ? badge. Working has a spinning arc, Queued a dotted ring, Handover a slow dashed ring, and Unavailable a dimmed face with a grey dashed ring. Each state has an
+  accessible label and hover-card explanation, with an action opening the affected
+  coordinator or worker. The labelled rail shows state text under each name.
+  Reading a question or decision does not resolve it; queues never count as running. Plain-language asks use the same cached Jev verdict as Crew.
+  Crew shows **Needs you**, a fixed-order bot roster, and **Today** as a flat history list. Saved questions show their full text: the leading circle marks Done, the question opens its source thread, and the clock opens Snooze. Done keeps an in-place six-second Undo; snoozed asks collapse into a summary and expand on demand. Today shows five jobs before Show all. A Bot visibility control hides or restores bots without permanent per-row buttons.
+  Open asks, pending input and unread failures keep a hidden bot visible. Reading a failure lets the hide preference take effect; reading an ask does not resolve it. Hidden coordinators and their workers stay out of ordinary thread groups, including Pinned.
+  Radar-captured decisions close automatically only when a newer human answer and
+  coordinator acknowledgment clearly resolve that exact ask (Jev confidence at least
+  0.95). Manual reminders and automation asks are untouched. Uncertain or unavailable
+  evidence leaves the card for manual action, marked "reply seen, not confirmed" when
+  you did reply after it was saved; same-reply Undo and concurrent Snooze changes are
+  respected. The check runs at coordinator idle, when the sidebar first sees a newer
+  coordinator reply, and on each Needs You read (every 30 s while the sidebar is open).
+  Every verdict and failure is logged with the item id, reply version and score. Done
+  dismisses the ask for that reply, so Crew, the deck and the rail stay quiet until the
+  coordinator asks again, and a repeated ask in a later reply is saved again.
+  Loading or unavailable saved decisions are stated explicitly, with Retry on failure.
 - **Tooltips.** Pause on a rail icon (or focus it from the keyboard) for
   the destination's name, its shortcut as a key cap, and the panel's
   accessory that the icon can't fit; a dot on the icon marks that an

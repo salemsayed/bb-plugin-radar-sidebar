@@ -33,10 +33,12 @@ import {
   useValidatedRailScope,
 } from "./railScope";
 import { useBotRoster } from "./useBotRoster";
+import { useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
-import { botStyle, shortBotName, STATE_LABELS } from "./bots";
+import { useCrewJudgements, useNeedsYou } from "./useCrewData";
+import { askPulse, coordinatorAsk, botStyle, shortBotName, STATE_LABELS } from "./bots";
 import { BotAvatar } from "./BotAvatar";
-import { botRailState, botWorkers, rosterRefreshKey } from "./botScope";
+import { botFamily, botRailState, botWorkers, rosterRefreshKey } from "./botScope";
 import {
   hintFor,
   RowIcon,
@@ -93,13 +95,39 @@ function RailNavigationBody({
   const { values: settingValues } = useSettings();
   const botRail = settingValues?.botRail === true;
   const { threads } = experimental_useSidebarThreads();
-  const bots = useBotRoster(botRail, rosterRefreshKey(threads));
-  const scope = useValidatedRailScope(bots, botRail);
-  const crew = scope === CREW_SCOPE;
+  const fullRoster = useBotRoster(botRail, rosterRefreshKey(threads));
   const navigate = useBbNavigate();
   const { threadId: openThreadId } = useBbContext();
-  const botRows = useMemo(() => threads.filter(t => bots.some(bot => bot.current === t.id)), [threads, bots]);
+  const botRows = useMemo(() => threads.filter(t => fullRoster.some(bot => bot.current === t.id)), [threads, fullRoster]);
   const pulses = useThreadPulses(botRows, botRail);
+  const judgements = useCrewJudgements(botRail ? botRows : []);
+  const attentionPulses = useMemo(() => {
+    const result = new Map(pulses);
+    for (const thread of botRows) {
+      const pulse = askPulse(thread, pulses.get(thread.id) ?? null, judgements.get(thread.id));
+      if (pulse) result.set(thread.id, pulse);
+      else result.delete(thread.id);
+    }
+    return result;
+  }, [pulses, judgements, botRows]);
+  const hiddenKeys = useHiddenBotKeys();
+  const checkSavedAsks = botRail && fullRoster.some(bot => hiddenKeys.has(bot.key));
+  // The list owns the normal Needs reader. A second reader is only necessary
+  // while hidden bots must be protected by saved asks, including manual ones.
+  const railNeeds = useNeedsYou(checkSavedAsks);
+  const asking = useMemo(() => {
+    const keys = new Set((railNeeds.items ?? []).filter(item => item.state !== "done" && item.state !== "dropped").map(item => item.bot));
+    for (const bot of fullRoster) {
+      const thread = botRows.find(thread => thread.id === bot.current);
+      if (thread && coordinatorAsk(thread, pulses.get(thread.id) ?? null, judgements.get(thread.id))) keys.add(bot.key);
+      // Unknown saved-ask data must not hide something that might need Salem.
+      if (checkSavedAsks && railNeeds.status !== "ready" && hiddenKeys.has(bot.key)) keys.add(bot.key);
+    }
+    return keys;
+  }, [fullRoster, botRows, pulses, judgements, railNeeds.items, railNeeds.status, checkSavedAsks, hiddenKeys]);
+  const bots = useVisibleBots(fullRoster, threads, asking).bots;
+  const scope = useValidatedRailScope(bots, botRail);
+  const crew = scope === CREW_SCOPE;
 
   const toggleWide = () => {
     setWide((previous) => {
@@ -421,11 +449,12 @@ function RailNavigationBody({
     if (!tip.botKey) return <RailTooltip tip={tip} />;
     const bot = bots.find(bot => bot.key === tip.botKey);
     if (!bot) return null;
-    const pulse = pulses.get(bot.current) ?? null;
+    const pulse = attentionPulses.get(bot.current) ?? null;
     return createPortal(<RadarBotHoverCard bot={bot} tip={tip} pulse={pulse}
       coordinator={threads.find(thread => thread.id === bot.current)} workers={botWorkers(threads, bot)}
       state={botRailState(threads, bot, pulse)} onKeepOpen={keepTip} onLeave={leaveBotTip}
       onClose={closeBotTip} onNavigate={() => { hideTip(); notifyRailThreadNavigation(); }}
+      motion={settingValues?.motion !== false}
       onViewWorkers={() => { hideTip(); setRailScope(bot.key); }} />, document.body);
   };
 
@@ -543,19 +572,21 @@ function RailNavigationBody({
         // From the coordinator itself, a second tap goes back to every thread.
         const releases = selected && openThreadId === bot.current;
         const style = botStyle(bot.key, bot.name);
-        const state = botRailState(threads, bot, pulses.get(bot.current) ?? null);
+        const state = botRailState(threads, bot, attentionPulses.get(bot.current) ?? null);
         const label = STATE_LABELS[state];
+        // Unread replies stay visible independently of the family's activity indicator.
+        const unread = botFamily(threads, bot).some(thread => thread.isUnread);
         const workers = botWorkers(threads, bot);
         const context = pulses.get(bot.current)?.context ?? null;
-        const details = `${label.text} · ${workers.length} worker${workers.length === 1 ? "" : "s"} · ${context === null ? "Context unavailable" : `${Math.round(context * 100)}% context used`}`;
+        const details = `${label.text}${unread ? " · Unread reply" : ""} · ${workers.length} worker${workers.length === 1 ? "" : "s"} · ${context === null ? "Context unavailable" : `${Math.round(context * 100)}% context used`}`;
         return (
           <button key={bot.key} type="button" aria-pressed={selected}
             aria-haspopup={isCompactViewport ? undefined : "dialog"}
             aria-expanded={isCompactViewport ? undefined : tip?.botKey === bot.key}
             aria-controls={tip?.botKey === bot.key ? "radar-bot-hover-card" : undefined}
             aria-label={`${bot.name}, ${label.text}: ${releases ? "show all threads" : "open coordinator and its workers"}; ${details}`}
-            title={isCompactViewport ? `${bot.name}: ${details}` : undefined}
-            className={cn("radar-nav-icon-button radar-rail-bot", selected && "radar-rail-bot-active")}
+            title={isCompactViewport ? `${bot.name}: ${details}. ${label.description}` : undefined}
+            className={cn("radar-nav-icon-button radar-rail-bot", `radar-rail-bot-state-${state}`, selected && "radar-rail-bot-active", unread && settingValues?.loudUnread !== false && "radar-rail-bot-unread")}
             style={{ "--bot-hue": style.hue } as React.CSSProperties}
             onClick={() => {
               hideTip();
@@ -566,10 +597,13 @@ function RailNavigationBody({
             }}
             {...tipProps({ key: `bot:${bot.key}`, botKey: bot.key, label: bot.name, shortcut: null,
               hint: null, Accessory: null })}>
-            <BotAvatar emoji={style.emoji} context={context} />
-            {workers.length > 0 ? <span className={cn("radar-rail-worker-count", label.tone)} aria-hidden="true">{workers.length > 99 ? "99+" : workers.length}</span> : null}
-            <span className="radar-rail-label">{shortBotName(bot.name)}</span>
-            {state !== "idle" ? <span className={cn("radar-rail-bot-dot", label.tone)} aria-hidden="true" /> : null}
+            <BotAvatar emoji={style.emoji} state={state} unread={unread} motion={settingValues?.motion !== false} />
+            <span className="radar-rail-bot-copy">
+              <span className="radar-rail-label">{shortBotName(bot.name)}</span>
+              <span className={cn("radar-rail-bot-state-label", label.tone)} aria-hidden="true">{label.text}{workers.length > 0 ? ` · ${workers.length} worker${workers.length === 1 ? "" : "s"}` : ""}{unread && state !== "unread" ? " · New" : ""}</span>
+            </span>
+            {unread ? <span className="radar-rail-bot-unread-badge" aria-hidden="true" /> : null}
+
           </button>
         );
       })}

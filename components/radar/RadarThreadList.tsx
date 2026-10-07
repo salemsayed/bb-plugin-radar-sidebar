@@ -53,11 +53,12 @@ import {
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { RadarThreadRow } from "./RadarThreadRow";
 import { RadarBotCard } from "./RadarBotCard";
-import { botState, botStyle, crewDigest, shortBotName } from "./bots";
+import { askPulse, botState, botStyle, crewDigest, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { RadarCrewView } from "./RadarCrewView";
-import { useNeedsYou } from "./useCrewData";
+import { useCrewJudgements, useNeedsYou } from "./useCrewData";
 import { useBotRoster } from "./useBotRoster";
+import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
 import { activityTime, isLiveThread, isRunningThread, timeAgo } from "./time";
 import {
@@ -459,6 +460,8 @@ export function RadarThreadList({
   const [groupMenu, setGroupMenu] = useState<{
     x: number;
     y: number;
+    /** Opened on a bot card: offers to hide that bot. */
+    botKey?: string;
   } | null>(null);
   const justDragged = useRef(false);
   const sensors = useSensors(
@@ -558,15 +561,51 @@ export function RadarThreadList({
   } = experimental_useSidebarThreads(lifecyclesParam);
   useRailThreadNavigation(onNavigate);
   const botRail = settings.railNav && settings.botRail;
+  // Deck mode: bot cards in the list. With the rail on, the rail owns the bots instead.
+  const deck = settings.botsDeck && !botRail;
   const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(allThreads));
   const needs = useNeedsYou(settings.botsDeck || botRail);
+  // Deck cards read the full roster's coordinators from the unfiltered list,
+  // so a hidden bot's open ask can still protect it from hiding.
+  const coordinatorRows = useMemo(
+    () => deck ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
+    [allThreads, roster, deck],
+  );
+  const pulses = useThreadPulses(coordinatorRows, deck);
+  const judgements = useCrewJudgements(coordinatorRows);
+  // The deck, the rail and Crew share the one ask record (askPulse): a judged
+  // plain-language ask lights Decision and a Done one does not.
+  const attentionPulses = useMemo(() => {
+    const result = new Map(pulses);
+    for (const thread of coordinatorRows) {
+      const pulse = askPulse(thread, pulses.get(thread.id) ?? null, judgements.get(thread.id));
+      if (pulse) result.set(thread.id, pulse);
+      else result.delete(thread.id);
+    }
+    return result;
+  }, [pulses, judgements, coordinatorRows]);
+  const hiddenKeys = useHiddenBotKeys();
+  // Unknown saved-ask data must not hide something that might need Salem.
+  const asking = useMemo(
+    () => deck ? askingBotKeys(roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys) : new Set<string>(),
+    [deck, roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys],
+  );
+  // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
+  const visible = useVisibleBots(roster, allThreads, asking);
   const railScope = useValidatedRailScope(roster, botRail);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   // The crew overview replaces the thread list; it reads its own data.
   const crewView = railScope === CREW_SCOPE;
   const scopeName = crewView ? "Crew" : scopedBot?.name ?? "Bot";
   const threads = useMemo(() => {
-    if (!botRail || roster.length === 0) return allThreads;
+    if (roster.length === 0) return allThreads;
+    if (!botRail) {
+      // Deck: a hidden bot's whole family leaves the list, so its coordinator
+      // does not come back as a pinned row with its workers nested under it.
+      if (!deck || visible.hiddenBots.length === 0) return allThreads;
+      const tucked = new Set(visible.hiddenBots.flatMap(bot => [...botScopeIds(allThreads, bot)]));
+      return allThreads.filter(thread => !tucked.has(thread.id));
+    }
     if (crewView) return [];
     if (scopedBot) {
       const ids = botScopeIds(allThreads, scopedBot);
@@ -575,7 +614,7 @@ export function RadarThreadList({
     }
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
-  }, [allThreads, scopedBot, crewView, botRail, roster]);
+  }, [allThreads, scopedBot, crewView, botRail, deck, roster, visible.hiddenBots]);
   const actions = experimental_useSidebarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();
@@ -607,12 +646,7 @@ export function RadarThreadList({
 
   const celebrateIds = useArrivals(threads);
 
-  const botThreadIds = useMemo(() => settings.botsDeck && !botRail ? roster.map((bot) => bot.current) : [], [roster, settings.botsDeck, botRail]);
-  const botRows = useMemo(
-    () => botThreadIds.flatMap((id) => { const row = threads.find((thread) => thread.id === id); return row ? [row] : []; }),
-    [botThreadIds, threads],
-  );
-  const pulses = useThreadPulses(botRows, settings.botsDeck);
+  const botThreadIds = useMemo(() => deck ? visible.bots.map((bot) => bot.current) : [], [visible.bots, deck]);
 
   const {
     allRows,
@@ -2060,16 +2094,21 @@ export function RadarThreadList({
               </p>
             ) : null}
             {needsYouGroup ? renderGroup(needsYouGroup, false) : null}
-            {botGroups.length > 0 ? (
-              <div className="radar-crew-header" role="status">
+            {botGroups.length > 0 || visible.hiddenBots.length > 0 ? (
+              <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); setGroupMenu({ x: event.clientX, y: event.clientY }); }}>
                 <span className="radar-crew-label">Crew</span>
                 <span className="radar-crew-digest">
                   {crewDigest(botGroups.map((group) => {
                     const root = group.roots[0]!;
                     const bot = roster.find((entry) => entry.current === root.id);
-                    return botState(root, pulses.get(root.id) ?? null, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed });
+                    return botState(root, attentionPulses.get(root.id) ?? null, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed });
                   }), needs.items)}
                 </span>
+                {visible.hiddenBots.map((bot) => (
+                  <button key={bot.key} type="button" className="radar-crew-action" onClick={() => visible.unhide(bot.key)} aria-label={`Show ${bot.name} again`}>
+                    Show {shortBotName(bot.name)}
+                  </button>
+                ))}
               </div>
             ) : null}
             {botGroups.map((group) => {
@@ -2077,13 +2116,14 @@ export function RadarThreadList({
               const style = botStyle(roster.find((entry) => entry.current === root.id)?.key ?? root.id, root.displayTitle);
               const isCollapsed = collapsedGroupIds.has(group.id);
               const bot = roster.find((entry) => entry.current === root.id);
-              const pulse = pulses.get(root.id) ?? null;
+              const pulse = attentionPulses.get(root.id) ?? null;
               const kids = shownChildren.get(root.id) ?? [];
               return (
                 <section
                   key={group.id}
                   aria-label={group.label}
                   className={cn("radar-group radar-bot-group", isCollapsed ? "radar-group-collapsed" : "radar-group-expanded")}
+                  onContextMenu={bot ? (event) => { event.preventDefault(); setGroupMenu({ x: event.clientX, y: event.clientY, botKey: bot.key }); } : undefined}
                 >
                   <RadarBotCard
                     thread={root}
@@ -2302,6 +2342,24 @@ export function RadarThreadList({
           x={groupMenu.x}
           y={groupMenu.y}
           items={[
+            ...(groupMenu.botKey
+              ? [{
+                  kind: "item" as const,
+                  id: `hide-bot:${groupMenu.botKey}`,
+                  label: `Hide ${roster.find((bot) => bot.key === groupMenu.botKey)?.name ?? "bot"}`,
+                  icon: "EyeOff",
+                  // Attention overrides hiding, so Hide would change nothing until the ask or failure is handled.
+                  ...(visible.isProtected(groupMenu.botKey)
+                    ? { disabled: true, title: "Handle its open question or unread failure before hiding it." }
+                    : {}),
+                }]
+              : []),
+            ...visible.hiddenBots.map((bot) => ({
+              kind: "item" as const,
+              id: `show-bot:${bot.key}`,
+              label: `Show ${bot.name}`,
+            })),
+            ...(groupMenu.botKey || visible.hiddenBots.length > 0 ? [{ kind: "separator" as const }] : []),
             {
               kind: "item",
               id: "expand-all-groups",
@@ -2328,7 +2386,11 @@ export function RadarThreadList({
           ]}
           onSelect={(id) => {
             setGroupMenu(null);
-            if (id === "expand-all-groups") {
+            if (id.startsWith("hide-bot:")) {
+              visible.hide(id.slice("hide-bot:".length));
+            } else if (id.startsWith("show-bot:")) {
+              visible.unhide(id.slice("show-bot:".length));
+            } else if (id === "expand-all-groups") {
               expandAllGroups();
             } else if (id === "collapse-all-groups") {
               collapseAllGroups();

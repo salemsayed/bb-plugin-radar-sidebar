@@ -1,4 +1,7 @@
 import { createElement } from "react";
+import { isBuiltinIconName } from "@/components/ui/icon";
+import { needsChanged } from "@/lib/needsClient";
+import { STATE_LABELS } from "./bots";
 import { act, cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
@@ -498,7 +501,7 @@ describe("bot rail experiment", () => {
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
     expect(tile.getAttribute("aria-pressed")).toBe("false");
   });
-  it("places bot faces below destinations and restores context rings with visible worker counts", async () => {
+  it("places state faces below destinations and keeps workers and context in details", async () => {
     const worker = makeThread({ id: "worker", parentThreadId: "coordinator", status: "active" });
     const slot = renderSlot(navigation, props, {
       settings: { botRail: true }, sidebarNavigation: { items: [destination("board", "Board")] },
@@ -510,10 +513,140 @@ describe("bot rail experiment", () => {
     const tile = await screen.findByRole("button", { name: /Personal Bot, Working:/ });
     await waitFor(() => expect(tile.getAttribute("aria-label")).toContain("65% context used"));
     expect(tile.getAttribute("aria-label")).toContain("1 worker");
-    expect(tile.querySelector(".radar-rail-worker-count")?.textContent).toBe("1");
-    expect(tile.querySelector(".radar-bot-ring-warm")).toBeTruthy();
+    expect(tile.querySelector(".radar-rail-worker-count")).toBeNull();
+    expect(tile.querySelector(".radar-bot-ring")).toBeNull();
+    expect(tile.querySelector(".radar-bot-state-ring-working")).toBeTruthy();
+    expect(tile.querySelector(".radar-rail-bot-state-label")?.textContent).toContain("1 worker");
     const controls = Array.from(slot.container.querySelectorAll(".radar-double-rail-items button"));
     expect(controls.indexOf(screen.getByRole("button", { name: "Board" }))).toBeLessThan(controls.indexOf(tile));
+  });
+  it.each([false, true])("keeps family unread cues alongside working status until the host marks every reply read (compact=%s)", async compact => {
+    const coordinator = makeThread({ id: "coordinator", isUnread: true });
+    const worker = makeThread({ id: "worker", parentThreadId: "coordinator", status: "active", isUnread: true });
+    const slot = renderSlot(navigation, { ...props, isCompactViewport: compact }, {
+      settings: { botRail: true }, sidebarThreads: { threads: [coordinator, worker], projects }, sdk: {
+        providers: { models: async () => ({ models: [], selectedOnlyModels: [], providers: [], permissionCeiling: "auto", modelLoadError: null }) },
+        plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T },
+        threads: { output: async () => ({ output: "The revised plan is ready." }), context: async () => ({ usage: null }) },
+      },
+    });
+    const tile = await screen.findByRole("button", { name: /Personal Bot, Working:/ });
+    expect(tile.classList.contains("radar-rail-bot-unread")).toBe(true);
+    expect(tile.querySelector(".radar-rail-bot-unread-badge")).toBeTruthy();
+    expect(tile.querySelector(".radar-bot-state-ring-working")).toBeTruthy();
+    expect(tile.getAttribute("aria-label")).toContain("Unread reply");
+    fireEvent.click(tile);
+    // Navigation alone does not optimistically clear a notification: BB owns read state.
+    expect(tile.querySelector(".radar-rail-bot-unread-badge")).toBeTruthy();
+    host.sidebarThreads = { threads: [{ ...coordinator, isUnread: false }, worker], projects };
+    slot.rerender(createElement(navigation.component, { ...props, isCompactViewport: compact }));
+    // The worker's reply still contributes to family unread.
+    expect(tile.classList.contains("radar-rail-bot-unread")).toBe(true);
+    expect(tile.querySelector(".radar-bot-unread-dot")).toBeTruthy();
+    host.sidebarThreads = { threads: [{ ...coordinator, isUnread: false }, { ...worker, isUnread: false }], projects };
+    slot.rerender(createElement(navigation.component, { ...props, isCompactViewport: compact }));
+    expect(tile.classList.contains("radar-rail-bot-unread")).toBe(false);
+    expect(tile.querySelector(".radar-rail-bot-unread-badge")).toBeNull();
+    expect(tile.querySelector(".radar-bot-state-ring-working")).toBeTruthy();
+    expect(tile.getAttribute("aria-label")).not.toContain("Unread reply");
+  });
+  it("keeps a judged plain-language decision visible after reading and opens its action", async () => {
+    const coordinator = makeThread({ id: "coordinator", isUnread: false });
+    renderSlot(navigation, props, { settings: { botRail: true }, sidebarThreads: { threads: [coordinator], projects },
+      rpc: { crew_asks: () => ({ judgements: [{ threadId: coordinator.id, version: coordinator.latestAttentionAt, waiting: 0.99, ask: "Approve the repair?" }] }) },
+      sdk: { providers: { models: async () => ({ models: [], selectedOnlyModels: [], providers: [], permissionCeiling: "auto", modelLoadError: null }) }, plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T }, threads: { output: async () => ({ output: "Should I approve the repair?" }), context: async () => ({ usage: null }) } },
+    });
+    const tile = await screen.findByRole("button", { name: /Personal Bot, Decision:/ });
+    expect(tile.querySelector(".radar-rail-bot-unread-badge")).toBeNull();
+    fireEvent.focus(tile);
+    const card = screen.getByRole("dialog", { name: "Personal Bot details" });
+    expect(within(card).getByText("Approve the repair?")).toBeTruthy();
+    expect(within(card).getByRole("link", { name: "Review decision" }).getAttribute("href")).toBe(coordinator.href);
+  });
+  it("uses the saved ask record in the hover card and clears Decision after Done", async () => {
+    let dismissed = false;
+    const coordinator = makeThread({ id: "coordinator" });
+    const canonical = "Approve the full repair and the transport quote together?";
+    renderSlot(navigation, props, {
+      settings: { botRail: true }, sidebarThreads: { threads: [coordinator], projects },
+      rpc: { crew_asks: () => ({ judgements: [{ threadId: coordinator.id, version: coordinator.latestAttentionAt, waiting: 0.99, ask: canonical, itemId: "saved-ask", dismissed }] }) },
+      sdk: { plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T }, threads: {
+        output: async () => ({ output: "Repair is ready.\nDecision needed: approve repair?" }), context: async () => ({ usage: null }),
+      } },
+    });
+    const tile = await screen.findByRole("button", { name: /Personal Bot, Decision:/ });
+    await waitFor(() => expect(tile.querySelector(".radar-bot-attention-badge")?.textContent).toBe("?"));
+    fireEvent.focus(tile);
+    await screen.findByText(canonical);
+    expect(within(screen.getByRole("dialog", { name: "Personal Bot details" })).queryByText("approve repair?")).toBeNull();
+    dismissed = true;
+    act(needsChanged);
+    await screen.findByRole("button", { name: /Personal Bot, Idle:/ });
+    expect(tile.querySelector(".radar-bot-attention-badge")).toBeNull();
+    expect(screen.queryByText(canonical)).toBeNull();
+  });
+
+  it("honors the motion setting in both rail and portalled hover card", async () => {
+    renderSlot(navigation, props, { settings: { botRail: true, motion: false }, sidebarThreads: { threads: [makeThread({ id: "coordinator", status: "active" })], projects },
+      sdk: { plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T }, threads: { context: async () => ({ usage: null }) } },
+    });
+    const tile = await screen.findByRole("button", { name: /Personal Bot, Working:/ });
+    expect(tile.querySelector(".radar-bot-state-ring-working")).toBeTruthy();
+    expect(tile.querySelector(".radar-bot-state-motion")).toBeNull();
+    fireEvent.focus(tile);
+    const card = screen.getByRole("dialog", { name: "Personal Bot details" });
+    expect(card.querySelector(".radar-bot-state-ring-working")).toBeTruthy();
+    expect(card.querySelector(".radar-bot-state-motion")).toBeNull();
+  });
+
+  it("keeps the unread badge when loud unread highlighting is disabled", async () => {
+    renderSlot(navigation, props, {
+      settings: { botRail: true, loudUnread: false }, sidebarThreads: { threads: [makeThread({ id: "coordinator", isUnread: true })], projects }, sdk: {
+        providers: { models: async () => ({ models: [], selectedOnlyModels: [], providers: [], permissionCeiling: "auto", modelLoadError: null }) },
+        plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T },
+        threads: { output: async () => ({ output: "Nothing to do." }), context: async () => ({ usage: null }) },
+      },
+    });
+    const tile = await screen.findByRole("button", { name: /Personal Bot,/ });
+    expect(tile.classList.contains("radar-rail-bot-unread")).toBe(false);
+    expect(tile.querySelector(".radar-rail-bot-unread-badge")).toBeTruthy();
+  });
+  it.each(([
+    ["idle", {}, null, "Idle"], ["unread", { isUnread: true }, null, "New reply"],
+    ["working", { status: "active" }, null, "Working"], ["queued", { queuedWork: "waiting" }, null, "Queued"],
+    ["needs-you", { hasPendingInteraction: true }, null, "Needs you"], ["failed", { queuedWork: "failed" }, null, "Failed"],
+    ["decision", {}, "Decision needed: approve the repair?", "Decision"], ["rollover", { status: "active" }, null, "Handover"],
+    ["unavailable", null, null, "Unavailable"],
+  ] as const).flatMap(row => [false, true].map(compact => [...row, compact] as const)))("renders and opens %s (%s, %s, %s, compact=%s)", async (state, extra, output, text, compact) => {
+    const slot = renderSlot(navigation, { ...props, isCompactViewport: compact }, {
+      settings: { botRail: true }, sidebarThreads: { threads: extra ? [makeThread({ id: "coordinator", ...extra })] : [], projects }, sdk: {
+        providers: { models: async () => ({ models: [], selectedOnlyModels: [], providers: [], permissionCeiling: "auto", modelLoadError: null }) },
+        plugins: { callRpc: async <T,>() => ({ bots: [{ ...bot, rollover: state === "rollover" ? "summary" : null }] }) as T },
+        threads: { output: async () => ({ output }), context: async () => ({ usage: null }) },
+      },
+    });
+    const tile = await screen.findByRole("button", { name: new RegExp(`Personal Bot, ${text}:`) });
+    expect(tile.classList.contains(`radar-rail-bot-state-${state}`)).toBe(true);
+    expect(tile.querySelector("[data-bot-state]")?.getAttribute("data-bot-state")).toBe(state);
+    if (["working", "queued", "rollover", "unavailable"].includes(state)) expect(tile.querySelector(`.radar-bot-state-ring-${state} circle`)).toBeTruthy();
+    if (["failed", "needs-you", "decision"].includes(state)) expect(tile.querySelector(".radar-bot-attention-badge")?.textContent).toBe(state === "failed" ? "!" : "?");
+    if (state === "unread") expect(tile.querySelector(".radar-bot-unread-dot")).toBeTruthy();
+    if (state === "idle") expect(tile.querySelector(".radar-bot-state-ring, .radar-bot-attention-badge, .radar-bot-unread-dot")).toBeNull();
+    expect(isBuiltinIconName(STATE_LABELS[state].icon)).toBe(true);
+    expect(tile.querySelector(".radar-rail-bot-state-label")?.textContent).toContain(text);
+    if (!compact) {
+      fireEvent.focus(tile);
+      const card = screen.getByRole("dialog", { name: "Personal Bot details" });
+      expect(within(card).getByTitle(STATE_LABELS[state].description)).toBeTruthy();
+      const action = within(card).getByRole("link", { name: STATE_LABELS[state].action });
+      expect(action.getAttribute("href")).toBe(extra ? makeThread({ id: "coordinator" }).href : `/projects/${bot.projectId}/threads/${bot.current}`);
+    }
+    if (process.env.RADAR_QA_DIR) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(`${process.env.RADAR_QA_DIR}/${state}${compact ? "-mobile" : ""}.html`, tile.outerHTML);
+    }
+    fireEvent.click(tile);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: bot.current });
   });
   it("refreshes live context without reading streaming output or restarting on every token", async () => {
     vi.useFakeTimers();
@@ -561,7 +694,12 @@ describe("bot rail experiment", () => {
     expect(within(card).getByText("65K / 100K tokens · estimated")).toBeTruthy();
     expect(within(card).getByRole("meter").getAttribute("aria-valuenow")).toBe("65");
     expect(within(card).queryByText("Hidden helper")).toBeNull();
-    expect(within(card).getAllByRole("link").map(link => link.textContent)).toEqual(["Sync failedFailed", "Approve bookingNeeds you", "Check remindersWorking", "Open coordinator"]);
+    expect(within(card).getAllByRole("link").map(link => link.textContent)).toEqual(["Sync failedFailed", "Approve bookingNeeds you", "Check remindersWorking", "Check failure", "Open coordinator"]);
+    expect(within(card).getByRole("link", { name: "Check failure" }).getAttribute("href")).toBe(workers[2]!.href);
+    if (process.env.RADAR_QA_DIR) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(`${process.env.RADAR_QA_DIR}/hover.html`, card.outerHTML);
+    }
     fireEvent.pointerLeave(tile);
     await act(async () => { await vi.advanceTimersByTimeAsync(80); });
     fireEvent.pointerEnter(card);
@@ -574,6 +712,22 @@ describe("bot rail experiment", () => {
     fireEvent.click(within(card).getByRole("button", { name: "View workers" }));
     expect(screen.queryByRole("dialog", { name: "Personal Bot details" })).toBeNull();
     expect(tile.getAttribute("aria-pressed")).toBe("true");
+  });
+  it.each([
+    [{ status: "active" }, "View live work"], [{ queuedWork: "waiting" }, "View queued work"],
+    [{ hasPendingInteraction: true }, "Reply to question"], [{ status: "error", isUnread: false }, "Check failure"],
+    [{ isUnread: true }, "Read reply"],
+  ] as const)("routes the family action to the affected worker (%s)", async (extra, action) => {
+    const coordinator = makeThread({ id: "coordinator" });
+    const worker = makeThread({ id: "affected", parentThreadId: coordinator.id, ...extra });
+    renderSlot(navigation, props, { settings: { botRail: true }, sidebarThreads: { threads: [coordinator, worker], projects }, sdk: {
+      providers: { models: async () => ({ models: [], selectedOnlyModels: [], providers: [], permissionCeiling: "auto", modelLoadError: null }) },
+      plugins: { callRpc: async <T,>() => ({ bots: [bot] }) as T }, threads: { output: async () => ({ output: "No action needed." }), context: async () => ({ usage: null }) },
+    } });
+    const tile = await screen.findByRole("button", { name: /Personal Bot,/ });
+    fireEvent.focus(tile);
+    const card = screen.getByRole("dialog", { name: "Personal Bot details" });
+    expect(within(card).getByRole("link", { name: action }).getAttribute("href")).toBe(worker.href);
   });
   it("makes the hover actions reachable by keyboard and returns focus on Escape", async () => {
     mountBots(true);

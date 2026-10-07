@@ -72,12 +72,19 @@ export function readAskAnswers(answers: unknown, sentences: readonly string[]): 
   return { waiting: parsed.data.waiting.noul, ask: choice ? (sentences[Number(choice[1]) - 1] ?? null) : null };
 }
 
-/** One coordinator reply, judged. `waiting` is null when Jev was unavailable. */
+/**
+ * One coordinator reply, judged. `waiting` is null when Jev was unavailable.
+ * `ask` is the saved Needs You text verbatim and `itemId` the item it was saved
+ * as, so the bubble, the card and the rail describe one ask. `dismissed` means
+ * Salem closed that item while this reply was current.
+ */
 export const crewJudgementSchema = z.object({
   threadId: z.string(),
   version: z.number(),
   waiting: z.number().nullable(),
   ask: z.string().nullable(),
+  itemId: z.string().nullable().optional(),
+  dismissed: z.boolean().optional(),
 });
 export type CrewJudgement = z.infer<typeof crewJudgementSchema>;
 

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import plugin from "../server";
 import { askQuestions, askSentences, readAskAnswers } from "./crewAsk";
 
@@ -16,10 +16,17 @@ async function setup(outputs: Record<string, string>, decide: (input: ReturnType
     expect([pluginId, method]).toEqual(["auto-effort", "jev_decide"]);
     return decide(input);
   });
-  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { threads: { output }, plugins: { callRpc: async (args: { pluginId: string }) => args.pluginId === "orchestrator-mode" ? { bots: [] } : callRpc(args as never) } } as never });
+  const store = vi.fn(async (_args: { method: string }) => ({ bots: [], items: [] }));
+  // The thread's own version: by default the one the client asked about.
+  const versions: Record<string, number> = {};
+  let asking = 0;
+  const get = vi.fn(async ({ threadId }: { threadId: string }) => makeThreadResponse({ id: threadId, latestAttentionAt: versions[threadId] ?? asking }));
+  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { threads: { output, get }, plugins: { callRpc: async (args: { pluginId: string; method: string }) => args.pluginId === "orchestrator-mode" ? store(args) : callRpc(args as never) } } as never });
   await plugin(bb);
-  const host = { harness, output, callRpc, outputs, ask: (threads: { threadId: string; version: number }[]) =>
-    harness.behavior.callRpc("crew_asks", { threads }) as Promise<{ judgements: { threadId: string; version: number; waiting: number | null; ask: string | null }[] }> };
+  const host = { harness, output, callRpc, store, get, outputs, versions, ask: (threads: { threadId: string; version: number }[]) => {
+    asking = threads[0]?.version ?? 0;
+    return harness.behavior.callRpc("crew_asks", { threads }) as Promise<{ judgements: { threadId: string; version: number; waiting: number | null; ask: string | null; itemId?: string | null; dismissed?: boolean }[] }>;
+  } };
   disposers.push(() => harness.lifecycle.dispose());
   return host;
 }
@@ -34,10 +41,10 @@ describe("crew_asks", () => {
   it("judges each reply once, quotes the ask, and judges again when a new reply lands", async () => {
     const host = await setup({ coord: "Tickets are EGP 800 each.\nShould I book it, and for which day?" }, fakeJev);
     const first = await host.ask([{ threadId: "coord", version: 1 }]);
-    expect(first.judgements).toEqual([{ threadId: "coord", version: 1, waiting: 0.93, ask: "Should I book it, and for which day?" }]);
+    expect(first.judgements).toEqual([{ threadId: "coord", version: 1, waiting: 0.93, ask: "Should I book it, and for which day?", itemId: null }]);
     expect(await host.ask([{ threadId: "coord", version: 1 }])).toEqual(first);
     expect(host.callRpc).toHaveBeenCalledTimes(1);
-    host.outputs.coord = "Booked two General tickets for Saturday. Nothing to do.";
+    host.outputs.coord = "Booked two General tickets for Saturday.";
     const next = await host.ask([{ threadId: "coord", version: 2 }]);
     expect(next.judgements[0]).toMatchObject({ version: 2, waiting: 0.04, ask: null });
     expect(host.callRpc).toHaveBeenCalledTimes(2);
@@ -71,6 +78,28 @@ describe("crew_asks", () => {
     expect(host.callRpc).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(5 * 60_000 + 1);
     expect((await host.ask([{ threadId: "coord", version: 1 }])).judgements[0]).toMatchObject({ waiting: 0.93, ask: "Should I book it?" });
+  });
+
+  it("skips Jev for a reply that signs off with Nothing to do", async () => {
+    const host = await setup({ coord: "Renewed the Orange line.\nNothing to do.", chatty: "Renewed the Orange line. Nothing to do yet, but ask me if you want the invoice?" }, fakeJev);
+    expect((await host.ask([{ threadId: "coord", version: 1 }])).judgements[0]).toMatchObject({ waiting: 0, ask: null, itemId: null });
+    expect(host.callRpc).not.toHaveBeenCalled();
+    expect(host.store.mock.calls.filter(([args]) => args.method === "bot_roster")).toEqual([]);
+    expect((await host.ask([{ threadId: "chatty", version: 1 }])).judgements[0]?.waiting).toBe(0.93);
+    expect(host.callRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("files the verdict under the reply it read, not the version the client remembered", async () => {
+    const host = await setup({ coord: "Should I book it?" }, fakeJev);
+    host.versions.coord = 2;
+    const stale = await host.ask([{ threadId: "coord", version: 1 }]);
+    expect(stale.judgements[0]).toMatchObject({ version: 2, waiting: 0.93, ask: "Should I book it?" });
+    expect((await host.ask([{ threadId: "coord", version: 2 }])).judgements[0]).toEqual(stale.judgements[0]);
+    expect(host.callRpc).toHaveBeenCalledTimes(1);
+    // A reply still being written is judged once it settles.
+    host.get.mockResolvedValueOnce(makeThreadResponse({ id: "coord", status: "active", latestAttentionAt: 3 }));
+    expect((await host.ask([{ threadId: "coord", version: 3 }])).judgements[0]).toMatchObject({ version: 3, waiting: null });
+    expect(host.callRpc).toHaveBeenCalledTimes(1);
   });
 
   it("rejects oversized batches", async () => {

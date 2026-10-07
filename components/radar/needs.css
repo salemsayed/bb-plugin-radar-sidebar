@@ -1,28 +1,64 @@
 .radar-needs, .radar-remind-panel { min-width: 0; color: var(--foreground); font-size: 13px; }
-.radar-needs h3 { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; font-size: 13px; }
-.radar-needs h3 small, .radar-needs-due, .radar-reminder-picker small { color: var(--muted-foreground); font-size: 11px; }
-.radar-needs ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.radar-needs-item { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--background); }
-.radar-needs-row { position: relative; padding: 8px; touch-action: pan-y; }
+.radar-needs { container-type: inline-size; }
+.radar-needs h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 6px 6px; color: var(--muted-foreground); font-size: 11px; font-weight: 650; }
+.radar-needs h3 small { font: inherit; font-weight: 400; }
+.radar-needs h3 b { color: var(--warning, #b0640f); font-weight: 650; }
+.radar-needs ol { list-style: none; padding: 0; margin: 0; }
+.radar-needs-item { --needs-tone: var(--muted-foreground); min-width: 0; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); background: transparent; }
+.radar-needs-decision { --needs-tone: var(--warning, #b0640f); }
+.radar-needs-item.radar-needs-is-snoozed { --needs-tone: var(--muted-foreground); }
+.radar-needs-is-snoozed .radar-needs-text { color: var(--muted-foreground); }
+.radar-needs-urgent { --needs-tone: var(--destructive, #c03a3a); }
+.radar-needs-row { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); padding: 6px 2px 0; touch-action: pan-y; }
 .radar-needs-row[data-swipe-phase] { z-index: 1; }
-.radar-needs-summary { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.radar-needs-text { flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-weight: 550; }
-.radar-needs-face { display: grid; place-items: center; border-radius: 50%; width: 24px; height: 24px; flex: none; background: var(--muted); }
-.radar-needs-due { display: block; padding: 3px 0 0 24px; }
-.radar-needs-undo { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 8px; background: var(--muted); border-radius: 7px; }
-.radar-needs-undo span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.radar-needs-actions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; }
-.radar-needs button, .radar-reminder-picker button { min-height: 44px; min-width: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; color: inherit; background: var(--background); cursor: pointer; font: inherit; }
-.radar-needs-actions button { flex: 1; border-color: transparent; background: var(--muted); }
+.radar-needs button, .radar-reminder-picker button { min-height: 44px; min-width: 44px; padding: 8px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; font: inherit; }
+.radar-needs button:hover:not(:disabled) { background: var(--muted); }
+.radar-needs .radar-needs-check { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; margin: -4px 0 0 -7px; color: var(--needs-tone); border-radius: 50%; }
+.radar-needs-check > span { width: 18px; height: 18px; display: grid; place-items: center; border: 1.5px solid currentColor; border-radius: 50%; }
+.radar-needs-check svg { width: 12px; height: 12px; opacity: 0; }
+.radar-needs-check:hover svg, .radar-needs-check:focus-visible svg { opacity: 1; }
+.radar-needs-body { min-width: 0; }
+.radar-needs .radar-needs-open, .radar-needs-plain { display: block; width: 100%; padding: 2px 4px 3px 0; min-width: 0; text-align: left; line-height: 1.45; font-size: 13px; }
+.radar-needs .radar-needs-open { min-height: 44px; }
+.radar-needs-text { overflow-wrap: anywhere; font-weight: 500; }
+.radar-needs-reply-seen { display: block; padding-top: 3px; font-size: 11px; line-height: 16px; color: var(--warning, #b0640f); }
+.radar-needs-meta { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px; font-size: 11px; color: var(--muted-foreground); }
+.radar-needs-who { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.radar-needs-who-name { overflow: hidden; text-overflow: ellipsis; }
+.radar-needs-age::before, .radar-needs-due::before { content: "·"; margin-right: 6px; color: var(--muted-foreground); }
+.radar-needs-due { color: var(--warning, #b0640f); white-space: nowrap; }
+.radar-needs-overdue { color: var(--destructive, #c03a3a); }
+.radar-needs-snoozed-until { display: block; padding: 0 0 8px; font-size: 11px; line-height: 16px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.radar-needs-kind { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.radar-needs .radar-needs-snooze { margin-left: auto; margin-right: -6px; margin-block: -7px; padding: 0; flex: none; display: grid; place-items: center; }
+.radar-needs-snooze svg { width: 14px; height: 14px; }
+@container (max-width: 250px) { .radar-needs-meta-has-due .radar-needs-who-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } }
+.radar-needs-undo { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0; padding: 0 8px; overflow: hidden; border-radius: 8px; color: var(--success, #2e7d2e); background: color-mix(in srgb, var(--success, #2e7d2e) 9%, transparent); }
+.radar-needs-undo > svg { flex: none; width: 14px; height: 14px; }
+.radar-needs-undo > span:not(.radar-needs-undo-progress) { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.radar-needs-undo button { font-size: 12px; font-weight: 600; }
+.radar-needs-undo-progress { position: absolute; height: 2px; bottom: 0; left: 0; width: 100%; background: currentColor; transform-origin: left; animation: radar-undo-expire 6s linear forwards; }
+@keyframes radar-undo-expire { to { transform: scaleX(0); } }
+.radar-needs .radar-needs-snoozed-toggle { display: flex; align-items: center; gap: 7px; width: 100%; padding: 0 6px; text-align: left; color: var(--muted-foreground); font-size: 11px; }
+.radar-needs-snoozed-toggle svg { width: 14px; height: 14px; flex: none; }
+.radar-needs-snoozed-toggle > span { flex: 1; min-width: 0; }
+.radar-needs-snoozed-toggle[aria-expanded="true"] > svg:last-child { rotate: 180deg; }
+.radar-needs-error { display: flex; align-items: center; gap: 6px; padding: 0 6px; }
+.radar-needs-error > span { flex: 1; }
+.radar-needs-error button { font-size: 12px; }
 .radar-needs button:disabled, .radar-reminder-picker button:disabled { opacity: .5; cursor: default; }
 .radar-needs button:focus-visible, .radar-reminder-picker button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .radar-reminder-picker { display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 0; }
-.radar-reminder-picker button { text-align: left; overflow-wrap: anywhere; }
+.radar-reminder-picker small { color: var(--muted-foreground); font-size: 11px; }
+.radar-reminder-picker button { text-align: left; overflow-wrap: anywhere; border: 1px solid var(--border); background: var(--background); }
 .radar-reminder-picker form, .radar-reminder-picker label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .radar-reminder-picker input { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--border); border-radius: 7px; background: var(--background); color: inherit; padding: 4px; font: inherit; }
 .radar-remind-panel p { overflow-wrap: anywhere; }
-.radar-needs [role="alert"], .radar-remind-panel [role="alert"] { color: var(--destructive); padding: 4px 8px; font-size: 12px; }
+.radar-needs [role="alert"], .radar-remind-panel [role="alert"] { color: var(--destructive); font-size: 12px; }
+.radar-needs-undo [role="alert"] { flex-basis: 100%; margin: 0 0 6px; }
 .radar-needs-underlay { position: absolute; top: 0; bottom: 0; width: var(--radar-swipe-w); max-width: none; opacity: 1; pointer-events: auto; display: grid; place-items: center; }
 .radar-needs-underlay-right { right: 100%; left: auto; background: var(--muted); }
 .radar-needs-underlay-left { left: 100%; right: auto; background: var(--muted); }
 .radar-needs-underlay button { border: 0; white-space: nowrap; }
+[data-radar-motion="off"] .radar-needs-undo-progress { animation: none; }
+@media (prefers-reduced-motion: reduce) { .radar-needs-undo-progress { animation: none; } }

@@ -9,6 +9,7 @@ import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures
 import { resetRailScope, setRailScope } from "./railScope";
 import { setRailNewThread } from "./railNewThread";
 import { startOfToday } from "./crew";
+import { hideBot, resetHiddenBots } from "./botVisibility";
 
 // Expose configurable test exports while retaining the SDK's slot runtime.
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => ({
@@ -96,6 +97,12 @@ function visibleRowIds(container: HTMLElement): string[] {
   ).map((node) => node.getAttribute("data-sidebar-thread-id") ?? "");
 }
 
+/** Crew rows as [bot key, state], in DOM order: the state is the row's class suffix. */
+function crewMates(container: HTMLElement): string[][] {
+  return Array.from(container.querySelectorAll("li[data-bot] > .radar-crew-mate")).map((mate) =>
+    [mate.parentElement?.getAttribute("data-bot") ?? "", mate.className.replace(/.*radar-crew-mate-/, "")]);
+}
+
 /** Rows bb would number for the ⌘/Ctrl jump keys, in DOM order. */
 function shortcutTargetIds(container: HTMLElement): string[] {
   return Array.from(
@@ -111,6 +118,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   resetRailScope();
+  resetHiddenBots();
   localStorage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -220,23 +228,20 @@ describe("bot scope and experiment fallback", () => {
     };
     setRailScope("__crew__");
     const slot = renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true, hideWorking: true } });
-    const bubbles = () => Array.from(slot.container.querySelectorAll(".radar-crew-say")).map((say) => [say.getAttribute("data-bot"), say.className.replace(/.*radar-crew-say-/, "")]);
-    await waitFor(() => expect(bubbles()).toEqual([["work", "failed"], ["home", "ask"], ["personal", "running"]]));
+    // One row per bot in roster order, its state in the class; poll the DOM cheaply, then query by role.
+    await waitFor(() => expect(crewMates(slot.container)).toEqual([["personal", "working"], ["home", "decision"], ["work", "failed"], ["quiet", "idle"]]), { timeout: 4_000, interval: 100 });
     expect(visibleRowIds(slot.container)).toEqual([]);
     expect(screen.queryByRole("searchbox", { name: "Filter threads" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Work: inbox gate hasn't run in 30m" }).textContent).toContain("Check ›");
-    expect(screen.getByRole("button", { name: "Home: Type your sudo password" }).textContent).toContain("Reply ›");
-    expect(Array.from(slot.container.querySelectorAll(".radar-crew-tile-name")).map((name) => name.textContent)).toEqual(["Quiet"]);
+    expect(screen.getByRole("button", { name: "Work, Failed: Check failure. inbox gate hasn't run in 30m" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Home, Decision: Review decision. Type your sudo password" })).toBeTruthy();
     await waitFor(() => expect(Array.from(slot.container.querySelectorAll(".radar-crew-job")).map((job) => job.className.replace("radar-crew-job radar-crew-job-", "") + ":" + job.querySelector(".radar-crew-job-title")?.textContent))
-      .toEqual(["running:Review fe!974", "done:Finished run", "failed:Broken run"]));
-    expect(slot.container.querySelector(".radar-crew-day .radar-crew-label-count")?.textContent).toBe("3 jobs");
-    expect(slot.container.querySelector(".radar-crew-chapter .radar-crew-card-tally")?.textContent).toBe("1 running1 done1 failed");
-    expect(slot.container.querySelector(".radar-crew-tile-meta")?.textContent).toMatch(/idle$/);
-    fireEvent.click(screen.getByRole("button", { name: "Personal: working on Review fe!974" }));
-    fireEvent.click(screen.getByRole("button", { name: "Home: Type your sudo password" }));
-    fireEvent.click(screen.getByRole("button", { name: /^Open Quiet Bot, resting, last reply \S+ ago, 0 jobs today: Inbox is clear\.$/ }));
+      .toEqual(["running:Review fe!974", "done:Finished run", "failed:Broken run"]), { timeout: 4_000, interval: 100 });
+    expect(slot.container.querySelector(".radar-crew-day .radar-crew-section-head small")?.textContent).toBe("3 jobs · 1 running · 1 failed");
+    fireEvent.click(screen.getByRole("button", { name: "Personal, Working: View live work. Review fe!974" }));
+    fireEvent.click(screen.getByRole("button", { name: "Home, Decision: Review decision. Type your sudo password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quiet, Idle: Open coordinator. Inbox is clear." }));
     expect(slot.navigateCalls).toEqual([{ method: "toThread", threadId: "worker" }, { method: "toThread", threadId: "home" }, { method: "toThread", threadId: "quiet" }]);
-  });
+  }, 15_000);
   it("asks the server which replies are waiting on Salem and quotes the chosen sentence", async () => {
     const plain = { ...bot, key: "plain", name: "Plain Bot", current: "plain", projects: [] };
     const crewThreads = [
@@ -260,10 +265,12 @@ describe("bot scope and experiment fallback", () => {
           : { threadId, version, waiting: 0.03, ask: null }) };
       },
     } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Plain: Should I book two for Saturday?" }).textContent).toContain("Reply ›"));
+    // Roster, pulses and the judgement arrive in turn; poll the DOM cheaply, then query by role once.
+    await waitFor(() => expect(crewMates(slot.container)).toEqual([["personal", "idle"], ["plain", "decision"]]), { timeout: 4_000, interval: 100 });
+    expect(screen.getByRole("button", { name: "Plain, Decision: Review decision. Should I book two for Saturday?" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Personal, Idle: Open coordinator. Inbox is clear." })).toBeTruthy();
     expect(asked).toEqual([{ threads: [{ threadId: "root", version: 100 }, { threadId: "plain", version: 200 }] }]);
-    expect(Array.from(slot.container.querySelectorAll(".radar-crew-tile-name")).map((name) => name.textContent)).toEqual(["Personal"]);
-  });
+  }, 15_000);
   it.each([{ railNav: false, botRail: true }, { railNav: true, botRail: false }])("ignores a saved bot filter with either flag off: %j", async settings => {
     setRailScope("personal");
     const slot = renderThreads(threads, { projects, sdk, settings: { ...settings, botsDeck: false } });
@@ -288,6 +295,97 @@ describe("bot scope and experiment fallback", () => {
     const slot = renderThreads(threads, { projects, settings: { railNav: true, botRail: true }, sdk: { ...sdkFakes(), plugins: { callRpc: async () => { throw new Error("Unavailable"); } } } });
     await act(async () => {});
     expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned", "root", "worker"]);
+  });
+});
+
+describe("bots deck hiding and asks", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
+  const plain = { ...bot, key: "plain", name: "Plain Bot", current: "plain" };
+  const projects = ["proj_a", "elsewhere", "other"].map(id => makeProject({ id }));
+  const deckThreads = [
+    makeThread({ id: "root", projectId: "proj_a", pinnedAt: NOW, latestAttentionAt: 100 }),
+    makeThread({ id: "worker", projectId: "elsewhere", lifecycleOwnerThreadId: "root" }),
+    makeThread({ id: "other", projectId: "other" }),
+  ];
+  const deckSdk = (output: Record<string, string> = {}) => {
+    const fakes = sdkFakes();
+    return {
+      ...fakes,
+      threads: { ...(fakes.threads as object), output: async ({ threadId }: { threadId: string }) => ({ output: output[threadId] ?? "Inbox is clear.\nNothing to do." }) },
+      plugins: { callRpc: async () => ({ bots: [bot, plain] }) },
+    };
+  };
+  const rpc = { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }) };
+  /** The card's state class, or null when the bot has no card. */
+  const cardState = (container: HTMLElement, id: string) => {
+    const card = container.querySelector(`.radar-bot-card[data-thread-id='${id}']`);
+    if (!card) return null;
+    const skip = new Set(["radar-bot-card", "radar-bot-unread", "radar-bot-motion"]);
+    return Array.from(card.classList).find(name => name.startsWith("radar-bot-") && !skip.has(name))?.slice("radar-bot-".length) ?? "none";
+  };
+
+  it("takes a hidden bot's whole family out of the deck instead of showing its coordinator as a pinned row", async () => {
+    hideBot("personal");
+    const slot = renderThreads([...deckThreads, makeThread({ id: "plain", projectId: "proj_a" })], { projects, sdk: deckSdk(), rpc, settings: { railNav: false, botsDeck: true } });
+    await waitFor(() => expect(cardState(slot.container, "plain")).toBe("idle"));
+    expect(slot.container.querySelector(".radar-bot-card[data-thread-id='root']")).toBeNull();
+    expect(visibleRowIds(slot.container)).toEqual(["other"]);
+    expect(screen.getByRole("button", { name: "Show Personal Bot again" })).toBeTruthy();
+    // Showing it again brings the card and its workers back.
+    fireEvent.click(screen.getByRole("button", { name: "Show Personal Bot again" }));
+    await waitFor(() => expect(cardState(slot.container, "root")).toBe("idle"));
+    expect(visibleRowIds(slot.container)).toEqual(["worker", "other"]);
+  });
+  it("reads the shared ask record: a Done ask no longer says Decision, a judged plain ask does", async () => {
+    const threads = [...deckThreads, makeThread({ id: "plain", projectId: "proj_a", latestAttentionAt: 200 })];
+    const sdk = deckSdk({ root: "Deploy paused.\nDecision needed: type your sudo password", plain: "Tickets are EGP 800.\nShould I book two for Saturday?" });
+    const slot = renderThreads(threads, { projects, sdk, settings: { railNav: false, botsDeck: true }, rpc: {
+      crew_needs_list: () => ({ items: [] }),
+      crew_asks: () => ({ judgements: [
+        { threadId: "root", version: 100, waiting: 0.99, ask: "Type your sudo password", itemId: "saved-root", dismissed: true },
+        { threadId: "plain", version: 200, waiting: 0.94, ask: "Should I book two for Saturday?" },
+      ] }),
+    } });
+    await waitFor(() => expect([cardState(slot.container, "root"), cardState(slot.container, "plain")]).toEqual(["idle", "decision"]), { timeout: 4_000, interval: 100 });
+    const plainCard = slot.container.querySelector(".radar-bot-card[data-thread-id='plain']")!;
+    expect(plainCard.querySelector(".radar-bot-chip")?.textContent).toBe("Decision");
+    expect(plainCard.textContent).toContain("Should I book two for Saturday?");
+    expect(slot.container.querySelector(".radar-bot-card[data-thread-id='root'] .radar-bot-chip")).toBeNull();
+  });
+  it("keeps a hidden bot out of sight after its failed worker is read, and in sight while the failure is unread", async () => {
+    hideBot("personal");
+    const failed = deckThreads.map(thread => thread.id === "worker" ? { ...thread, status: "error" as const, isUnread: false } : thread);
+    const slot = renderThreads([...failed, makeThread({ id: "plain", projectId: "proj_a" })], { projects, sdk: deckSdk(), rpc, settings: { railNav: false, botsDeck: true } });
+    await waitFor(() => expect(cardState(slot.container, "plain")).toBe("idle"));
+    expect(cardState(slot.container, "root")).toBeNull();
+    expect(visibleRowIds(slot.container)).toEqual(["other"]);
+    expect(screen.getByRole("button", { name: "Show Personal Bot again" })).toBeTruthy();
+
+    slot.unmount();
+    // The same failure, still unread, keeps the hidden bot's card in view.
+    const unreadFailure = failed.map(thread => thread.id === "worker" ? { ...thread, isUnread: true, indicator: "unread-error" as const } : thread);
+    const unread = renderThreads([...unreadFailure, makeThread({ id: "plain", projectId: "proj_a" })], { projects, sdk: deckSdk(), rpc, settings: { railNav: false, botsDeck: true } });
+    await waitFor(() => expect(cardState(unread.container, "root")).toBe("failed"));
+    expect(visibleRowIds(unread.container)).toEqual(["worker", "other"]);
+    expect(screen.queryByRole("button", { name: "Show Personal Bot again" })).toBeNull();
+  });
+  it("disables Hide while attention keeps the bot in view, and says why", async () => {
+    const waiting = deckThreads.map(thread => thread.id === "worker" ? { ...thread, hasPendingInteraction: true, indicator: "waiting-for-input" as const } : thread);
+    const slot = renderThreads([...waiting, makeThread({ id: "plain", projectId: "proj_a" })], { projects, sdk: deckSdk(), rpc, settings: { railNav: false, botsDeck: true } });
+    await waitFor(() => expect(cardState(slot.container, "root")).toBe("needs-you"));
+    fireEvent.contextMenu(slot.container.querySelector(".radar-bot-group[aria-label='Thread root']") ?? slot.container.querySelector(".radar-bot-card[data-thread-id='root']")!.closest(".radar-bot-group")!);
+    const hide = screen.getByRole("menuitem", { name: "Hide Personal Bot" }) as HTMLButtonElement;
+    expect(hide.disabled).toBe(true);
+    expect(hide.title).toMatch(/before hiding it/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    // A quiet bot can be hidden from the same menu.
+    fireEvent.contextMenu(slot.container.querySelector(".radar-bot-card[data-thread-id='plain']")!.closest(".radar-bot-group")!);
+    const hidePlain = screen.getByRole("menuitem", { name: "Hide Plain Bot" }) as HTMLButtonElement;
+    expect(hidePlain.disabled).toBe(false);
+    expect(hidePlain.title).toBe("");
+    fireEvent.click(hidePlain);
+    await waitFor(() => expect(cardState(slot.container, "plain")).toBeNull());
+    expect(screen.getByRole("button", { name: "Show Plain Bot again" })).toBeTruthy();
   });
 });
 

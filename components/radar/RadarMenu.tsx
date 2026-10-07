@@ -12,6 +12,8 @@ export type RadarMenuItem =
       checked?: boolean;
       danger?: boolean;
       disabled?: boolean;
+      /** Hover text, used to say why a disabled item cannot act. */
+      title?: string;
     }
   | { kind: "separator" }
   | { kind: "header"; label: string };
@@ -140,6 +142,7 @@ export function RadarMenu({
             role="menuitem"
             data-menu-item=""
             disabled={item.disabled}
+            title={item.title}
             className={cn(
               "radar-menu-item",
               item.danger && "radar-menu-item-danger",

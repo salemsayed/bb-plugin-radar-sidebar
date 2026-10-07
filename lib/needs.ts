@@ -20,9 +20,13 @@ export const needsUpdateSchema = z.object({
   id: z.string().min(1), action: z.enum(["done", "drop", "snooze", "reopen"]), until: z.string().optional(),
 }).strict();
 
+/** A later human reply exists for a saved decision but the resolver could not confirm it answered: the card says so. */
+export const needsSeenSchema = z.record(z.string(), z.object({ version: z.number(), score: z.number() }));
+export type NeedsSeen = z.infer<typeof needsSeenSchema>;
+
 /** Radar fronts the bot store on the server, so older/missing backends are optional. */
 export const needsRpcContract = {
-  crew_needs_list: { input: z.object({}).strict(), output: z.object({ items: z.array(needsItemSchema).nullable() }) },
+  crew_needs_list: { input: z.object({}).strict(), output: z.object({ items: z.array(needsItemSchema).nullable(), seen: needsSeenSchema.optional() }) },
   crew_needs_update: { input: needsUpdateSchema, output: needsResultSchema },
   crew_remind: {
     input: z.object({ threadId: z.string().min(1).max(64), messageId: z.string().min(1).max(256), text: z.string().min(1).max(120), until: z.string() }).strict(),

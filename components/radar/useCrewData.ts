@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useRpc, useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { CrewJudgement, crewRpcContract } from "@/lib/crewAsk";
+import { NEEDS_CHANGED } from "@/lib/needsClient";
 import { automationsOverviewSchema, type CrewAutomation, type CrewJob } from "./crew";
 import { isLiveThread } from "./time";
 
@@ -39,8 +40,11 @@ const RETRY_UNKNOWN_MS = 5 * 60_000;
 /**
  * Whether each settled coordinator's latest reply is waiting on Salem, judged
  * by Jev on the server once per reply (see lib/crewAsk). Asks again whenever a
- * coordinator settles on a new reply, and every few minutes while Jev is
- * unavailable. Live coordinators are skipped: their reply is still changing.
+ * coordinator settles on a new reply, after a Needs You change (Done marks the
+ * judgement dismissed), and every few minutes while Jev is unavailable. Live
+ * coordinators are not asked about, their reply is still changing, but the
+ * judgement of their current reply is kept: a queued message must not hide an
+ * unanswered ask.
  */
 export function useCrewJudgements(coordinators: readonly PluginSidebarThread[]): ReadonlyMap<string, CrewJudgement> {
   const rpc = useRpc<typeof crewRpcContract>();
@@ -51,6 +55,11 @@ export function useCrewJudgements(coordinators: readonly PluginSidebarThread[]):
     .map((thread) => ({ threadId: thread.id, version: thread.latestAttentionAt }));
   const key = threads.map((entry) => `${entry.threadId}@${entry.version}`).join("|");
   useEffect(() => {
+    const changed = () => setRetry((count) => count + 1);
+    window.addEventListener(NEEDS_CHANGED, changed);
+    return () => window.removeEventListener(NEEDS_CHANGED, changed);
+  }, []);
+  useEffect(() => {
     if (!key) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -60,7 +69,11 @@ export function useCrewJudgements(coordinators: readonly PluginSidebarThread[]):
     });
     rpc.call("crew_asks", { threads: request }).then((result) => {
       if (cancelled) return;
-      setJudgements(new Map(result.judgements.map((judgement) => [judgement.threadId, judgement])));
+      setJudgements((previous) => {
+        const next = new Map(previous);
+        for (const judgement of result.judgements) next.set(judgement.threadId, judgement);
+        return next;
+      });
       if (result.judgements.some((judgement) => judgement.waiting === null)) {
         timer = setTimeout(() => setRetry((count) => count + 1), RETRY_UNKNOWN_MS);
       }

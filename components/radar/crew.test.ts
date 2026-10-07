@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeThread, MINUTE, NOW, HOUR } from "./fixtures";
-import { arrangeCrew, withoutListedAsks, crewChapters, crewFeed, crewRow, jobsByBot, startOfToday, shortAgo, shortAutomationName, watchInterval, type CrewAutomation } from "./crew";
+import { arrangeCrew, isListedAsk, withoutListedAsks, crewChapters, crewFeed, crewRow, jobsByBot, startOfToday, shortAgo, shortAutomationName, watchInterval, type CrewAutomation } from "./crew";
 import type { RosterBot } from "./bots";
 
 const bot = (key: string, projectId = `proj_${key}`): RosterBot =>
@@ -14,6 +14,26 @@ const row = (args: Partial<Parameters<typeof crewRow>[0]> & { bot: RosterBot }) 
 const reply = (subject: string, decision: string | null = null) => ({ subject, decision, quiet: false });
 
 describe("crew row", () => {
+  it("separates queued work, handover and unavailable coordinators from running and resting", () => {
+    const home = bot("home");
+    const coordinator = makeThread({ id: home.current });
+    const queued = makeThread({ id: "queue", parentThreadId: home.current, queuedWork: "waiting", createdAt: NOW });
+    expect(row({ bot: home, threads: [coordinator, queued] }).line).toMatchObject({ tone: "queued", threadId: "queue", text: "Queued, waiting to run" });
+    expect(row({ bot: { ...home, rollover: "replacement" }, threads: [coordinator] }).line.tone).toBe("rollover");
+    const unavailable = row({ bot: home });
+    expect(unavailable.line.tone).toBe("unavailable");
+    expect(arrangeCrew([unavailable]).resting).toHaveLength(0);
+    const feed = crewFeed({ roster: [home], threads: [queued], archived: new Map(), now: NOW });
+    expect(feed[0]?.state).toBe("queued");
+    expect(crewChapters(feed)[0]?.queued).toBe(1);
+  });
+
+  it("includes nested and previous-coordinator workers and keeps read failures actionable", () => {
+    const home = { ...bot("home"), coordinatorIds: ["old"] };
+    const threads = [makeThread({ id: home.current }), makeThread({ id: "middle", parentThreadId: "old" }),
+      makeThread({ id: "boom", parentThreadId: "middle", queuedWork: "failed", isUnread: false })];
+    expect(row({ bot: home, threads }).line).toMatchObject({ tone: "failed", threadId: "boom" });
+  });
   it("keeps a read decision as the bot's line until the coordinator replies again", () => {
     const work = bot("work");
     const coordinator = makeThread({ id: work.current, latestAttentionAt: NOW - HOUR });
@@ -168,13 +188,53 @@ describe("today's chapters", () => {
 });
 
 describe("asks already on the Needs-you list", () => {
-  it("rests the bot instead of repeating its listed ask, and keeps other asks", () => {
-    const bot = (key: string) => ({ key, name: key, current: `thr_${key}` }) as never;
-    const row = (key: string, text: string) => ({ bot: bot(key), line: { tone: "ask" as const, text, threadId: `thr_${key}`, at: 1 }, more: 0, context: null });
-    const rows = withoutListedAsks([row("home", "I need the current Mum apt meter balance when you have it."), row("work", "Confirm UNITED payment?")],
-      [{ bot: "home", text: "I need the current Mum apt meter balance when you have it", state: "open" },
-       { bot: "work", text: "Confirm UNITED payment?", state: "done" }]);
-    expect(rows.map((r) => r.line.tone)).toEqual(["quiet", "ask"]);
+  const listBot = (key: string) => ({ key, name: key, current: `thr_${key}` }) as never;
+  const askRow = (key: string, text: string, itemId?: string | null) =>
+    ({ bot: listBot(key), line: { tone: "ask" as const, text, threadId: `thr_${key}`, at: 1, ...(itemId === undefined ? {} : { itemId }) }, more: 0, context: null });
+  it("avoids sleeping tiles for bots already represented by a saved ask, and keeps other asks", () => {
+    const rows = withoutListedAsks([askRow("home", "I need the current Mum apt meter balance when you have it."), askRow("work", "Confirm UNITED payment?")],
+      [{ id: "n1", bot: "home", text: "I need the current Mum apt meter balance when you have it", state: "open" },
+       { id: "n2", bot: "work", text: "Confirm UNITED payment?", state: "done" }]);
+    expect(rows.map((r) => r.line.tone)).toEqual(["ask"]);
     expect(arrangeCrew(rows).speaking.map((r) => r.bot.key)).toEqual(["work"]);
+    expect(arrangeCrew(rows).resting).toHaveLength(0);
+  });
+  it("matches the bubble to its card by the saved item, whatever the card says", () => {
+    // The card keeps the first sentence; the bubble may still quote the whole decision line.
+    const listed = [{ id: "n1", bot: "home", text: "Top up the meter?", state: "open" }];
+    expect(withoutListedAsks([askRow("home", "Top up the meter? It is at EGP 12 and the tariff changes Sunday.", "n1")], listed)).toEqual([]);
+    expect(withoutListedAsks([askRow("home", "Top up the meter? It is at EGP 12 and the tariff changes Sunday.")], listed)).toHaveLength(1);
+    // A different item, or a store that lost the item, leaves the bubble speaking.
+    expect(withoutListedAsks([askRow("home", "Top up the meter?", "n9")], listed)).toHaveLength(1);
+    expect(withoutListedAsks([askRow("home", "Top up the meter?", "n1")], [])).toHaveLength(1);
+    expect(isListedAsk(listBot("home"), { tone: "running", text: "Top up the meter?", threadId: "thr_home", at: 1, itemId: "n1" }, listed)).toBe(false);
+  });
+});
+
+describe("one ask identity", () => {
+  const personal = bot("personal");
+  const judgement = (fields: object) => ({ threadId: personal.current, version: NOW - HOUR, waiting: 0.9, ask: "should I book two for Saturday?", itemId: "n1", ...fields });
+  it("quotes the saved text and carries the item the judge saved it as", () => {
+    const coordinator = makeThread({ id: personal.current, latestAttentionAt: NOW - HOUR });
+    const pulse = reply("Tickets are EGP 800 each.", "should I book two for Saturday? Prices rise on Monday.");
+    expect(row({ bot: personal, threads: [coordinator], pulse, judgement: judgement({}) }).line)
+      .toMatchObject({ tone: "ask", text: "Should I book two for Saturday?", itemId: "n1" });
+    // Before the judgement arrives, the decision line speaks, without an item.
+    expect(row({ bot: personal, threads: [coordinator], pulse }).line)
+      .toMatchObject({ tone: "ask", text: "Should I book two for Saturday? Prices rise on Monday.", itemId: null });
+  });
+  it("keeps the bubble away after Done for that reply, and brings it back on the next reply", () => {
+    const coordinator = makeThread({ id: personal.current, latestAttentionAt: NOW - HOUR, isUnread: false });
+    const pulse = reply("Tickets are EGP 800 each.", "should I book two for Saturday?");
+    expect(row({ bot: personal, threads: [coordinator], pulse, judgement: judgement({ dismissed: true }) }).line.tone).toBe("quiet");
+    const next = { ...coordinator, latestAttentionAt: NOW };
+    expect(row({ bot: personal, threads: [next], pulse, judgement: judgement({ dismissed: true }) }).line.tone).toBe("ask");
+    expect(row({ bot: personal, threads: [next], pulse, judgement: judgement({ version: NOW, dismissed: false }) }).line).toMatchObject({ tone: "ask", itemId: "n1" });
+  });
+  it("keeps a queued coordinator's ask while its message waits to run", () => {
+    const queued = makeThread({ id: personal.current, latestAttentionAt: NOW - HOUR, queuedWork: "waiting" });
+    expect(row({ bot: personal, threads: [queued], pulse: reply("Tickets are EGP 800 each."), judgement: judgement({}) }).line)
+      .toMatchObject({ tone: "ask", text: "Should I book two for Saturday?", itemId: "n1" });
+    expect(row({ bot: personal, threads: [queued], pulse: reply("Tickets are EGP 800 each."), judgement: judgement({ waiting: 0.1, ask: null, itemId: null }) }).line.tone).toBe("queued");
   });
 });

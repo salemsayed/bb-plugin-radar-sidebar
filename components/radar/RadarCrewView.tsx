@@ -1,223 +1,114 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { experimental_useSidebarThreads, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/icon";
+import { useVisibleBots } from "./botVisibility";
 import { BotAvatar } from "./BotAvatar";
-import { botStyle, shortBotName, type RosterBot } from "./bots";
-import { rosterRefreshKey } from "./botScope";
-import { arrangeCrew, withoutListedAsks, crewChapters, crewFeed, crewRow, jobsByBot, shortAgo, type CrewChapter, type CrewFeedItem, type CrewRow } from "./crew";
+import { coordinatorAsk, botStyle, shortBotName, STATE_LABELS, type BotState, type RosterBot } from "./bots";
+import { botFamily, botWorkers, rosterRefreshKey } from "./botScope";
+import { withoutListedAsks, crewFeed, crewRow, shortAgo, type CrewFeedItem, type CrewRow } from "./crew";
 import { useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
 import { useThreadPulses } from "./useThreadPulses";
+import { isRunningThread } from "./time";
 import { NeedsYouList } from "./NeedsYouList";
-import type { NeedsYouData } from "@/lib/needsClient";
+import { needsChanged, type NeedsYouData } from "@/lib/needsClient";
 
-const ACTION: Partial<Record<CrewRow["line"]["tone"], string>> = { ask: "Reply", failed: "Check" };
-const BADGE: Partial<Record<CrewRow["line"]["tone"], string>> = { ask: "?", failed: "!" };
-const CHAPTER_PREVIEW = 6;
-const JOBS_PER_CHAPTER = 3;
-
+const FEED_PREVIEW = 5;
+const LINE_STATE: Record<CrewRow["line"]["tone"], BotState> = {
+  ask: "decision", failed: "failed", running: "working", queued: "queued", rollover: "rollover", unavailable: "unavailable", new: "unread", quiet: "idle",
+};
 const clockFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 
-function hue(bot: RosterBot): CSSProperties {
-  return { "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties;
-}
-
-/**
- * The crew as a group chat: each bot with something to say speaks in a bubble,
- * most urgent first; the rest sit below as quiet one-line rows; then today's
- * feed of every job the crew ran. Tapping anything opens what it is about.
- */
-export function RadarCrewView({ roster, now, onNavigate, needs }: {
-  roster: readonly RosterBot[];
-  now: number;
-  onNavigate: () => void;
-  needs: NeedsYouData;
+/** Cross-bot inbox, stable roster, then today's work. Details open on demand. */
+export function RadarCrewView({ roster: fullRoster, now, onNavigate, needs }: {
+  roster: readonly RosterBot[]; now: number; onNavigate: () => void; needs: NeedsYouData;
 }) {
   const { threads } = experimental_useSidebarThreads();
+  const [visibilityOpen, setVisibilityOpen] = useState(false);
   const navigate = useBbNavigate();
-  const coordinators = useMemo(
-    () => threads.filter((thread) => roster.some((bot) => bot.current === thread.id)),
-    [threads, roster],
-  );
+  const coordinators = useMemo(() => threads.filter(thread => fullRoster.some(bot => bot.current === thread.id)), [threads, fullRoster]);
   const pulses = useThreadPulses(coordinators, true);
   const automations = useCrewAutomations();
   const judgements = useCrewJudgements(coordinators);
-  const { speaking, resting } = useMemo(
-    () => arrangeCrew(withoutListedAsks(roster.map((bot) => crewRow({
-      bot, threads, pulse: pulses.get(bot.current) ?? null, judgement: judgements.get(bot.current) ?? null, automations, now,
-    })), needs.items ?? [])),
-    [roster, threads, pulses, judgements, automations, now, needs.items],
-  );
+  const asking = useMemo(() => {
+    const keys = new Set((needs.items ?? []).filter(item => item.state !== "done" && item.state !== "dropped").map(item => item.bot));
+    for (const bot of fullRoster) {
+      const thread = coordinators.find(thread => thread.id === bot.current);
+      if (thread && coordinatorAsk(thread, pulses.get(thread.id) ?? null, judgements.get(thread.id))) keys.add(bot.key);
+      if (needs.items === null) keys.add(bot.key);
+    }
+    return keys;
+  }, [fullRoster, coordinators, pulses, judgements, needs.items]);
+  const visibility = useVisibleBots(fullRoster, threads, asking);
+  const roster = visibility.bots;
+  const rows = useMemo(() => roster.map(bot => crewRow({
+    bot, threads, pulse: pulses.get(bot.current) ?? null, judgement: judgements.get(bot.current) ?? null, automations, now,
+  })), [roster, threads, pulses, judgements, automations, now]);
+  const unlisted = useMemo(() => new Set(withoutListedAsks(rows, needs.items ?? []).map(row => row.bot.key)), [rows, needs.items]);
   const refreshKey = useMemo(() => rosterRefreshKey(threads), [threads]);
-  const archived = useCrewArchivedJobs(useMemo(() => roster.map((bot) => bot.current), [roster]), refreshKey);
+  const archived = useCrewArchivedJobs(useMemo(() => roster.map(bot => bot.current), [roster]), refreshKey);
   const feed = useMemo(() => crewFeed({ roster, threads, archived, now }), [roster, threads, archived, now]);
-  const chapters = useMemo(() => crewChapters(feed), [feed]);
-  const jobCounts = useMemo(() => jobsByBot(feed), [feed]);
   const [feedOpen, setFeedOpen] = useState(false);
-  const [openChapters, setOpenChapters] = useState<ReadonlySet<string>>(() => new Set());
-  const open = (threadId: string) => {
-    navigate.toThread(threadId);
-    onNavigate();
-  };
+  const liveWorkers = roster.flatMap(bot => botWorkers(threads, bot)).filter(isRunningThread).length;
+  const open = (threadId: string) => { navigate.toThread(threadId); onNavigate(); };
 
-  const renderBubble = (row: CrewRow) => {
+  const renderMate = (row: CrewRow) => {
     const { bot, line } = row;
-    const name = shortBotName(bot.name);
-    const action = ACTION[line.tone];
-    const badge = BADGE[line.tone];
-    return (
-      <li key={bot.key} className={cn("radar-crew-say", `radar-crew-say-${line.tone}`)} style={hue(bot)} data-bot={bot.key}>
-        <button
-          type="button"
-          className="radar-crew-say-button"
-          aria-label={`${name}: ${line.tone === "running" ? `working on ${line.text}` : line.text}${row.more > 0 ? `, and ${row.more} more` : ""}`}
-          onClick={() => open(line.threadId)}
-        >
-          <span className="radar-crew-speaker">
-            <BotAvatar emoji={botStyle(bot.key, bot.name).emoji} context={row.context} />
-            {badge ? <span className="radar-crew-badge" aria-hidden="true">{badge}</span> : null}
-            {line.tone === "running" ? <span className="radar-crew-badge radar-crew-badge-busy" aria-hidden="true" /> : null}
+    const affected = threads.find(thread => thread.id === line.threadId);
+    const state = line.tone === "ask" && (affected?.hasPendingInteraction || affected?.indicator === "waiting-for-input") ? "needs-you" : LINE_STATE[line.tone];
+    const label = STATE_LABELS[state];
+    const listed = !unlisted.has(bot.key);
+    const summary = listed ? "Waiting on your answer above" : line.text;
+    const family = botFamily(threads, bot);
+    const unread = family.some(thread => thread.isUnread);
+    const target = state === "unread" ? family.find(thread => thread.id === bot.current && thread.isUnread)?.id ?? family.find(thread => thread.isUnread)?.id ?? line.threadId : line.threadId;
+    return <li key={bot.key} data-bot={bot.key}>
+      <button type="button" className={`radar-crew-mate radar-crew-mate-${state}${unread ? " radar-crew-mate-has-unread" : ""}`} onClick={() => open(target)}
+        aria-label={`${shortBotName(bot.name)}, ${label.text}: ${label.action}. ${summary}${row.more ? `, and ${row.more} more` : ""}`} title={label.description}>
+        <BotAvatar emoji={botStyle(bot.key, bot.name).emoji} state={state} unread={unread} />
+        <span className="radar-crew-mate-copy">
+          <span className="radar-crew-mate-head"><strong>{shortBotName(bot.name)}</strong>
+            {state !== "idle" ? <span className={cn("radar-crew-mate-state", label.tone)}>{label.text}</span> : null}
+            {line.at !== null ? <span className="radar-crew-when">{shortAgo(line.at, now)}</span> : null}
           </span>
-          <span className="radar-crew-bubble">
-            <span className="radar-crew-bubble-head">
-              <span className="radar-crew-sender">{name}</span>
-              {line.tone === "new" ? <span className="radar-unread" aria-hidden="true" /> : null}
-              {line.at !== null ? <span className="radar-crew-when">{shortAgo(line.at, now)}</span> : null}
-            </span>
-            <span className="radar-crew-text">
-              {line.tone === "running" ? (
-                <span className="radar-crew-typing" aria-hidden="true"><i /><i /><i /></span>
-              ) : null}
-              {line.text}
-            </span>
-            {row.more > 0 || action ? (
-              <span className="radar-crew-bubble-foot">
-                {row.more > 0 ? <span className="radar-crew-more">+{row.more} more</span> : null}
-                {action ? <span className="radar-crew-action" aria-hidden="true">{action} ›</span> : null}
-              </span>
-            ) : null}
-          </span>
-        </button>
-      </li>
-    );
-  };
-
-  const renderJob = (item: CrewFeedItem) => (
-    <li key={item.id}>
-      <button
-        type="button"
-        className={cn("radar-crew-job", `radar-crew-job-${item.state}`)}
-        aria-label={`${item.title}, ${item.state}, started ${clockFormatter.format(item.startedAt)}`}
-        onClick={() => open(item.id)}
-      >
-        <span className="radar-crew-job-mark" aria-hidden="true">
-          {item.state === "running" ? <span className="radar-crew-job-spin" /> : item.state === "failed" ? "✕" : "✓"}
+          <span className="radar-crew-mate-summary">{summary}</span>
+          {row.context !== null && row.context >= 0.75 ? <span className="radar-crew-mate-context">Context {Math.round(row.context * 100)}%</span> : null}
         </span>
-        <span className="radar-crew-job-title">{item.title}</span>
       </button>
-    </li>
-  );
-
-  const renderChapter = (chapter: CrewChapter) => {
-    const expanded = openChapters.has(chapter.id);
-    const shown = expanded ? chapter.items : chapter.items.slice(0, JOBS_PER_CHAPTER);
-    const hidden = chapter.items.length - shown.length;
-    const range = chapter.from === chapter.to
-      ? clockFormatter.format(chapter.to)
-      : `${clockFormatter.format(chapter.from)}–${clockFormatter.format(chapter.to)}`;
-    return (
-      <li key={chapter.id} className={cn("radar-crew-chapter", chapter.running > 0 && "radar-crew-chapter-live")} style={hue(chapter.bot)}>
-        <span className="radar-crew-node" aria-hidden="true">{botStyle(chapter.bot.key, chapter.bot.name).emoji}</span>
-        <div className="radar-crew-card">
-          <div className="radar-crew-card-head">
-            <span className="radar-crew-card-bot">{shortBotName(chapter.bot.name)}</span>
-            <span className="radar-crew-card-range">{range}</span>
-          </div>
-          {chapter.items.length > 1 ? <div className="radar-crew-card-tally" aria-label={`${chapter.items.length} ${chapter.items.length === 1 ? "job" : "jobs"}: ${chapter.done} done, ${chapter.failed} failed, ${chapter.running} running`}>
-            {chapter.running > 0 ? <span className="radar-crew-tally radar-crew-tally-running">{chapter.running} running</span> : null}
-            {chapter.done > 0 ? <span className="radar-crew-tally radar-crew-tally-done">{chapter.done} done</span> : null}
-            {chapter.failed > 0 ? <span className="radar-crew-tally radar-crew-tally-failed">{chapter.failed} failed</span> : null}
-          </div> : null}
-          <ul className="radar-crew-jobs">{shown.map(renderJob)}</ul>
-          {hidden > 0 || expanded && chapter.items.length > JOBS_PER_CHAPTER ? (
-            <button
-              type="button"
-              className="radar-crew-card-more"
-              onClick={() => setOpenChapters((previous) => {
-                const next = new Set(previous);
-                if (next.has(chapter.id)) next.delete(chapter.id);
-                else next.add(chapter.id);
-                return next;
-              })}
-            >
-              {expanded ? "Show less" : `+${hidden} more`}
-            </button>
-          ) : null}
-        </div>
-      </li>
-    );
+    </li>;
   };
-
-  return (
-    <div className="radar-crew-view">
-      <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} />
-      {speaking.length > 0 ? (
-        <ol className="radar-crew-feed" aria-label="What your bots are saying">{speaking.map(renderBubble)}</ol>
-      ) : (
-        <p className="radar-crew-calm" role="status">
-          <span className="radar-crew-calm-moon" aria-hidden="true">🌙</span>
-          {needs.items?.length ? "Your bots are resting." : "All quiet: nothing needs you."}
-        </p>
-      )}
-      {resting.length > 0 ? (
-        <section className="radar-crew-bench" aria-label="Resting">
-          <h3 className="radar-crew-label"><span aria-hidden="true">💤</span> Resting</h3>
-          <div className="radar-crew-tiles" style={{ "--cols": resting.length === 4 ? 2 : Math.min(resting.length, 3) } as CSSProperties}>
-            {resting.map((row) => {
-              const jobs = jobCounts.get(row.bot.key) ?? 0;
-              const name = shortBotName(row.bot.name);
-              const ago = row.line.at !== null ? shortAgo(row.line.at, now) : null;
-              return (
-                <button
-                  key={row.bot.key}
-                  type="button"
-                  className="radar-crew-tile"
-                  style={hue(row.bot)}
-                  title={row.line.text}
-                  aria-label={`Open ${row.bot.name}, resting${ago ? `, last reply ${ago} ago` : ""}, ${jobs} ${jobs === 1 ? "job" : "jobs"} today: ${row.line.text}`}
-                  onClick={() => open(row.bot.current)}
-                >
-                  <span className="radar-crew-tile-face">
-                    <BotAvatar emoji={botStyle(row.bot.key, row.bot.name).emoji} context={row.context} />
-                  </span>
-                  <span className="radar-crew-tile-name">{name}</span>
-                  <span className="radar-crew-tile-meta">
-                    {ago ? <span>{ago}</span> : null}
-                    <span className={cn(jobs > 0 && "radar-crew-tile-busy")}>{jobs > 0 ? `${jobs} ${jobs === 1 ? "job" : "jobs"}` : "idle"}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-      <section className="radar-crew-day" aria-label="Today">
-        <h3 className="radar-crew-label">
-          <span aria-hidden="true">☀️</span> Today
-          {feed.length > 0 ? <span className="radar-crew-label-count">{feed.length} {feed.length === 1 ? "job" : "jobs"}</span> : null}
-        </h3>
-        {feed.length === 0 ? (
-          <p className="radar-crew-day-empty">No jobs yet today.</p>
-        ) : (
-          <ol className="radar-crew-story">
-            {(feedOpen ? chapters : chapters.slice(0, CHAPTER_PREVIEW)).map((chapter) => renderChapter(chapter))}
-          </ol>
-        )}
-        {chapters.length > CHAPTER_PREVIEW ? (
-          <button type="button" className="radar-crew-day-more" onClick={() => setFeedOpen((value) => !value)}>
-            {feedOpen ? "Show less" : `Show the whole day (${feed.length} jobs)`}
-          </button>
-        ) : null}
-      </section>
-    </div>
-  );
+  const renderJob = (item: CrewFeedItem) => <li key={item.id}>
+    <button type="button" className={`radar-crew-job radar-crew-job-${item.state}`} onClick={() => open(item.id)}
+      aria-label={`${shortBotName(item.bot.name)}: ${item.title}, ${item.state}, started ${clockFormatter.format(item.startedAt)}`} title={item.title}>
+      <span className="radar-crew-job-time">{clockFormatter.format(item.startedAt)}</span>
+      <span className="radar-crew-job-face" aria-hidden="true">{botStyle(item.bot.key, item.bot.name).emoji}</span>
+      <span className="radar-crew-job-title">{item.title}</span>
+      <span className="radar-crew-job-mark" aria-hidden="true">{item.state === "running" ? <span className="radar-crew-job-spin" /> : item.state === "queued" ? "◷" : item.state === "failed" ? "✕" : "✓"}</span>
+    </button>
+  </li>;
+  const running = feed.filter(item => item.state === "running").length;
+  const failed = feed.filter(item => item.state === "failed").length;
+  return <div className="radar-crew-view">
+    {needs.items === null ? <p role="status" className="radar-crew-needs-status">
+      {needs.status === "loading" ? "Loading saved decisions…" : <>Saved decisions are unavailable. <button type="button" onClick={needsChanged}>Retry</button></>}
+    </p> : null}
+    <NeedsYouList items={needs.items} roster={fullRoster} now={now} onUpdate={needs.update} onOpen={open} seen={needs.seen} />
+    <section className="radar-crew-roster" aria-label="Crew">
+      <h3 className="radar-crew-section-head">Crew <small>{liveWorkers ? `${liveWorkers} worker${liveWorkers === 1 ? "" : "s"} live` : null}</small>
+        {fullRoster.length ? <button type="button" className="radar-crew-visibility-toggle" aria-label="Bot visibility" title="Choose which bots are shown" aria-expanded={visibilityOpen} onClick={() => setVisibilityOpen(value => !value)}><Icon name="EyeOff" /></button> : null}
+      </h3>
+      {visibilityOpen ? <div className="radar-crew-visibility" role="group" aria-label="Bot visibility">
+        {fullRoster.map(bot => <label key={bot.key}><input type="checkbox" checked={!visibility.isHidden(bot.key)} onChange={event => event.target.checked ? visibility.unhide(bot.key) : visibility.hide(bot.key)} /><span>Show {shortBotName(bot.name)}</span></label>)}
+        <p>Bots that need you remain visible.</p>
+      </div> : null}
+      {rows.length ? <ol>{rows.map(renderMate)}</ol> : <p className="radar-crew-empty" role="status">{needs.items === null ? "No live bot activity." : needs.items.length ? "No work in progress." : "All quiet: nothing needs you."}</p>}
+    </section>
+    <section className="radar-crew-day" aria-label="Today's work">
+      <h3 className="radar-crew-section-head">Today <small>{feed.length} jobs{running ? ` · ${running} running` : ""}{failed ? ` · ${failed} failed` : ""}</small></h3>
+      {feed.length ? <>
+        <ol className="radar-crew-jobs">{(feedOpen ? feed : feed.slice(0, FEED_PREVIEW)).map(renderJob)}</ol>
+        {feed.length > FEED_PREVIEW ? <button type="button" className="radar-crew-day-more" aria-expanded={feedOpen} onClick={() => setFeedOpen(value => !value)}>{feedOpen ? "Show less" : `Show all ${feed.length} jobs`}</button> : null}
+      </> : <p className="radar-crew-empty">No jobs today.</p>}
+    </section>
+  </div>;
 }

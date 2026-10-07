@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
+import type { CrewJudgement } from "@/lib/crewAsk";
 import { normalizedNeedsText } from "@/lib/needs";
-import { needsYou, type Pulse, type RosterBot } from "./bots";
-import { isLiveThread } from "./time";
+import { coordinatorAsk, needsYou, type Pulse, type RosterBot } from "./bots";
+import { isRunningThread } from "./time";
+import { botWorkers } from "./botScope";
 
 /** The slice of saelmbot-automations' `automations_overview` the crew view reads. */
 export const automationsOverviewSchema = z.object({
@@ -31,10 +32,12 @@ export type CrewAutomation = z.infer<typeof automationsOverviewSchema>["automati
 
 /** What a bot's row says, and where tapping it goes. */
 export interface CrewLine {
-  tone: "ask" | "failed" | "running" | "new" | "quiet";
+  tone: "ask" | "failed" | "running" | "queued" | "rollover" | "unavailable" | "new" | "quiet";
   text: string;
   threadId: string;
   at: number | null;
+  /** For a coordinator's ask: the Needs You item it is saved as, when the server knows one. */
+  itemId?: string | null;
 }
 
 export interface CrewRow {
@@ -87,19 +90,14 @@ function sentence(text: string): string {
 }
 
 function isFailedThread(thread: PluginSidebarThread): boolean {
-  return thread.status === "error" || thread.indicator === "unread-error" || thread.indicator === "queued-failed";
-}
-
-function isWorkerOf(thread: PluginSidebarThread, coordinatorId: string): boolean {
-  return thread.id !== coordinatorId && !thread.isArchived &&
-    (thread.parentThreadId === coordinatorId || thread.lifecycleOwnerThreadId === coordinatorId);
+  return thread.status === "error" || thread.queuedWork === "failed" || thread.indicator === "unread-error" || thread.indicator === "queued-failed";
 }
 
 /**
  * Everything waiting on Salem for one bot, failures first. A coordinator's
- * ask stays open after it is read, until the coordinator replies again: a
- * "Decision needed:" line, or else Jev's judgement of that same reply. A
- * watcher counts once it misses three of its own intervals.
+ * ask stays open after it is read, until the coordinator replies again or
+ * Salem closes its saved card: see `coordinatorAsk`. A watcher counts once it
+ * misses three of its own intervals.
  */
 function asksFor(bot: RosterBot, coordinator: PluginSidebarThread | null, workers: readonly PluginSidebarThread[],
   pulse: Pulse | null, judgement: CrewJudgement | null, automations: readonly CrewAutomation[], now: number): CrewLine[] {
@@ -110,15 +108,13 @@ function asksFor(bot: RosterBot, coordinator: PluginSidebarThread | null, worker
       failed.push({ tone: "failed", text: "Its last turn failed", threadId: coordinator.id, at: coordinator.latestAttentionAt });
     } else if (needsYou(coordinator)) {
       asks.push({ tone: "ask", text: coordinator.indicatorLabel ?? "Waiting for your answer", threadId: coordinator.id, at: coordinator.latestAttentionAt });
-    } else if (!isLiveThread(coordinator)) {
-      const judged = judgement?.threadId === coordinator.id && judgement.version === coordinator.latestAttentionAt
-        && (judgement.waiting ?? 0) >= WAITING_THRESHOLD;
-      const text = pulse?.decision ?? (judged ? judgement.ask ?? pulse?.subject ?? "Waiting for your answer" : null);
-      if (text) asks.push({ tone: "ask", text: sentence(text), threadId: coordinator.id, at: coordinator.latestAttentionAt });
+    } else {
+      const ask = coordinatorAsk(coordinator, pulse, judgement);
+      if (ask) asks.push({ tone: "ask", text: sentence(ask.text), threadId: coordinator.id, at: coordinator.latestAttentionAt, itemId: ask.itemId });
     }
   }
   for (const worker of workers) {
-    if (isFailedThread(worker) && worker.isUnread) {
+    if (isFailedThread(worker)) {
       failed.push({ tone: "failed", text: `${worker.displayTitle} failed`, threadId: worker.id, at: worker.latestAttentionAt });
     } else if (needsYou(worker)) {
       asks.push({ tone: "ask", text: `${worker.displayTitle} needs your input`, threadId: worker.id, at: worker.latestAttentionAt });
@@ -153,28 +149,35 @@ export function crewRow(args: {
 }): CrewRow {
   const { bot, threads, pulse, now } = args;
   const coordinator = threads.find((thread) => thread.id === bot.current) ?? null;
-  const workers = threads.filter((thread) => isWorkerOf(thread, bot.current));
+  const workers = botWorkers(threads, bot);
   const automations = args.automations ? automationsFor(bot, args.automations).filter((automation) => automation.enabled) : [];
   const context = pulse?.context ?? null;
 
   const asks = asksFor(bot, coordinator, workers, pulse, args.judgement ?? null, automations, now);
   if (asks.length > 0) return { bot, line: asks[0]!, more: asks.length - 1, context };
 
+  if (bot.rollover) return { bot, line: { tone: "rollover", text: "Coordinator handover in progress", threadId: bot.current, at: null }, more: 0, context };
+
   const running = workers
-    .filter((worker) => isLiveThread(worker) && !worker.isHidden)
+    .filter(isRunningThread)
     .sort((a, b) => b.createdAt - a.createdAt);
   if (running.length > 0) {
     const job = running[0]!;
     return { bot, line: { tone: "running", text: job.displayTitle, threadId: job.id, at: job.createdAt }, more: running.length - 1, context };
   }
-  if (coordinator && isLiveThread(coordinator)) {
+  if (coordinator && isRunningThread(coordinator)) {
     return { bot, line: { tone: "running", text: "Thinking", threadId: coordinator.id, at: null }, more: 0, context };
   }
+
+  const queued = [coordinator, ...workers].filter((thread): thread is PluginSidebarThread => !!thread && thread.queuedWork === "waiting");
+  if (queued.length) return { bot, line: { tone: "queued", text: "Queued, waiting to run", threadId: queued[0]!.id, at: null }, more: queued.length - 1, context };
+  if (!coordinator) return { bot, line: { tone: "unavailable", text: "Coordinator state unavailable", threadId: bot.current, at: null }, more: 0, context };
 
   return {
     bot,
     line: {
-      tone: coordinator?.isUnread ? "new" : "quiet",
+      // Family unread, like the rail's "New reply": a worker's unread report counts too.
+      tone: coordinator?.isUnread || workers.some(w => w.isUnread) ? "new" : "quiet",
       text: pulse?.subject || (coordinator ? "No reply yet" : "Coordinator not found"),
       threadId: bot.current,
       at: coordinator?.latestAttentionAt ?? null,
@@ -189,20 +192,25 @@ export function crewRow(args: {
  * flight, then unread replies. Everyone else rests. Roster order holds within
  * each step so bubbles do not shuffle.
  */
+/** Whether this ask is the saved card: by the item the judge saved it as, else by its text. */
+export function isListedAsk(bot: RosterBot, line: CrewLine, listed: readonly { id: string; bot: string; text: string; state: string }[]): boolean {
+  if (line.tone !== "ask") return false;
+  const active = listed.filter((item) => item.state !== "done" && item.state !== "dropped");
+  if (line.itemId) return active.some((item) => item.id === line.itemId);
+  const text = normalizedNeedsText(line.text);
+  return active.some((item) => item.bot === bot.key && normalizedNeedsText(item.text) === text);
+}
+
 /**
  * A bot's ask that is already on the Needs-you list is said once, by the list: its bubble would only
- * repeat it. The bot rests unless it has something else to say.
+ * repeat it. It is already represented by the saved card, not a sleeping tile.
  */
-export function withoutListedAsks(rows: readonly CrewRow[], listed: readonly { bot: string; text: string; state: string }[]): CrewRow[] {
-  const active = new Set(listed.filter((item) => item.state !== "done" && item.state !== "dropped")
-    .map((item) => `${item.bot}\u0000${normalizedNeedsText(item.text)}`));
-  return rows.map((row) => row.line.tone === "ask" && active.has(`${row.bot.key}\u0000${normalizedNeedsText(row.line.text)}`)
-    ? { ...row, line: { ...row.line, tone: "quiet" } }
-    : row);
+export function withoutListedAsks(rows: readonly CrewRow[], listed: readonly { id: string; bot: string; text: string; state: string }[]): CrewRow[] {
+  return rows.filter(row => !isListedAsk(row.bot, row.line, listed));
 }
 
 export function arrangeCrew(rows: readonly CrewRow[]): { speaking: CrewRow[]; resting: CrewRow[] } {
-  const rank: Record<CrewLine["tone"], number> = { failed: 0, ask: 1, running: 2, new: 3, quiet: 4 };
+  const rank: Record<CrewLine["tone"], number> = { failed: 0, ask: 1, unavailable: 2, rollover: 3, running: 4, queued: 5, new: 6, quiet: 7 };
   const ordered = rows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => rank[a.row.line.tone] - rank[b.row.line.tone] || a.index - b.index)
@@ -226,7 +234,7 @@ export interface CrewFeedItem {
   bot: RosterBot;
   title: string;
   startedAt: number;
-  state: "running" | "done" | "failed";
+  state: "running" | "queued" | "done" | "failed";
 }
 
 export function startOfToday(now: number): number {
@@ -258,7 +266,7 @@ export function crewFeed(args: {
       if (thread.parentThreadId !== bot.current && thread.lifecycleOwnerThreadId !== bot.current) continue;
       items.set(thread.id, {
         id: thread.id, bot, title: thread.displayTitle, startedAt: thread.createdAt,
-        state: isFailedThread(thread) ? "failed" : isLiveThread(thread) ? "running" : "done",
+        state: isFailedThread(thread) ? "failed" : isRunningThread(thread) ? "running" : thread.queuedWork === "waiting" ? "queued" : "done",
       });
     }
   }
@@ -276,6 +284,7 @@ export interface CrewChapter {
   done: number;
   failed: number;
   running: number;
+  queued: number;
 }
 
 /** Group the newest-first feed into runs by the same bot, so a busy bot reads as one story. */
@@ -284,7 +293,7 @@ export function crewChapters(feed: readonly CrewFeedItem[]): CrewChapter[] {
   for (const item of feed) {
     let chapter = chapters.at(-1);
     if (!chapter || chapter.bot.key !== item.bot.key) {
-      chapter = { id: item.id, bot: item.bot, items: [], from: item.startedAt, to: item.startedAt, done: 0, failed: 0, running: 0 };
+      chapter = { id: item.id, bot: item.bot, items: [], from: item.startedAt, to: item.startedAt, done: 0, failed: 0, running: 0, queued: 0 };
       chapters.push(chapter);
     }
     chapter.items.push(item);

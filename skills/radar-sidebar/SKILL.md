@@ -59,10 +59,16 @@ projects; project membership alone never includes a thread. From a worker, the
 face returns to the coordinator; from the coordinator, it shows all threads again,
 as do Home and the scope pill's X; the pill's name opens the coordinator. The hover
 card's View workers filters without opening anything.
-**Crew** (above the faces, scope key `__crew__`) replaces the list with the
-crew as a group chat. Each bot with something to say speaks in a bubble, most
-urgent first: failures (red, "!" badge, Check), asks (amber, "?" badge, Reply),
-work in flight (typing dots and the newest running worker), then unread replies.
+**Crew** (above the faces, scope key `__crew__`) replaces the list with three
+consistent sections: saved **Needs you** asks, a stable roster in rail order, and
+**Today** as a flat job list. Every bot has one roster row: face and state, latest
+activity and time. A saved ask is shown once above, with “Waiting on your answer
+above” in its roster row. The row opens the affected thread. Failure, question,
+queue, handover and unavailable states stay explicit; quiet bots use the same
+row layout. Bot visibility opens a touch-friendly show/hide list on demand.
+Open asks, pending input and unread failures override a hide preference. A read
+failure can be hidden again; an open ask stays visible until resolved. Hidden
+coordinators and their workers stay out of ordinary thread groups, including Pinned.
 Asks include a coordinator reply that is waiting on Salem, which stays open
 after being read until the coordinator replies again: a `Decision needed:` line,
 or else Jev's verdict on that reply (probability at least 0.5, quoting the
@@ -71,20 +77,36 @@ coordinator reply once per `latestAttentionAt`, through Auto Effort's plugin-onl
 `jev_decide` RPC (Auto Effort's key and model), and caches the verdict in plugin
 storage for every client; rollovers and new bots are judged on first sight.
 Without Auto Effort or its key, only `Decision needed:` counts, retried every
-5 minutes. Asks also include worker questions, unseen worker failures,
+5 minutes. Asks also include worker questions, worker failures, including after reading,
 and failed or stalled automations (watchers three intervals late) from
-saelmbot-automations' `automations_overview`. "+N more" counts the rest. Bots with
-nothing new sit below under **Resting** as a grid of tiles: sleeping face with
-its context ring, name, age of the last reply and jobs started today; each opens
-its coordinator and shows the last line as a tooltip. **Today** is a timeline of
-every job the crew started today: live workers (hidden run threads included)
-plus archived ones from `threads.list`. Consecutive jobs by one bot fold into a
-card on the timeline, with the bot's face as the node (pulsing while a job runs),
-a time range, done/failed/running tallies when it holds more than one job, and
-up to 3 jobs before "+N more"; 6 cards show before "Show the whole day". Tapping a bubble opens the thread it is about. Selection uses the stable bot key, following
-rollover; roster refreshes on thread creation/archive changes and every minute.
-State dots describe only the coordinator family, with state words in accessible
-labels and tooltips. Context rings and worker-count badges remain visible.
+saelmbot-automations' `automations_overview`. **Today** lists every job started
+today, including live hidden run threads and archived workers. Five jobs show
+before **Show all**. Each row opens its thread. Selection uses the stable bot
+key through rollover; roster refreshes on creation/archive changes and every minute.
+State signals describe the coordinator family: red ! badge for Failed, amber ?
+for Needs you and Decision, an activity arc for Working, dotted ring for Queued,
+slow dashed ring for Handover, blue dot/light for New reply, plain face for Idle,
+and dimmed face/dashed outline for Unavailable. State words and actions are
+accessible in labelled rails, hover cards and roster rows. Queues never count as
+running; reading an ask does not resolve it. Unread is independent of activity
+and attention: a badge replaces the dot but the tile still lights. `loudUnread`
+off keeps a quiet dot or accent. Context and worker counts live in details, with
+high context shown on the Crew row. Reduced motion keeps rings static.
+
+Saved **Needs you** rows show the complete question. A leading circle marks it
+Done, the question opens its source thread, and a clock opens Snooze. Every
+control has a 44px target. Done keeps an in-place six-second Undo; quick multiple
+completions retain independent Undo controls. Failed saves and failed Undo stay
+retryable. Snoozed asks collapse into a short summary and expand on demand;
+due and overdue labels are explicit. Loading/unavailable decisions show status
+and Retry. A later unconfirmed human reply is marked “Reply seen, not confirmed”.
+Radar-captured decision keys (`threadId:24hex`) reconcile at coordinator idle
+and Crew reads. Jev must give at least 0.95 confidence that a newer human reply
+answered that exact request and the coordinator acknowledged or performed it.
+Automation inputs, unrelated and partial replies never suffice. Active work,
+queues and pending interactions defer checks. Manual reminders and automation
+asks never auto-close. The resolver rechecks the version and saved state before
+writing Done, preserves same-reply Undo and retries failures after five minutes.
 Live context refreshes every 15 seconds; coordinator identities survive rollover.
 This mode hides the duplicate in-list deck and coordinator rows. Turning either
 flag off shows all threads immediately and restores the deck if `botsDeck` is on.

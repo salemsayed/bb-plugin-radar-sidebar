@@ -3902,33 +3902,34 @@ a.radar-row-main:hover {
   .radar-double-navigation-wide *::after { animation: none !important; }
 }
 
-/* Bot rail: faces and state dots stay readable in both rail widths. */
+/* Bot rail: neutral selection, independent unread light, shared state faces. */
 .radar-rail-bots { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
 .radar-rail-divider { display: block; width: 24px; height: 1px; margin: 4px 0 6px; background: var(--border); }
-/* Keep the ring at avatar size and rotation despite generic rail icon rules. */
 .radar-rail-bot { --bot-color: oklch(0.65 0.14 var(--bot-hue)); }
-.radar-double-rail .radar-rail-bot .radar-bot-avatar .radar-bot-ring,
-.radar-double-rail .radar-rail-bot:hover:not(:disabled) .radar-bot-avatar .radar-bot-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
-.radar-rail-worker-count { position: absolute; bottom: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px; display: grid; place-items: center; border-radius: 7px; font-size: 9px; font-weight: 700; line-height: 1; background: var(--sidebar, var(--background)); box-shadow: 0 0 0 1px var(--border); }
-.radar-double-navigation-wide .radar-rail-worker-count { right: 7px; bottom: 3px; }
+.radar-double-rail .radar-rail-bot-active { background: var(--muted); }
+.radar-double-rail .radar-rail-bot-active::before { height: 22px; background: oklch(0.65 0.14 var(--bot-hue)); }
+.radar-rail-bot-copy { display: none; min-width: 0; flex: 1; }
+.radar-double-navigation-wide .radar-rail-bot-copy { display: flex; flex-direction: column; gap: 2px; }
+.radar-double-navigation-wide .radar-rail-bot-copy .radar-rail-label { flex: none; line-height: 15px; }
+.radar-rail-bot-state-label { font-size: 10px; line-height: 12px; font-weight: 600; text-align: left; white-space: nowrap; animation: none; }
+.radar-double-navigation-wide .radar-rail-bots { align-items: stretch; }
+.radar-double-navigation-wide .radar-rail-divider { width: auto; margin: 4px 10px 6px; }
+.radar-double-rail .radar-rail-bot-unread { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.radar-double-rail .radar-rail-bot-unread:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 23%, transparent); }
+.radar-rail-bot-unread .radar-rail-label { font-weight: 650; }
+/* The avatar owns the dot. A quiet unread setting still retains a cue next to an attention badge. */
+.radar-rail-bot-unread-badge { display: none; }
+.radar-rail-bot:not(.radar-rail-bot-unread):has(.radar-bot-attention-badge) .radar-rail-bot-unread-badge { display: block; position: absolute; left: 0; top: 50%; width: 3px; height: 14px; border-radius: 3px; background: var(--primary); transform: translateY(-50%); }
+.radar-double-rail .radar-rail-bot .radar-bot-avatar .radar-bot-state-ring,
+.radar-double-rail .radar-rail-bot:hover:not(:disabled) .radar-bot-avatar .radar-bot-state-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
 @media (min-width: 768px) and (max-height: 760px) {
   .radar-double-navigation-bots .radar-double-rail { gap: 8px; padding-bottom: 8px; }
-  .radar-double-navigation-bots .radar-double-rail-items,
-  .radar-double-navigation-bots .radar-double-rail-footer,
-  .radar-double-navigation-bots .radar-rail-bots { gap: 4px; }
+  .radar-double-navigation-bots .radar-double-rail-items, .radar-double-navigation-bots .radar-double-rail-footer, .radar-double-navigation-bots .radar-rail-bots { gap: 4px; }
   .radar-double-navigation-bots .radar-double-rail .radar-nav-icon-button { height: 36px; }
   .radar-double-navigation-bots .radar-bot-avatar { width: 34px; height: 34px; }
   .radar-double-navigation-bots .radar-double-rail-footer .radar-nav-icon-button { height: 32px; }
   .radar-double-navigation-bots .radar-double-rail-footer .radar-rail-divider { margin-block: 0; }
 }
-.radar-double-rail .radar-rail-bot-active { background: oklch(0.7 0.14 var(--bot-hue) / 0.18); }
-.radar-double-rail .radar-rail-bot-active::before { height: 22px; background: oklch(0.65 0.14 var(--bot-hue)); }
-.radar-rail-bot-dot { position: absolute; top: 6px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--sidebar, var(--background)); }
-.radar-double-navigation-wide .radar-rail-bots { align-items: stretch; }
-.radar-double-navigation-wide .radar-rail-divider { width: auto; margin: 4px 10px 6px; }
-.radar-double-navigation-wide .radar-rail-bot-dot { top: 5px; right: 8px; }
-
-
 
 /* Both stacks retain their full control width. A visible scroll thumb in
    the rail's edge tracks the viewport without fading the final item or
@@ -4000,6 +4001,25 @@ a.radar-row-main:hover {
 .radar-bot-ring-fill { stroke: var(--bot-color); stroke-linecap: round; transition: stroke-dashoffset 600ms ease; }
 .radar-bot-ring-warm .radar-bot-ring-fill { stroke: var(--warning, #d97706); }
 .radar-bot-ring-hot .radar-bot-ring-fill { stroke: var(--destructive); }
+/* Activity rings and attention badges never encode context usage. */
+.radar-bot-avatar-state { --badge-cut: var(--sidebar, var(--background)); }
+.radar-bot-state-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.radar-bot-state-ring circle { fill: none; stroke-width: 2.25; stroke: var(--primary); }
+.radar-bot-state-ring-working circle { stroke-dasharray: 70 200; stroke-linecap: round; }
+.radar-bot-state-ring-queued circle { stroke-dasharray: 1.5 5; stroke-linecap: round; }
+.radar-bot-state-ring-rollover circle { stroke-dasharray: 18 8; }
+.radar-bot-state-ring-unavailable circle { stroke: var(--muted-foreground); stroke-dasharray: 3 4; opacity: .6; }
+.radar-bot-avatar-unavailable .radar-bot-face { filter: grayscale(1); opacity: .45; }
+.radar-bot-attention-badge { position: absolute; z-index: 2; top: -2px; right: -2px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 800; line-height: 1; color: white; box-shadow: 0 0 0 2px var(--badge-cut); }
+.radar-bot-badge-error { background: var(--destructive, #c03a3a); }
+.radar-bot-badge-warning { background: var(--warning, #b0640f); }
+.radar-bot-unread-dot { position: absolute; z-index: 2; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--badge-cut); }
+@keyframes radar-bot-ring-rotate { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: no-preference) {
+  .radar-bot-state-ring-working.radar-bot-state-motion { animation: radar-bot-ring-rotate 1.4s linear infinite; }
+  .radar-bot-state-ring-rollover.radar-bot-state-motion { animation: radar-bot-ring-rotate 4s linear infinite; }
+}
+[data-radar-motion="off"] .radar-bot-state-ring { animation: none !important; }
 .radar-bot-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
 .radar-bot-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .radar-bot-name { font-size: 13px; font-weight: 650; white-space: nowrap; color: var(--foreground); }
@@ -4088,21 +4108,22 @@ a.radar-row-main:hover {
 }
 .radar-bot-hover::before { display: none; }
 .radar-bot-hover-head { display: flex; align-items: center; gap: 9px; }
-.radar-bot-hover-head > strong { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
-.radar-bot-hover-state { font-size: 10px; font-weight: 650; white-space: nowrap; }
+.radar-bot-hover-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.radar-bot-hover-heading strong { font-size: 14px; overflow-wrap: anywhere; }
+.radar-bot-hover-state { animation: none; font-size: 11px; font-weight: 650; white-space: nowrap; border-radius: 10px; padding: 3px 7px; background: color-mix(in srgb, currentColor 10%, transparent); }
 .radar-bot-hover-section { display: flex; flex-direction: column; gap: 6px; }
 .radar-bot-hover-section + .radar-bot-hover-section { padding-top: 10px; border-top: 1px solid var(--border); }
 .radar-bot-hover-section-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--muted-foreground); }
-.radar-bot-hover-section-head > :first-child { font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; }
+.radar-bot-hover-section-head > :first-child { font-weight: 650; letter-spacing: 0; }
 .radar-bot-hover p { margin: 0; }
-.radar-bot-hover-reply { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.radar-bot-hover-reply { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .radar-bot-hover-muted { color: var(--muted-foreground); font-size: 11px; }
 .radar-bot-hover-decision { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: color-mix(in srgb, var(--warning, #d97706) 10%, transparent); }
-.radar-bot-hover-decision > strong { color: var(--warning, #d97706); font-size: 11px; }
+.radar-bot-hover-decision > strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .radar-bot-hover-workers { display: flex; flex-direction: column; gap: 3px; }
 .radar-bot-hover-worker { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 6px; margin-inline: -6px; border-radius: 6px; text-decoration: none; color: var(--foreground); }
 .radar-bot-hover-worker > :first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.radar-bot-hover-worker > :last-child { flex: none; font-size: 10px; }
+.radar-bot-hover-worker > :last-child { flex: none; font-size: 10px; animation: none; }
 .radar-bot-hover-worker:hover { background: var(--muted); }
 .radar-bot-hover-context { height: 5px; overflow: hidden; border-radius: 3px; background: var(--muted); }
 .radar-bot-hover-context > span { display: block; height: 100%; border-radius: inherit; background: var(--bot-color); }
@@ -4110,228 +4131,58 @@ a.radar-row-main:hover {
 .radar-bot-hover-context-warm > span { background: var(--warning, #d97706); }
 .radar-bot-hover-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted-foreground); font-size: 10px; }
 .radar-bot-hover-meta > span { min-width: 0; overflow-wrap: anywhere; }
-.radar-bot-hover-actions { display: flex; gap: 8px; }
-.radar-bot-hover-actions > * { flex: 1; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; font-size: 11px; color: var(--foreground); background: transparent; cursor: pointer; }
-.radar-bot-hover-actions > a { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.radar-bot-hover-meta > :first-child { flex: none; }
+.radar-bot-hover-meta > :last-child { text-align: right; }
+.radar-bot-hover-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.radar-bot-hover-actions > * { flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; font-size: 11px; color: var(--foreground); background: transparent; cursor: pointer; }
+.radar-bot-hover-actions > .radar-bot-hover-primary { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
 .radar-bot-hover-actions > *:hover { background: var(--muted); }
+.radar-bot-hover-actions > .radar-bot-hover-primary:hover { background: color-mix(in srgb, var(--primary) 85%, var(--foreground)); }
 .radar-bot-hover a:focus-visible, .radar-bot-hover button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
-/* Crew overview: the crew as a group chat. Bots with something to say speak in
-   bubbles, most urgent first; the rest rest on one line. */
-.radar-crew-view { display: flex; flex-direction: column; gap: 12px; padding: 8px 4px 16px; }
-.radar-crew-feed { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.radar-crew-say {
-  --bot-color: hsl(var(--bot-hue) 70% 50%);
-  --tone: var(--bot-color);
-  animation: radar-crew-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.radar-crew-say-ask { --tone: var(--warning, #b98533); }
-.radar-crew-say-failed { --tone: var(--destructive, #d43d3d); }
-.radar-crew-say-running { --tone: var(--primary); }
-@keyframes radar-crew-in { from { opacity: 0; transform: translateY(4px); } }
-.radar-crew-say-button {
-  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 0;
-  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
-}
-.radar-crew-say-button:focus-visible { outline: none; }
-.radar-crew-say-button:focus-visible .radar-crew-bubble { outline: 2px solid var(--ring); outline-offset: 1px; }
-
-/* The speaker: face, context ring and a badge that says why it is talking. */
-.radar-crew-speaker { position: relative; flex: none; margin-top: 2px; }
-.radar-crew-speaker .radar-bot-avatar { width: 34px; height: 34px; }
-.radar-crew-speaker .radar-bot-face { font-size: 16px; }
-.radar-crew-say-ask .radar-crew-speaker,
-.radar-crew-say-failed .radar-crew-speaker { animation: radar-crew-nudge 5s ease-in-out 1s infinite; transform-origin: 50% 90%; }
-@keyframes radar-crew-nudge {
-  0%, 84%, 100% { transform: rotate(0); }
-  87% { transform: rotate(-12deg); }
-  90% { transform: rotate(10deg); }
-  93% { transform: rotate(-6deg); }
-  96% { transform: rotate(3deg); }
-}
-.radar-crew-badge {
-  position: absolute; right: -3px; bottom: -2px; z-index: 2;
-  display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
-  font-size: 10px; font-weight: 800; line-height: 1; color: #fff;
-  background: var(--tone); box-shadow: 0 0 0 2px var(--sidebar, var(--background));
-}
-.radar-crew-badge-busy {
-  background: var(--sidebar, var(--background));
-  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary);
-  width: 13px; height: 13px; box-shadow: none;
-  animation: radar-crew-spin 0.9s linear infinite;
-}
-@keyframes radar-crew-spin { to { transform: rotate(360deg); } }
-
-/* The bubble: squared toward the speaker, tinted by why it is talking. */
-.radar-crew-bubble {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
-  padding: 7px 10px 8px; border-radius: 4px 14px 14px 14px;
-  border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--border));
-  background: color-mix(in srgb, var(--tone) 7%, var(--card, var(--background)));
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent);
-  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
-}
-.radar-crew-say-ask .radar-crew-bubble,
-.radar-crew-say-failed .radar-crew-bubble {
-  border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
-  background: color-mix(in srgb, var(--tone) 12%, var(--card, var(--background)));
-}
-.radar-crew-say-button:hover .radar-crew-bubble { border-color: color-mix(in srgb, var(--tone) 60%, var(--border)); }
-.radar-crew-say-button:active .radar-crew-bubble { transform: scale(0.985); }
-.radar-crew-bubble-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.radar-crew-sender {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 11.5px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 78%, var(--foreground));
-}
-.radar-crew-bubble-head .radar-unread { flex: none; }
-.radar-crew-when { margin-left: auto; flex: none; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-.radar-crew-text {
-  font-size: 13px; line-height: 1.35; color: var(--foreground); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
-}
-.radar-crew-say-ask .radar-crew-text, .radar-crew-say-failed .radar-crew-text { font-weight: 550; }
-.radar-crew-say-failed .radar-crew-text { color: color-mix(in srgb, var(--tone) 75%, var(--foreground)); }
-.radar-crew-say-new .radar-crew-text { -webkit-line-clamp: 3; }
-.radar-crew-say-running .radar-crew-text { -webkit-line-clamp: 2; color: color-mix(in srgb, var(--foreground) 85%, transparent); }
-.radar-crew-bubble-foot { display: flex; align-items: center; gap: 8px; margin-top: 1px; }
-.radar-crew-more { font-size: 11px; color: var(--muted-foreground); }
-.radar-crew-action {
-  margin-left: auto; padding: 2px 9px; border-radius: 999px;
-  font-size: 11px; font-weight: 650; color: #fff; background: var(--tone);
-}
-
-/* Typing dots: this bot is working right now. */
-.radar-crew-typing { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 2px; }
-.radar-crew-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); animation: radar-crew-type 1.2s ease-in-out infinite; }
-.radar-crew-typing i:nth-child(2) { animation-delay: 0.15s; }
-.radar-crew-typing i:nth-child(3) { animation-delay: 0.3s; }
-@keyframes radar-crew-type { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
-
-/* Section labels below the bubbles. */
-.radar-crew-label {
-  display: flex; align-items: center; gap: 6px; margin: 0 6px 6px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted-foreground);
-}
-.radar-crew-label > span[aria-hidden] { font-size: 12px; letter-spacing: 0; filter: saturate(0.8); }
-.radar-crew-label-count {
-  margin-left: auto; padding: 1px 7px; border-radius: 999px; letter-spacing: 0; text-transform: none; font-weight: 600;
-  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
-}
-
-/* Resting: a bench of tiles, each a sleeping face with how recently it spoke and how busy its day was. */
-/* Rows always fill: --cols balances the count (4 → 2×2), and a short last row stretches. */
-.radar-crew-tiles { display: flex; flex-wrap: wrap; gap: 6px; }
-.radar-crew-tiles > .radar-crew-tile { flex: 1 1 max(84px, calc((100% - (var(--cols, 3) - 1) * 6px) / var(--cols, 3))); }
-.radar-crew-tile {
-  --bot-color: hsl(var(--bot-hue) 70% 50%);
-  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
-  padding: 9px 6px 7px; border-radius: 14px; font: inherit; color: inherit; cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--bot-color) 20%, var(--border));
-  background: linear-gradient(170deg, hsl(var(--bot-hue) 70% 50% / 0.13), transparent 75%), var(--card, var(--background));
-  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
-}
-.radar-crew-tile:hover { border-color: color-mix(in srgb, var(--bot-color) 45%, var(--border)); box-shadow: 0 2px 8px color-mix(in srgb, var(--bot-color) 14%, transparent); }
-.radar-crew-tile:active { transform: scale(0.96); }
-.radar-crew-tile:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.radar-crew-tile-face { position: relative; margin-bottom: 2px; }
-.radar-crew-tile-face .radar-bot-avatar { width: 34px; height: 34px; }
-.radar-crew-tile-face .radar-bot-face { font-size: 16px; filter: saturate(0.75); }
-/* A small "z" drifts off each sleeping face. */
-.radar-crew-tile-face::after {
-  content: "z"; position: absolute; top: -6px; right: -7px; z-index: 2;
-  font-size: 11px; font-weight: 800; font-style: italic; color: color-mix(in srgb, var(--bot-color) 70%, var(--muted-foreground));
-  animation: radar-crew-snore 3.6s ease-in-out infinite;
-}
-.radar-crew-tile:nth-child(2n) .radar-crew-tile-face::after { animation-delay: 1.2s; }
-.radar-crew-tile:nth-child(3n) .radar-crew-tile-face::after { animation-delay: 2.1s; }
-@keyframes radar-crew-snore {
-  0% { opacity: 0; transform: translate(0, 2px) scale(0.7); }
-  30% { opacity: 1; }
-  70% { opacity: 0.9; transform: translate(3px, -4px) scale(1); }
-  100% { opacity: 0; transform: translate(5px, -7px) scale(1.1); }
-}
-.radar-crew-tile-name {
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 60%, var(--foreground));
-}
-.radar-crew-tile-meta { display: flex; gap: 3px; max-width: 100%; font-size: 10.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; }
-.radar-crew-tile-meta > span + span::before { content: "·"; margin-right: 3px; }
-.radar-crew-tile-busy { color: color-mix(in srgb, var(--bot-color) 55%, var(--foreground)); font-weight: 600; }
-
-/* Today: a timeline whose nodes are bot faces; each run of one bot's jobs is one card. */
-.radar-crew-day { margin-top: 2px; }
-.radar-crew-day-empty { margin: 0 6px; font-size: 12px; color: var(--muted-foreground); }
-.radar-crew-story { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.radar-crew-story::before {
-  content: ""; position: absolute; top: 14px; bottom: 14px; left: 14px; width: 2px; border-radius: 1px;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--border) 100%, transparent), color-mix(in srgb, var(--border) 30%, transparent));
-}
-.radar-crew-chapter { --bot-color: hsl(var(--bot-hue) 70% 50%); position: relative; display: flex; align-items: flex-start; gap: 8px; }
-.radar-crew-node {
-  position: relative; z-index: 1; flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin-top: 2px;
-  border-radius: 50%; font-size: 14px;
-  background: color-mix(in srgb, var(--bot-color) 14%, var(--sidebar, var(--background)));
-  box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 3px color-mix(in srgb, var(--bot-color) 45%, transparent);
-}
-.radar-crew-chapter-live .radar-crew-node { animation: radar-crew-beat 1.8s ease-in-out infinite; }
-@keyframes radar-crew-beat {
-  0%, 100% { box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 3px color-mix(in srgb, var(--primary) 55%, transparent); }
-  50% { box-shadow: 0 0 0 2px var(--sidebar, var(--background)), 0 0 0 6px color-mix(in srgb, var(--primary) 18%, transparent); }
-}
-.radar-crew-card {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 7px 9px 8px; border-radius: 4px 12px 12px 12px;
-  border: 1px solid color-mix(in srgb, var(--bot-color) 18%, var(--border));
-  background: linear-gradient(160deg, hsl(var(--bot-hue) 70% 50% / 0.07), transparent 65%), var(--card, var(--background));
-}
-.radar-crew-card-head { display: flex; align-items: baseline; gap: 6px; }
-.radar-crew-card-bot { font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--bot-color) 65%, var(--foreground)); }
-.radar-crew-card-range { margin-left: auto; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.radar-crew-card-tally { display: flex; flex-wrap: wrap; gap: 4px; }
-.radar-crew-tally { padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 650; }
-.radar-crew-tally-done { color: color-mix(in srgb, var(--success, #3f9a6b) 80%, var(--foreground)); background: color-mix(in srgb, var(--success, #3f9a6b) 13%, transparent); }
-.radar-crew-tally-failed { color: var(--destructive, #d43d3d); background: color-mix(in srgb, var(--destructive, #d43d3d) 12%, transparent); }
-.radar-crew-tally-running { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
-.radar-crew-jobs { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.radar-crew-job {
-  display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 3px 4px; margin: 0 -4px; box-sizing: content-box;
-  border: 0; border-radius: 6px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
-}
-.radar-crew-job:hover { background: color-mix(in srgb, var(--bot-color) 10%, transparent); }
-.radar-crew-job:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.radar-crew-job-mark { flex: none; width: 12px; margin-top: 1px; text-align: center; font-size: 10.5px; font-weight: 800; }
-.radar-crew-job-done .radar-crew-job-mark { color: var(--success, #3f9a6b); }
-.radar-crew-job-failed .radar-crew-job-mark, .radar-crew-job-failed .radar-crew-job-title { color: var(--destructive, #d43d3d); }
-.radar-crew-job-title {
-  flex: 1; min-width: 0; font-size: 12px; line-height: 1.35; color: color-mix(in srgb, var(--foreground) 82%, transparent); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.radar-crew-job-running .radar-crew-job-title { color: var(--foreground); font-weight: 550; }
-.radar-crew-job-spin {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: 0;
-  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary);
-  animation: radar-crew-spin 0.9s linear infinite;
-}
-.radar-crew-card-more, .radar-crew-day-more {
-  align-self: flex-start; padding: 2px 0; border: 0; background: none;
-  font: inherit; font-size: 11px; font-weight: 650; color: color-mix(in srgb, var(--bot-color, var(--primary)) 70%, var(--foreground)); cursor: pointer;
-}
-.radar-crew-day-more { margin: 8px 0 0 38px; color: var(--primary); }
-@media (pointer: coarse) {
-  .radar-crew-job { min-height: 32px; align-items: center; }
-  .radar-crew-card-more, .radar-crew-day-more { min-height: 36px; }
-}
-
-/* Everyone resting. */
-.radar-crew-calm { display: flex; align-items: center; gap: 8px; margin: 2px 8px; font-size: 13px; font-weight: 600; }
-.radar-crew-calm-moon { font-size: 16px; animation: radar-crew-float 4s ease-in-out infinite; }
-@keyframes radar-crew-float { 0%, 100% { transform: translateY(0); opacity: 0.75; } 50% { transform: translateY(-3px); opacity: 1; } }
-
-[data-radar-motion="off"] .radar-crew-view *,
-[data-radar-motion="off"] .radar-crew-say { animation: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  .radar-crew-view *, .radar-crew-say { animation: none !important; }
-}
+/* Crew: one inbox, a stable roster, and a flat recent-work list. */
+.radar-crew-view { display: flex; flex-direction: column; gap: 18px; padding: 10px 4px 20px; }
+.radar-crew-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin: 0 6px 6px; font-size: 11px; font-weight: 650; color: var(--muted-foreground); }
+.radar-crew-section-head small { margin-left: auto; font: inherit; font-weight: 400; }
+.radar-crew-visibility-toggle { min-width: 44px; min-height: 44px; display: grid; place-items: center; margin: -8px -6px -8px 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.radar-crew-visibility-toggle svg { width: 14px; height: 14px; }
+.radar-crew-visibility-toggle:hover { background: var(--muted); }
+.radar-crew-visibility-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.radar-crew-visibility { margin: 0 4px 6px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.radar-crew-visibility label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.radar-crew-visibility input { width: 16px; height: 16px; accent-color: var(--primary); }
+.radar-crew-visibility p { font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.radar-crew-roster ol, .radar-crew-jobs { list-style: none; margin: 0; padding: 0; }
+.radar-crew-mate { width: 100%; display: flex; align-items: center; gap: 9px; min-height: 52px; padding: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
+.radar-crew-mate-has-unread { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.radar-crew-mate:hover { background: var(--muted); }
+.radar-crew-mate-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.radar-crew-mate-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.radar-crew-mate-head strong { font-size: 13px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-crew-mate-state { animation: none; flex: none; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.radar-crew-when { margin-left: auto; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.radar-crew-mate-summary { font-size: 12px; line-height: 16px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radar-crew-mate-has-unread .radar-crew-mate-head strong { font-weight: 750; }
+.radar-crew-mate-has-unread .radar-crew-when { color: var(--primary); }
+.radar-crew-mate-context { font-size: 11px; color: var(--warning, #b0640f); }
+.radar-crew-job { display: grid; grid-template-columns: 35px 16px minmax(0, 1fr) 14px; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--foreground); cursor: pointer; text-align: left; }
+.radar-crew-job:hover { background: var(--muted); }
+.radar-crew-job-time { color: var(--muted-foreground); font-size: 10px; font-variant-numeric: tabular-nums; }
+.radar-crew-job-face { font-size: 12px; }
+.radar-crew-job-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.radar-crew-job-mark { display: grid; place-items: center; font-size: 11px; font-weight: 650; }
+.radar-crew-job-done .radar-crew-job-mark { color: var(--success, #2e7d2e); }
+.radar-crew-job-failed .radar-crew-job-mark { color: var(--destructive, #c03a3a); }
+.radar-crew-job-queued .radar-crew-job-mark { color: var(--primary); }
+.radar-crew-job-spin { width: 12px; height: 12px; border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary); border-radius: 50%; animation: radar-spin 1.4s linear infinite; }
+.radar-crew-day-more { min-height: 44px; width: 100%; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: left; cursor: pointer; }
+.radar-crew-day-more:hover { background: var(--muted); }
+.radar-crew-empty { margin: 6px; color: var(--muted-foreground); font-size: 12px; }
+.radar-crew-needs-status { display: flex; align-items: center; gap: 6px; margin: 0 6px; font-size: 12px; color: var(--muted-foreground); }
+.radar-crew-needs-status button { min-height: 44px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--muted); color: var(--foreground); cursor: pointer; }
+.radar-crew-mate:focus-visible, .radar-crew-job:focus-visible, .radar-crew-day-more:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+[data-radar-motion="off"] .radar-crew-view * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .radar-crew-view * { animation: none !important; } }
 
 /* ---- Working peek: hover the Working drawer's header (salem fork) ---------- */
 .radar-working-peek {

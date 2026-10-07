@@ -148,7 +148,8 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.rpc.register(needsRpcContract, createNeedsServer(bb));
+  const needs = createNeedsServer(bb);
+  bb.rpc.register(needsRpcContract, needs.handlers);
   const judge = createCrewJudge(bb, Date.now, createNeedsAskRecorder(bb));
   // Several sidebars peeking at once share one timeline read per thread.
   const digests = new Map<string, { at: number; digest: Promise<WorkingDigest | null> }>();
@@ -165,7 +166,11 @@ export default async function plugin(bb: BbPluginApi) {
     return next;
   };
   bb.rpc.register({ ...crewRpcContract, ...workingRpcContract }, {
-    crew_asks: async (input) => ({ judgements: await judge(input.threads) }),
+    crew_asks: async (input) => {
+      // The client just saw these reply versions: a newer one may be the acknowledgment that closes a saved decision.
+      void needs.observe(input.threads);
+      return { judgements: await judge(input.threads) };
+    },
     working_digest: async (input) => ({
       digests: (await Promise.all(input.threadIds.map(digest))).filter((entry): entry is WorkingDigest => entry !== null),
     }),
