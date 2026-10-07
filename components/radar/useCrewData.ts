@@ -113,3 +113,5 @@ export function useCrewArchivedJobs(coordinatorIds: readonly string[], refreshKe
   }, [sdk, ids, refreshKey]);
   return jobs;
 }
+
+export { useNeedsYou } from "@/lib/needsClient";

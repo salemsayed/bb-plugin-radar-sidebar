@@ -56,6 +56,7 @@ import { RadarBotCard } from "./RadarBotCard";
 import { botState, botStyle, crewDigest, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { RadarCrewView } from "./RadarCrewView";
+import { useNeedsYou } from "./useCrewData";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
 import { activityTime, isLiveThread, isRunningThread, timeAgo } from "./time";
@@ -558,6 +559,7 @@ export function RadarThreadList({
   useRailThreadNavigation(onNavigate);
   const botRail = settings.railNav && settings.botRail;
   const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(allThreads));
+  const needs = useNeedsYou(settings.botsDeck || botRail);
   const railScope = useValidatedRailScope(roster, botRail);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   // The crew overview replaces the thread list; it reads its own data.
@@ -1978,7 +1980,7 @@ export function RadarThreadList({
         aria-busy={switchPending || undefined}
       >
         {crewView ? (
-          <RadarCrewView roster={roster} now={now} onNavigate={onNavigate} />
+          <RadarCrewView roster={roster} now={now} onNavigate={onNavigate} needs={needs} />
         ) : status === "loading" ? (
           <div className="radar-state" role="status" aria-label="Loading threads">
             {Array.from({ length: 8 }, (_, index) => (
@@ -2066,7 +2068,7 @@ export function RadarThreadList({
                     const root = group.roots[0]!;
                     const bot = roster.find((entry) => entry.current === root.id);
                     return botState(root, pulses.get(root.id) ?? null, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed });
-                  }))}
+                  }), needs.items)}
                 </span>
               </div>
             ) : null}

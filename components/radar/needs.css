@@ -1,0 +1,28 @@
+.radar-needs, .radar-remind-panel { min-width: 0; color: var(--foreground); font-size: 13px; }
+.radar-needs h3 { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; font-size: 13px; }
+.radar-needs h3 small, .radar-needs-due, .radar-reminder-picker small { color: var(--muted-foreground); font-size: 11px; }
+.radar-needs ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.radar-needs-item { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--background); }
+.radar-needs-row { position: relative; padding: 8px; touch-action: pan-y; }
+.radar-needs-row[data-swipe-phase] { z-index: 1; }
+.radar-needs-summary { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-needs-text { flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-weight: 550; }
+.radar-needs-face { display: grid; place-items: center; border-radius: 50%; width: 24px; height: 24px; flex: none; background: var(--muted); }
+.radar-needs-due { display: block; padding: 3px 0 0 24px; }
+.radar-needs-undo { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 8px; background: var(--muted); border-radius: 7px; }
+.radar-needs-undo span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.radar-needs-actions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; }
+.radar-needs button, .radar-reminder-picker button { min-height: 44px; min-width: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; color: inherit; background: var(--background); cursor: pointer; font: inherit; }
+.radar-needs-actions button { flex: 1; border-color: transparent; background: var(--muted); }
+.radar-needs button:disabled, .radar-reminder-picker button:disabled { opacity: .5; cursor: default; }
+.radar-needs button:focus-visible, .radar-reminder-picker button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.radar-reminder-picker { display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 0; }
+.radar-reminder-picker button { text-align: left; overflow-wrap: anywhere; }
+.radar-reminder-picker form, .radar-reminder-picker label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.radar-reminder-picker input { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--border); border-radius: 7px; background: var(--background); color: inherit; padding: 4px; font: inherit; }
+.radar-remind-panel p { overflow-wrap: anywhere; }
+.radar-needs [role="alert"], .radar-remind-panel [role="alert"] { color: var(--destructive); padding: 4px 8px; font-size: 12px; }
+.radar-needs-underlay { position: absolute; top: 0; bottom: 0; width: var(--radar-swipe-w); max-width: none; opacity: 1; pointer-events: auto; display: grid; place-items: center; }
+.radar-needs-underlay-right { right: 100%; left: auto; background: var(--muted); }
+.radar-needs-underlay-left { left: 100%; right: auto; background: var(--muted); }
+.radar-needs-underlay button { border: 0; white-space: nowrap; }

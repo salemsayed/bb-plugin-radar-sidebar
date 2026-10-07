@@ -16,7 +16,7 @@ async function setup(outputs: Record<string, string>, decide: (input: ReturnType
     expect([pluginId, method]).toEqual(["auto-effort", "jev_decide"]);
     return decide(input);
   });
-  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { threads: { output }, plugins: { callRpc } } as never });
+  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { threads: { output }, plugins: { callRpc: async (args: { pluginId: string }) => args.pluginId === "orchestrator-mode" ? { bots: [] } : callRpc(args as never) } } as never });
   await plugin(bb);
   const host = { harness, output, callRpc, outputs, ask: (threads: { threadId: string; version: number }[]) =>
     harness.behavior.callRpc("crew_asks", { threads }) as Promise<{ judgements: { threadId: string; version: number; waiting: number | null; ask: string | null }[] }> };

@@ -9,6 +9,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createCrewJudge } from "./lib/crewJudge";
+import { createNeedsAskRecorder } from "./lib/needsAsk";
+import { createNeedsServer } from "./lib/needsServer";
+import { needsRpcContract } from "./lib/needs";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
 import {
   DEFAULT_SWIPE_LEFT,
@@ -145,7 +148,8 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  const judge = createCrewJudge(bb);
+  bb.rpc.register(needsRpcContract, createNeedsServer(bb));
+  const judge = createCrewJudge(bb, Date.now, createNeedsAskRecorder(bb));
   // Several sidebars peeking at once share one timeline read per thread.
   const digests = new Map<string, { at: number; digest: Promise<WorkingDigest | null> }>();
   const DIGEST_FRESH_MS = 4_000;

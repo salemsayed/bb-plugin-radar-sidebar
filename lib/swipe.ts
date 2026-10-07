@@ -49,7 +49,7 @@ export function swipeActionFromSetting(
 
 /** How the underlay presents an action for this thread's current state. */
 export interface SwipeActionView {
-  id: Exclude<SwipeActionId, "none">;
+  id: Exclude<SwipeActionId, "none"> | "done" | "snooze";
   label: string;
   icon: string;
   /** Slides the row away and folds it before acting, instead of springing back. */

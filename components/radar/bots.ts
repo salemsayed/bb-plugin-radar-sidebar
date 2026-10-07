@@ -1,5 +1,6 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
+import { openNeeds, type NeedsItem } from "@/lib/needs";
 
 /** What the bb-salem-bots plugin publishes for sidebars: identity only, no thread content. */
 export const rosterSchema = z.object({
@@ -133,10 +134,10 @@ export function botStyle(key: string, name: string): { emoji: string; hue: numbe
 }
 
 /** One line for the crew header: what, across all bots, is waiting on Salem or still moving. */
-export function crewDigest(states: readonly BotState[]): string {
+export function crewDigest(states: readonly BotState[], items: readonly NeedsItem[] | null = null): string {
   const count = (state: BotState) => states.filter((s) => s === state).length;
   const parts: string[] = [];
-  const decisions = count("decision") + count("needs-you");
+  const decisions = items === null ? count("decision") + count("needs-you") : openNeeds(items).length + count("needs-you");
   if (count("failed")) parts.push(`${count("failed")} failed`);
   if (decisions) parts.push(`${decisions} waiting on you`);
   if (count("working")) parts.push(`${count("working")} working`);

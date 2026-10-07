@@ -7,6 +7,8 @@ import { rosterRefreshKey } from "./botScope";
 import { arrangeCrew, crewChapters, crewFeed, crewRow, jobsByBot, shortAgo, type CrewChapter, type CrewFeedItem, type CrewRow } from "./crew";
 import { useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
 import { useThreadPulses } from "./useThreadPulses";
+import { NeedsYouList } from "./NeedsYouList";
+import type { NeedsYouData } from "@/lib/needsClient";
 
 const ACTION: Partial<Record<CrewRow["line"]["tone"], string>> = { ask: "Reply", failed: "Check" };
 const BADGE: Partial<Record<CrewRow["line"]["tone"], string>> = { ask: "?", failed: "!" };
@@ -24,10 +26,11 @@ function hue(bot: RosterBot): CSSProperties {
  * most urgent first; the rest sit below as quiet one-line rows; then today's
  * feed of every job the crew ran. Tapping anything opens what it is about.
  */
-export function RadarCrewView({ roster, now, onNavigate }: {
+export function RadarCrewView({ roster, now, onNavigate, needs }: {
   roster: readonly RosterBot[];
   now: number;
   onNavigate: () => void;
+  needs: NeedsYouData;
 }) {
   const { threads } = experimental_useSidebarThreads();
   const navigate = useBbNavigate();
@@ -156,12 +159,13 @@ export function RadarCrewView({ roster, now, onNavigate }: {
 
   return (
     <div className="radar-crew-view">
+      <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} />
       {speaking.length > 0 ? (
         <ol className="radar-crew-feed" aria-label="What your bots are saying">{speaking.map(renderBubble)}</ol>
       ) : (
         <p className="radar-crew-calm" role="status">
           <span className="radar-crew-calm-moon" aria-hidden="true">🌙</span>
-          All quiet: nothing needs you.
+          {needs.items?.length ? "Your bots are resting." : "All quiet: nothing needs you."}
         </p>
       )}
       {resting.length > 0 ? (

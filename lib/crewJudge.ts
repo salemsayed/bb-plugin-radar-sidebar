@@ -1,6 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { askQuestions, askSentences, readAskAnswers, type CrewJudgement } from "./crewAsk";
+import { askQuestions, askSentences, readAskAnswers, WAITING_THRESHOLD, type CrewJudgement } from "./crewAsk";
 
 const AUTO_EFFORT = "auto-effort";
 /** After a failure (no Auto Effort, no key, Jev down), retry the same reply this much later. */
@@ -15,7 +15,8 @@ const decisionSchema = z.object({ answers: z.unknown() });
  * stored: the sidebar falls back to "Decision needed:" lines and asks again
  * after RETRY_MS.
  */
-export function createCrewJudge(bb: BbPluginApi, now: () => number = Date.now) {
+export function createCrewJudge(bb: BbPluginApi, now: () => number = Date.now,
+  recordAsk: (threadId: string, ask: string) => Promise<void> = async () => {}) {
   const pending = new Map<string, Promise<CrewJudgement>>();
   const retryAt = new Map<string, number>();
   let warned = false;
@@ -23,14 +24,21 @@ export function createCrewJudge(bb: BbPluginApi, now: () => number = Date.now) {
   async function judge(threadId: string, version: number, memo: string): Promise<CrewJudgement> {
     const key = `crew-ask:${threadId}`;
     const cached = await bb.storage.kv.get<CrewJudgement>(key);
-    if (cached?.version === version) return cached;
+    if (cached?.version === version) {
+      if ((cached.waiting ?? 0) >= WAITING_THRESHOLD && cached.ask) await recordAsk(threadId, cached.ask);
+      return cached;
+    }
     const unknown = { threadId, version, waiting: null, ask: null };
     if ((retryAt.get(memo) ?? 0) > now()) return unknown;
     try {
       const { output } = await bb.sdk.threads.output({ threadId });
       const sentences = askSentences(output ?? "");
-      let verdict: { waiting: number; ask: string | null } | null = { waiting: 0, ask: null };
-      if (sentences.length > 0) {
+      const explicit = [...sentences].reverse().find(sentence => /^decision needed:\s*\S/i.test(sentence));
+      // One capture per reply: the coordinator's explicit ask wins over Jev.
+      let verdict: { waiting: number; ask: string | null } | null = explicit
+        ? { waiting: 1, ask: explicit.replace(/^decision needed:\s*/i, "") }
+        : { waiting: 0, ask: null };
+      if (!explicit && sentences.length > 0) {
         const decision = await bb.sdk.plugins.callRpc({
           pluginId: AUTO_EFFORT, method: "jev_decide", input: askQuestions(sentences), outputSchema: decisionSchema,
         });
@@ -38,6 +46,7 @@ export function createCrewJudge(bb: BbPluginApi, now: () => number = Date.now) {
         if (!verdict) throw new Error("Jev answered in an unexpected shape");
       }
       const judgement: CrewJudgement = { threadId, version, ...verdict };
+      if (verdict.waiting >= WAITING_THRESHOLD && verdict.ask) await recordAsk(threadId, verdict.ask);
       await bb.storage.kv.set(key, judgement);
       retryAt.delete(memo);
       warned = false;
