@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
+import { normalizedNeedsText } from "@/lib/needs";
 import { needsYou, type Pulse, type RosterBot } from "./bots";
 import { isLiveThread } from "./time";
 
@@ -188,6 +189,18 @@ export function crewRow(args: {
  * flight, then unread replies. Everyone else rests. Roster order holds within
  * each step so bubbles do not shuffle.
  */
+/**
+ * A bot's ask that is already on the Needs-you list is said once, by the list: its bubble would only
+ * repeat it. The bot rests unless it has something else to say.
+ */
+export function withoutListedAsks(rows: readonly CrewRow[], listed: readonly { bot: string; text: string; state: string }[]): CrewRow[] {
+  const active = new Set(listed.filter((item) => item.state !== "done" && item.state !== "dropped")
+    .map((item) => `${item.bot}\u0000${normalizedNeedsText(item.text)}`));
+  return rows.map((row) => row.line.tone === "ask" && active.has(`${row.bot.key}\u0000${normalizedNeedsText(row.line.text)}`)
+    ? { ...row, line: { ...row.line, tone: "quiet" } }
+    : row);
+}
+
 export function arrangeCrew(rows: readonly CrewRow[]): { speaking: CrewRow[]; resting: CrewRow[] } {
   const rank: Record<CrewLine["tone"], number> = { failed: 0, ask: 1, running: 2, new: 3, quiet: 4 };
   const ordered = rows

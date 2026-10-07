@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeThread, MINUTE, NOW, HOUR } from "./fixtures";
-import { arrangeCrew, crewChapters, crewFeed, crewRow, jobsByBot, startOfToday, shortAgo, shortAutomationName, watchInterval, type CrewAutomation } from "./crew";
+import { arrangeCrew, withoutListedAsks, crewChapters, crewFeed, crewRow, jobsByBot, startOfToday, shortAgo, shortAutomationName, watchInterval, type CrewAutomation } from "./crew";
 import type { RosterBot } from "./bots";
 
 const bot = (key: string, projectId = `proj_${key}`): RosterBot =>
@@ -164,5 +164,17 @@ describe("today's chapters", () => {
     expect(crewChapters(feed).map((chapter) => [chapter.bot.key, chapter.items.length, chapter.from, chapter.to, chapter.running, chapter.done, chapter.failed]))
       .toEqual([["bricks", 3, 30, 50, 1, 1, 1], ["home", 1, 20, 20, 0, 1, 0], ["bricks", 1, 10, 10, 0, 1, 0]]);
     expect(Object.fromEntries(jobsByBot(feed))).toEqual({ bricks: 4, home: 1 });
+  });
+});
+
+describe("asks already on the Needs-you list", () => {
+  it("rests the bot instead of repeating its listed ask, and keeps other asks", () => {
+    const bot = (key: string) => ({ key, name: key, current: `thr_${key}` }) as never;
+    const row = (key: string, text: string) => ({ bot: bot(key), line: { tone: "ask" as const, text, threadId: `thr_${key}`, at: 1 }, more: 0, context: null });
+    const rows = withoutListedAsks([row("home", "I need the current Mum apt meter balance when you have it."), row("work", "Confirm UNITED payment?")],
+      [{ bot: "home", text: "I need the current Mum apt meter balance when you have it", state: "open" },
+       { bot: "work", text: "Confirm UNITED payment?", state: "done" }]);
+    expect(rows.map((r) => r.line.tone)).toEqual(["quiet", "ask"]);
+    expect(arrangeCrew(rows).speaking.map((r) => r.bot.key)).toEqual(["work"]);
   });
 });

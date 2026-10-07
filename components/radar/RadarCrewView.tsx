@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { BotAvatar } from "./BotAvatar";
 import { botStyle, shortBotName, type RosterBot } from "./bots";
 import { rosterRefreshKey } from "./botScope";
-import { arrangeCrew, crewChapters, crewFeed, crewRow, jobsByBot, shortAgo, type CrewChapter, type CrewFeedItem, type CrewRow } from "./crew";
+import { arrangeCrew, withoutListedAsks, crewChapters, crewFeed, crewRow, jobsByBot, shortAgo, type CrewChapter, type CrewFeedItem, type CrewRow } from "./crew";
 import { useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
 import { useThreadPulses } from "./useThreadPulses";
 import { NeedsYouList } from "./NeedsYouList";
@@ -42,10 +42,10 @@ export function RadarCrewView({ roster, now, onNavigate, needs }: {
   const automations = useCrewAutomations();
   const judgements = useCrewJudgements(coordinators);
   const { speaking, resting } = useMemo(
-    () => arrangeCrew(roster.map((bot) => crewRow({
+    () => arrangeCrew(withoutListedAsks(roster.map((bot) => crewRow({
       bot, threads, pulse: pulses.get(bot.current) ?? null, judgement: judgements.get(bot.current) ?? null, automations, now,
-    }))),
-    [roster, threads, pulses, judgements, automations, now],
+    })), needs.items ?? [])),
+    [roster, threads, pulses, judgements, automations, now, needs.items],
   );
   const refreshKey = useMemo(() => rosterRefreshKey(threads), [threads]);
   const archived = useCrewArchivedJobs(useMemo(() => roster.map((bot) => bot.current), [roster]), refreshKey);
