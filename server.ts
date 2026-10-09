@@ -3,13 +3,9 @@
 // The sidebar itself is frontend-only: thread state flows through the host's
 // sidebar hooks and the public SDK. What the backend owns is the plugin's
 // settings, which gate the more assertive visual behaviours so a user can
-// turn down anything they find noisy without editing code, the crew view's
-// judgement of whether each bot is waiting on Salem, and the Working peek's
+// turn down anything they find noisy without editing code, whether each bot is
+// waiting on Salem (from its saved Needs You items), and the Working peek's
 // per-thread digests.
-import { crewContract } from "./lib/crewContract";
-import { createCrewServer } from "./lib/crewServer";
-import { crewPilotContract } from "./lib/crewPilot";
-import { createCrewPilotServer } from "./lib/crewPilotServer";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
@@ -136,9 +132,6 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  const crew = createCrewServer(bb);
-  bb.rpc.register(crewContract, crew);
-  bb.rpc.register(crewPilotContract, createCrewPilotServer(bb));
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
   // Several sidebars peeking at once share one timeline read per thread.
@@ -156,16 +149,9 @@ export default async function plugin(bb: BbPluginApi) {
     return next;
   };
   bb.rpc.register({ ...crewRpcContract, ...workingRpcContract }, {
-    crew_asks: async (input) => {
-      // The durable request is authoritative. Opening a sidebar never creates
-      // a question from prose or makes a classifier/model call.
-      const board = await crew.crew_refresh();
-      return { judgements: input.threads.map(({ threadId, version }) => {
-        const bot = board.bots.find(b => b.current === threadId);
-        const request = board.requests.find(q => q.state === "open" && q.placement === "needs_you" && board.work.some(w => w.id === q.workId && w.owner === bot?.key));
-        return { threadId, version, waiting: request ? 1 : 0, ask: request?.text ?? null, itemId: request?.sourceIds[0] ?? null };
-      }) };
-    },
+    // Saved Needs You items are authoritative: opening a sidebar never creates
+    // a question from prose or makes a classifier/model call.
+    crew_asks: async (input) => ({ judgements: await needs.asks(input.threads) }),
     working_digest: async (input) => ({
       digests: (await Promise.all(input.threadIds.map(digest))).filter((entry): entry is WorkingDigest => entry !== null),
     }),

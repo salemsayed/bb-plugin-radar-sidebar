@@ -6,7 +6,15 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Removed
+
+- Retire the Crew Bot coordinator: its work board, outbox, shadow pilot, agent tools and `bb crew` commands. ChatGPT coordinates the bots through the BB Bots connection. Existing `crew_*` tables stay in the plugin database, unused.
+
 ### Changed
+
+- Rebuild Crew as a read-only overview: pending approvals and the Needs You list, then one card per bot with state, machine, context ring, live or blocked workers (hidden included), latest reply and ChatGPT's instructions today. Old failures are counted, not listed. The header shows ChatGPT's connection and alert-watch deadline.
+- The Crew rail icon shows a count of what needs Salem, or a dot while bots work.
+- A bot's ask comes from its open decision or urgent Needs You item instead of Crew requests.
 
 - Use BB's native navigation rail. Move bot shortcuts into the thread-list header, preserving bot scopes, visibility, worker filtering and hover details. Remove retired SDK navigation APIs and shell layout overrides; update the development SDK to match the installed host.
 - Give Crew a dedicated group icon in BB's native desktop and mobile rail, and keep its destination out of the bot shortcut bar.

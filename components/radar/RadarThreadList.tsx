@@ -58,7 +58,9 @@ import { BotFace } from "./BotFace";
 import { askPulse, botState, botStyle, crewDigest, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { RadarCrewView } from "./RadarCrewView";
-import { useCrewJudgements, useNeedsYou } from "./useCrewData";
+import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
+import { crewCard } from "./CrewWorkspace";
+import { publishCrewSignal } from "./crewSignal";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
@@ -571,7 +573,7 @@ export function RadarThreadList({
     [allThreads, roster, deck, botRail, railScope],
   );
   const pulses = useThreadPulses(coordinatorRows, deck || (botRail && railScope !== CREW_SCOPE));
-  const judgements = useCrewJudgements(coordinatorRows);
+  const judgements = useCrewJudgements(coordinatorRows, needsKeyOf(needs.items));
   // The deck, the rail and Crew share the one ask record (askPulse): a judged
   // plain-language ask lights Decision and a Done one does not.
   const attentionPulses = useMemo(() => {
@@ -591,6 +593,17 @@ export function RadarThreadList({
   );
   // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
   const visible = useVisibleBots(roster, allThreads, asking);
+  // The Crew rail icon's count and dot: saved asks plus pending approvals, and whether any bot works or failed.
+  useEffect(() => {
+    // Without a roster (bot views off or the bot plugin absent) the icon shows nothing rather than a stale count.
+    if (!roster.length) { publishCrewSignal({ needs: 0, working: false, failed: false }); return; }
+    const now = Date.now();
+    const cards = roster.map(bot => crewCard(bot, allThreads, null, needs.items, null, now));
+    const blocked = cards.reduce((count, card) => count + (card.coordinator?.hasPendingInteraction || card.coordinator?.indicator === "waiting-for-input" ? 1 : 0)
+      + card.workers.filter(worker => worker.state === "needs-you").length, 0);
+    publishCrewSignal({ needs: (needs.items ?? []).filter(item => item.state !== "snoozed").length + blocked,
+      working: cards.some(card => card.state === "working"), failed: cards.some(card => card.state === "failed") });
+  }, [roster, allThreads, needs.items]);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   // The crew overview replaces the thread list; it reads its own data.
   const crewView = railScope === CREW_SCOPE;

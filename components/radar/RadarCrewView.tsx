@@ -8,7 +8,7 @@ import { BotFace } from "./BotFace";
 import { coordinatorAsk, shortBotName, STATE_LABELS, type BotState, type RosterBot } from "./bots";
 import { botFamily, botWorkers, rosterRefreshKey } from "./botScope";
 import { withoutListedAsks, crewFeed, crewRow, shortAgo, type CrewFeedItem, type CrewRow } from "./crew";
-import { useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
+import { needsKeyOf, useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
 import { useThreadPulses } from "./useThreadPulses";
 import { isRunningThread } from "./time";
 import { NeedsYouList } from "./NeedsYouList";
@@ -30,7 +30,7 @@ export function RadarCrewView({ roster: fullRoster, now, onNavigate, needs }: {
   const coordinators = useMemo(() => threads.filter(thread => fullRoster.some(bot => bot.current === thread.id)), [threads, fullRoster]);
   const pulses = useThreadPulses(coordinators, true);
   const automations = useCrewAutomations();
-  const judgements = useCrewJudgements(coordinators);
+  const judgements = useCrewJudgements(coordinators, needsKeyOf(needs.items));
   const asking = useMemo(() => {
     const keys = new Set((needs.items ?? []).filter(item => item.state !== "done" && item.state !== "dropped").map(item => item.bot));
     for (const bot of fullRoster) {

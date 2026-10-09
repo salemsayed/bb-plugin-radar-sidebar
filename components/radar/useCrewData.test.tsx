@@ -22,6 +22,14 @@ const { needsChanged } = await import("@/lib/needsClient");
 afterEach(() => { cleanup(); vi.clearAllMocks(); asked.length = 0; dismissed = false; });
 
 describe("crew judgements", () => {
+  it("asks again when the Needs You list changes elsewhere, such as ChatGPT closing an ask", async () => {
+    const coord = makeThread({ id: "coord", latestAttentionAt: 100 });
+    const { rerender } = renderHook(({ key }) => useCrewJudgements([coord], key), { initialProps: { key: "n1:open" } });
+    await waitFor(() => expect(asked).toHaveLength(1));
+    rerender({ key: "n1:open" });
+    rerender({ key: "n1:done" });
+    await waitFor(() => expect(asked).toHaveLength(2));
+  });
   it("keeps a coordinator's judgement while a message is queued or it is running", async () => {
     const coord = makeThread({ id: "coord", latestAttentionAt: 100 });
     const other = makeThread({ id: "other", latestAttentionAt: 50 });

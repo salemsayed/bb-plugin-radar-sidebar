@@ -32,7 +32,6 @@ async function setup() {
   const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar", sdk: { plugins: { callRpc }, threads: { get,
     output: async () => ({ output: "Decision needed: approve the repair?" }), events: { list: async () => [] } } } as never });
   await plugin(bb); disposers.push(() => harness.lifecycle.dispose());
-  await harness.behavior.callRpc("crew_refresh", {});
   const ask = (version = 1) => harness.behavior.callRpc("crew_asks", { threads: [{ threadId: "coord", version }] }) as Promise<{ judgements: any[] }>;
   return { items, harness, get, callRpc, ask, unavailable: (value: boolean) => { available = !value; } };
 }
@@ -41,19 +40,22 @@ it("opening concurrent sidebars never extracts a question or calls a model", asy
   expect(replies.every(r => r.judgements[0].waiting === 0)).toBe(true); expect(h.items).toEqual([]);
   expect(h.callRpc.mock.calls.some(([a]) => a.method === "needs_add" || a.pluginId === "auto-effort")).toBe(false);
 });
-it("shows a bot's explicit structured question and removes it after withdrawal", async () => {
+it("a bot's open decision on Needs You is its ask until someone closes or snoozes it", async () => {
   const h = await setup();
-  const work = JSON.parse(String(await h.harness.behavior.callAgentTool("crew_assign", { eventId: "a", owner: "home", key: "repair", title: "Repair", objective: "Existing authorized repair" }, { threadId: "coord" })));
-  await h.harness.behavior.callAgentTool("crew_report", { eventId: "q", workId: work.id, expectedRevision: 1, kind: "question", requestKey: "approval", text: "Approve the repair?", evidence: "Needs a choice" }, { threadId: "coord" });
-  expect((await h.ask()).judgements[0]).toMatchObject({ waiting: 1, ask: "Approve the repair?", itemId: null });
-  const board: any = await h.harness.behavior.callRpc("crew_board", {});
-  const q = board.requests.find((q: any) => q.workId === work.id);
-  await h.harness.behavior.callAgentTool("crew_report", { eventId: "withdraw", workId: work.id, expectedRevision: 2, kind: "withdraw", requestId: q.id, expectedVersion: q.version, evidence: "Repair no longer requires that choice" }, { threadId: "coord" });
-  expect((await h.ask(3)).judgements[0]).toMatchObject({ waiting: 0, ask: null }); expect(h.items).toEqual([]);
+  h.items.push(makeNeed({ id: "remind", bot: "home", kind: "reminder", text: "Descale", source: { threadId: "coord" } }));
+  expect((await h.ask()).judgements[0]).toMatchObject({ waiting: 0, ask: null });
+  h.items.push(makeNeed({ id: "other", bot: "home", kind: "decision", text: "Older question", createdAt: "2026-10-01T00:00:00.000Z", source: {} }));
+  h.items.push(makeNeed({ id: "repair", bot: "home", kind: "decision", text: "Approve the repair?", source: { threadId: "coord" } }));
+  expect((await h.ask(2)).judgements[0]).toMatchObject({ waiting: 1, ask: "Approve the repair?", itemId: "repair" });
+  await h.harness.behavior.callRpc("crew_needs_update", { id: "repair", action: "snooze", until: "2026-10-09T06:00Z" });
+  expect((await h.ask(3)).judgements[0]).toMatchObject({ waiting: 1, ask: "Older question", itemId: "other" });
+  await h.harness.behavior.callRpc("crew_needs_update", { id: "other", action: "done" });
+  expect((await h.ask(4)).judgements[0]).toMatchObject({ waiting: 0, ask: null });
+  expect(h.callRpc.mock.calls.some(([a]) => a.method === "needs_add")).toBe(false);
 });
-it("preserves historical asks until an explicit or evidence-backed closure", async () => {
+it("preserves historical asks until an explicit closure", async () => {
   const h = await setup(); h.items.push(makeNeed({ id: "old", bot: "home", kind: "decision", due: null, source: { threadId: "coord" } }));
-  await h.ask(); await h.harness.behavior.callRpc("crew_needs_list", {}); expect(h.items[0].state).toBe("open");
+  expect((await h.ask()).judgements[0].waiting).toBe(1); await h.harness.behavior.callRpc("crew_needs_list", {}); expect(h.items[0].state).toBe("open");
   await h.harness.behavior.callRpc("crew_needs_update", { id: "old", action: "done" }); expect((await h.ask(2)).judgements[0].waiting).toBe(0);
 });
 it("hides an unavailable source backend and recovers the same saved contract", async () => {

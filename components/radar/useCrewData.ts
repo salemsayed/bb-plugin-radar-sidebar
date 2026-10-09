@@ -37,16 +37,20 @@ export function useCrewAutomations(): CrewAutomation[] | null {
 
 const RETRY_UNKNOWN_MS = 5 * 60_000;
 
+/** A key that changes whenever a saved ask is added, closed or snoozed. */
+export function needsKeyOf(items: readonly { id: string; state: string }[] | null): string {
+  return items === null ? "unknown" : items.map(item => `${item.id}:${item.state}`).sort().join("|");
+}
+
 /**
- * Whether each settled coordinator's latest reply is waiting on Salem, judged
- * by Jev on the server once per reply (see lib/crewAsk). Asks again whenever a
- * coordinator settles on a new reply, after a Needs You change (Done marks the
- * judgement dismissed), and every few minutes while Jev is unavailable. Live
- * coordinators are not asked about, their reply is still changing, but the
- * judgement of their current reply is kept: a queued message must not hide an
- * unanswered ask.
+ * Whether each settled coordinator is waiting on Salem, from its bot's saved
+ * Needs You items on the server (lib/needsServer askJudgements). Asks again
+ * when a coordinator settles on a new reply and whenever the Needs You list
+ * changes, here or elsewhere (a bot or ChatGPT closing an ask). Live
+ * coordinators are not asked about, but the judgement of their current reply
+ * is kept: a queued message must not hide an unanswered ask.
  */
-export function useCrewJudgements(coordinators: readonly PluginSidebarThread[]): ReadonlyMap<string, CrewJudgement> {
+export function useCrewJudgements(coordinators: readonly PluginSidebarThread[], needsKey = ""): ReadonlyMap<string, CrewJudgement> {
   const rpc = useRpc<typeof crewRpcContract>();
   const [judgements, setJudgements] = useState<ReadonlyMap<string, CrewJudgement>>(() => new Map());
   const [retry, setRetry] = useState(0);
@@ -84,7 +88,8 @@ export function useCrewJudgements(coordinators: readonly PluginSidebarThread[]):
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
     };
-  }, [rpc, key, retry]);
+    // needsKey: Needs You changes made elsewhere (a bot or ChatGPT closing an ask) re-judge too.
+  }, [rpc, key, retry, needsKey]);
   return judgements;
 }
 

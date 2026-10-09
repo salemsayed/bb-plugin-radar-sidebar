@@ -7,6 +7,7 @@ import { migrateLegacyPreferences } from "./components/storage";
 import { RadarThreadList } from "./components/radar/RadarThreadList";
 import { RemindMePanel, remindMeAction } from "./components/radar/RemindMePanel";
 import { CrewWorkspace } from "./components/radar/CrewWorkspace";
+import { CrewRailIcon } from "./components/radar/crewSignal";
 import "./app.css";
 import "./components/radar/crew-workspace.css";
 import "./components/radar/needs.css";
@@ -16,7 +17,9 @@ import "./components/radar/needs.css";
 migrateLegacyPreferences();
 
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "crew", title: "Crew", icon: "radar-sidebar/crew", path: "crew", component: CrewWorkspace });
+  // The rail icon carries a count of what needs Salem, published by the sidebar list.
+  app.experimental_icons.register({ name: "radar-sidebar/crew-live", component: CrewRailIcon });
+  app.slots.navPanel({ id: "crew", title: "Crew", icon: "radar-sidebar/crew-live", path: "crew", component: CrewWorkspace });
   app.slots.threadPanelAction({ id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
   app.slots.experimental_threadList({

@@ -24,17 +24,35 @@ export async function threadBot(bb: BbPluginApi, threadId: string, roster: reado
   return "personal";
 }
 
+/**
+ * Whether each coordinator is waiting on Salem: its bot's newest open decision
+ * or urgent item on the Needs You list, preferring one saved from that thread.
+ * Saved items are the one ask record, so a face, a bubble and the list agree,
+ * and an ask stops showing as soon as anyone closes or snoozes it.
+ */
+export function askJudgements(items: readonly NeedsItem[], bots: readonly RosterBot[], threads: readonly { threadId: string; version: number }[]) {
+  return threads.map(({ threadId, version }) => {
+    const bot = bots.find(bot => bot.current === threadId || bot.coordinatorIds?.includes(threadId));
+    const asks = items.filter(item => item.bot === bot?.key && (item.state === "open" || item.state === "reminded") && (item.kind === "decision" || item.kind === "urgent"))
+      .sort((a, b) => Number(b.source.threadId === threadId) - Number(a.source.threadId === threadId) || b.createdAt.localeCompare(a.createdAt));
+    return { threadId, version, waiting: asks.length ? 1 : 0, ask: asks[0]?.text ?? null, itemId: asks[0]?.id ?? null };
+  });
+}
+
 export function createNeedsServer(bb: BbPluginApi) {
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
   const update = (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) =>
     bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_update", input: needsRpcContract.crew_needs_update.input.parse(input), outputSchema: needsResultSchema });
   return {
+    async asks(threads: readonly { threadId: string; version: number }[]) {
+      const [{ bots }, { items }] = await Promise.all([roster(), list()]);
+      return askJudgements(items, bots, threads);
+    },
     handlers: {
       async crew_needs_list(): Promise<{ items: NeedsItem[] | null; seen?: NeedsSeen }> {
         try {
-          // Historical sources remain readable; Crew owns evidence-backed
-          // reconciliation. A list read never starts another classifier.
+          // A list read never starts a classifier: bots, Salem and ChatGPT close items.
           const { items } = await list();
           return { items, seen: await seenMarkers(bb, items) };
         } catch { return { items: null }; }
