@@ -21,7 +21,6 @@
 .radar-needs .radar-needs-open, .radar-needs-plain { display: block; width: 100%; padding: 2px 4px 3px 0; min-width: 0; text-align: left; line-height: 1.45; font-size: 13px; }
 .radar-needs .radar-needs-open { min-height: 44px; }
 .radar-needs-text { overflow-wrap: anywhere; font-weight: 500; }
-.radar-needs-reply-seen { display: block; padding-top: 3px; font-size: 11px; line-height: 16px; color: var(--warning, #b0640f); }
 .radar-needs-meta { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px; font-size: 11px; color: var(--muted-foreground); }
 .radar-needs-who { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
 .radar-needs-who-name { overflow: hidden; text-overflow: ellipsis; }

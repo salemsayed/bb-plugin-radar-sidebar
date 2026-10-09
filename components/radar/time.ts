@@ -108,3 +108,13 @@ export function timeAgo(ts: number, now: number): string {
   const sameYear = new Date(now).getFullYear() === date.getFullYear();
   return (sameYear ? shortDateFormatter : fullDateFormatter).format(date);
 }
+
+/** Compact age for dense rows: now, 3m, 2h, 2d. */
+export function shortAgo(ts: number, now: number): string {
+  const minutes = Math.floor(Math.max(0, now - ts) / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}

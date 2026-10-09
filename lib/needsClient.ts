@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
-import { needsRpcContract, openNeeds, type NeedsItem, type NeedsSeen } from "./needs";
+import { needsRpcContract, openNeeds, type NeedsItem } from "./needs";
 
 export const NEEDS_CHANGED = "radar:needs-changed";
 export function needsChanged() { window.dispatchEvent(new Event(NEEDS_CHANGED)); }
 
-/**
- * Short polling plus immediate refresh after a reminder or row action. `seen`
- * marks, by item id, saved decisions Salem replied to since they were saved
- * without the resolver confirming the answer: "reply seen, not confirmed".
- */
+/** Short polling plus immediate refresh after a reminder or row action. */
 export function useNeedsYou(enabled = true) {
   const rpc = useRpc<typeof needsRpcContract>();
   const [items, setItems] = useState<NeedsItem[] | null>(null);
-  const [seen, setSeen] = useState<NeedsSeen>({});
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const generation = useRef(0);
   useEffect(() => {
-    if (!enabled) { setItems(null); setSeen({}); setStatus("loading"); return; }
+    if (!enabled) { setItems(null); setStatus("loading"); return; }
     let cancelled = false;
     const load = async () => {
       const request = ++generation.current;
@@ -25,7 +20,6 @@ export function useNeedsYou(enabled = true) {
         const result = await rpc.call("crew_needs_list", {});
         if (!cancelled && request === generation.current) {
           setItems(result.items === null ? null : openNeeds(result.items));
-          setSeen(result.seen ?? {});
           setStatus(result.items === null ? "unavailable" : "ready");
         }
       } catch { if (!cancelled && request === generation.current) { setItems(null); setStatus("unavailable"); } }
@@ -41,11 +35,10 @@ export function useNeedsYou(enabled = true) {
     const result = await rpc.call("crew_needs_update", { id, action, ...(until ? { until } : {}) });
     ++generation.current;
     setItems(previous => openNeeds([...(previous ?? []).filter(item => item.id !== id), result.item]));
-    if (action === "done") setSeen(previous => { const { [id]: _closed, ...rest } = previous; return rest; });
     setStatus("ready");
     needsChanged();
   }, [rpc]);
-  return { items, seen, status, update };
+  return { items, status, update };
 }
 
 export type NeedsYouData = ReturnType<typeof useNeedsYou>;

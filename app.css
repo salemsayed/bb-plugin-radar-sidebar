@@ -3411,7 +3411,6 @@ a.radar-row-main:hover {
 /* Crew mascots replace the old emoji faces; the letter fallback keeps the same box. */
 .bot-mascot { display: inline-block; vertical-align: -0.25em; }
 .bot-face-text { display: inline-block; }
-.radar-crew-job-face { display: inline-flex; align-items: center; }
 .radar-bot-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .radar-bot-ring circle { fill: none; stroke-width: 3; }
 .radar-bot-ring-track { stroke: color-mix(in srgb, var(--bot-color) 22%, transparent); }
@@ -3558,48 +3557,6 @@ a.radar-row-main:hover {
 .radar-bot-hover a:focus-visible, .radar-bot-hover button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 /* Crew: one inbox, a stable roster, and a flat recent-work list. */
-.radar-crew-view { display: flex; flex-direction: column; gap: 18px; padding: 10px 4px 20px; }
-.radar-crew-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin: 0 6px 6px; font-size: 11px; font-weight: 650; color: var(--muted-foreground); }
-.radar-crew-section-head small { margin-left: auto; font: inherit; font-weight: 400; }
-.radar-crew-visibility-toggle { min-width: 44px; min-height: 44px; display: grid; place-items: center; margin: -8px -6px -8px 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
-.radar-crew-visibility-toggle svg { width: 14px; height: 14px; }
-.radar-crew-visibility-toggle:hover { background: var(--muted); }
-.radar-crew-visibility-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.radar-crew-visibility { margin: 0 4px 6px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
-.radar-crew-visibility label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
-.radar-crew-visibility input { width: 16px; height: 16px; accent-color: var(--primary); }
-.radar-crew-visibility p { font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
-.radar-crew-roster ol, .radar-crew-jobs { list-style: none; margin: 0; padding: 0; }
-.radar-crew-mate { width: 100%; display: flex; align-items: center; gap: 9px; min-height: 52px; padding: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
-.radar-crew-mate-has-unread { background: color-mix(in srgb, var(--primary) 5%, transparent); }
-.radar-crew-mate:hover { background: var(--muted); }
-.radar-crew-mate-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.radar-crew-mate-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.radar-crew-mate-head strong { font-size: 13px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.radar-crew-mate-state { animation: none; flex: none; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.radar-crew-when { margin-left: auto; font-size: 10.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.radar-crew-mate-summary { font-size: 12px; line-height: 16px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.radar-crew-mate-has-unread .radar-crew-mate-head strong { font-weight: 750; }
-.radar-crew-mate-has-unread .radar-crew-when { color: var(--primary); }
-.radar-crew-mate-context { font-size: 11px; color: var(--warning, #b0640f); }
-.radar-crew-job { display: grid; grid-template-columns: 35px 16px minmax(0, 1fr) 14px; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--foreground); cursor: pointer; text-align: left; }
-.radar-crew-job:hover { background: var(--muted); }
-.radar-crew-job-time { color: var(--muted-foreground); font-size: 10px; font-variant-numeric: tabular-nums; }
-.radar-crew-job-face { font-size: 12px; }
-.radar-crew-job-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-.radar-crew-job-mark { display: grid; place-items: center; font-size: 11px; font-weight: 650; }
-.radar-crew-job-done .radar-crew-job-mark { color: var(--success, #2e7d2e); }
-.radar-crew-job-failed .radar-crew-job-mark { color: var(--destructive, #c03a3a); }
-.radar-crew-job-queued .radar-crew-job-mark { color: var(--primary); }
-.radar-crew-job-spin { width: 12px; height: 12px; border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary); border-radius: 50%; animation: radar-spin 1.4s linear infinite; }
-.radar-crew-day-more { min-height: 44px; width: 100%; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: left; cursor: pointer; }
-.radar-crew-day-more:hover { background: var(--muted); }
-.radar-crew-empty { margin: 6px; color: var(--muted-foreground); font-size: 12px; }
-.radar-crew-needs-status { display: flex; align-items: center; gap: 6px; margin: 0 6px; font-size: 12px; color: var(--muted-foreground); }
-.radar-crew-needs-status button { min-height: 44px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--muted); color: var(--foreground); cursor: pointer; }
-.radar-crew-mate:focus-visible, .radar-crew-job:focus-visible, .radar-crew-day-more:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-[data-radar-motion="off"] .radar-crew-view * { animation: none !important; }
-@media (prefers-reduced-motion: reduce) { .radar-crew-view * { animation: none !important; } }
 
 /* ---- Working peek: hover the Working drawer's header (salem fork) ---------- */
 .radar-working-peek {
@@ -3697,4 +3654,5 @@ a.radar-row-main:hover {
 .radar-bot-shortcut-unread { background: color-mix(in srgb, var(--primary) 14%, transparent); }
 .radar-bot-shortcut:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
 .radar-list-compact .radar-bot-shortcut { width: 40px; height: 40px; }
+.radar-bot-shortcut-all, .radar-list-compact .radar-bot-shortcut-all { width: auto; min-width: 36px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 650; letter-spacing: 0.01em; }
 .radar-list-compact .radar-bot-shortcut .radar-bot-avatar { width: 34px; height: 34px; }

@@ -189,7 +189,7 @@ bb plugin install path:$PWD --yes
 
 BB owns the native navigation rail, destination order, More menu, footer and New thread control. Radar replaces only the thread list. It supports the mandatory desktop and mobile rail in SDK 0.6.33 and the earlier SDK 0.6.31 navigation.
 
-Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or the Home face, to return to other threads. Crew opens from BB's native rail. On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
+Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or **All** at the start of the row, to show every thread. (BB's rail Home only switches the sidebar to this list; it does not clear the bot filter.) Crew opens from BB's native rail. On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
 
 Bot state and unread badges retain their existing meaning. Hidden bots stay hidden unless they need attention; saved bot selection and visibility preferences are preserved. Turning shortcuts off restores the in-list deck. Existing `botRail` settings continue to work independently of the retired `railNav` and `wideRail` settings.
 

@@ -1,9 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { z } from "zod";
 import { rosterSchema, type RosterBot } from "../components/radar/bots";
-import { dismissJudgedAsk } from "./crewJudge";
-import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, type NeedsItem, type NeedsSeen } from "./needs";
-import { seenMarkers } from "./needsResolution";
+import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, type NeedsItem } from "./needs";
 
 const ACTIVE = ["open", "snoozed", "reminded"] as const;
 
@@ -50,26 +48,12 @@ export function createNeedsServer(bb: BbPluginApi) {
       return askJudgements(items, bots, threads);
     },
     handlers: {
-      async crew_needs_list(): Promise<{ items: NeedsItem[] | null; seen?: NeedsSeen }> {
-        try {
-          // A list read never starts a classifier: bots, Salem and ChatGPT close items.
-          const { items } = await list();
-          return { items, seen: await seenMarkers(bb, items) };
-        } catch { return { items: null }; }
+      async crew_needs_list(): Promise<{ items: NeedsItem[] | null }> {
+        // A list read never starts a classifier: bots, Salem and ChatGPT close items.
+        try { return { items: (await list()).items }; } catch { return { items: null }; }
       },
-      async crew_needs_update(input: z.infer<typeof needsRpcContract.crew_needs_update.input>) {
-        const result = await update(input);
-        if (input.action === "done" || input.action === "drop" || input.action === "reopen") {
-          try {
-            if (await dismissJudgedAsk(bb, result.item, input.action !== "reopen")) {
-              bb.log.info(`Needs You ${result.item.id}: ${input.action === "reopen" ? "reopened, ask shows again" : "closed by Salem, ask dismissed for the current reply"}`);
-            }
-          } catch (error) {
-            bb.log.warn(`Needs You ${result.item.id}: could not mark the judgement ${input.action}: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-        return result;
-      },
+      // Closing an item also clears its bot's ask: asks are read from the open items.
+      crew_needs_update: (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) => update(input),
       async crew_remind(input: { threadId: string; messageId: string; text: string; until: string }) {
         if (!Number.isFinite(Date.parse(input.until)) || Date.parse(input.until) <= Date.now()) throw new Error("Choose a future time.");
         const bot = await threadBot(bb, input.threadId, (await roster()).bots);

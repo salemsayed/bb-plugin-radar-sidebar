@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  activityTime,
-  isLiveThread,
-  isRunningThread,
-  timeAgo,
-  timeGroupFor,
-} from "./time";
+import { activityTime, isLiveThread, isRunningThread, timeAgo, timeGroupFor, shortAgo } from "./time";
 import { makeThread, NOW, DAY, HOUR, MINUTE } from "./fixtures";
 
 describe("isLiveThread", () => {
@@ -150,5 +144,11 @@ describe("timeAgo", () => {
     expect(timeAgo(NOW - 3 * HOUR, NOW)).toBe("3h ago");
     expect(timeAgo(NOW - DAY, NOW)).toBe("yesterday");
     expect(timeAgo(NOW - 3 * DAY, NOW)).toBe("3d ago");
+  });
+});
+
+describe("shortAgo", () => {
+  it("gives a compact age", () => {
+    expect([shortAgo(NOW, NOW), shortAgo(NOW - 3 * MINUTE, NOW), shortAgo(NOW - 2 * HOUR, NOW), shortAgo(NOW - 50 * HOUR, NOW)]).toEqual(["now", "3m", "2h", "2d"]);
   });
 });

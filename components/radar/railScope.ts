@@ -6,9 +6,6 @@ import type { RosterBot } from "./bots";
 
 const SCOPE_KEY = "radar-sidebar:rail-bot-scope:v1";
 
-/** Scope for the crew overview: every bot's card at once, no single bot chosen. */
-export const CREW_SCOPE = "__crew__";
-
 function readScope(): string | null {
   try {
     return localStorage.getItem(SCOPE_KEY) || null;
@@ -50,11 +47,11 @@ export function useRailScope(): string | null {
 }
 
 /** Disabled/empty/unavailable rosters always leave all threads accessible.
- * Keep the saved key through reloads and transient failures. */
+ * Keep the saved key through reloads and transient failures; a key that names
+ * no bot (such as the retired in-list Crew view) shows all threads. */
 export function useValidatedRailScope(bots: readonly RosterBot[], enabled: boolean): string | null {
   const chosen = useRailScope();
   if (!enabled) return null;
-  if (chosen === CREW_SCOPE) return bots.length > 0 ? chosen : null;
   return bots.some(bot => bot.key === chosen) ? chosen : null;
 }
 

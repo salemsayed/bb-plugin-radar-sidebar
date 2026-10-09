@@ -8,9 +8,8 @@ import type { NeedsItem } from "@/lib/needs";
 import { BotFace } from "./BotFace";
 import { botStyle, QUIET_LINE, shortBotName, type Pulse, type RosterBot } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
-import { shortAgo } from "./crew";
 import { NeedsYouList } from "./NeedsYouList";
-import { isRunningThread } from "./time";
+import { isRunningThread, shortAgo } from "./time";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
 
@@ -119,7 +118,7 @@ export function CrewWorkspace() {
         </li>)}</ul> : null}
         {needs.items === null ? <p role="status" className="crew-calm">
           {needs.status === "loading" ? "Loading saved questions…" : <>Saved questions are unavailable. <button type="button" className="crew-button" onClick={needsChanged}>Retry</button></>}
-        </p> : <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} seen={needs.seen} />}
+        </p> : <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} />}
         {needs.items !== null && !waiting ? <p className="crew-calm crew-all-clear">Nothing needs you.</p> : null}
       </section>
       <section aria-labelledby="crew-bots-title">

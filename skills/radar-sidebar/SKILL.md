@@ -18,14 +18,13 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   whose panel holds status chips + smart views, Active / Archived / All,
   grouping, density (hidden on touch, which is always compact) and
   expand/collapse all. Active filters show as removable pills under the
-  search; a bot or crew scope is the first pill (crew keeps only that pill
-  since it has no search). BB owns New thread in its native header.
+  search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
-- **Crew** (`navPanel`, id `crew`): a full overview, Chat and History reached from BB's native rail.
+- **Crew** (`navPanel`, id `crew`): a read-only overview reached from BB's native rail.
 
 ## Bot shortcuts
 
-Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or Home, to show other threads. Crew is reached from BB's native navigation. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
+Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. Crew is reached from BB's native navigation. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
 States and unread badges retain the same meaning as the bot deck. Saved bot scopes and hidden preferences persist. Open asks, pending input and unread failures keep a hidden bot accessible. Turning shortcuts off restores the deck. Retired `railNav` and `wideRail` values have no effect. Navigation, arrangement, More and the footer belong to BB, without shell CSS overrides or removed SDK calls.
 

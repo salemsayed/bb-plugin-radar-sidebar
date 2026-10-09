@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { BotAvatar } from "./BotAvatar";
 import { RadarBotHoverCard } from "./RadarBotHoverCard";
@@ -80,8 +79,10 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
       }
       moveRailFocus(event);
     }}>
-      <button type="button" className="radar-bot-shortcut" aria-label="Show other threads" aria-pressed={scope === null}
-        title="Other threads" onClick={() => { close(); onClear(); }}><Icon name="Home" aria-hidden="true" /></button>
+      {/* Text, not a house: BB's rail already has Home, which only switches the sidebar to this list. */}
+      <button type="button" className={cn("radar-bot-shortcut radar-bot-shortcut-all", scope === null && "radar-bot-shortcut-selected")}
+        aria-label="All threads" aria-pressed={scope === null} title="All threads: clear the bot filter"
+        onClick={() => { close(); onClear(); }}>All</button>
       {bots.map(bot => {
         const state = botRailState(threads, bot, pulses.get(bot.current) ?? null);
         const label = STATE_LABELS[state];
@@ -92,7 +93,7 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
         return <button key={bot.key} type="button"
           className={cn("radar-bot-shortcut", scope === bot.key && "radar-bot-shortcut-selected", unread && loudUnread && "radar-bot-shortcut-unread")}
           style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties}
-          aria-label={`${bot.name}, ${details}: ${releases ? "show other threads" : "open coordinator and its workers"}`}
+          aria-label={`${bot.name}, ${details}: ${releases ? "show all threads" : "open coordinator and its workers"}`}
           aria-pressed={scope === bot.key}
           aria-haspopup={!compact ? "dialog" : undefined}
           aria-expanded={!compact ? tip?.botKey === bot.key : undefined}

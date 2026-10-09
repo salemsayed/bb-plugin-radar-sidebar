@@ -60,13 +60,13 @@ it("preserves historical asks until an explicit closure", async () => {
 });
 it("hides an unavailable source backend and recovers the same saved contract", async () => {
   const h = await setup(); h.unavailable(true); expect(await h.harness.behavior.callRpc("crew_needs_list", {})).toEqual({ items: null });
-  h.unavailable(false); expect(await h.harness.behavior.callRpc("crew_needs_list", {})).toEqual({ items: [], seen: {} });
+  h.unavailable(false); expect(await h.harness.behavior.callRpc("crew_needs_list", {})).toEqual({ items: [] });
 });
 it("resolves descendant ownership, dedupes explicit reminders and preserves Undo", async () => {
   const h = await setup(); const input = { threadId: "worker", messageId: "m", text: "Follow up", until: "2026-10-09T06:00Z" };
   await h.harness.behavior.callRpc("crew_remind", input); await h.harness.behavior.callRpc("crew_remind", input);
   expect(h.items).toHaveLength(1); expect(h.items[0]).toMatchObject({ bot: "home", state: "snoozed", source: { threadId: "worker", messageId: "m" }, snoozeUntil: input.until });
-  expect(await h.harness.behavior.callRpc("crew_needs_list", {})).toEqual({ items: h.items, seen: {} });
+  expect(await h.harness.behavior.callRpc("crew_needs_list", {})).toEqual({ items: h.items });
   await h.harness.behavior.callRpc("crew_needs_update", { id: "need1", action: "done" });
   await h.harness.behavior.callRpc("crew_needs_update", { id: "need1", action: "reopen" }); expect(h.items[0].state).toBe("open");
 });

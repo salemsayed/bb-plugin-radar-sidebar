@@ -4,7 +4,6 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { NeedsYouList } from "./NeedsYouList";
 import { useNeedsYou } from "./useCrewData";
 import { NEEDS_BOT, NEEDS_NOW, makeNeed } from "./needsFixtures";
-import { RadarCrewView } from "./RadarCrewView";
 
 const app = await loadPluginApp(() => import("../../app"));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -31,14 +30,12 @@ it("renders full asks in due order with bot labels and expandable snoozed remind
 
 it("shows an unavailable saved-decisions service honestly and recovers through Retry", async () => {
   let available = false;
-  renderSlot({ ...app.threadPanelActions[0]!, component: () => {
-    const needs = useNeedsYou(); return <RadarCrewView roster={[]} now={NEEDS_NOW} onNavigate={() => {}} needs={needs} />;
-  } }, { threadId: "coord", params: null }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) } });
-  expect(await screen.findByText("Saved decisions are unavailable.")).toBeTruthy();
-  expect(screen.queryByText("All quiet: nothing needs you.")).toBeNull();
+  renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) } });
+  expect(await screen.findByText("Saved questions are unavailable.")).toBeTruthy();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
   available = true;
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("All quiet: nothing needs you.")).toBeTruthy();
+  expect(await screen.findByText("Nothing needs you.")).toBeTruthy();
 });
 it("offers Done, all Snooze times, native date/time, and Open without hover", async () => {
   const host = mount();
@@ -104,16 +101,13 @@ describe("needs hook/server bridge", () => {
     await act(async () => { vi.advanceTimersByTime(30_000); });
     expect(load.mock.calls.length).toBeGreaterThan(calls);
   });
-  it("renders Needs you first in the Crew view and opens the source thread", async () => {
-    const navigate = vi.fn();
-    const host = renderSlot({ ...slot, component: () => { const needs = useNeedsYou(); return <RadarCrewView roster={[NEEDS_BOT]} now={NEEDS_NOW} onNavigate={navigate} needs={needs} />; } }, { threadId: "coord", params: null }, {
+  it("renders Needs you on the Crew page and opens the source thread", async () => {
+    const host = renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, {
       rpc: { crew_needs_list: () => ({ items: [makeNeed()] }) },
     });
     const region = await screen.findByRole("region", { name: "Needs you" });
-    expect(region.parentElement?.firstElementChild).toBe(region);
     fireEvent.click(within(region).getByRole("button", { name: /^Open:/ }));
     expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
-    expect(navigate).toHaveBeenCalledOnce();
   });
 });
 
@@ -139,12 +133,12 @@ it("offers six-second Undo after Done, reopens the item, and expires when dismis
   await act(async () => { vi.advanceTimersByTime(1); });
   expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
 });
-it("shares one needs request/interval between the sidebar digest and Crew view", async () => {
+it("shares one needs request/interval between the sidebar digest and the list", async () => {
   vi.useFakeTimers();
   const load = vi.fn(() => ({ items: [makeNeed()] }));
   function component() {
     const needs = useNeedsYou();
-    return <><output>{needs.items?.length ?? 0} sidebar items</output><RadarCrewView roster={[NEEDS_BOT]} now={NEEDS_NOW} onNavigate={() => {}} needs={needs} /></>;
+    return <><output>{needs.items?.length ?? 0} sidebar items</output><NeedsYouList items={needs.items} roster={[NEEDS_BOT]} now={NEEDS_NOW} onUpdate={needs.update} onOpen={() => {}} /></>;
   }
   renderSlot({ ...app.threadPanelActions[0]!, component }, { threadId: "coord", params: null }, { rpc: { crew_needs_list: load } });
   await act(async () => {});
@@ -228,16 +222,3 @@ it("renders the chosen A ask hierarchy with realistic long and snoozed data", as
   }
 });
 
-it("shows an unconfirmed later reply without silently hiding the ask", async () => {
-  const update = vi.fn(async () => {}), open = vi.fn();
-  const host = render(<NeedsYouList items={[makeNeed()]} roster={[NEEDS_BOT]} now={NEEDS_NOW} onUpdate={update} onOpen={open} seen={{ need1: { version: NEEDS_NOW, score: 0.6 } }} />);
-  expect(screen.getByText("Reply seen, not confirmed")).toBeTruthy();
-  expect(screen.getByText("Approve the repair")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /^Open:/ }));
-  expect(open).toHaveBeenCalledWith("coord");
-  expect(update).not.toHaveBeenCalled();
-  if (process.env.RADAR_QA_DIR) {
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(`${process.env.RADAR_QA_DIR}/asks-reply-seen.html`, host.container.innerHTML);
-  }
-});

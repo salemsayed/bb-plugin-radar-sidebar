@@ -57,7 +57,6 @@ import { RadarBotCard } from "./RadarBotCard";
 import { BotFace } from "./BotFace";
 import { askPulse, botState, botStyle, crewDigest, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
-import { RadarCrewView } from "./RadarCrewView";
 import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
 import { crewCard } from "./CrewWorkspace";
 import { publishCrewSignal } from "./crewSignal";
@@ -71,7 +70,7 @@ import {
 } from "./RadarGroupHeader";
 import { RadarMenu, type RadarMenuItem } from "./RadarMenu";
 import { useArrivals } from "./useArrivals";
-import { CREW_SCOPE, setRailScope, useValidatedRailScope } from "./railScope";
+import { setRailScope, useValidatedRailScope } from "./railScope";
 import {
   useThreadGroups,
   type ThreadGroup,
@@ -569,10 +568,10 @@ export function RadarThreadList({
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
   const coordinatorRows = useMemo(
-    () => deck || (botRail && railScope !== CREW_SCOPE) ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
+    () => deck || botRail ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
     [allThreads, roster, deck, botRail, railScope],
   );
-  const pulses = useThreadPulses(coordinatorRows, deck || (botRail && railScope !== CREW_SCOPE));
+  const pulses = useThreadPulses(coordinatorRows, deck || botRail);
   const judgements = useCrewJudgements(coordinatorRows, needsKeyOf(needs.items));
   // The deck, the rail and Crew share the one ask record (askPulse): a judged
   // plain-language ask lights Decision and a Done one does not.
@@ -605,9 +604,7 @@ export function RadarThreadList({
       working: cards.some(card => card.state === "working"), failed: cards.some(card => card.state === "failed") });
   }, [roster, allThreads, needs.items]);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
-  // The crew overview replaces the thread list; it reads its own data.
-  const crewView = railScope === CREW_SCOPE;
-  const scopeName = crewView ? "Crew" : scopedBot?.name ?? "Bot";
+  const scopeName = scopedBot?.name ?? "Bot";
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
     if (!botRail) {
@@ -617,7 +614,6 @@ export function RadarThreadList({
       const tucked = new Set(visible.hiddenBots.flatMap(bot => [...botScopeIds(allThreads, bot)]));
       return allThreads.filter(thread => !tucked.has(thread.id));
     }
-    if (crewView) return [];
     if (scopedBot) {
       const ids = botScopeIds(allThreads, scopedBot);
       const coordinators = botCoordinatorIds(scopedBot);
@@ -625,7 +621,7 @@ export function RadarThreadList({
     }
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
-  }, [allThreads, scopedBot, crewView, botRail, deck, roster, visible.hiddenBots]);
+  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots]);
   const actions = experimental_useSidebarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();
@@ -1725,11 +1721,6 @@ export function RadarThreadList({
           onClear={() => setRailScope(null)}
           onSelect={bot => { setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
           onNavigate={onNavigate} /> : null}
-        {crewView ? (
-          <div className="radar-search-row">
-            {scopePill}
-          </div>
-        ) : (<>
         <div className="radar-search-row">
           <div className="radar-search">
             <Icon
@@ -2001,7 +1992,6 @@ export function RadarThreadList({
           </div>
         ) : null}
         {grouping === "section" ? <RadarNewSection /> : null}
-        </>)}
       </div>
 
       <div
@@ -2011,9 +2001,7 @@ export function RadarThreadList({
         )}
         aria-busy={switchPending || undefined}
       >
-        {crewView ? (
-          <RadarCrewView roster={roster} now={now} onNavigate={onNavigate} needs={needs} />
-        ) : status === "loading" ? (
+        {status === "loading" ? (
           <div className="radar-state" role="status" aria-label="Loading threads">
             {Array.from({ length: 8 }, (_, index) => (
               // eslint-disable-next-line react/no-array-index-key
@@ -2245,7 +2233,7 @@ export function RadarThreadList({
             )}
           </>
         )}
-        {!crewView && status === "ready" && experimental_archived?.hasNextPage ? (
+        {status === "ready" && experimental_archived?.hasNextPage ? (
           <div className="radar-more">
             <Button
               type="button"

@@ -4,9 +4,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Clock01Icon from "@hugeicons/core-free-icons/Clock01Icon";
 import { BotFace } from "./BotFace";
 import { shortBotName, type RosterBot } from "./bots";
-import { openNeeds, type NeedsItem, type NeedsSeen } from "@/lib/needs";
+import { openNeeds, type NeedsItem } from "@/lib/needs";
 import { CAIRO, cairoLocal, dueLabel, snoozedLabel } from "@/lib/reminderTimes";
-import { shortAgo } from "./crew";
+import { shortAgo } from "./time";
 import type { SwipeActionView } from "@/lib/swipe";
 import { useRowSwipe } from "./useRowSwipe";
 import { ReminderTimePicker } from "./ReminderTimePicker";
@@ -18,8 +18,7 @@ type NeedsAction = "done" | "snooze" | "reopen";
 const UNDO_MS = 6_000;
 type Completion = { item: NeedsItem; position: number; expiresAt: number; busy: boolean; error: boolean };
 
-function NeedsRow({ item, roster, now, onUpdate, onOpen, replySeen }: {
-  replySeen: boolean;
+function NeedsRow({ item, roster, now, onUpdate, onOpen }: {
   item: NeedsItem; roster: readonly RosterBot[]; now: number;
   onUpdate: (id: string, action: NeedsAction, until?: string) => Promise<void>;
   onOpen: (threadId: string) => void;
@@ -54,7 +53,6 @@ function NeedsRow({ item, roster, now, onUpdate, onOpen, replySeen }: {
       </button>
       <div className="radar-needs-body">
         {item.source.threadId ? <button type="button" className="radar-needs-open" disabled={busy} onClick={() => onOpen(item.source.threadId!)} aria-label={`Open: ${item.text}`}>{text}</button> : <div className="radar-needs-plain">{text}</div>}
-        {replySeen ? <span className="radar-needs-reply-seen" title="A later reply was seen, but the bot has not confirmed this ask is resolved. Open the thread, or mark it done if you have handled it.">Reply seen, not confirmed</span> : null}
         <div className={`radar-needs-meta${due ? " radar-needs-meta-has-due" : ""}`}>
           <span className="radar-needs-who"><BotFace botKey={item.bot} name={name} size={14} /> <span className="radar-needs-who-name">{name}</span></span>
           <span className={due ? `radar-needs-due${overdue ? " radar-needs-overdue" : ""}` : "radar-needs-age"}>
@@ -71,8 +69,7 @@ function NeedsRow({ item, roster, now, onUpdate, onOpen, replySeen }: {
   </li>;
 }
 
-export function NeedsYouList({ items, roster, now, onUpdate, onOpen, seen = {} }: {
-  seen?: NeedsSeen;
+export function NeedsYouList({ items, roster, now, onUpdate, onOpen }: {
   items: readonly NeedsItem[] | null; roster: readonly RosterBot[]; now: number;
   onUpdate: (id: string, action: NeedsAction, until?: string) => Promise<void>;
   onOpen: (threadId: string) => void;
@@ -112,7 +109,7 @@ export function NeedsYouList({ items, roster, now, onUpdate, onOpen, seen = {} }
     return done ? <li key={item.id} className="radar-needs-undo" role="status">
       <Icon name="Check" /><span>Done: {done.item.text}</span><button type="button" disabled={done.busy} onClick={() => void undo(item.id)}>Undo</button>
       {done.error ? <p role="alert">Couldn’t undo. Try again.</p> : <span key={done.expiresAt} className="radar-needs-undo-progress" aria-hidden="true" />}
-    </li> : <NeedsRow key={item.id} item={item} roster={roster} now={now} onUpdate={update} onOpen={onOpen} replySeen={!!seen[item.id]} />;
+    </li> : <NeedsRow key={item.id} item={item} roster={roster} now={now} onUpdate={update} onOpen={onOpen} />;
   };
   return <section className="radar-needs" aria-label="Needs you">
     <h3>Needs you <small><b>{waiting.length}</b>{snoozed.length ? ` · ${snoozed.length} snoozed` : ""}</small></h3>

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import {
-  CREW_SCOPE,
   resetRailScope,
   setRailScope,
   subscribeRailScope,
@@ -65,13 +64,10 @@ describe("rail scope store", () => {
   });
 });
 
-describe("crew scope", () => {
+describe("retired crew scope", () => {
   const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
-  it("holds while there are bots and the rail is on, and falls back to every thread otherwise", () => {
-    setRailScope(CREW_SCOPE);
-    expect(renderHook(() => useValidatedRailScope([bot], true)).result.current).toBe(CREW_SCOPE);
-    expect(renderHook(() => useValidatedRailScope([], true)).result.current).toBeNull();
-    expect(renderHook(() => useValidatedRailScope([bot], false)).result.current).toBeNull();
-    expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe(CREW_SCOPE);
+  it("a saved key that names no bot shows every thread", () => {
+    setRailScope("__crew__");
+    expect(renderHook(() => useValidatedRailScope([bot], true)).result.current).toBeNull();
   });
 });

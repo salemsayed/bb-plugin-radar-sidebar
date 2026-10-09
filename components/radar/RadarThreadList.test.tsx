@@ -7,7 +7,6 @@ import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
 import { resetRailScope, setRailScope } from "./railScope";
-import { startOfToday } from "./crew";
 import { hideBot, resetHiddenBots } from "./botVisibility";
 
 // Expose configurable test exports while retaining the SDK's slot runtime.
@@ -96,12 +95,6 @@ function visibleRowIds(container: HTMLElement): string[] {
   ).map((node) => node.getAttribute("data-sidebar-thread-id") ?? "");
 }
 
-/** Crew rows as [bot key, state], in DOM order: the state is the row's class suffix. */
-function crewMates(container: HTMLElement): string[][] {
-  return Array.from(container.querySelectorAll("li[data-bot] > .radar-crew-mate")).map((mate) =>
-    [mate.parentElement?.getAttribute("data-bot") ?? "", mate.className.replace(/.*radar-crew-mate-/, "")]);
-}
-
 /** Rows bb would number for the ⌘/Ctrl jump keys, in DOM order. */
 function shortcutTargetIds(container: HTMLElement): string[] {
   return Array.from(
@@ -153,13 +146,13 @@ describe("bot scope and experiment fallback", () => {
     expect(navigated).toHaveBeenCalledOnce();
     expect(visibleRowIds(slot.container)).toEqual(["worker"]);
     expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe("personal");
-    fireEvent.click(within(shortcuts).getByRole("button", { name: "Show other threads" }));
+    fireEvent.click(within(shortcuts).getByRole("button", { name: "All threads" }));
     expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]);
   });
   it("traverses bot shortcuts from the keyboard without acting on a thread row", async () => {
     const slot = renderThreads(threads, { projects, sdk, settings: { botRail: true } });
     const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
-    const home = within(shortcuts).getByRole("button", { name: "Show other threads" });
+    const home = within(shortcuts).getByRole("button", { name: "All threads" });
     home.focus();
     fireEvent.keyDown(home, { key: "ArrowRight" });
     expect(document.activeElement).toBe(within(shortcuts).getByRole("button", { name: /Personal Bot,/ }));
@@ -205,11 +198,9 @@ describe("bot scope and experiment fallback", () => {
     expect(screen.getByRole("searchbox", { name: "Filter threads" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "View options" })).toBeTruthy();
 
+    // A saved scope from the retired in-list Crew view names no bot: every thread shows, no pill.
     act(() => setRailScope("__crew__"));
-    const crew = await screen.findByRole("button", { name: "Clear bot filter: Crew" });
-    expect(crew.closest(".radar-search-row")).toBeTruthy();
-    expect(screen.queryByRole("searchbox")).toBeNull();
-    fireEvent.click(crew);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Clear bot filter/ })).toBeNull());
     expect(visibleRowIds(slot.container)).toContain("other");
   });
   it("opens the coordinator from the scope pill's name, keeping the scope", async () => {
@@ -237,55 +228,7 @@ describe("bot scope and experiment fallback", () => {
     expect(visibleRowIds(slot.container)).toEqual(["owned"]);
     expect(screen.getByRole("button", { name: "Working, 1 thread" })).toBeTruthy();
   });
-  it("replaces the list with the crew overview: bots with something to say speak, the rest rest", async () => {
-    const today = (ago: number) => Math.max(startOfToday(Date.now()), Date.now() - ago);
-    const home = { ...bot, key: "home", name: "Home Bot", current: "home", projects: [] };
-    const work = { ...bot, key: "work", name: "Work Bot", current: "work", projects: [] };
-    const quiet = { ...bot, key: "quiet", name: "Quiet Bot", current: "quiet", projects: [] };
-    const crewThreads = [
-      makeThread({ id: "root", projectId: "proj_a" }),
-      makeThread({ id: "home", projectId: "proj_a" }),
-      makeThread({ id: "work", projectId: "proj_a" }),
-      makeThread({ id: "quiet", projectId: "proj_a" }),
-      makeThread({ id: "worker", projectId: "elsewhere", lifecycleOwnerThreadId: "root", status: "active", title: "Review fe!974", createdAt: today(5 * 60_000) }),
-      makeThread({ id: "other", projectId: "other" }),
-    ];
-    const stalled = {
-      id: "auto_gate", projectId: "proj_a", name: "Work Bot: inbox gate", enabled: true,
-      trigger: { triggerType: "schedule", cron: "*/5 * * * *", timezone: "UTC" }, execution: { worker: { owner: { bot: "work" } } },
-      nextRunAt: Date.now() - 30 * 60_000, lastRunAt: Date.now() - 35 * 60_000, lastRunStatus: "skipped", lastRunThreadId: null, lastError: null,
-    };
-    const fakes = sdkFakes();
-    const crewSdk = {
-      ...fakes,
-      threads: {
-        ...(fakes.threads as object),
-        list: async ({ parentThreadId }: { parentThreadId: string }) => parentThreadId !== "root" ? [] : [
-          { id: "done", title: "Finished run", status: "idle", createdAt: today(10 * 60_000) },
-          { id: "boom", title: "Broken run", status: "error", createdAt: today(20 * 60_000) },
-          { id: "old", title: "Yesterday's run", status: "idle", createdAt: startOfToday(Date.now()) - 3_600_000 },
-        ],
-        output: async ({ threadId }: { threadId: string }) => ({ output: threadId === "home" ? "Deploy paused at the prompt.\nDecision needed: type your sudo password" : "Inbox is clear.\nNothing to do." }),
-      },
-      plugins: { callRpc: async ({ pluginId }: { pluginId: string }) => pluginId === "orchestrator-mode" ? { bots: [bot, home, work, quiet] } : { automations: [{ automation: stalled, project: { id: "proj_a", name: "A" } }] } },
-    };
-    setRailScope("__crew__");
-    const slot = renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true, hideWorking: true } });
-    // One row per bot in roster order, its state in the class; poll the DOM cheaply, then query by role.
-    await waitFor(() => expect(crewMates(slot.container)).toEqual([["personal", "working"], ["home", "decision"], ["work", "failed"], ["quiet", "idle"]]), { timeout: 4_000, interval: 100 });
-    expect(visibleRowIds(slot.container)).toEqual([]);
-    expect(screen.queryByRole("searchbox", { name: "Filter threads" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Work, Failed: Check failure. inbox gate hasn't run in 30m" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Home, Decision: Review decision. Type your sudo password" })).toBeTruthy();
-    await waitFor(() => expect(Array.from(slot.container.querySelectorAll(".radar-crew-job")).map((job) => job.className.replace("radar-crew-job radar-crew-job-", "") + ":" + job.querySelector(".radar-crew-job-title")?.textContent))
-      .toEqual(["running:Review fe!974", "done:Finished run", "failed:Broken run"]), { timeout: 4_000, interval: 100 });
-    expect(slot.container.querySelector(".radar-crew-day .radar-crew-section-head small")?.textContent).toBe("3 jobs · 1 running · 1 failed");
-    fireEvent.click(screen.getByRole("button", { name: "Personal, Working: View live work. Review fe!974" }));
-    fireEvent.click(screen.getByRole("button", { name: "Home, Decision: Review decision. Type your sudo password" }));
-    fireEvent.click(screen.getByRole("button", { name: "Quiet, Idle: Open coordinator. Inbox is clear." }));
-    expect(slot.navigateCalls).toEqual([{ method: "toThread", threadId: "worker" }, { method: "toThread", threadId: "home" }, { method: "toThread", threadId: "quiet" }]);
-  }, 15_000);
-  it("asks the server which replies are waiting on Salem and quotes the chosen sentence", async () => {
+  it("asks the server which bots are waiting on Salem and shows it on their faces", async () => {
     const plain = { ...bot, key: "plain", name: "Plain Bot", current: "plain", projects: [] };
     const crewThreads = [
       makeThread({ id: "root", projectId: "proj_a", latestAttentionAt: 100 }),
@@ -298,8 +241,7 @@ describe("bot scope and experiment fallback", () => {
       plugins: { callRpc: async ({ pluginId }: { pluginId: string }) => pluginId === "orchestrator-mode" ? { bots: [bot, plain] } : { automations: [] } },
     };
     const asked: unknown[] = [];
-    setRailScope("__crew__");
-    const slot = renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true }, rpc: {
+    renderThreads(crewThreads, { projects, sdk: crewSdk, settings: { railNav: true, botRail: true }, rpc: {
       crew_asks: (raw) => {
         const input = raw as { threads: { threadId: string; version: number }[] };
         asked.push(input);
@@ -309,9 +251,8 @@ describe("bot scope and experiment fallback", () => {
       },
     } });
     // Roster, pulses and the judgement arrive in turn; poll the DOM cheaply, then query by role once.
-    await waitFor(() => expect(crewMates(slot.container)).toEqual([["personal", "idle"], ["plain", "decision"]]), { timeout: 4_000, interval: 100 });
-    expect(screen.getByRole("button", { name: "Plain, Decision: Review decision. Should I book two for Saturday?" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Personal, Idle: Open coordinator. Inbox is clear." })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Plain Bot, Decision/ })).toBeTruthy(), { timeout: 4_000, interval: 100 });
+    expect(screen.getByRole("button", { name: /^Personal Bot, Idle/ })).toBeTruthy();
     expect(asked).toEqual([{ threads: [{ threadId: "root", version: 100 }, { threadId: "plain", version: 200 }] }]);
   }, 15_000);
   it("ignores a saved bot filter when bot shortcuts are off", async () => {
