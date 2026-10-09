@@ -56,10 +56,11 @@ describe("botState", () => {
 
 describe("deck flavour", () => {
   it("gives known bots a face and colour and unknown ones a stable fallback", () => {
-    expect(botStyle("home", "Home Bot")).toEqual({ emoji: "🏠", hue: 146 });
+    expect(botStyle("home", "Home Bot")).toEqual({ emoji: "🏠", hue: 146, mascot: "home" });
     const a = botStyle("newbot", "New Bot"), b = botStyle("newbot", "New Bot");
     expect(a).toEqual(b);
     expect(a.emoji).toBe("N");
+    expect(a.mascot).toBeNull();
   });
   it("summarises the crew in one line", () => {
     expect(crewDigest(["idle", "idle"])).toBe("All quiet");

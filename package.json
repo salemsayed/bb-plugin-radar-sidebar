@@ -8,9 +8,12 @@
   },
   "bb": {
     "name": "Radar Sidebar",
-    "description": "A thread list you can read at a glance: activity grouping, nested families, loud attention states, and nav synced to BB's own setup.",
+    "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and Crew alongside BB’s native navigation.",
     "branding": {
-      "icon": "./assets/icon.svg"
+      "icon": "./assets/icon.svg",
+      "experimental_icons": {
+        "crew": "./assets/crew.svg"
+      }
     },
     "server": "./server.ts",
     "app": "./app.tsx"
@@ -25,7 +28,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.16",
+    "@get-bb/plugin-sdk": "0.6.33",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",
@@ -64,5 +67,5 @@
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
-  "description": "A thread list you can read at a glance: activity grouping, nested families, loud attention states, and nav synced to BB's own setup."
+  "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and Crew alongside BB’s native navigation."
 }

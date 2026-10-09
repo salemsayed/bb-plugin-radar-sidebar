@@ -6,10 +6,12 @@
 // turn down anything they find noisy without editing code, the crew view's
 // judgement of whether each bot is waiting on Salem, and the Working peek's
 // per-thread digests.
+import { crewContract } from "./lib/crewContract";
+import { createCrewServer } from "./lib/crewServer";
+import { crewPilotContract } from "./lib/crewPilot";
+import { createCrewPilotServer } from "./lib/crewPilotServer";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
-import { createCrewJudge } from "./lib/crewJudge";
-import { createNeedsAskRecorder } from "./lib/needsAsk";
 import { createNeedsServer } from "./lib/needsServer";
 import { needsRpcContract } from "./lib/needs";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
@@ -105,24 +107,10 @@ export default async function plugin(bb: BbPluginApi) {
         "Let long thread titles wrap onto a second line before truncating. Applies in both densities.",
       default: false,
     },
-    railNav: {
-      type: "boolean",
-      label: "Navigation rail",
-      description:
-        "Show a vertical navigation rail beside the thread list on desktop and mobile. Off keeps navigation above the list.",
-      default: false,
-    },
     botRail: {
       type: "boolean",
-      label: "Bot rail (experimental)",
-      description: "Requires Navigation rail. Replace the in-list bots deck with bot faces: tap to show their workers, then open the coordinator from the heading. Coordinators and workers tuck into the rail. Off restores the full list. Project tiles stay removed in both modes.",
-      default: false,
-    },
-    wideRail: {
-      type: "boolean",
-      label: "Labelled rail (experimental)",
-      description:
-        "Requires Navigation rail. Adds a toggle at the foot of the navigation rail that widens it to show labels, including BB's own footer actions. Experimental: uses BB's sidebar layout and falls back to icons when the expected layout is unavailable.",
+      label: "Bot shortcuts",
+      description: "Show bot faces above the thread list. Select a bot to open its coordinator and workers. Off restores the in-list bots deck.",
       default: false,
     },
     swipeActions: {
@@ -148,9 +136,11 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  const crew = createCrewServer(bb);
+  bb.rpc.register(crewContract, crew);
+  bb.rpc.register(crewPilotContract, createCrewPilotServer(bb));
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
-  const judge = createCrewJudge(bb, Date.now, createNeedsAskRecorder(bb));
   // Several sidebars peeking at once share one timeline read per thread.
   const digests = new Map<string, { at: number; digest: Promise<WorkingDigest | null> }>();
   const DIGEST_FRESH_MS = 4_000;
@@ -167,9 +157,14 @@ export default async function plugin(bb: BbPluginApi) {
   };
   bb.rpc.register({ ...crewRpcContract, ...workingRpcContract }, {
     crew_asks: async (input) => {
-      // The client just saw these reply versions: a newer one may be the acknowledgment that closes a saved decision.
-      void needs.observe(input.threads);
-      return { judgements: await judge(input.threads) };
+      // The durable request is authoritative. Opening a sidebar never creates
+      // a question from prose or makes a classifier/model call.
+      const board = await crew.crew_refresh();
+      return { judgements: input.threads.map(({ threadId, version }) => {
+        const bot = board.bots.find(b => b.current === threadId);
+        const request = board.requests.find(q => q.state === "open" && q.placement === "needs_you" && board.work.some(w => w.id === q.workId && w.owner === bot?.key));
+        return { threadId, version, waiting: request ? 1 : 0, ask: request?.text ?? null, itemId: request?.sourceIds[0] ?? null };
+      }) };
     },
     working_digest: async (input) => ({
       digests: (await Promise.all(input.threadIds.map(digest))).filter((entry): entry is WorkingDigest => entry !== null),

@@ -8,8 +8,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Changed
 
+- Use BB's native navigation rail. Move bot shortcuts into the thread-list header, preserving bot scopes, visibility, worker filtering and hover details. Remove retired SDK navigation APIs and shell layout overrides; update the development SDK to match the installed host.
+- Give Crew a dedicated group icon in BB's native desktop and mobile rail, and keep its destination out of the bot shortcut bar.
 - Light unread bot rail tiles blue independently of activity or attention. Use neutral selection, clear !/? badges and distinct activity rings; context and worker counts move into details.
-- Keep idle faces plain; distinguish failed/input badges, running/queued/handover rings, unread lights and unavailable outlines. Every state has an accessible label, description and relevant hover-card action. Labelled rails show the state below the bot name. Separate queued work, handover and unavailable coordinators from working and idle; keep failures and questions visible after reading.
+- Keep idle faces plain; distinguish failed/input badges, running/queued/handover rings, unread lights and unavailable outlines. Every state has an accessible label, description and relevant hover-card action. Separate queued work, handover and unavailable coordinators from working and idle; keep failures and questions visible after reading.
 - Reconcile Radar-captured Crew decisions after a newer human answer and coordinator acknowledgment, using Jev with a 0.8 threshold over the conversation and preceding questions. Retain delayed answers and acknowledgments, exclude nested worker output, and refresh old negative verdicts. Unrelated replies, unresolved questions, manual reminders and automation asks stay open. Preserve concurrent Snooze/Done changes and Undo on the same reply; retry failures and history limits after five minutes.
 - Rebuild Crew as an ask inbox, a stable bot roster and flat recent history. Complete questions open their source, check circles mark Done, and clocks open Snooze. Preserve in-place six-second Undo, collapse snoozed asks, expose due/overdue and reply-seen markers, and offer inline Retry. Context warnings and full hover details remain available; visual status text no longer pulses. Show/hide bots through an on-demand visibility control.
 
@@ -18,20 +20,15 @@ All notable changes to Radar Sidebar are documented here. The format follows
   grouping, density and collapse-all open in a panel under it. While a
   filter narrows the list, a removable pill per filter shows under the
   search. Density is hidden on touch viewports, which are always compact.
-- Drop the rail's heading row: New thread moves to a + at the end of the
-  list's header row, and a bot or crew scope shows as a removable pill, so
-  the main, bot and crew screens share one header. A bot pill's name opens
-  its coordinator; its X clears the scope. With the rail on, BB's back/forward row
-  is hidden too, so the header sits at the top of the sidebar. Time groups
-  lose their clock icon, and touch lists tighten the space around group
-  headers.
+- Show a bot or crew scope as a removable pill under the list header. A bot
+  pill's name opens its coordinator; its X clears the scope. BB owns New
+  thread and the back/forward controls. Time groups lose their clock icon,
+  and touch lists tighten the space around group headers.
 - Hover the Working drawer's header for a peek at every running thread:
   what it last said and did, its phase, steps, todo progress, run time and
   context use, with flags for stalls, failing commands, a nearly full
   context or a waiting question. Click one to open it. Digests are built on
   the server, so the card stays light over a remote connection.
-- Move Show labels and Customize sidebar from the foot of the rail into its
-  More popover, which is now always on the rail.
 
 ## 0.5.2 - 2026-10-04
 

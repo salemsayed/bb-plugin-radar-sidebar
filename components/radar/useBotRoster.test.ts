@@ -5,9 +5,10 @@ import type { RosterBot } from "./bots";
 
 const bot: RosterBot = { key: "personal", name: "Personal Bot", current: "root", projectId: "a", projects: [], hostId: "h", providerId: "pi", model: "m", rollover: null };
 const callRpc = vi.fn<() => Promise<{ bots: RosterBot[] }>>();
+const sdk = { plugins: { callRpc } };
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => ({
   ...await importOriginal<typeof import("@get-bb/plugin-sdk/app")>(),
-  useSdk: () => ({ plugins: { callRpc } }),
+  useSdk: () => sdk,
 }));
 const { useBotRoster, isPluginAbsentError } = await import("./useBotRoster");
 

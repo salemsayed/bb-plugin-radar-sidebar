@@ -11,7 +11,7 @@ const MAX_FAILURES = 3;
 function readCache(): RosterBot[] {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? rosterSchema.parse(JSON.parse(raw)).bots : [];
+    return raw ? rosterSchema.parse(JSON.parse(raw)).bots.filter(bot => bot.key !== "crew") : [];
   } catch {
     return [];
   }
@@ -60,8 +60,9 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
         const result = await sdk.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
         if (cancelled || current !== request) return;
         failures = 0;
-        setBots(result.bots);
-        writeCache(result.bots);
+        const specialists = result.bots.filter(bot => bot.key !== "crew");
+        setBots(specialists);
+        writeCache(specialists);
       } catch (error) {
         if (cancelled || current !== request) return;
         // Keep a previously validated roster during transient reload/RPC failures.

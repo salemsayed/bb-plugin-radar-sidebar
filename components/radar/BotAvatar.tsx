@@ -1,12 +1,13 @@
 import { cn } from "@/lib/utils";
 import type { BotState } from "./bots";
+import { BotFace } from "./BotFace";
 
 const RADIUS = 17;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /** State signals share one visual language in the rail, roster and details. */
-export function BotAvatar({ emoji, context = null, state, unread = false, motion = true }: {
-  emoji: string; context?: number | null; state?: BotState; unread?: boolean; motion?: boolean;
+export function BotAvatar({ botKey, name, context = null, state, unread = false, motion = true }: {
+  botKey: string; name: string; context?: number | null; state?: BotState; unread?: boolean; motion?: boolean;
 }) {
   const fill = context === null ? 0 : Math.min(1, Math.max(0, context));
   const tone = context === null ? "radar-bot-ring-unknown" : fill >= 0.75 ? "radar-bot-ring-hot" : fill >= 0.6 ? "radar-bot-ring-warm" : "";
@@ -21,7 +22,7 @@ export function BotAvatar({ emoji, context = null, state, unread = false, motion
     </svg> : ring ? <svg className={cn("radar-bot-state-ring", `radar-bot-state-ring-${state}`, motion && "radar-bot-state-motion")} viewBox="0 0 40 40">
       <circle cx="20" cy="20" r={RADIUS} />
     </svg> : null}
-    <span className="radar-bot-face">{emoji}</span>
+    <span className="radar-bot-face"><BotFace botKey={botKey} name={name} state={state} size={34} /></span>
     {badge ? <span className={cn("radar-bot-attention-badge", state === "failed" ? "radar-bot-badge-error" : "radar-bot-badge-warning")}>{badge}</span> : null}
     {(unread || state === "unread") && !badge ? <span className="radar-bot-unread-dot" /> : null}
   </span>;

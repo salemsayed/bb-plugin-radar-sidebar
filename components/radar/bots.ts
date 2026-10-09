@@ -99,6 +99,7 @@ export function coordinatorAsk(thread: PluginSidebarThread, pulse: Pulse | null,
   if (judged && (judged.waiting ?? 0) >= WAITING_THRESHOLD) {
     return { text: judged.ask ?? pulse?.decision ?? pulse?.subject ?? "Waiting for your answer", itemId: judged.itemId ?? null };
   }
+  if (judged?.waiting !== null && judged?.waiting !== undefined) return null;
   return pulse?.decision ? { text: pulse.decision, itemId: judged?.itemId ?? null } : null;
 }
 
@@ -162,20 +163,22 @@ export function shortBotName(name: string): string {
   return name.replace(/\s+Bot$/i, "");
 }
 
-/** A face and a colour per bot, so the deck reads at a glance. Unknown keys get a stable hue from their name. */
-const KNOWN_STYLE: Record<string, { emoji: string; hue: number }> = {
-  personal: { emoji: "🧭", hue: 212 },
-  home: { emoji: "🏠", hue: 146 },
-  bricks: { emoji: "🧱", hue: 24 },
-  work: { emoji: "💼", hue: 268 },
-  erbareeq: { emoji: "⚡", hue: 44 },
+/** A mascot and colour per bot, so the deck reads at a glance. Unknown keys get a stable hue from their name. */
+export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq";
+const KNOWN_STYLE: Record<string, { emoji: string; hue: number; mascot: BotMascot }> = {
+  personal: { emoji: "🧭", hue: 212, mascot: "personal" },
+  home: { emoji: "🏠", hue: 146, mascot: "home" },
+  bricks: { emoji: "🧱", hue: 24, mascot: "bricks" },
+  work: { emoji: "💼", hue: 268, mascot: "work" },
+  erbareeq: { emoji: "⚡", hue: 44, mascot: "erbareeq" },
 };
-export function botStyle(key: string, name: string): { emoji: string; hue: number } {
+export interface BotStyle { emoji: string; hue: number; mascot: BotMascot | null }
+export function botStyle(key: string, name: string): BotStyle {
   const known = KNOWN_STYLE[key];
   if (known) return known;
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  return { emoji: shortBotName(name).slice(0, 1).toUpperCase(), hue: Math.abs(hash) % 360 };
+  return { emoji: shortBotName(name).slice(0, 1).toUpperCase(), hue: Math.abs(hash) % 360, mascot: null };
 }
 
 /** One line for the crew header: what, across all bots, is waiting on Salem or still moving. */

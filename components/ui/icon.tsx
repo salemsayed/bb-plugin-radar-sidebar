@@ -33,6 +33,7 @@ import FolderIcon from "@hugeicons/core-free-icons/Folder01Icon";
 import FolderSyncIcon from "@hugeicons/core-free-icons/FolderSyncIcon";
 import FolderUnknownIcon from "@hugeicons/core-free-icons/FolderUnknownIcon";
 import HelpCircleIcon from "@hugeicons/core-free-icons/HelpCircleIcon";
+import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import InformationCircleIcon from "@hugeicons/core-free-icons/InformationCircleIcon";
 import Loading03Icon from "@hugeicons/core-free-icons/Loading03Icon";
 import MessageQuestionIcon from "@hugeicons/core-free-icons/MessageQuestionIcon";
@@ -49,6 +50,7 @@ import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
 import ToolboxIcon from "@hugeicons/core-free-icons/ToolboxIcon";
 import ToolCaseIcon from "@hugeicons/core-free-icons/ToolCaseIcon";
 import UserAdd01Icon from "@hugeicons/core-free-icons/UserAdd01Icon";
+import UserGroupIcon from "@hugeicons/core-free-icons/UserGroupIcon";
 import UnavailableIcon from "@hugeicons/core-free-icons/UnavailableIcon";
 import WorkflowCircle03Icon from "@hugeicons/core-free-icons/WorkflowCircle03Icon";
 import ZapIcon from "@hugeicons/core-free-icons/ZapIcon";
@@ -179,6 +181,7 @@ const CORE_ICON_MAP = {
   FolderSync: FolderSyncIcon,
   FolderUnknown: FolderUnknownIcon,
   Folder02: Folder02Icon,
+  Home: Home01Icon,
   Info: InformationCircleIcon,
   ListTodo: CheckListIcon,
   Loading: Loading03Icon,
@@ -203,6 +206,7 @@ const CORE_ICON_MAP = {
   Trash2: Delete02Icon,
   Unavailable: UnavailableIcon,
   UserRoundPlus: UserAdd01Icon,
+  Users: UserGroupIcon,
   Workflow: WorkflowCircle03Icon,
   X: Cancel01Icon,
   Zap: ZapIcon,

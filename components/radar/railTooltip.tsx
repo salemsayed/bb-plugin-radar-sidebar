@@ -1,48 +1,15 @@
-import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from "react";
-import { createPortal } from "react-dom";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 export type RailTip = {
   key: string;
-  botKey?: string;
-  label: string;
-  shortcut: string | null;
-  hint: string | null;
-  Accessory: ComponentType | null;
+  botKey: string;
   top: number;
   left: number;
 };
 
 /**
- * Hover/focus tooltip for the icon-only rail. The native `title` is slow and
- * can't show the shortcut as a key cap, so this draws its own: label, key
- * cap, panel accessory and a one-line hint, beside the hovered control.
- */
-export function RailTooltip({ tip }: { tip: RailTip }) {
-  const top = Math.max(8, Math.min(tip.top, window.innerHeight - 56));
-  return createPortal(
-    <div
-      role="tooltip"
-      className="radar-rail-tip"
-      style={{ top, left: tip.left }}
-    >
-      <div className="radar-rail-tip-row">
-        <span className="radar-rail-tip-label">{tip.label}</span>
-        {tip.Accessory ? (
-          <span className="radar-rail-tip-accessory">
-            <tip.Accessory />
-          </span>
-        ) : null}
-        {tip.shortcut ? <kbd className="radar-kbd">{tip.shortcut}</kbd> : null}
-      </div>
-      {tip.hint ? <div className="radar-rail-tip-hint">{tip.hint}</div> : null}
-    </div>,
-    document.body,
-  );
-}
-
-/**
- * Roving focus for the rail: arrow keys step between enabled controls,
- * Home/End jump to the ends. Tab still leaves the rail as a whole.
+ * Arrow-key focus for bot shortcuts: arrow keys step between enabled controls,
+ * Home/End jump to the ends. Tab keeps the normal button order.
  */
 export function moveRailFocus(event: ReactKeyboardEvent<HTMLElement>) {
   const target = event.target;

@@ -1,11 +1,11 @@
 ---
 name: radar-sidebar
-description: Use the Radar Sidebar plugin's thread list and navigation. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
+description: Use the Radar Sidebar plugin's thread list and Crew workspace. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
 ---
 
 # Radar Sidebar
 
-Replaces BB's sidebar thread list and the navigation above it. There is no
+Replaces BB’s sidebar thread list. BB owns the native navigation rail. There is no
 CLI and no server state: everything below is UI in the BB app, and thread mutations go
 through BB's own flows (pins, reads, renames, archives, deletes).
 
@@ -19,129 +19,15 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   grouping, density (hidden on touch, which is always compact) and
   expand/collapse all. Active filters show as removable pills under the
   search; a bot or crew scope is the first pill (crew keeps only that pill
-  and the +, since it has no search). The rail renders no heading: it hands
-  New thread to a + at the end of the header row via `railNewThread.ts`,
-  and its host styles hide BB's back/forward reserve row. Preferences persist per
-  client in `localStorage` (`radar-sidebar:*:v1` keys).
-- **Navigation** (`experimental_sidebarNavigation`, id `radar`): a primary
-  New thread button, inline destination rows, and a **More** popover (count
-  badge, highlighted while the current page lives in it). Search threads is
-  not rendered: the list filter and the ⌘K palette cover it. Inline vs More
-  and the row order follow BB's
-  own stock arrangement exactly — the server-synced `sidebar.pluginPanelOrder`
-  and `sidebar.visiblePluginPanels` preferences behind Settings →
-  Customize sidebar — so More holds precisely what the user put there.
-  The host navigation hook supplies the live arrangement, and its actions
-  save visibility changes. Right-click a destination for Keep in sidebar /
-  Move to More (so arranging in either nav carries over) and Open in
-  split for panels. Option-click opens in a split. New thread is the fixed
-  Radar header — always inline — while destinations follow the stock
-  arrangement exactly.
+  since it has no search). BB owns New thread in its native header.
+  Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
+- **Crew** (`navPanel`, id `crew`): a full overview, Chat and History reached from BB's native rail.
 
-## Navigation rail
+## Bot shortcuts
 
-Enable **Navigation rail** (`railNav`, default `false`) under Settings →
-Installed plugins → Radar Sidebar. Both slots keep id `radar`. Off restores
-navigation above the list, including the touch toolbar, and ignores the
-remembered bot filter. Turning it back on restores that choice.
+Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or Home, to show other threads. Crew is reached from BB's native navigation. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
-The rail sits beside the list on desktop (60px) and in the mobile drawer
-(56px). BB still supplies destination order, visibility and actions. Search
-stays on the rail; **Home** only clears the bot filter and never creates
-or opens a thread. **New thread** remains BB's action, run from the + in
-the list's header row.
-Project tiles are removed in all modes; their saved filter is ignored.
-Enable **Bot rail (experimental)** (`botRail`, default `false`) in Radar's settings
-with `railNav` on to render faces below the plugin destinations. Coordinators
-and their workers tuck into the rail. Tapping a face opens its coordinator and
-shows only that bot's worker family, linked by parent or lifecycle owner across
-projects; project membership alone never includes a thread. From a worker, the
-face returns to the coordinator; from the coordinator, it shows all threads again,
-as do Home and the scope pill's X; the pill's name opens the coordinator. The hover
-card's View workers filters without opening anything.
-**Crew** (above the faces, scope key `__crew__`) replaces the list with three
-consistent sections: saved **Needs you** asks, a stable roster in rail order, and
-**Today** as a flat job list. Every bot has one roster row: face and state, latest
-activity and time. A saved ask is shown once above, with “Waiting on your answer
-above” in its roster row. The row opens the affected thread. Failure, question,
-queue, handover and unavailable states stay explicit; quiet bots use the same
-row layout. Bot visibility opens a touch-friendly show/hide list on demand.
-Open asks, pending input and unread failures override a hide preference. A read
-failure can be hidden again; an open ask stays visible until resolved. Hidden
-coordinators and their workers stay out of ordinary thread groups, including Pinned.
-Asks include a coordinator reply that is waiting on Salem, which stays open
-after being read until the coordinator replies again: a `Decision needed:` line,
-or else Jev's verdict on that reply (probability at least 0.5, quoting the
-sentence it picked). Radar's server RPC `crew_asks` judges each settled
-coordinator reply once per `latestAttentionAt`, through Auto Effort's plugin-only
-`jev_decide` RPC (Auto Effort's key and model), and caches the verdict in plugin
-storage for every client; rollovers and new bots are judged on first sight.
-Without Auto Effort or its key, only `Decision needed:` counts, retried every
-5 minutes. Asks also include worker questions, worker failures, including after reading,
-and failed or stalled automations (watchers three intervals late) from
-saelmbot-automations' `automations_overview`. **Today** lists every job started
-today, including live hidden run threads and archived workers. Five jobs show
-before **Show all**. Each row opens its thread. Selection uses the stable bot
-key through rollover; roster refreshes on creation/archive changes and every minute.
-State signals describe the coordinator family: red ! badge for Failed, amber ?
-for Needs you and Decision, an activity arc for Working, dotted ring for Queued,
-slow dashed ring for Handover, blue dot/light for New reply, plain face for Idle,
-and dimmed face/dashed outline for Unavailable. State words and actions are
-accessible in labelled rails, hover cards and roster rows. Queues never count as
-running; reading an ask does not resolve it. Unread is independent of activity
-and attention: a badge replaces the dot but the tile still lights. `loudUnread`
-off keeps a quiet dot or accent. Context and worker counts live in details, with
-high context shown on the Crew row. Reduced motion keeps rings static.
-
-Saved **Needs you** rows show the complete question. A leading circle marks it
-Done, the question opens its source thread, and a clock opens Snooze. Every
-control has a 44px target. Done keeps an in-place six-second Undo; quick multiple
-completions retain independent Undo controls. Failed saves and failed Undo stay
-retryable. Snoozed asks collapse into a short summary and expand on demand;
-due and overdue labels are explicit. Loading/unavailable decisions show status
-and Retry. A later unconfirmed human reply is marked “Reply seen, not confirmed”.
-Radar-captured decision keys (`threadId:24hex`) reconcile at coordinator idle
-and Crew reads. Jev must give at least 0.8 confidence, judging the conversation
-since the oldest open decision and retaining each preceding question, that a newer human reply
-answered that exact request and the coordinator acknowledged or performed it.
-Automation inputs, unrelated and partial replies never suffice. Active work,
-queues and pending interactions defer checks. Manual reminders and automation
-asks never auto-close. The resolver rechecks the version and saved state before
-writing Done, preserves same-reply Undo and retries failures after five minutes.
-History beyond 12 pages of 100 matching events or 96 KiB of serialized classifier
-input leaves asks open, logs the limit and retries after five minutes.
-Live context refreshes every 15 seconds; coordinator identities survive rollover.
-This mode hides the duplicate in-list deck and coordinator rows. Turning either
-flag off shows all threads immediately and restores the deck if `botsDeck` is on.
-An empty or unavailable roster leaves all threads accessible. New thread keeps
-BB's usual project picker. The list also has its own clear-bot button if another
-navigation provider is selected.
-
-Desktop bot hover/focus cards show the latest reply, decision requests, worker
-titles and states (waiting and failed first), context percentage and token counts,
-model and machine. Open the coordinator or a worker directly, or choose View
-workers to filter the list. The card stays open while the pointer crosses to it;
-Tab enters its actions and Escape returns focus to the bot. Other rail tooltips
-include shortcuts and accessories. Arrow keys wrap between enabled
-controls; Home/End focus the first/last. Right-click destinations for Move to
-More / Keep in sidebar, Move up/down, Open in split and Plugin details.
-The rail's More is always present: hidden destinations, then Show/Hide labels
-(when allowed) and Customize sidebar. Customize opens BB's editor beside the
-desktop rail (More reads as open meanwhile); mobile uses BB's full editor.
-
-**Labelled rail** (`wideRail`, default `false`) requires `railNav`. It adds a
-Show labels / Hide labels entry to the rail's More on desktop. The 168px rail expands the
-sidebar by its extra width so the thread list keeps its room. It probes the
-host sidebar/footer/width structure and hides the toggle when unavailable.
-The gutter, footer stacking and Customize layout use host `data-sidebar`
-selectors in `components/radar/railHostStyles.ts`. The rail renders them
-as `<style>` elements in its own markup, by state (wide, compact, scoped),
-plus a small `<style>` for the measured footer reserve and scroll thumb.
-Disabling the rail unmounts them and releases those styles. It never
-writes to BB's elements, and it avoids `:has()` on the page or sidebar,
-which restyled the whole page on every DOM change.
-A BB shell update can require selector adjustments. Wide mode and tooltips
-are desktop-only; safe-area padding and reduced motion are respected.
+States and unread badges retain the same meaning as the bot deck. Saved bot scopes and hidden preferences persist. Open asks, pending input and unread failures keep a hidden bot accessible. Turning shortcuts off restores the deck. Retired `railNav` and `wideRail` values have no effect. Navigation, arrangement, More and the footer belong to BB, without shell CSS overrides or removed SDK calls.
 
 ## Organisation tools
 
@@ -191,7 +77,7 @@ are desktop-only; safe-area padding and reduced motion are respected.
 
 ## Selecting it
 
-Settings → Appearance → **Sidebar** (list) and **Navigation** (controls).
+Settings → Appearance → **Sidebar** selects the thread list. BB owns navigation.
 Choosing BB there restores the stock experience; disabling this plugin falls
 back to BB's list automatically.
 
@@ -342,9 +228,7 @@ rows paint at their final height.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `railNav` | `false` | Navigation rail beside the list; off keeps navigation above the list. |
-| `botRail` | `false` | Experimental bot faces, family state dots and bot scoping; requires `railNav`. |
-| `wideRail` | `false` | Experimental labelled desktop rail; requires `railNav` and a recognised host shell. |
+| `botRail` | `false` | Bot faces, family state and worker filtering above the list. |
 | `hideWorking` | `false` | Families with any live work (turn running, follow-up queued, background agents, commands, workflows, goals or plan mode — anything with a spinner) and nothing waiting on the user leave their group for a **Working** drawer pinned under the list, folded by default (open state: `radar-sidebar:working-open:v1`). Needs-you, pinned, bot coordinators and the open thread's family stay put; search or a status filter shows them in place. Hovering the drawer's header (mouse only) opens the Working peek (`RadarWorkingPeek.tsx`): every live thread in the drawer with a server-side digest from its latest timeline segment (`working_digest` RPC, `lib/workingDigest.ts`, cached 4s, polled every 6s while open) — latest words, newest step, phase, steps, todos, goal, context, and flags for quiet 5m+, 2+ failing commands, 80%+ context, a model fallback, background work or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
@@ -357,10 +241,10 @@ rows paint at their final height.
 | `swipeRight` | `Mark read / unread` | Rightward swipe action: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` or `Nothing`. |
 | `swipeLeft` | `Archive / unarchive` | Leftward swipe action, same options. |
 
-## Rail storage keys
+## Bot selection storage
 
 - `radar-sidebar:rail-bot-scope:v1`: selected bot key; absence means all threads. The retired `rail-scope:v1` project filter is ignored.
-- `radar-sidebar:rail-wide:v1`: `1` for expanded labels, `0` for icons.
+- The retired `radar-sidebar:rail-wide:v1` value is ignored.
 
 These are client preferences inside the same plugin, alongside the existing
 filter, density, smart-view, project-order and collapse keys.
@@ -374,3 +258,12 @@ filter, density, smart-view, project-order and collapse keys.
 - `app.css` is custom CSS against BB theme tokens; Tailwind utilities in
   `components/radar/*.tsx` compile in the plugin build. Keep new styles
   behind the `radar-` prefix.
+
+
+## Crew workspace
+
+Crew opens from the native rail. Needs your answer comes first, followed by actual bot/worker activity and compact reminders. Activity uses BB's runtime and registered lineage, including hidden active workers and predecessor-owned children; imported requests never count as work in progress. Pending input links to the actual affected thread. Native Chat and History are secondary views. Settings, tracked assignments and receipt checks remain under Settings & activity log. Durable work/request records, direct-chat reporting, source history, acknowledgments and an outbox back the page. Current deployment is live and unpaused at Salem's request. `bb crew status --json` reports mode, work, requests and receipt states. `bb crew control --mode live|shadow --paused yes|no` changes control state. Old shadow proposals require explicit Send; mode changes never dispatch them automatically.
+
+Use structured Crew questions; opening a sidebar never extracts requests from prose. Manager assignments bind real user-event authorization and preserve the original objective. Owning bots can adopt direct work without redispatch, read their own registered lineage, and bind exact direct answers across rollover. Track worker IDs and require delivery, verification and cleanup evidence before completing new work; active or question-pending workers block completion/cancellation acknowledgment. Existing reminders and historical sources remain supported. Routine progress, source imports and standalone questions update the page quietly. Only important reports on Crew-assigned work and real human replies that may answer an existing request automatically wake Crew. A settled owning-bot reply is required for answer review; automation/worker/tool notices do not qualify. Reconciliation retries at most three times per human reply across reload, five minutes apart; later automated replies do not reset that budget. Exhausted review is shown on the board. A new human reply or `bb crew reconcile --json` permits another check.
+
+Use `bb crew tool --name <crew_tool> --input '<JSON>'` from the owning bot or Crew thread if native tools are unavailable in an older session. Same ownership and version checks apply. Never retry an uncertain send with a new ID: use the original command's receipt check. Crew is registered as bot `crew` in its own project. Automatic rollover is enabled at 75%; handoff and predecessor handling use saelmbot. Use `bb saelmbot rollover now --bot crew` for manual rollover. Radar follows the current registered thread and hides it from ordinary lists. Durable per-bot, per-conversation answer cursors retain registered predecessors and catch up after reloads; `bb crew reconcile --json` requests a check without dispatching specialist work. See `docs/crew-coordinator.md` for exact behavior. ChatGPT dots and voice integration are excluded.

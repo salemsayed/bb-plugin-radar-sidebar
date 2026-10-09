@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { useVisibleBots } from "./botVisibility";
 import { BotAvatar } from "./BotAvatar";
-import { coordinatorAsk, botStyle, shortBotName, STATE_LABELS, type BotState, type RosterBot } from "./bots";
+import { BotFace } from "./BotFace";
+import { coordinatorAsk, shortBotName, STATE_LABELS, type BotState, type RosterBot } from "./bots";
 import { botFamily, botWorkers, rosterRefreshKey } from "./botScope";
 import { withoutListedAsks, crewFeed, crewRow, shortAgo, type CrewFeedItem, type CrewRow } from "./crew";
 import { useCrewArchivedJobs, useCrewAutomations, useCrewJudgements } from "./useCrewData";
@@ -65,7 +66,7 @@ export function RadarCrewView({ roster: fullRoster, now, onNavigate, needs }: {
     return <li key={bot.key} data-bot={bot.key}>
       <button type="button" className={`radar-crew-mate radar-crew-mate-${state}${unread ? " radar-crew-mate-has-unread" : ""}`} onClick={() => open(target)}
         aria-label={`${shortBotName(bot.name)}, ${label.text}: ${label.action}. ${summary}${row.more ? `, and ${row.more} more` : ""}`} title={label.description}>
-        <BotAvatar emoji={botStyle(bot.key, bot.name).emoji} state={state} unread={unread} />
+        <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={unread} />
         <span className="radar-crew-mate-copy">
           <span className="radar-crew-mate-head"><strong>{shortBotName(bot.name)}</strong>
             {state !== "idle" ? <span className={cn("radar-crew-mate-state", label.tone)}>{label.text}</span> : null}
@@ -81,7 +82,7 @@ export function RadarCrewView({ roster: fullRoster, now, onNavigate, needs }: {
     <button type="button" className={`radar-crew-job radar-crew-job-${item.state}`} onClick={() => open(item.id)}
       aria-label={`${shortBotName(item.bot.name)}: ${item.title}, ${item.state}, started ${clockFormatter.format(item.startedAt)}`} title={item.title}>
       <span className="radar-crew-job-time">{clockFormatter.format(item.startedAt)}</span>
-      <span className="radar-crew-job-face" aria-hidden="true">{botStyle(item.bot.key, item.bot.name).emoji}</span>
+      <span className="radar-crew-job-face" aria-hidden="true"><BotFace botKey={item.bot.key} name={item.bot.name} size={14} /></span>
       <span className="radar-crew-job-title">{item.title}</span>
       <span className="radar-crew-job-mark" aria-hidden="true">{item.state === "running" ? <span className="radar-crew-job-spin" /> : item.state === "queued" ? "◷" : item.state === "failed" ? "✕" : "✓"}</span>
     </button>
@@ -93,6 +94,7 @@ export function RadarCrewView({ roster: fullRoster, now, onNavigate, needs }: {
       {needs.status === "loading" ? "Loading saved decisions…" : <>Saved decisions are unavailable. <button type="button" onClick={needsChanged}>Retry</button></>}
     </p> : null}
     <NeedsYouList items={needs.items} roster={fullRoster} now={now} onUpdate={needs.update} onOpen={open} seen={needs.seen} />
+    <button type="button" className="crew-button" onClick={() => { navigate.toPluginPanel("crew"); onNavigate(); }}>Open Crew workspace</button>
     <section className="radar-crew-roster" aria-label="Crew">
       <h3 className="radar-crew-section-head">Crew <small>{liveWorkers ? `${liveWorkers} worker${liveWorkers === 1 ? "" : "s"} live` : null}</small>
         {fullRoster.length ? <button type="button" className="radar-crew-visibility-toggle" aria-label="Bot visibility" title="Choose which bots are shown" aria-expanded={visibilityOpen} onClick={() => setVisibilityOpen(value => !value)}><Icon name="EyeOff" /></button> : null}

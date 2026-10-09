@@ -1,7 +1,7 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import type { RosterBot } from "./bots";
 
-/** Bot identity shared between the rail and list, remembered per client.
+/** Bot identity shared between the shortcut row and list, remembered per client.
  * A new storage key intentionally ignores the retired project tile filter. */
 
 const SCOPE_KEY = "radar-sidebar:rail-bot-scope:v1";
@@ -56,19 +56,6 @@ export function useValidatedRailScope(bots: readonly RosterBot[], enabled: boole
   if (!enabled) return null;
   if (chosen === CREW_SCOPE) return bots.length > 0 ? chosen : null;
   return bots.some(bot => bot.key === chosen) ? chosen : null;
-}
-
-// The list owns BB's mobile-drawer dismissal callback. Share it with the
-// coordinator link in the navigation slot, without touching host DOM.
-const navigationHandlers = new Set<() => void>();
-export function useRailThreadNavigation(onNavigate: () => void): void {
-  useEffect(() => {
-    navigationHandlers.add(onNavigate);
-    return () => { navigationHandlers.delete(onNavigate); };
-  }, [onNavigate]);
-}
-export function notifyRailThreadNavigation(): void {
-  for (const handler of navigationHandlers) handler();
 }
 
 /** Test hook: clear the scope and every subscriber. */

@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { rosterSchema, type RosterBot } from "../components/radar/bots";
 import { dismissJudgedAsk } from "./crewJudge";
 import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, type NeedsItem, type NeedsSeen } from "./needs";
-import { createNeedsResolver, seenMarkers } from "./needsResolution";
+import { seenMarkers } from "./needsResolution";
 
 const ACTIVE = ["open", "snoozed", "reminded"] as const;
 
@@ -25,49 +25,16 @@ export async function threadBot(bb: BbPluginApi, threadId: string, roster: reado
 }
 
 export function createNeedsServer(bb: BbPluginApi) {
-  const resolve = createNeedsResolver(bb);
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
-  let listWarned = false;
-  /** Check one coordinator's open captured decisions against its latest reply. */
-  const resolveThread = async (threadId: string, reason: string) => {
-    try {
-      const { items } = await list();
-      listWarned = false;
-      await resolve(items.filter(item => item.source.threadId === threadId));
-    } catch (error) {
-      // A missing optional backend leaves saved decisions untouched; say so once until it answers again.
-      if (listWarned) return;
-      listWarned = true;
-      bb.log.warn(`Needs You check skipped for ${threadId} (${reason}): ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-  // Resolve at the acknowledgment itself, even when nobody has Crew open.
-  bb.events.on("thread.idle", async ({ thread }) => {
-    if (thread.parentThreadId) return;
-    await resolveThread(thread.id, "idle");
-  });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
   const update = (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) =>
     bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_update", input: needsRpcContract.crew_needs_update.input.parse(input), outputSchema: needsResultSchema });
-  const observed = new Map<string, number>();
   return {
-    /**
-     * A client saw these coordinator replies. A version newer than the last one
-     * seen here means the coordinator replied again: the moment an answered
-     * decision can be confirmed, so its open decisions are checked now rather
-     * than at the next read.
-     */
-    observe(threads: readonly { threadId: string; version: number }[]): Promise<void> {
-      const changed = threads.filter(({ threadId, version }) => (observed.get(threadId) ?? -Infinity) < version);
-      for (const { threadId, version } of changed) observed.set(threadId, version);
-      return Promise.all(changed.map(({ threadId, version }) => resolveThread(threadId, `reply version ${version}`))).then(() => undefined);
-    },
     handlers: {
       async crew_needs_list(): Promise<{ items: NeedsItem[] | null; seen?: NeedsSeen }> {
         try {
-          const result = await list();
-          await resolve(result.items);
-          // Return the authoritative store after any confirmed answers were closed.
+          // Historical sources remain readable; Crew owns evidence-backed
+          // reconciliation. A list read never starts another classifier.
           const { items } = await list();
           return { items, seen: await seenMarkers(bb, items) };
         } catch { return { items: null }; }

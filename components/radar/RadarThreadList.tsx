@@ -52,7 +52,9 @@ import {
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { RadarThreadRow } from "./RadarThreadRow";
+import { RadarBotSwitcher } from "./RadarBotSwitcher";
 import { RadarBotCard } from "./RadarBotCard";
+import { BotFace } from "./BotFace";
 import { askPulse, botState, botStyle, crewDigest, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { RadarCrewView } from "./RadarCrewView";
@@ -67,14 +69,13 @@ import {
 } from "./RadarGroupHeader";
 import { RadarMenu, type RadarMenuItem } from "./RadarMenu";
 import { useArrivals } from "./useArrivals";
-import { CREW_SCOPE, setRailScope, useValidatedRailScope, useRailThreadNavigation } from "./railScope";
+import { CREW_SCOPE, setRailScope, useValidatedRailScope } from "./railScope";
 import {
   useThreadGroups,
   type ThreadGroup,
 } from "./useThreadGroups";
 import { RadarSmartViews } from "./RadarSmartViews";
 import { RadarViewOptions, RadarViewSection } from "./RadarViewOptions";
-import { useRailNewThread } from "./railNewThread";
 import { RadarWorkingPeek } from "./RadarWorkingPeek";
 import { RadarNewSection } from "./RadarNewSection";
 
@@ -171,7 +172,6 @@ function useSidebarSettings() {
     writeStored(LAST_TWO_LINE_TITLES_KEY, wrapTitles ? "on" : "off");
   }, [loaded, defaultDensity, wrapTitles]);
   return {
-    railNav: flag("railNav", false),
     botRail: flag("botRail", false),
     botsDeck: flag("botsDeck", true),
     needsYouLane: flag("needsYouLane", true),
@@ -412,7 +412,6 @@ export function RadarThreadList({
   onNavigate,
 }: PluginThreadListProps) {
   const [query, setQuery] = useState("");
-  const railNewThread = useRailNewThread();
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>(() =>
     readStored(LIFECYCLE_KEY, "active", ["active", "archived", "all"]),
   );
@@ -559,19 +558,19 @@ export function RadarThreadList({
     sections,
     experimental_archived,
   } = experimental_useSidebarThreads(lifecyclesParam);
-  useRailThreadNavigation(onNavigate);
-  const botRail = settings.railNav && settings.botRail;
-  // Deck mode: bot cards in the list. With the rail on, the rail owns the bots instead.
+  const botRail = settings.botRail;
+  // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
   const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(allThreads));
   const needs = useNeedsYou(settings.botsDeck || botRail);
+  const railScope = useValidatedRailScope(roster, botRail);
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
   const coordinatorRows = useMemo(
-    () => deck ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
-    [allThreads, roster, deck],
+    () => deck || (botRail && railScope !== CREW_SCOPE) ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
+    [allThreads, roster, deck, botRail, railScope],
   );
-  const pulses = useThreadPulses(coordinatorRows, deck);
+  const pulses = useThreadPulses(coordinatorRows, deck || (botRail && railScope !== CREW_SCOPE));
   const judgements = useCrewJudgements(coordinatorRows);
   // The deck, the rail and Crew share the one ask record (askPulse): a judged
   // plain-language ask lights Decision and a Done one does not.
@@ -587,12 +586,11 @@ export function RadarThreadList({
   const hiddenKeys = useHiddenBotKeys();
   // Unknown saved-ask data must not hide something that might need Salem.
   const asking = useMemo(
-    () => deck ? askingBotKeys(roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys) : new Set<string>(),
-    [deck, roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys],
+    () => deck || botRail ? askingBotKeys(roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys) : new Set<string>(),
+    [deck, botRail, roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys],
   );
   // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
   const visible = useVisibleBots(roster, allThreads, asking);
-  const railScope = useValidatedRailScope(roster, botRail);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   // The crew overview replaces the thread list; it reads its own data.
   const crewView = railScope === CREW_SCOPE;
@@ -1649,23 +1647,6 @@ export function RadarThreadList({
     writeStored(LIFECYCLE_KEY, "active");
   };
 
-  // New thread, when the rail hands it over, ends the header row in every
-  // scope; a bot or crew scope shows as the first removable pill.
-  const newThreadButton = railNewThread ? (
-    <button
-      type="button"
-      aria-label="New thread"
-      aria-keyshortcuts={railNewThread.keyShortcuts}
-      title={`${railNewThread.label} — Option-click opens in a split`}
-      className="radar-new-thread-button"
-      onClick={(event) => {
-        railNewThread.open(event.altKey || event.ctrlKey || event.metaKey);
-        onNavigate();
-      }}
-    >
-      <Icon name="Plus" aria-hidden="true" />
-    </button>
-  ) : null;
   // A bot's pill has two halves: its name opens the coordinator (the list
   // only holds workers), and the X goes back to every thread.
   const scopePill = scopedBot ? (
@@ -1681,7 +1662,7 @@ export function RadarThreadList({
           onNavigate();
         }}
       >
-        <span aria-hidden="true">{botStyle(scopedBot.key, scopedBot.name).emoji}</span>
+        <span aria-hidden="true"><BotFace botKey={scopedBot.key} name={scopedBot.name} size={16} /></span>
         <span>{shortBotName(scopedBot.name)}</span>
       </button>
       <button
@@ -1725,10 +1706,15 @@ export function RadarThreadList({
       }
     >
       <div className="radar-list-header">
+        {botRail ? <RadarBotSwitcher bots={visible.bots} threads={allThreads} pulses={attentionPulses}
+          scope={railScope} activeThreadId={activeThreadId} compact={isCompactViewport}
+          motion={settings.motion} loudUnread={settings.loudUnread}
+          onClear={() => setRailScope(null)}
+          onSelect={bot => { setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
+          onNavigate={onNavigate} /> : null}
         {crewView ? (
           <div className="radar-search-row">
             {scopePill}
-            {newThreadButton}
           </div>
         ) : (<>
         <div className="radar-search-row">
@@ -1970,7 +1956,6 @@ export function RadarThreadList({
               </button>
             </RadarViewSection>
           </RadarViewOptions>
-          {newThreadButton}
         </div>
 
         {scopePill || activeView !== null || statusFilter !== "all" || lifecycle !== "active" ? (
@@ -2128,7 +2113,7 @@ export function RadarThreadList({
                   <RadarBotCard
                     thread={root}
                     name={bot?.name ?? root.displayTitle}
-                    emoji={style.emoji}
+                    botKey={bot?.key ?? root.id}
                     hue={style.hue}
                     motion={settings.motion}
                     state={botState(root, pulse, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}

@@ -6,7 +6,7 @@
 
 ### See which of your threads needs you, at a glance.
 
-Radar replaces BB's sidebar thread list and its navigation with a layout built
+Radar replaces BB's sidebar thread list with a layout built
 for people juggling dozens of agent threads at once.<br>
 Grouping, folding and attention states do the sorting for you, so nothing that
 needs a decision hides at the bottom of the list.
@@ -16,7 +16,7 @@ needs a decision hides at the bottom of the list.
 ![Plugin SDK ≥ 0.5.29](https://img.shields.io/badge/plugin%20sdk-%E2%89%A5%200.5.29-0369a1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 
-[Features](#features) · [Install](#install) · [Navigation rail](#navigation-rail) · [How it works](#how-it-works) · [Settings](#settings) · [Development](#development)
+[Features](#features) · [Install](#install) · [Bot shortcuts](#navigation-and-bot-shortcuts) · [How it works](#how-it-works) · [Settings](#settings) · [Development](#development)
 
 <br>
 
@@ -105,9 +105,7 @@ threshold. It is interactive, so you can pin, split or archive from the card.
 
 ### 🧭 Navigation that follows BB
 
-The nav shows inline exactly what you set inline in BB's own "Customize sidebar"
-— the same server-synced preferences — and the rest goes under More. Rearrange
-in either surface and the other follows.
+BB’s native rail owns destination order, visibility and More. Radar adds bot shortcuts within the thread list and a Crew destination.
 
 </td>
 <td valign="top">
@@ -145,8 +143,7 @@ to mark it read or archive it; each direction's action is a setting.
 <td align="center"><img src="docs/screenshots/context-menu.png" alt="Right-click menu on a thread, with its Move to section choices" width="440"><br><sub><b>Right-click menu</b></sub></td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/nav-more.png" alt="Radar navigation with Skills and Automations moved into More" width="440"><br><sub><b>Navigation with More</b></sub></td>
-<td align="center"><img src="docs/screenshots/settings.png" alt="Radar Sidebar settings page with the plugin settings" width="440"><br><sub><b>Plugin settings</b></sub></td>
+<td align="center" colspan="2"><img src="docs/screenshots/settings.png" alt="Radar Sidebar settings page with the plugin settings" width="440"><br><sub><b>Plugin settings</b></sub></td>
 </tr>
 </table>
 </div>
@@ -160,8 +157,7 @@ bb plugin install 'git:https://github.com/MacHatter1/bb-plugin-radar-sidebar.git
 The Git semver range tracks compatible `v0.5.x` releases. If you installed
 an earlier minor series, rerun this command to move to the new range.
 
-Then pick it in **Settings → Appearance**: choose **Radar** for the sidebar and
-**Radar navigation** for the controls above it.
+Then choose **Radar** under **Settings → Appearance → Sidebar**. BB keeps its native navigation rail.
 
 <details>
 <summary><b>Install from a local clone</b></summary>
@@ -185,136 +181,21 @@ bb plugin install path:$PWD --yes
 | --- | --- |
 | **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one view-options panel for status, lifecycle, grouping, density and expand/collapse all. |
 | **Smart views** | Saved query-plus-filter presets in the view-options panel, and a shortcut to save the current one. |
-| **Navigation above the list** | New thread, your inline destinations, and More for the rest. |
+| **Native navigation rail** | BB destinations and Crew. Bot shortcuts sit in Radar’s list header. |
 | **Row hover** | Pin, rename, archive and a fuller menu; a peek card after a short pause. |
-| **Settings → Appearance** | Choose Radar for the thread list and the navigation. |
+| **Settings → Appearance** | Choose Radar for the thread list. |
 
-## Navigation rail
+## Navigation and bot shortcuts
 
-Enable **Navigation rail** (`railNav`) under Settings → Installed plugins →
-Radar Sidebar. It defaults off: navigation remains above the list, including
-the touch toolbar, until you enable it. Under Appearance, choose **Radar** for Sidebar and
-**Radar navigation** for Navigation, both supplied by Radar Sidebar.
+BB owns the native navigation rail, destination order, More menu, footer and New thread control. Radar replaces only the thread list. It supports the mandatory desktop and mobile rail in SDK 0.6.33 and the earlier SDK 0.6.31 navigation.
 
-On desktop a 60px icon rail sits beside the thread list. It follows BB's
-saved navigation order and visibility: visible destinations inline, hidden
-ones in **More** (with a count on the icon), which also holds Show labels
-and **Customize sidebar**. BB's own footer controls (Settings, Mobile apps, usage, Report a bug,
-updates, account) stack at the bottom of the same column; their disclosures
-open beside the rail. Below 768px the same rail (56px) runs down the left of
-BB's mobile drawer with the thread list beside it, like a chat app's
-server rail; BB's footer keeps its mobile row layout next to it. Tooltips
-and the labelled rail are desktop-only. Resize the sidebar with BB's normal
-handle to give the thread list more room.
+Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or the Home face, to return to other threads. Crew opens from BB's native rail. On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
 
-<details>
-<summary><b>Bot scope, tooltips, keyboard and more</b></summary>
-
-- **Bot rail experiment.** Project tiles are removed. Enable **Bot rail (experimental)**
-  (`botRail`, default off) in Radar's plugin settings to put bot faces below the plugin destinations.
-  Coordinators and their workers tuck into the rail, freeing space in Home.
-  Tap a face to show only its worker family, linked by parent or lifecycle owner
-  across projects; unrelated threads in the same project stay outside the filter. Tap again, Home, or X to
-  show all threads. The scope shows as a pill under the search: its name opens
-  the coordinator, its X clears the scope.
-  Selection follows the bot key through rollover. State symbols describe the coordinator
-  family. A blue tile and dot mark an unread reply until BB marks it read, even while workers run. Attention badges replace the dot without removing the unread light. The Loud unread setting reduces the cue to the dot (or an accent beside an attention badge). Automatically read routine reports stay quiet. Selection uses a neutral fill and the bot’s hue bar. Context usage stays in the hover card and high usage is shown on the Crew row; worker counts live in labelled rails and hover details;
-  hover cards show the latest reply, decision requests, worker titles and states,
-  context percentage and token counts, model and machine. Open the coordinator
-  or a worker directly, or select View workers to filter the list. The duplicate bots deck
-  and coordinator rows are hidden while this experiment is on.
-  Turning the experiment or Navigation rail off immediately shows all threads
-  and restores the deck when enabled. Empty/unavailable rosters never trap the list
-  in a filter. The retired project tile scope is ignored. **New thread** remains
-  BB's create-thread action with its usual project picker.
-  States are **Failed**, **Needs you**, **Decision**, **Handover**, **Working**,
-  **Queued**, **New reply**, **Idle** and **Unavailable**. Idle is the plain face. Failed has a red ! badge; Needs you and Decision share an amber ? badge. Working has a spinning arc, Queued a dotted ring, Handover a slow dashed ring, and Unavailable a dimmed face with a grey dashed ring. Each state has an
-  accessible label and hover-card explanation, with an action opening the affected
-  coordinator or worker. The labelled rail shows state text under each name.
-  Reading a question or decision does not resolve it; queues never count as running. Plain-language asks use the same cached Jev verdict as Crew.
-  Crew shows **Needs you**, a fixed-order bot roster, and **Today** as a flat history list. Saved questions show their full text: the leading circle marks Done, the question opens its source thread, and the clock opens Snooze. Done keeps an in-place six-second Undo; snoozed asks collapse into a summary and expand on demand. Today shows five jobs before Show all. A Bot visibility control hides or restores bots without permanent per-row buttons.
-  Open asks, pending input and unread failures keep a hidden bot visible. Reading a failure lets the hide preference take effect; reading an ask does not resolve it. Hidden coordinators and their workers stay out of ordinary thread groups, including Pinned.
-  Radar-captured decisions close automatically only when a newer human answer and
-  coordinator acknowledgment clearly resolve that exact ask (Jev confidence at least
-  0.8, judged over the conversation since the oldest open decision, including its
-  preceding question). Manual reminders and automation asks are untouched. History
-  beyond 1,200 matching events or 96 KiB of classifier input leaves asks open, logs
-  the limit and retries after five minutes. Uncertain or unavailable
-  evidence leaves the card for manual action, marked "reply seen, not confirmed" when
-  you did reply after it was saved; same-reply Undo and concurrent Snooze changes are
-  respected. The check runs at coordinator idle, when the sidebar first sees a newer
-  coordinator reply, and on each Needs You read (every 30 s while the sidebar is open).
-  Every verdict and failure is logged with the item id, reply version and score. Done
-  dismisses the ask for that reply, so Crew, the deck and the rail stay quiet until the
-  coordinator asks again, and a repeated ask in a later reply is saved again.
-  Loading or unavailable saved decisions are stated explicitly, with Retry on failure.
-- **Tooltips.** Pause on a rail icon (or focus it from the keyboard) for
-  the destination's name, its shortcut as a key cap, and the panel's
-  accessory that the icon can't fit; a dot on the icon marks that an
-  accessory exists.
-- **Active pill.** The current destination gets a primary-coloured bar on
-  the rail's edge, so it reads without colour.
-- **Keyboard.** Arrow keys step through the rail and wrap; Home/End jump to
-  the ends. Same inside the More popover.
-- **Right-click to arrange.** *Move to More* / *Keep in sidebar*, *Move up*
-  / *Move down* (saved to BB's own order, so Customize sidebar agrees),
-  *Open in split*, and *Plugin details* for plugin panels.
-- **Customize beside the rail.** BB's arrangement editor opens as a panel
-  next to the rail with the rail still visible, so reordering and hiding
-  items is reflected live where they sit.
-- **Short windows.** The rail reserves the height it needs; BB's footer
-  stack takes what is left and scrolls internally, so destinations and
-  Customize stay visible on small screens. Visible position indicators
-  show when either stack scrolls, without fading the last item.
-- **One-row header**: search sits beside a single view-options button that
-  opens status, Active / Archived / All, grouping, density and collapse-all
-  in a panel. While a filter narrows the list, a removable pill per filter
-  shows under the search, a bot or crew scope among them. New thread sits
-  at the end of the row as a +, so there is no separate heading row, and
-  with the rail on BB's back/forward row is hidden too.
-
-</details>
-
-<p align="center"><img src="docs/screenshots/rail-desktop.png" width="360" alt="Radar Sidebar with Navigation rail enabled: destinations and BB's footer controls in the rail beside the thread list"></p>
-
-### Labelled rail (experimental, off by default)
-
-Settings → Installed plugins → Radar Sidebar → **Labelled rail**
-(`wideRail`) requires Navigation rail and adds a double-chevron toggle at the foot of the rail. On, the rail widens to 168px
-with labels, the sidebar grows by the same amount so the thread list keeps
-its width, and BB's footer actions become labelled rows too. The choice is
-remembered per client.
-
-This restyles BB's sidebar markup (its `data-sidebar` attributes, the
-sidebar width variable, and the screen-reader labels inside footer
-buttons), which is why it ships off: a BB update that changes that markup
-can break it. The plugin checks for the structure it needs and hides the
-toggle when it is missing, so the worst case is a narrow rail, not a broken
-sidebar. This integration was live-checked on BB 0.45.1 nightly, with tests
-and typechecking against SDK 0.5.29. Earlier rail prototypes were checked
-on BB 0.44.1 and 0.45.0; those runtimes have not been rerun for this integration.
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><img src="docs/screenshots/rail-wide.png" width="440" alt="The optional labelled rail, with labelled destinations, project rows and BB’s footer actions"><br><sub><b>Labelled rail</b></sub></td>
-<td align="center"><img src="docs/screenshots/rail-mobile.png" width="240" alt="The project rail beside the thread list in the mobile drawer"><br><sub><b>Mobile drawer</b></sub></td>
-</tr>
-</table>
-</div>
+Bot state and unread badges retain their existing meaning. Hidden bots stay hidden unless they need attention; saved bot selection and visibility preferences are preserved. Turning shortcuts off restores the in-list deck. Existing `botRail` settings continue to work independently of the retired `railNav` and `wideRail` settings.
 
 ## Compatibility notes
 
-The gutter, footer stacking and updates tile use BB's `data-sidebar` DOM
-attributes. The rail renders those overrides as `<style>` elements in its
-own markup (`components/radar/railHostStyles.ts`), so they exist only
-while it is mounted and it never writes to BB's elements. It doesn't use
-`:has()`: anchored on the page or the sidebar, it made the browser restyle
-the whole page on every DOM change in BB. If a future BB shell changes
-those attributes, the rail still renders but the footer may need a
-selector update. Nothing here touches BB's data: thread operations go through the
-public SDK, navigation order through `setOrder`/`setVisible`, and client
-state lives under `radar-sidebar:*` localStorage keys.
+SDK 0.6.33 removes the sidebar navigation replacement API. Radar no longer registers or imports it, and emits no CSS for BB's shell. Crew remains a supported `navPanel`; reminders remain native message and thread-panel actions. The old navigation and labelled-rail settings are retired, while BB keeps the user's destination arrangement.
 
 ## How it works
 
@@ -324,9 +205,6 @@ flowchart LR
   D --> R[rendered list]
   R -->|actions| A[BB host actions &amp; public SDK]
   A --> H
-  N[BB navigation state] --> NAV[navigation]
-  NAV -->|keep / move| NA[BB navigation actions]
-  NA --> N
 ```
 
 - **Reads BB's live state, owns none of it.** Threads, projects and sections
@@ -340,9 +218,6 @@ flowchart LR
   resolves *defaults*, so model and thinking are shown only while a thread is
   actually in flight. Remounts within the same run reuse cached values;
   new activity, a restart or window focus triggers a refresh.
-- **Nav placement is shared, not mirrored.** BB's navigation hook supplies
-  the saved order and visibility. Radar passes visibility changes to its
-  host actions, which own preference saves and updates.
 - **It will not move a thread between projects.** BB's thread API exposes no
   `projectId` on update, so project grouping is view-only; drag-to-organise
   files threads into sections, which BB does allow.
@@ -364,9 +239,7 @@ flowchart LR
 
 | Setting | Default | |
 | --- | --- | --- |
-| `railNav` | `false` | Navigation rail beside the thread list; project tiles are removed. |
-| `botRail` | `false` | Experimental bot faces and bot scope; requires `railNav`. Off restores the in-list deck. |
-| `wideRail` | `false` | Experimental labelled desktop rail; requires `railNav`. |
+| `botRail` | `false` | Bot shortcuts and worker filtering in the list header. Off restores the in-list deck. |
 | `hideWorking` | `false` | Move threads with work in flight into a folded **Working** drawer under the list. They come back when they finish or need you; pinned threads and the open thread stay put, and search or a status filter shows them in place. On desktop, hover the drawer's header to peek at every running thread: its latest words and step, todo progress, run time, context use, and flags for stalls, failing commands, a full context or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
@@ -415,11 +288,10 @@ bb plugin dev                      # rebuild and reload on every save
 
 ```
 server.ts               the settings the frontend reads; no storage, no CLI
-app.tsx                 registers the thread-list and navigation slots
+app.tsx                 registers the thread-list, Crew and reminder slots
 app.css                 styles on BB theme tokens, behind the radar- prefix
-components/radar/       the list, rows, nav, menus, peek card and smart views
-components/radar/*.ts   grouping hook, time bucketing, nav placement, model cache,
-                        and the styles the rail applies to BB's sidebar while mounted
+components/radar/       the list, bot shortcuts, menus, peek card and smart views
+components/radar/*.ts   grouping hook, time bucketing, bot scope and model cache
 lib/swipe.ts            swipe actions and gesture math, shared with server.ts
 components/storage.ts   one-time migration of codex-sidebar: preferences
 components/ui/          vendored BB UI primitives
@@ -432,8 +304,7 @@ docs/                   logo and screenshots
 rendered list through BB's plugin test harness (`renderSlot` with seeded
 sidebar threads), saved-view validation, preference migration, execution-cache
 refreshes, completion timers, and render counts, so a sidebar update re-renders
-only the rows that changed. Static guards over `app.css` and the rail's host
-stylesheet cover cascade mistakes jsdom cannot reproduce.
+only the rows that changed. Static guards over `app.css` cover cascade mistakes jsdom cannot reproduce.
 The test setup uses jsdom's `localStorage` explicitly, including on Node 26,
 whose native storage global otherwise shadows it without a backing file.
 
@@ -443,3 +314,8 @@ whose native storage global otherwise shadows it without a backing file.
 ## Licence
 
 [MIT](LICENSE)
+
+
+## Crew workspace
+
+Crew opens questions needing your answer, live bot and worker activity, and compact reminders. Activity comes from BB's current runtime, including workers across bot rollover, without requiring tracked assignments. Chat and History have separate views; settings and delivery audit stay collapsed. Exact replies, acknowledgments, cancellation and request history retain their durable records. See [Crew behavior, tools and recovery](docs/crew-coordinator.md). ChatGPT dots and voice integration are excluded.

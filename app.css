@@ -1,127 +1,4 @@
-/* Radar Sidebar. All rules are prefixed `radar-` and read BB's live theme
-   tokens (with fallbacks), so custom palettes keep working.
-
-   Rules for BB's own elements (the sidebar gutter, header, footer, panel
-   and sidebar toggle) live in components/radar/railHostStyles.ts. The
-   navigation rail renders them only while it is mounted. */
-
-.radar-double-navigation { flex: none; }
-.radar-double-navigation .radar-double-rail {
-  position: absolute;
-  /* Starts at the very top so the rail's surface runs behind BB's header
-     row (and its sidebar trigger) instead of stopping 48px short of it. */
-  inset: 0 auto 0 0;
-  width: var(--radar-rail-width, 60px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 0;
-  padding: 58px 7px 12px;
-  border: 0;
-  border-inline-end: 1px solid var(--border);
-  border-radius: 0;
-  background: var(--sidebar, var(--background));
-}
-.radar-double-rail-items,
-.radar-double-rail-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.radar-double-rail-items {
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  width: 100%;
-  scrollbar-width: none;
-}
-.radar-double-rail-footer { flex: none; }
-.radar-double-rail .radar-nav-icon-button {
-  position: relative;
-  flex: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  color: var(--muted-foreground);
-  text-decoration: none;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
-}
-.radar-double-rail .radar-nav-icon-button svg {
-  width: 20px;
-  height: 20px;
-  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.radar-double-rail .radar-nav-icon-button:hover:not(:disabled) svg { transform: scale(1.06); }
-.radar-double-rail .radar-nav-icon-button:active:not(:disabled) { transform: scale(0.94); }
-.radar-double-rail .radar-nav-icon-primary {
-  background: transparent;
-  color: var(--muted-foreground);
-}
-.radar-double-rail .radar-nav-row-active,
-.radar-double-rail .radar-nav-icon-button:hover:not(:disabled) {
-  background: var(--sidebar-accent, var(--accent));
-  color: var(--foreground);
-}
-.radar-double-rail .radar-nav-row-active { color: var(--primary); }
-.radar-double-rail .radar-nav-row-active:hover:not(:disabled) svg { transform: none; }
-/* Active destination: a pill on the rail's outer edge, like the thread
-   list's unread bar, so the current place reads even without colour. */
-.radar-double-rail .radar-nav-icon-button::before {
-  content: "";
-  position: absolute;
-  inset: 50% auto auto 0;
-  width: 3px;
-  height: 0;
-  border-radius: 0 3px 3px 0;
-  background: var(--primary);
-  transform: translateY(-50%);
-  transition: height 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.radar-double-rail .radar-nav-row-active::before { height: 22px; }
-.radar-double-rail .radar-nav-icon-button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-/* A plugin accessory exists but can't fit the 42px cap; hint with a dot and
-   show the real accessory in the tooltip. */
-.radar-rail-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--primary);
-  box-shadow: 0 0 0 2px var(--sidebar, var(--background));
-}
-.radar-double-rail .radar-nav-icon-button .radar-nav-count {
-  right: 4px;
-  bottom: auto;
-  top: 4px;
-  min-width: 15px;
-  padding: 0 3px;
-  font-size: 9px;
-  line-height: 15px;
-  background: var(--primary);
-  color: var(--primary-foreground, #fff);
-  box-shadow: 0 0 0 2px var(--sidebar, var(--background));
-}
-.radar-double-shortcut {
-  position: absolute;
-  inset: auto 0 0 auto;
-  padding: 0 2px;
-  border-radius: 3px;
-  background: var(--sidebar, var(--background));
-  color: var(--foreground);
-  font-size: 9px;
-  line-height: 12px;
-}
+/* Radar Sidebar: plugin-owned styles using BB theme tokens. BB owns the rail and sidebar shell. */
 
 /* Rail tooltip: beside the hovered control, above the host's panels. */
 .radar-rail-tip {
@@ -172,23 +49,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .radar-rail-tip { animation: none; }
-  .radar-double-rail .radar-nav-icon-button,
-  .radar-double-rail .radar-nav-icon-button svg,
-  .radar-double-rail .radar-nav-icon-button::before { transition: none; }
-  .radar-double-rail .radar-nav-icon-button:hover:not(:disabled) svg,
-  .radar-double-rail .radar-nav-icon-button:active:not(:disabled) { transform: none; }
-}
-
-@media (min-width: 768px) and (max-height: 540px) {
-  .radar-double-navigation .radar-double-rail {
-    gap: 8px;
-    padding-block: 54px 8px; /* still clears BB's 48px header row */
-  }
-  .radar-double-rail-items { gap: 4px; }
-  .radar-double-rail .radar-nav-icon-button {
-    height: 32px;
-  }
-
 }
 
 .radar-list {
@@ -336,29 +196,6 @@
 .radar-view-action:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .radar-view-action [data-icon-root] { width: 14px; height: 14px; }
 
-/* New thread, handed over by the rail when its mobile heading is hidden. */
-.radar-new-thread-button {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  margin-left: auto; /* the right edge, even beside the crew pill alone */
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary);
-  cursor: pointer;
-}
-.radar-new-thread-button:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-foreground, #fff);
-}
-.radar-new-thread-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.radar-new-thread-button [data-icon-root] { width: 16px; height: 16px; }
-
 /* Only while something narrows the list: one removable pill per filter. */
 .radar-active-filters {
   display: flex;
@@ -427,8 +264,7 @@
   /* Doubled up to outrank the base rules below. */
   .radar-search .radar-search-input { height: 36px; }
   .radar-search .radar-search-shortcut { display: none; }
-  .radar-view-button,
-  .radar-new-thread-button { width: 36px; height: 36px; }
+  .radar-view-button { width: 36px; height: 36px; }
   .radar-view-panel .radar-segmented-button,
   .radar-view-action { min-height: 36px; }
   .radar-view-panel .radar-chip,
@@ -3138,284 +2974,6 @@ a.radar-row-main:hover {
   padding: 8px 0 4px;
 }
 
-/* ---- Navigation replacement. ---- */
-
-.radar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 8px 4px;
-}
-
-/* Touch viewports keep a sidebar wide enough for a row of icons (a drawer on
-   phones), so the icon-only nav spreads across the top like a toolbar and
-   wraps onto a second row only when more icons than fit. The min() keeps the
-   32px track from overflowing a rail narrower than 48px. */
-.radar-nav-compact:not(.radar-double-rail) {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(32px, 100%), 1fr));
-  justify-items: center;
-  gap: 4px 0;
-}
-
-.radar-nav-primary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 32px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--primary);
-  color: var(--primary-foreground, #fff);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.radar-nav-primary:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-
-.radar-nav-primary:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.radar-nav-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--muted-foreground);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.radar-nav-search:hover:not(:disabled) {
-  color: var(--foreground);
-  border-color: var(--ring, var(--primary));
-}
-
-.radar-nav-search:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.radar-nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-}
-
-.radar-nav-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.radar-nav-row:hover:not(:disabled) {
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.radar-nav-row:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.radar-nav-row-active {
-  background: var(--accent, var(--muted));
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.radar-nav-icon {
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-
-.radar-nav-icon[data-icon-root] {
-  width: 15px;
-  height: 15px;
-}
-
-.radar-nav-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-
-.radar-nav-icon-button {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-
-.radar-nav-icon-button:hover:not(:disabled) {
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.radar-nav-icon-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.radar-nav-icon-primary {
-  background: var(--primary);
-  color: var(--primary-foreground, #fff);
-}
-
-.radar-nav-icon-primary:hover:not(:disabled) {
-  background: var(--primary);
-  color: var(--primary-foreground, #fff);
-  filter: brightness(1.06);
-}
-
-.radar-nav-icon-button [data-icon-root] {
-  width: 16px;
-  height: 16px;
-}
-
-.radar-nav-count {
-  flex: none;
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: 9999px;
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.radar-nav-icon-button .radar-nav-count {
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
-  min-width: 16px;
-  padding: 0 4px;
-  font-size: 10px;
-  line-height: 14px;
-}
-
-.radar-nav-icon-button {
-  position: relative;
-}
-
-/* "More" overflow popover: fixed beside the trigger, like stock BB. */
-
-.radar-nav-more-pop {
-  position: fixed;
-  z-index: 100;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--popover, var(--card));
-  box-shadow:
-    0 8px 24px rgb(0 0 0 / 0.16),
-    0 2px 6px rgb(0 0 0 / 0.08);
-  outline: none;
-}
-
-.radar-nav-more-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 6px 6px 10px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.radar-nav-more-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
-.radar-nav-more-hint {
-  font-size: 11px;
-  color: var(--muted-foreground);
-}
-
-.radar-nav-more-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: min(360px, 60vh);
-  overflow-y: auto;
-}
-
-.radar-nav-more-list .radar-nav-row {
-  min-height: 32px;
-}
-
-.radar-nav-more-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.radar-nav-more-actions-split {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
-}
-.radar-nav-more-actions .radar-nav-row { min-height: 32px; }
-.radar-nav-more-actions .radar-nav-icon { display: inline-grid; place-items: center; }
-.radar-nav-more-actions .radar-nav-icon :is(svg, [data-icon-root]) { width: 15px; height: 15px; }
-
-.radar-nav-accessory {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  max-width: 4rem;
-  max-height: 1.25rem;
-  overflow: hidden;
-}
-
-.radar-nav-primary-in-pop {
-  margin: 2px;
-  width: calc(100% - 4px);
-}
-
-.radar-nav-more-list .radar-nav-search {
-  margin: 2px;
-  width: calc(100% - 4px);
-}
-
 /* ---- Floating Bulk Action Dock. ---- */
 
 .radar-bulk-bar {
@@ -3819,153 +3377,6 @@ a.radar-row-main:hover {
   box-shadow: none;
 }
 
-/* ---- Rail experiments: status badge, wide mode, surface tint. ---- */
-
-/* The rail is its own layer: a hair darker (or lighter, in dark themes)
-   than the thread list, the way chat apps separate workspaces from
-   channels. railHostStyles.ts tints BB's footer backdrop to match. */
-.radar-double-navigation .radar-double-rail {
-  background: color-mix(in srgb, var(--sidebar, var(--background)) 94%, var(--foreground));
-}
-.radar-double-rail .radar-nav-icon-button:hover:not(:disabled),
-.radar-double-rail .radar-nav-row-active {
-  background: color-mix(in srgb, var(--sidebar, var(--background)) 70%, var(--foreground) 10%);
-}
-.radar-double-rail .radar-nav-row-active {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-}
-
-/* Wide mode: the rail grows to 168px and buttons become labelled rows. */
-.radar-rail-label { display: none; }
-
-.radar-double-navigation .radar-double-rail { transition: width 200ms linear; }
-/* Labels wait for the width to land, then fade in; collapsing just drops
-   them, which reads as the rail "closing over" the text. */
-@keyframes radar-rail-label-in { from { opacity: 0; } to { opacity: 1; } }
-.radar-double-navigation-wide .radar-rail-label,
-.radar-double-navigation-wide .radar-double-rail .radar-nav-count,
-.radar-double-navigation-wide .radar-double-rail .radar-double-shortcut {
-  animation: radar-rail-label-in 140ms ease-out 140ms both;
-}
-.radar-double-navigation-wide .radar-double-rail .radar-nav-row-active,
-.radar-double-navigation-wide .radar-double-rail .radar-rail-bot-active {
-  animation: radar-rail-label-in 200ms linear both;
-}
-.radar-double-navigation-wide .radar-double-rail {
-  width: var(--radar-rail-width);
-  align-items: stretch;
-}
-.radar-double-navigation-wide .radar-double-rail-items,
-.radar-double-navigation-wide .radar-double-rail-footer { align-items: stretch; }
-.radar-double-navigation-wide .radar-double-rail .radar-nav-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  height: 42px;
-  padding: 0 11px 0 13px; /* icon stays at the same x as in the narrow rail */
-  border-radius: 12px;
-}
-.radar-double-navigation-wide .radar-double-rail .radar-nav-icon-button svg { width: 20px; height: 20px; }
-.radar-double-navigation-wide .radar-rail-label {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-}
-.radar-double-navigation-wide .radar-double-rail .radar-nav-row-active .radar-rail-label { font-weight: 600; }
-.radar-double-navigation-wide .radar-double-rail .radar-nav-icon-button::before { display: none; }
-.radar-double-navigation-wide .radar-double-rail .radar-nav-icon-button:hover:not(:disabled) svg { transform: none; }
-.radar-double-navigation-wide .radar-double-rail .radar-nav-icon-button .radar-nav-count {
-  position: static;
-  box-shadow: none;
-  background: var(--muted);
-  color: var(--muted-foreground);
-  min-width: 18px;
-  font-size: 10px;
-  line-height: 18px;
-}
-.radar-double-navigation-wide .radar-rail-dot { top: 50%; right: 10px; transform: translateY(-50%); }
-.radar-double-navigation-wide .radar-double-shortcut { position: static; margin-left: auto; }
-.radar-double-navigation-wide .radar-rail-toggle { color: var(--muted-foreground); }
-
-@media (prefers-reduced-motion: reduce) {
-  .radar-double-navigation .radar-double-rail { transition: none; }
-  .radar-double-navigation-wide *,
-  .radar-double-navigation-wide *::before,
-  .radar-double-navigation-wide *::after { animation: none !important; }
-}
-
-/* Bot rail: neutral selection, independent unread light, shared state faces. */
-.radar-rail-bots { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
-.radar-rail-divider { display: block; width: 24px; height: 1px; margin: 4px 0 6px; background: var(--border); }
-.radar-rail-bot { --bot-color: oklch(0.65 0.14 var(--bot-hue)); }
-.radar-double-rail .radar-rail-bot-active { background: var(--muted); }
-.radar-double-rail .radar-rail-bot-active::before { height: 22px; background: oklch(0.65 0.14 var(--bot-hue)); }
-.radar-rail-bot-copy { display: none; min-width: 0; flex: 1; }
-.radar-double-navigation-wide .radar-rail-bot-copy { display: flex; flex-direction: column; gap: 2px; }
-.radar-double-navigation-wide .radar-rail-bot-copy .radar-rail-label { flex: none; line-height: 15px; }
-.radar-rail-bot-state-label { font-size: 10px; line-height: 12px; font-weight: 600; text-align: left; white-space: nowrap; animation: none; }
-.radar-double-navigation-wide .radar-rail-bots { align-items: stretch; }
-.radar-double-navigation-wide .radar-rail-divider { width: auto; margin: 4px 10px 6px; }
-.radar-double-rail .radar-rail-bot-unread { background: color-mix(in srgb, var(--primary) 16%, transparent); }
-.radar-double-rail .radar-rail-bot-unread:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 23%, transparent); }
-.radar-rail-bot-unread .radar-rail-label { font-weight: 650; }
-/* The avatar owns the dot. A quiet unread setting still retains a cue next to an attention badge. */
-.radar-rail-bot-unread-badge { display: none; }
-.radar-rail-bot:not(.radar-rail-bot-unread):has(.radar-bot-attention-badge) .radar-rail-bot-unread-badge { display: block; position: absolute; left: 0; top: 50%; width: 3px; height: 14px; border-radius: 3px; background: var(--primary); transform: translateY(-50%); }
-.radar-double-rail .radar-rail-bot .radar-bot-avatar .radar-bot-state-ring,
-.radar-double-rail .radar-rail-bot:hover:not(:disabled) .radar-bot-avatar .radar-bot-state-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
-@media (min-width: 768px) and (max-height: 760px) {
-  .radar-double-navigation-bots .radar-double-rail { gap: 8px; padding-bottom: 8px; }
-  .radar-double-navigation-bots .radar-double-rail-items, .radar-double-navigation-bots .radar-double-rail-footer, .radar-double-navigation-bots .radar-rail-bots { gap: 4px; }
-  .radar-double-navigation-bots .radar-double-rail .radar-nav-icon-button { height: 36px; }
-  .radar-double-navigation-bots .radar-bot-avatar { width: 34px; height: 34px; }
-  .radar-double-navigation-bots .radar-double-rail-footer .radar-nav-icon-button { height: 32px; }
-  .radar-double-navigation-bots .radar-double-rail-footer .radar-rail-divider { margin-block: 0; }
-}
-
-/* Both stacks retain their full control width. A visible scroll thumb in
-   the rail's edge tracks the viewport without fading the final item or
-   changing BB's footer overflow measurements. Wheel/touch scroll normally. */
-.radar-double-navigation[data-rail-overflow] .radar-double-rail::after {
-  content: "";
-  position: absolute;
-  right: 2px;
-  top: var(--radar-scroll-top);
-  height: var(--radar-scroll-height);
-  width: 3px;
-  border-radius: 9999px;
-  background: var(--muted-foreground);
-  opacity: 0.65;
-  pointer-events: none;
-}
-
-/* ---- The rail in the mobile drawer. ----
-   Same rail, 56px wide, full height; BB's footer keeps its mobile row
-   layout beside it. No hover tooltips or wide mode here. */
-@media (max-width: 767px) {
-  /* Phones with a notch / home bar: BB pads the drawer by the safe-area
-     insets, so the rail does the same instead of sliding under them. */
-  .radar-double-navigation-compact .radar-double-rail {
-    top: env(safe-area-inset-top, 0px); /* status bar stays one colour */
-    width: var(--radar-rail-width, 56px);
-    padding: 56px 5px calc(10px + env(safe-area-inset-bottom, 0px));
-    margin-left: env(safe-area-inset-left, 0px);
-  }
-  .radar-double-navigation-compact .radar-double-rail .radar-nav-icon-button {
-    width: 44px;
-    height: 44px;
-  }
-}
-
-
 /* ---- Bots deck and needs-you lane (salem fork) ---------------------------- */
 .radar-crew-header {
   display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 4px;
@@ -3994,7 +3405,13 @@ a.radar-row-main:hover {
 .radar-bot-card:hover { transform: translateY(-1px); box-shadow: 0 6px 18px -12px var(--bot-color); }
 .radar-bot-main { display: flex; flex: 1; min-width: 0; gap: 9px; align-items: center; text-decoration: none; color: inherit; }
 .radar-bot-avatar { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; }
-.radar-bot-face { position: relative; z-index: 1; font-size: 17px; line-height: 1; filter: saturate(1.1); }
+/* Emoji ink can extend beyond a one-em line box. Leave room for the full
+   glyph without a filter creating a separate paint surface around it. */
+.radar-bot-face { position: relative; z-index: 1; display: grid; place-items: center; font-size: 17px; line-height: 1.4; }
+/* Crew mascots replace the old emoji faces; the letter fallback keeps the same box. */
+.bot-mascot { display: inline-block; vertical-align: -0.25em; }
+.bot-face-text { display: inline-block; }
+.radar-crew-job-face { display: inline-flex; align-items: center; }
 .radar-bot-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .radar-bot-ring circle { fill: none; stroke-width: 3; }
 .radar-bot-ring-track { stroke: color-mix(in srgb, var(--bot-color) 22%, transparent); }
@@ -4269,3 +3686,15 @@ a.radar-row-main:hover {
   font-weight: 600;
   line-height: 16px;
 }
+
+/* Bot shortcuts stay inside the thread-list region on every screen size. */
+.radar-bot-switcher { display: flex; align-items: center; gap: 3px; padding: 2px 1px 5px; overflow-x: auto; scrollbar-width: none; }
+.radar-bot-shortcut { display: inline-flex; align-items: center; justify-content: center; position: relative; flex: none; width: 32px; height: 32px; padding: 1px; border: 1px solid transparent; border-radius: 10px; color: var(--muted-foreground); background: transparent; cursor: pointer; }
+.radar-bot-shortcut > :is(svg, [data-icon-root]) { width: 18px; height: 18px; }
+.radar-bot-shortcut .radar-bot-avatar { width: 28px; height: 28px; }
+.radar-bot-shortcut:hover { background: var(--state-hover, color-mix(in srgb, var(--foreground) 7%, transparent)); color: var(--foreground); }
+.radar-bot-shortcut-selected { border-color: var(--border); background: var(--state-active, color-mix(in srgb, var(--foreground) 10%, transparent)); }
+.radar-bot-shortcut-unread { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.radar-bot-shortcut:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
+.radar-list-compact .radar-bot-shortcut { width: 40px; height: 40px; }
+.radar-list-compact .radar-bot-shortcut .radar-bot-avatar { width: 34px; height: 34px; }

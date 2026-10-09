@@ -7,7 +7,6 @@ import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
 import { resetRailScope, setRailScope } from "./railScope";
-import { setRailNewThread } from "./railNewThread";
 import { startOfToday } from "./crew";
 import { hideBot, resetHiddenBots } from "./botVisibility";
 
@@ -145,6 +144,50 @@ describe("bot scope and experiment fallback", () => {
     makeThread({ id: "other", projectId: "other" }),
   ];
   const sdk = { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [bot] }) } };
+  it("keeps bot shortcuts usable without the retired navigation setting", async () => {
+    const navigated = vi.fn();
+    const slot = renderThreads(threads, { projects, sdk, settings: { railNav: false, botRail: true }, isCompactViewport: true, onNavigate: navigated });
+    const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
+    fireEvent.click(within(shortcuts).getByRole("button", { name: /Personal Bot,/ }));
+    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+    expect(navigated).toHaveBeenCalledOnce();
+    expect(visibleRowIds(slot.container)).toEqual(["worker"]);
+    expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe("personal");
+    fireEvent.click(within(shortcuts).getByRole("button", { name: "Show other threads" }));
+    expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]);
+  });
+  it("traverses bot shortcuts from the keyboard without acting on a thread row", async () => {
+    const slot = renderThreads(threads, { projects, sdk, settings: { botRail: true } });
+    const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
+    const home = within(shortcuts).getByRole("button", { name: "Show other threads" });
+    home.focus();
+    fireEvent.keyDown(home, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(within(shortcuts).getByRole("button", { name: /Personal Bot,/ }));
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    expect(document.activeElement?.getAttribute("aria-label")).toContain("Personal Bot");
+    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+  });
+  it("preserves desktop bot details and closes them with Escape", async () => {
+    renderThreads(threads, { projects, sdk, settings: { botRail: true, hoverCard: false } });
+    const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
+    const button = within(shortcuts).getByRole("button", { name: /Personal Bot,/ });
+    button.focus();
+    const card = await screen.findByRole("dialog", { name: "Personal Bot details" });
+    expect(within(card).getByRole("region", { name: "Workers" })).toBeTruthy();
+    expect(within(card).getByRole("region", { name: "Context usage" })).toBeTruthy();
+    fireEvent.keyDown(button, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(card.querySelector("a"));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Personal Bot details" })).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+  it("keeps a hidden bot shortcut accessible for an unread failure", async () => {
+    hideBot("personal");
+    renderThreads(threads.map(thread => thread.id === "root" ? { ...thread, status: "error" as const, isUnread: true } : thread),
+      { projects, sdk, settings: { botRail: true } });
+    const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
+    expect(within(shortcuts).getByRole("button", { name: /Personal Bot, Failed · Unread reply/ })).toBeTruthy();
+  });
   it("tucks pinned coordinators and workers into the rail, selects only workers, and preserves unrelated threads", async () => {
     setRailScope("personal");
     const slot = renderThreads(threads, { projects, sdk, settings: { railNav: true, botRail: true } });
@@ -271,7 +314,8 @@ describe("bot scope and experiment fallback", () => {
     expect(screen.getByRole("button", { name: "Personal, Idle: Open coordinator. Inbox is clear." })).toBeTruthy();
     expect(asked).toEqual([{ threads: [{ threadId: "root", version: 100 }, { threadId: "plain", version: 200 }] }]);
   }, 15_000);
-  it.each([{ railNav: false, botRail: true }, { railNav: true, botRail: false }])("ignores a saved bot filter with either flag off: %j", async settings => {
+  it("ignores a saved bot filter when bot shortcuts are off", async () => {
+    const settings = { botRail: false };
     setRailScope("personal");
     const slot = renderThreads(threads, { projects, sdk, settings: { ...settings, botsDeck: false } });
     await act(async () => {});
@@ -1899,32 +1943,6 @@ describe("Pinned smart view", () => {
       expect(screen.getByRole("button", { name: "Clear Unread filter" })).toBeTruthy(),
     );
     expect(screen.queryByRole("button", { name: "Clear Pinned filter" })).toBeNull();
-  });
-});
-
-describe("new thread handoff", () => {
-  afterEach(() => setRailNewThread(null));
-
-  it("shows New thread beside the search only while the rail hands it over", () => {
-    const navigated = vi.fn();
-    renderSlot(
-      threadList,
-      { activeThreadId: null, activeProjectId: "proj_a", isCompactViewport: true, onNavigate: navigated, searchQuery: "" },
-      { sdk: sdkFakes(), sidebarThreads: { status: "ready", threads: [], projects: [], sections: [], experimental_archived: null } },
-    );
-    expect(screen.queryByRole("button", { name: "New thread" })).toBeNull();
-
-    const open = vi.fn();
-    act(() => setRailNewThread({ open, label: "New thread (⌘N)", keyShortcuts: "Meta+N" }));
-    const button = screen.getByRole("button", { name: "New thread" });
-    expect(button.getAttribute("aria-keyshortcuts")).toBe("Meta+N");
-    expect(button.getAttribute("title")).toContain("New thread (⌘N)");
-    fireEvent.click(button);
-    expect(open).toHaveBeenCalledWith(false);
-    expect(navigated).toHaveBeenCalledOnce();
-
-    act(() => setRailNewThread(null));
-    expect(screen.queryByRole("button", { name: "New thread" })).toBeNull();
   });
 });
 

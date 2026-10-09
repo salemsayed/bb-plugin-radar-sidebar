@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Clock01Icon from "@hugeicons/core-free-icons/Clock01Icon";
-import { botStyle, shortBotName, type RosterBot } from "./bots";
+import { BotFace } from "./BotFace";
+import { shortBotName, type RosterBot } from "./bots";
 import { openNeeds, type NeedsItem, type NeedsSeen } from "@/lib/needs";
 import { CAIRO, cairoLocal, dueLabel, snoozedLabel } from "@/lib/reminderTimes";
 import { shortAgo } from "./crew";
@@ -55,7 +56,7 @@ function NeedsRow({ item, roster, now, onUpdate, onOpen, replySeen }: {
         {item.source.threadId ? <button type="button" className="radar-needs-open" disabled={busy} onClick={() => onOpen(item.source.threadId!)} aria-label={`Open: ${item.text}`}>{text}</button> : <div className="radar-needs-plain">{text}</div>}
         {replySeen ? <span className="radar-needs-reply-seen" title="A later reply was seen, but the bot has not confirmed this ask is resolved. Open the thread, or mark it done if you have handled it.">Reply seen, not confirmed</span> : null}
         <div className={`radar-needs-meta${due ? " radar-needs-meta-has-due" : ""}`}>
-          <span className="radar-needs-who"><span aria-hidden="true">{botStyle(item.bot, name).emoji}</span> <span className="radar-needs-who-name">{name}</span></span>
+          <span className="radar-needs-who"><BotFace botKey={item.bot} name={name} size={14} /> <span className="radar-needs-who-name">{name}</span></span>
           <span className={due ? `radar-needs-due${overdue ? " radar-needs-overdue" : ""}` : "radar-needs-age"}>
             {item.state === "snoozed" ? "Snoozed" : due ? `${overdue ? "Overdue" : "Due"} ${due}` : shortAgo(Date.parse(item.createdAt), now)}
           </span>

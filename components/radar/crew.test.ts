@@ -47,7 +47,7 @@ describe("crew row", () => {
     });
   });
 
-  it("uses Jev's judgement of the same reply when there is no Decision needed line", () => {
+  it("uses the saved request state and suppresses stale question prose", () => {
     const personal = bot("personal");
     const coordinator = makeThread({ id: personal.current, latestAttentionAt: NOW - HOUR });
     const pulse = reply("Tickets are EGP 800 each.");
@@ -60,8 +60,8 @@ describe("crew row", () => {
       expect(row({ bot: personal, threads: [coordinator], pulse, judgement: stale }).line.tone).toBe("quiet");
     }
     expect(row({ bot: personal, threads: [{ ...coordinator, status: "active" }], pulse, judgement: judgement({}) }).line.tone).toBe("running");
-    // The bot's own marker wins over Jev's pick.
-    expect(row({ bot: personal, threads: [coordinator], pulse: reply("Done", "go to post it?"), judgement: judgement({ waiting: 0.1 }) }).line.text).toBe("Go to post it?");
+    // An explicitly empty request list suppresses an old prose question.
+    expect(row({ bot: personal, threads: [coordinator], pulse: reply("Done", "go to post it?"), judgement: judgement({ waiting: 0 }) }).line.text).toBe("Done");
   });
 
   it("puts failures ahead of questions and counts the rest", () => {

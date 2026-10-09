@@ -8,7 +8,7 @@ import type { GroupHeaderData } from "./RadarGroupHeader";
 interface Props {
   thread: PluginSidebarThread;
   name: string;
-  emoji: string;
+  botKey: string;
   hue: number;
   state: BotState;
   pulse: Pulse | null;
@@ -26,7 +26,7 @@ interface Props {
  * context window does (rollover at 75%), the state, and the one line that
  * matters from its last reply. Workers fold underneath like any family.
  */
-export function RadarBotCard({ thread, name, emoji, hue, state, pulse, group, isCollapsed, hasChildren, timeText, motion, onToggle, onNavigate }: Props) {
+export function RadarBotCard({ thread, name, botKey, hue, state, pulse, group, isCollapsed, hasChildren, timeText, motion, onToggle, onNavigate }: Props) {
   const label = STATE_LABELS[state];
   const short = shortBotName(name);
   const line = pulse?.decision ? pulse.decision : pulse?.subject || "No reply yet";
@@ -39,7 +39,7 @@ export function RadarBotCard({ thread, name, emoji, hue, state, pulse, group, is
       data-thread-id={thread.id}
     >
       <a className="radar-bot-main" href={thread.href} onClick={() => onNavigate()} aria-label={`${name}, ${label.text}`} title={line}>
-        <BotAvatar emoji={emoji} context={context} />
+        <BotAvatar botKey={botKey} name={name} context={context} />
         <span className="radar-bot-body">
           <span className="radar-bot-head">
             <span className="radar-bot-name">{short}</span>

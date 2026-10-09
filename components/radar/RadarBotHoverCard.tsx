@@ -63,7 +63,7 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip
         }
       }}>
       <div className="radar-bot-hover-head">
-        <BotAvatar emoji={style.emoji} state={state} unread={coordinator?.isUnread} motion={motion} />
+        <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={coordinator?.isUnread} motion={motion} />
         <div className="radar-bot-hover-heading"><strong>{bot.name}</strong>
           <span className="radar-bot-hover-muted">{coordinator && pulse?.subject ? `Replied ${timeAgo(coordinator.latestAttentionAt, Date.now())} · ${coordinator.isUnread ? "unread" : "read"}` : "No reply yet"}</span>
         </div>
