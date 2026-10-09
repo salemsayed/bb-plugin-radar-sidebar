@@ -2,7 +2,8 @@ import { cn } from "@/lib/utils";
 import type { BotState } from "./bots";
 import { BotFace } from "./BotFace";
 
-const RADIUS = 17;
+// The ring runs in the mascot art's margin, just outside the body, so it never cuts through the face.
+const RADIUS = 18.5;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /** State signals share one visual language in the rail, roster and details. */
@@ -22,7 +23,7 @@ export function BotAvatar({ botKey, name, context = null, state, unread = false,
     </svg> : ring ? <svg className={cn("radar-bot-state-ring", `radar-bot-state-ring-${state}`, motion && "radar-bot-state-motion")} viewBox="0 0 40 40">
       <circle cx="20" cy="20" r={RADIUS} />
     </svg> : null}
-    <span className="radar-bot-face"><BotFace botKey={botKey} name={name} state={state} size={34} /></span>
+    <span className="radar-bot-face"><BotFace botKey={botKey} name={name} state={state} size="100%" /></span>
     {badge ? <span className={cn("radar-bot-attention-badge", state === "failed" ? "radar-bot-badge-error" : "radar-bot-badge-warning")}>{badge}</span> : null}
     {(unread || state === "unread") && !badge ? <span className="radar-bot-unread-dot" /> : null}
   </span>;

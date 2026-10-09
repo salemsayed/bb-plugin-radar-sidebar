@@ -6,7 +6,7 @@ import { useNeedsYou } from "@/lib/needsClient";
 import { needsChanged } from "@/lib/needsClient";
 import type { NeedsItem } from "@/lib/needs";
 import { BotFace } from "./BotFace";
-import { botStyle, QUIET_LINE, shortBotName, type Pulse, type RosterBot } from "./bots";
+import { botStyle, QUIET_LINE, shortBotName, type BotState, type Pulse, type RosterBot } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { NeedsYouList } from "./NeedsYouList";
 import { isRunningThread, shortAgo } from "./time";
@@ -20,6 +20,11 @@ export type CardState = "needs-you" | "failed" | "working" | "queued" | "handove
 const STATE_TEXT: Record<CardState, string> = {
   "needs-you": "Needs you", failed: "Failed", working: "Working", queued: "Queued", handover: "Handing over",
   waiting: "Machine offline", quiet: "Quiet", unavailable: "Unavailable",
+};
+/** The card's face wears the same expression as the bot row. */
+const FACE_STATE: Record<CardState, BotState> = {
+  "needs-you": "needs-you", failed: "failed", working: "working", queued: "queued", handover: "rollover",
+  waiting: "unavailable", unavailable: "unavailable", quiet: "idle",
 };
 const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, queued: 3, handover: 4, waiting: 5, unavailable: 6, quiet: 7 };
 type WorkerState = "needs-you" | "failed" | "working" | "queued";
@@ -112,7 +117,7 @@ export function CrewWorkspace() {
     <div className="crew-overview-scroll"><main className="crew-overview">
       <section aria-label="Needs you" className="crew-needs">
         {blocked.length ? <ul className="crew-blocked" aria-label="Waiting for your answer or approval">{blocked.map(({ bot, thread }) => <li key={thread.id}>
-          <BotFace botKey={bot.key} name={bot.name} size={20} />
+          <BotFace botKey={bot.key} name={bot.name} state="needs-you" size={20} />
           <span className="crew-blocked-text"><strong>{shortBotName(bot.name)}</strong> {thread.id === bot.current ? "is waiting for your answer or approval" : `· ${thread.displayTitle || "A worker"} is waiting for your answer or approval`}</span>
           <button type="button" className="crew-button crew-primary" onClick={() => open(thread.id)}>Review</button>
         </li>)}</ul> : null}
@@ -135,7 +140,7 @@ function BotCard({ card, now, onOpen }: { card: CrewCard; now: number; onOpen: (
   const style = botStyle(bot.key, bot.name);
   return <article className={cn("crew-card", `crew-card-${state}`)} style={{ "--bot-hue": style.hue } as React.CSSProperties} aria-label={`${bot.name}: ${STATE_TEXT[state]}`}>
     <button type="button" className="crew-card-head" onClick={() => onOpen(bot.current)} aria-label={`Open ${bot.name}`}>
-      <BotFace botKey={bot.key} name={bot.name} size={30} />
+      <BotFace botKey={bot.key} name={bot.name} state={FACE_STATE[state]} size={30} />
       <span className="crew-card-name"><strong>{shortBotName(bot.name)}</strong><small>{coordinator?.host?.name ?? "Unknown machine"}</small></span>
       <span className={cn("crew-chip", `crew-chip-${state}`)}>{STATE_TEXT[state]}</span>
       {context !== null ? <ContextRing value={context} /> : null}
@@ -154,7 +159,7 @@ function BotCard({ card, now, onOpen }: { card: CrewCard; now: number; onOpen: (
       : reply ? <div className="crew-card-section">
         <span className="crew-label">Last reply {clock.format(reply.at)}</span>
         <p className="crew-reply">{reply.text}</p>
-      </div> : <p className="crew-muted">No reply yet.</p>}
+      </div> : <p className="crew-muted">{state === "working" ? "Working on a reply…" : "No reply yet."}</p>}
     {chatgpt || needs || olderFailures ? <div className="crew-card-foot">
       {chatgpt ? <span className="crew-via" title="Instructions ChatGPT sent this bot today">ChatGPT sent {chatgpt.instructions} instruction{chatgpt.instructions === 1 ? "" : "s"} today · last {clock.format(chatgpt.lastAt)}</span> : null}
       {needs ? <span className="crew-muted">{needs} on your list</span> : null}
