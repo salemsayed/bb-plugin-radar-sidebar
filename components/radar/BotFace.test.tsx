@@ -25,4 +25,8 @@ describe("bot faces", () => {
     expect(html).toContain('width="100%"');
     expect(renderToStaticMarkup(<BotAvatar botKey="home" name="Home Bot" state="working" />)).toContain("radar-bot-state-ring-working");
   });
+  it("spin an HTML wrapper so the ring keeps turning while the page is busy", () => {
+    const html = renderToStaticMarkup(<BotAvatar botKey="bricks" name="Bricks Bot" state="working" />);
+    expect(html).toMatch(/<span class="radar-bot-state-spin radar-bot-state-spin-working radar-bot-state-motion"><svg class="radar-bot-state-ring radar-bot-state-ring-working"/);
+  });
 });

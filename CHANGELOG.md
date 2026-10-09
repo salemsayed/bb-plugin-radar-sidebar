@@ -16,6 +16,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 - Rebuild Crew as a read-only overview: pending approvals and the Needs You list, then one card per bot with state, machine, context ring, live or blocked workers (hidden included), latest reply and ChatGPT's instructions today. Old failures are counted, not listed. The header shows ChatGPT's connection and alert-watch deadline.
 - The Crew rail icon shows a count of what needs Salem, or a dot while bots work.
 - The bot row starts with **All** instead of a house icon, so it is not mistaken for BB's rail Home.
+- The working spinner no longer freezes while BB is busy (for example rendering or streaming a long Bricks thread): it now rotates an HTML wrapper on the compositor instead of animating the SVG on the main thread.
 - Visual pass on bot faces and status: faces now fit their frame, so rings no longer cut through them and badges sit in the corner instead of on an eye. Each state has its own expression (calm, busy, asking, crossed out, asleep). "?" badges are bright amber with dark ink so they read on orange and yellow bots, and queued and handover rings are easier to tell from working. Bricks loses the bars that read as teeth; ERBareeq's bolt moves clear of its eyes. Crew cards wear the same expressions, and shortcuts are a little larger on desktop while all six still fit a phone drawer.
 - A bot's ask comes from its open decision or urgent Needs You item instead of Crew requests.
 

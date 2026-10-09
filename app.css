@@ -3434,12 +3434,13 @@ a.radar-row-main:hover {
 /* Bright amber with dark ink: theme warnings are often brown, which disappears on orange and yellow bots. */
 .radar-bot-badge-warning { background: #f6b21b; color: #2a1a00; }
 .radar-bot-unread-dot { position: absolute; z-index: 2; top: -1px; right: -1px; width: max(8px, 24%); height: max(8px, 24%); border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--badge-cut); }
-@keyframes radar-bot-ring-rotate { to { rotate: 360deg; } }
+.radar-bot-state-spin { position: absolute; inset: 0; }
+@keyframes radar-bot-ring-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: no-preference) {
-  .radar-bot-state-ring-working.radar-bot-state-motion { animation: radar-bot-ring-rotate 1.4s linear infinite; }
-  .radar-bot-state-ring-rollover.radar-bot-state-motion { animation: radar-bot-ring-rotate 4s linear infinite; }
+  .radar-bot-state-spin-working.radar-bot-state-motion { animation: radar-bot-ring-rotate 1.4s linear infinite; will-change: transform; }
+  .radar-bot-state-spin-rollover.radar-bot-state-motion { animation: radar-bot-ring-rotate 4s linear infinite; will-change: transform; }
 }
-[data-radar-motion="off"] .radar-bot-state-ring { animation: none !important; }
+[data-radar-motion="off"] .radar-bot-state-spin { animation: none !important; }
 .radar-bot-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
 .radar-bot-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .radar-bot-name { font-size: 13px; font-weight: 650; white-space: nowrap; color: var(--foreground); }

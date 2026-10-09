@@ -20,9 +20,15 @@ export function BotAvatar({ botKey, name, context = null, state, unread = false,
       <circle className="radar-bot-ring-track" cx="20" cy="20" r={RADIUS} />
       <circle className="radar-bot-ring-fill" cx="20" cy="20" r={RADIUS}
         strokeDasharray={CIRCUMFERENCE} strokeDashoffset={CIRCUMFERENCE * (1 - fill)} />
-    </svg> : ring ? <svg className={cn("radar-bot-state-ring", `radar-bot-state-ring-${state}`, motion && "radar-bot-state-motion")} viewBox="0 0 40 40">
-      <circle cx="20" cy="20" r={RADIUS} />
-    </svg> : null}
+    </svg> : ring ? (
+      // Spin an HTML wrapper, not the SVG: transform animations on HTML run on the compositor,
+      // so the ring keeps turning while BB's main thread is busy (an SVG animation froze with it).
+      <span className={cn("radar-bot-state-spin", `radar-bot-state-spin-${state}`, motion && "radar-bot-state-motion")}>
+        <svg className={cn("radar-bot-state-ring", `radar-bot-state-ring-${state}`)} viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r={RADIUS} />
+        </svg>
+      </span>
+    ) : null}
     <span className="radar-bot-face"><BotFace botKey={botKey} name={name} state={state} size="100%" /></span>
     {badge ? <span className={cn("radar-bot-attention-badge", state === "failed" ? "radar-bot-badge-error" : "radar-bot-badge-warning")}>{badge}</span> : null}
     {(unread || state === "unread") && !badge ? <span className="radar-bot-unread-dot" /> : null}
