@@ -4,6 +4,7 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { NeedsYouList } from "./NeedsYouList";
 import { useNeedsYou } from "./useCrewData";
 import { NEEDS_BOT, NEEDS_NOW, makeNeed } from "./needsFixtures";
+import { makeThread } from "./fixtures";
 
 const app = await loadPluginApp(() => import("../../app"));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -30,7 +31,8 @@ it("renders full asks in due order with bot labels and expandable snoozed remind
 
 it("shows an unavailable saved-decisions service honestly and recovers through Retry", async () => {
   let available = false;
-  renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) } });
+  const sdk = { plugins: { callRpc: async <T,>({ pluginId }: { pluginId: string }) => (pluginId === "chatgpt-events" ? { connected: false } : { bots: [NEEDS_BOT] }) as T } };
+  renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) }, sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: NEEDS_BOT.current })] } });
   expect(await screen.findByText("Saved questions are unavailable.")).toBeTruthy();
   expect(screen.queryByText("Nothing needs you.")).toBeNull();
   available = true;

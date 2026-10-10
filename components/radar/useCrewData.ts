@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useRpc, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { CrewJudgement, crewRpcContract } from "@/lib/crewAsk";
 import { NEEDS_CHANGED } from "@/lib/needsClient";
-import { isLiveThread } from "./time";
 
 const RETRY_UNKNOWN_MS = 5 * 60_000;
 
@@ -15,17 +14,16 @@ export function needsKeyOf(items: readonly { id: string; state: string }[] | nul
  * Whether each settled coordinator is waiting on Salem, from its bot's saved
  * Needs You items on the server (lib/needsServer askJudgements). Asks again
  * when a coordinator settles on a new reply and whenever the Needs You list
- * changes, here or elsewhere (a bot or ChatGPT closing an ask). Live
- * coordinators are not asked about, but the judgement of their current reply
- * is kept: a queued message must not hide an unanswered ask.
+ * changes, here or elsewhere (a bot or ChatGPT closing an ask). Working
+ * coordinators are asked about too: the answer comes from the saved items,
+ * not the reply, and skipping them kept a closed ask on screen while its bot
+ * was busy (Astra, 2026-10-10).
  */
 export function useCrewJudgements(coordinators: readonly PluginSidebarThread[], needsKey = ""): ReadonlyMap<string, CrewJudgement> {
   const rpc = useRpc<typeof crewRpcContract>();
   const [judgements, setJudgements] = useState<ReadonlyMap<string, CrewJudgement>>(() => new Map());
   const [retry, setRetry] = useState(0);
-  const threads = coordinators
-    .filter((thread) => !isLiveThread(thread))
-    .map((thread) => ({ threadId: thread.id, version: thread.latestAttentionAt }));
+  const threads = coordinators.map((thread) => ({ threadId: thread.id, version: thread.latestAttentionAt }));
   const key = threads.map((entry) => `${entry.threadId}@${entry.version}`).join("|");
   useEffect(() => {
     const changed = () => setRetry((count) => count + 1);

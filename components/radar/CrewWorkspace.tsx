@@ -124,7 +124,9 @@ export function CrewWorkspace() {
         {needs.items === null ? <p role="status" className="crew-calm">
           {needs.status === "loading" ? "Loading saved questions…" : <>Saved questions are unavailable. <button type="button" className="crew-button" onClick={needsChanged}>Retry</button></>}
         </p> : <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} />}
-        {needs.items !== null && !waiting ? <p className="crew-calm crew-all-clear">Nothing needs you.</p> : null}
+        {/* All clear only when every bot's coordinator could be read too: it once showed beside "Live bot activity is
+            unavailable.", and beside a bot whose coordinator was missing from the list (Astra, 2026-10-10). */}
+        {needs.items !== null && ready && cards.every(card => card.coordinator) && !waiting ? <p className="crew-calm crew-all-clear">Nothing needs you.</p> : null}
       </section>
       <section aria-labelledby="crew-bots-title">
         <h2 id="crew-bots-title" className="crew-section-title">Bots</h2>

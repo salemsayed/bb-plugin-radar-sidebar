@@ -72,6 +72,17 @@ it("warns before ChatGPT alerts lapse and when the bridge stops reporting", asyn
   expect(await screen.findByText(/ChatGPT bridge is not running/)).toBeTruthy();
 });
 
+it("does not claim all clear while live bot activity is unavailable", async () => {
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) }, sdk: sdk(), sidebarThreads: { status: "error", threads: [] } as never });
+  expect(await screen.findByText("Live bot activity is unavailable.")).toBeTruthy();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
+  cleanup();
+  // A bot whose coordinator is missing from the list is not known to be clear either.
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) }, sdk: sdk(), sidebarThreads: { status: "ready", threads: threads.filter(t => t.id !== "work-coord") } });
+  expect(await screen.findByRole("article", { name: /Work Bot/ })).toBeTruthy();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
+});
+
 it("rail icon shows what needs Salem, else a working dot", () => {
   const { container } = render(<CrewRailIcon />);
   expect(container.querySelector("text")).toBeNull();

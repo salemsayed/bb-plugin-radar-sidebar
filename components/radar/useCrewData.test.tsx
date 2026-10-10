@@ -30,21 +30,19 @@ describe("crew judgements", () => {
     rerender({ key: "n1:done" });
     await waitFor(() => expect(asked).toHaveLength(2));
   });
-  it("keeps a coordinator's judgement while a message is queued or it is running", async () => {
+  it("judges a working or queued coordinator too, so closing its ask clears it", async () => {
     const coord = makeThread({ id: "coord", latestAttentionAt: 100 });
-    const other = makeThread({ id: "other", latestAttentionAt: 50 });
-    const { result, rerender } = renderHook(({ threads }) => useCrewJudgements(threads), { initialProps: { threads: [coord, other] } });
+    const { result, rerender } = renderHook(({ threads, key }) => useCrewJudgements(threads, key), { initialProps: { threads: [coord], key: "n1:open" } });
     await waitFor(() => expect(result.current.get("coord")?.ask).toBe("coord?"));
-    expect(asked).toEqual([[{ threadId: "coord", version: 100 }, { threadId: "other", version: 50 }]]);
-    // Queued: left out of the request, still judged.
-    rerender({ threads: [{ ...coord, queuedWork: "waiting" }, other] });
+    // Starting work alone asks nothing new.
+    rerender({ threads: [{ ...coord, status: "active", queuedWork: "waiting" }], key: "n1:open" });
+    expect(asked).toHaveLength(1);
+    // The ask closed while the bot is busy: asked again, the bot included.
+    rerender({ threads: [{ ...coord, status: "active", queuedWork: "waiting" }], key: "n1:done" });
     await waitFor(() => expect(asked).toHaveLength(2));
-    expect(asked[1]).toEqual([{ threadId: "other", version: 50 }]);
-    expect(result.current.get("coord")).toMatchObject({ version: 100, ask: "coord?" });
-    rerender({ threads: [{ ...coord, status: "active" }, other] });
-    expect(result.current.get("coord")).toMatchObject({ version: 100, ask: "coord?" });
+    expect(asked[1]).toEqual([{ threadId: "coord", version: 100 }]);
     // Settled on a new reply: asked again and replaced.
-    rerender({ threads: [{ ...coord, latestAttentionAt: 200 }, other] });
+    rerender({ threads: [{ ...coord, latestAttentionAt: 200 }], key: "n1:done" });
     await waitFor(() => expect(result.current.get("coord")?.version).toBe(200));
   });
   it("asks again after a Needs You change so Done reaches the bubble", async () => {
