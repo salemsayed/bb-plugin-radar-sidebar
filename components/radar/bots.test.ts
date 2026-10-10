@@ -96,7 +96,7 @@ describe("the single ask record", () => {
     expect(coordinatorAsk(thread, pulse, { ...judged, waiting: 0.2 })).toBeNull();
     expect(coordinatorAsk(thread, { ...pulse, decision: "go?" }, { ...judged, waiting: null, ask: null, itemId: null })).toEqual({ text: "go?", itemId: null });
     expect(coordinatorAsk(thread, { ...pulse, decision: "go?" }, { ...judged, dismissed: true })).toBeNull();
-    expect(coordinatorAsk({ ...thread, status: "active" }, { ...pulse, decision: "go?" }, judged)).toBeNull();
+    expect(coordinatorAsk({ ...thread, status: "active" }, { ...pulse, decision: "go?" }, judged)).toEqual({ text: judged.ask, itemId: "n1" });
     expect(coordinatorAsk(thread, null, { ...judged, ask: null, itemId: null })).toEqual({ text: "Waiting for your answer", itemId: null });
   });
   it("gives the rail a pulse whose decision is that record", () => {

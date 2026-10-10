@@ -18,6 +18,8 @@ export const rosterSchema = z.object({
       providerId: z.string(),
       model: z.string(),
       rollover: z.string().nullable(),
+      unseenAttention: z.number().int().nonnegative().optional(),
+      actionableNeeds: z.number().int().nonnegative().optional(),
     }),
   ),
 });
@@ -93,13 +95,13 @@ export interface CoordinatorAsk {
  * and the Needs You dedupe all read this, so an ask is shown once.
  */
 export function coordinatorAsk(thread: PluginSidebarThread, pulse: Pulse | null, judgement: CrewJudgement | null | undefined): CoordinatorAsk | null {
-  if (isRunningThread(thread)) return null;
   const judged = judgement && judgement.threadId === thread.id && judgement.version === thread.latestAttentionAt ? judgement : null;
   if (judged?.dismissed) return null;
   if (judged && (judged.waiting ?? 0) >= WAITING_THRESHOLD) {
     return { text: judged.ask ?? pulse?.decision ?? pulse?.subject ?? "Waiting for your answer", itemId: judged.itemId ?? null };
   }
   if (judged?.waiting !== null && judged?.waiting !== undefined) return null;
+  if (isRunningThread(thread)) return null;
   return pulse?.decision ? { text: pulse.decision, itemId: judged?.itemId ?? null } : null;
 }
 

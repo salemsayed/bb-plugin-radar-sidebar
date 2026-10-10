@@ -91,15 +91,17 @@ export function botWorkers(threads: readonly PluginSidebarThread[], bot: RosterB
 
 /** Indicators describe the coordinator family, never unrelated project work. */
 export function botRailState(threads: readonly PluginSidebarThread[], bot: RosterBot, pulse: Pulse | null): BotState {
-  const family = botFamily(threads, bot);
+  const ids = botScopeIds(threads, bot);
+  const family = threads.filter(t => ids.has(t.id) && !t.isArchived);
   if (family.some(t => t.status === "error" || t.queuedWork === "failed" || t.indicator === "unread-error" || t.indicator === "queued-failed")) return "failed";
   if (family.some(needsYou)) return "needs-you";
+  if ((bot.actionableNeeds ?? 0) > 0) return "decision";
   const coordinator = indexOf(threads).byId.get(bot.current);
   const state = botState(coordinator, pulse, bot.rollover);
   if (state === "decision" || state === "rollover") return state;
   if (family.some(isRunningThread)) return "working";
   if (family.some(t => t.queuedWork === "waiting")) return "queued";
-  return state === "idle" && family.some(t => t.isUnread) ? "unread" : state;
+  return state === "idle" && (family.some(t => t.isUnread) || (bot.unseenAttention ?? 0) > 0) ? "unread" : state;
 }
 
 /** Order-independent 32-bit mix of a string (FNV-1a), so sorting is unnecessary. */

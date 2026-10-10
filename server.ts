@@ -10,6 +10,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
 import { needsRpcContract } from "./lib/needs";
+import { attentionPageSchema, attentionRpcContract } from "./lib/attention";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
 import {
   DEFAULT_SWIPE_LEFT,
@@ -134,6 +135,10 @@ export default async function plugin(bb: BbPluginApi) {
 
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
+  bb.rpc.register(attentionRpcContract, {
+    crew_attention_list: async i => { try { return { page: await bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "attention_list", input: { after: i.after, unseen: true }, outputSchema: attentionPageSchema }) }; } catch { return { page: null }; } },
+    crew_attention_seen: i => bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "attention_seen", input: i, outputSchema: attentionRpcContract.crew_attention_seen.output }),
+  });
   // Several sidebars peeking at once share one timeline read per thread.
   const digests = new Map<string, { at: number; digest: Promise<WorkingDigest | null> }>();
   const DIGEST_FRESH_MS = 4_000;

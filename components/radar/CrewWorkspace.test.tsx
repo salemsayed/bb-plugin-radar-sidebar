@@ -52,6 +52,28 @@ it("puts saved asks and pending approvals first, and closes an ask on the shared
   expect(slot.inspection.rpcCalls.find(c => c.method === "crew_needs_update")?.input).toMatchObject({ id: "need1", action: "done" });
 });
 
+it("shows exact important MR alerts and acknowledges one without closing work", async () => {
+  const events = [1, 2].map(seq => ({ seq, id: `att_${seq}`, bot: "home", source: `run:mr${seq}`, threadId: "coord", summary: seq === 1 ? "be!738: blocking review requires changes." : "fe!977: remove background location in both flavors.", needsItemId: null, createdAt: now, seenAt: null }));
+  const slot = renderSlot(panel, { subPath: "" }, {
+    rpc: { crew_needs_list: () => ({ items: [] }), crew_attention_list: () => ({ page: { events, cursor: 2, more: false } }), crew_attention_seen: () => ({ acknowledged: 1 }) },
+    sdk: sdk(), sidebarThreads: { status: "ready", threads },
+  });
+  await screen.findByText(/be!738: blocking/);
+  const region = screen.getByRole("region", { name: "Important alerts" });
+  fireEvent.click(within(region).getAllByRole("button", { name: "Open" })[0]!);
+  expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
+  if (process.env.RADAR_QA_DIR) {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(`${process.env.RADAR_QA_DIR}/attention.html`, document.body.innerHTML);
+  }
+  fireEvent.click(within(region).getAllByRole("button", { name: "Seen" })[0]!);
+  await act(async () => {});
+  expect(slot.inspection.rpcCalls.find(c => c.method === "crew_attention_seen")?.input).toEqual({ ids: ["att_1"] });
+  expect(slot.inspection.rpcCalls.some(c => c.method === "crew_needs_update")).toBe(false);
+  expect(screen.queryByText(/be!738: blocking/)).toBeNull();
+  expect(screen.getByText(/fe!977: remove/)).toBeTruthy();
+});
+
 it("shows one card per bot with live hidden workers, counts old failures, and opens the worker", async () => {
   const slot = renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) }, sdk: sdk(), sidebarThreads: { status: "ready", threads } });
   const card = await screen.findByRole("article", { name: "Home Bot: Needs you" });

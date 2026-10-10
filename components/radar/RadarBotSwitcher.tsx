@@ -86,7 +86,7 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
       {bots.map(bot => {
         const state = botRailState(threads, bot, pulses.get(bot.current) ?? null);
         const label = STATE_LABELS[state];
-        const unread = botFamily(threads, bot).some(thread => thread.isUnread);
+        const unread = (bot.unseenAttention ?? 0) > 0 || botFamily(threads, bot).some(thread => thread.isUnread);
         const workers = botWorkers(threads, bot);
         const releases = scope === bot.key && activeThreadId === bot.current;
         const details = `${label.text}${unread ? " · Unread reply" : ""} · ${workers.length} worker${workers.length === 1 ? "" : "s"}`;

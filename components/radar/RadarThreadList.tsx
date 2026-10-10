@@ -601,6 +601,7 @@ export function RadarThreadList({
     const blocked = cards.reduce((count, card) => count + (card.coordinator?.hasPendingInteraction || card.coordinator?.indicator === "waiting-for-input" ? 1 : 0)
       + card.workers.filter(worker => worker.state === "needs-you").length, 0);
     publishCrewSignal({ needs: (needs.items ?? []).filter(item => item.state !== "snoozed").length + blocked,
+      unread: roster.reduce((count, bot) => count + (bot.unseenAttention ?? 0), 0),
       working: cards.some(card => card.state === "working"), failed: cards.some(card => card.state === "failed") });
   }, [roster, allThreads, needs.items]);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;

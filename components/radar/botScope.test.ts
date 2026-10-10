@@ -36,7 +36,7 @@ describe("bot scope", () => {
     const worker = makeThread({ id: "worker", lifecycleOwnerThreadId: "root", hasPendingInteraction: true });
     expect(botRailState([root, worker], bot, null)).toBe("needs-you");
     expect(botRailState([root, { ...worker, status: "error" }], bot, null)).toBe("failed");
-    expect(botRailState([root, { ...worker, isHidden: true }], bot, null)).toBe("idle");
+    expect(botRailState([root, { ...worker, isHidden: true }], bot, null)).toBe("needs-you");
   });
   it("keeps queued work distinct from running work and handovers", () => {
     const root = makeThread({ id: "root" });

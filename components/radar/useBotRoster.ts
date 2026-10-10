@@ -3,10 +3,10 @@ import { useSdk } from "@get-bb/plugin-sdk/app";
 import { rosterSchema, type RosterBot } from "./bots";
 
 const ROSTER_PLUGIN = "orchestrator-mode";
-const REFRESH_MS = 60_000;
+const REFRESH_MS = 5_000;
 const CACHE_KEY = "radar.botRoster.v1";
-/** Consecutive failures after which the cached roster is dropped: three missed minutes is no longer a reload. */
-const MAX_FAILURES = 3;
+/** Consecutive failures after which the cached roster is dropped: a failed reload must not erase the roster immediately. */
+const STALE_MS = 120_000;
 
 function readCache(): RosterBot[] {
   try {
@@ -40,7 +40,7 @@ export function isPluginAbsentError(error: unknown): boolean {
  * The registered coordinators, from bb-salem-bots. An absent or failing plugin
  * yields an empty roster on a fresh client; a validated cached roster survives
  * transient reloads and errors, but is dropped once the plugin reports itself
- * absent or the RPC has failed MAX_FAILURES times in a row.
+ * absent or the RPC has failed two minutes in a row.
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   const sdk = useSdk();
@@ -53,21 +53,21 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
     }
     let cancelled = false;
     let request = 0;
-    let failures = 0;
+    let failedSince: number | null = null;
     const load = async () => {
       const current = ++request;
       try {
         const result = await sdk.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
         if (cancelled || current !== request) return;
-        failures = 0;
+        failedSince = null;
         const specialists = result.bots.filter(bot => bot.key !== "crew");
         setBots(specialists);
         writeCache(specialists);
       } catch (error) {
         if (cancelled || current !== request) return;
         // Keep a previously validated roster during transient reload/RPC failures.
-        failures += 1;
-        if (failures >= MAX_FAILURES || isPluginAbsentError(error)) {
+        failedSince ??= Date.now();
+        if (Date.now() - failedSince >= STALE_MS || isPluginAbsentError(error)) {
           setBots([]);
           clearCache();
         }
@@ -77,10 +77,12 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
     const timer = setInterval(() => void load(), REFRESH_MS);
     const onFocus = () => void load();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("radar:needs-changed", onFocus);
     return () => {
       cancelled = true;
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("radar:needs-changed", onFocus);
     };
   }, [sdk, enabled, refreshKey]);
   return bots;

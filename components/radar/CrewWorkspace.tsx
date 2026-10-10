@@ -10,6 +10,7 @@ import { BotFace } from "./BotFace";
 import { botStyle, QUIET_LINE, shortBotName, type BotState, type Pulse, type RosterBot } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { NeedsYouList } from "./NeedsYouList";
+import { AttentionList } from "./AttentionList";
 import { isRunningThread, shortAgo } from "./time";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
@@ -17,17 +18,19 @@ import { useThreadPulses } from "./useThreadPulses";
 /** A failed worker older than this is history, not something to act on now. */
 const RECENT_FAILURE_MS = 24 * 3600_000;
 const WORKERS_SHOWN = 3;
-export type CardState = "needs-you" | "failed" | "working" | "queued" | "handover" | "waiting" | "quiet" | "unavailable";
+export type CardState = "needs-you" | "failed" | "working" | "queued" | "handover" | "waiting" | "quiet" | "unavailable" | "unread";
 const STATE_TEXT: Record<CardState, string> = {
+  unread: "New alert",
   "needs-you": "Needs you", failed: "Failed", working: "Working", queued: "Queued", handover: "Handing over",
   waiting: "Machine offline", quiet: "Quiet", unavailable: "Unavailable",
 };
 /** The card's face wears the same expression as the bot row. */
 const FACE_STATE: Record<CardState, BotState> = {
+  unread: "unread",
   "needs-you": "needs-you", failed: "failed", working: "working", queued: "queued", handover: "rollover",
   waiting: "unavailable", unavailable: "unavailable", quiet: "idle",
 };
-const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, queued: 3, handover: 4, waiting: 5, unavailable: 6, quiet: 7 };
+const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, queued: 3, handover: 4, unread: 5, waiting: 6, unavailable: 7, quiet: 8 };
 type WorkerState = "needs-you" | "failed" | "working" | "queued";
 const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
 const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
@@ -66,12 +69,12 @@ export function crewCard(bot: RosterBot, threads: readonly PluginSidebarThread[]
   const olderFailures = family.filter(t => (t.status === "error" || t.queuedWork === "failed") && now - t.updatedAt >= RECENT_FAILURE_MS).length;
   const coordinatorBlocked = !!coordinator && (coordinator.hasPendingInteraction || coordinator.indicator === "waiting-for-input");
   let state: CardState = !coordinator ? "unavailable"
-    : coordinatorBlocked || workers.some(w => w.state === "needs-you") ? "needs-you"
+    : coordinatorBlocked || workers.some(w => w.state === "needs-you") || (bot.actionableNeeds ?? 0) > 0 || (needs ?? []).some(item => item.bot === bot.key && item.state !== "snoozed" && (item.kind === "decision" || item.kind === "urgent")) ? "needs-you"
     : coordinator.status === "error" || workers.some(w => w.state === "failed") ? "failed"
     : isRunningThread(coordinator) || workers.some(w => w.state === "working") ? "working"
     : bot.rollover ? "handover"
     : coordinator.queuedWork === "waiting" || workers.some(w => w.state === "queued") ? "queued"
-    : coordinator.runtimeStatus === "waiting-for-host" ? "waiting" : "quiet";
+    : coordinator.runtimeStatus === "waiting-for-host" ? "waiting" : (bot.unseenAttention ?? 0) > 0 ? "unread" : "quiet";
   const automationState = automations?.some(item => item.state === "blocked") ? "needs-you"
     : automations?.some(item => item.state === "overdue") ? "failed" : null;
   if (automationState && RANK[automationState] < RANK[state]) state = automationState;
@@ -125,6 +128,7 @@ export function CrewWorkspace() {
       {line ? <p className={cn("crew-chatgpt", `crew-chatgpt-${line.tone}`)} role="status">{line.text}</p> : <p className="crew-subtitle">Your bots at a glance</p>}
     </header>
     <div className="crew-overview-scroll"><main className="crew-overview">
+      <AttentionList roster={roster} onOpen={open} />
       <section aria-label="Needs you" className="crew-needs">
         {blocked.length ? <ul className="crew-blocked" aria-label="Waiting for your answer or approval">{blocked.map(({ bot, thread }) => <li key={thread.id}>
           <BotFace botKey={bot.key} name={bot.name} state="needs-you" size={20} />
@@ -173,7 +177,8 @@ function BotCard({ card, now, onOpen }: { card: CrewCard; now: number; onOpen: (
         <span className="crew-label">Last reply {clock.format(reply.at)}</span>
         <p className="crew-reply">{reply.text}</p>
       </div> : <p className="crew-muted">{state === "working" ? "Working on a reply…" : "No reply yet."}</p>}
-    {chatgpt || needs || olderFailures ? <div className="crew-card-foot">
+    {chatgpt || needs || olderFailures || bot.unseenAttention ? <div className="crew-card-foot">
+      {bot.unseenAttention ? <span className="crew-muted">{bot.unseenAttention} unseen alert{bot.unseenAttention === 1 ? "" : "s"}</span> : null}
       {chatgpt ? <span className="crew-via" title="Instructions ChatGPT sent this bot today">ChatGPT sent {chatgpt.instructions} instruction{chatgpt.instructions === 1 ? "" : "s"} today · last {clock.format(chatgpt.lastAt)}</span> : null}
       {needs ? <span className="crew-muted">{needs} on your list</span> : null}
       {olderFailures ? <span className="crew-muted">{olderFailures} older failed worker{olderFailures === 1 ? "" : "s"}</span> : null}
