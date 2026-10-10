@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { experimental_useSidebarThreads, useBbNavigate, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { automationSince, useAutomationHealth, type Automation } from "@/lib/automationHealth";
 import { cn } from "@/lib/utils";
 import { chatgptLine, useChatgptStatus, type ChatgptStatus } from "@/lib/chatgptStatus";
 import { useNeedsYou } from "@/lib/needsClient";
@@ -28,8 +29,8 @@ const FACE_STATE: Record<CardState, BotState> = {
 };
 const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, queued: 3, handover: 4, waiting: 5, unavailable: 6, quiet: 7 };
 type WorkerState = "needs-you" | "failed" | "working" | "queued";
-const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
-const day = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
+const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
 
 export interface CrewCard {
   bot: RosterBot;
@@ -41,6 +42,7 @@ export interface CrewCard {
   reply: { text: string; at: number; quiet: boolean } | null;
   context: number | null;
   needs: number;
+  automations: Automation[] | null;
   chatgpt: { instructions: number; lastAt: number } | null;
 }
 
@@ -54,7 +56,7 @@ function workerState(thread: PluginSidebarThread, now: number): WorkerState | nu
 
 /** One bot as Crew shows it: runtime evidence only, hidden workers included, old failures counted rather than listed. */
 export function crewCard(bot: RosterBot, threads: readonly PluginSidebarThread[], pulse: Pulse | null, needs: readonly NeedsItem[] | null,
-  chatgpt: ChatgptStatus | null, now: number): CrewCard {
+  chatgpt: ChatgptStatus | null, now: number, automations: Automation[] | null = null): CrewCard {
   const ids = botScopeIds(threads, bot);
   const roots = botCoordinatorIds(bot);
   const coordinator = threads.find(t => t.id === bot.current && !t.isArchived);
@@ -63,16 +65,19 @@ export function crewCard(bot: RosterBot, threads: readonly PluginSidebarThread[]
     .sort((a, b) => RANK[a.state] - RANK[b.state] || b.thread.updatedAt - a.thread.updatedAt);
   const olderFailures = family.filter(t => (t.status === "error" || t.queuedWork === "failed") && now - t.updatedAt >= RECENT_FAILURE_MS).length;
   const coordinatorBlocked = !!coordinator && (coordinator.hasPendingInteraction || coordinator.indicator === "waiting-for-input");
-  const state: CardState = !coordinator ? "unavailable"
+  let state: CardState = !coordinator ? "unavailable"
     : coordinatorBlocked || workers.some(w => w.state === "needs-you") ? "needs-you"
     : coordinator.status === "error" || workers.some(w => w.state === "failed") ? "failed"
     : isRunningThread(coordinator) || workers.some(w => w.state === "working") ? "working"
     : bot.rollover ? "handover"
     : coordinator.queuedWork === "waiting" || workers.some(w => w.state === "queued") ? "queued"
     : coordinator.runtimeStatus === "waiting-for-host" ? "waiting" : "quiet";
+  const automationState = automations?.some(item => item.state === "blocked") ? "needs-you"
+    : automations?.some(item => item.state === "overdue") ? "failed" : null;
+  if (automationState && RANK[automationState] < RANK[state]) state = automationState;
   const text = pulse?.preview ?? pulse?.subject ?? null;
   return {
-    bot, state, coordinator, workers, olderFailures,
+    bot, state, coordinator, workers, olderFailures, automations,
     reply: text && coordinator ? { text, at: coordinator.latestAttentionAt, quiet: QUIET_LINE.test(text.trim()) } : null,
     context: pulse?.context ?? null,
     needs: (needs ?? []).filter(item => item.bot === bot.key && item.state !== "snoozed").length,
@@ -94,16 +99,21 @@ export function CrewWorkspace() {
   const roster = useBotRoster(true, rosterRefreshKey(sidebar.threads));
   const needs = useNeedsYou(true);
   const chatgpt = useChatgptStatus();
+  const health = useAutomationHealth();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   const coordinators = useMemo(() => sidebar.threads.filter(t => roster.some(bot => bot.current === t.id)), [sidebar.threads, roster]);
   const pulses = useThreadPulses(coordinators, true);
-  const cards = useMemo(() => roster.map(bot => crewCard(bot, sidebar.threads, pulses.get(bot.current) ?? null, needs.items, chatgpt, now))
-    .sort((a, b) => RANK[a.state] - RANK[b.state] || b.needs - a.needs), [roster, sidebar.threads, pulses, needs.items, chatgpt, now]);
+  const cards = useMemo(() => roster.map(bot => crewCard(bot, sidebar.threads, pulses.get(bot.current) ?? null, needs.items, chatgpt, now, health?.bots[bot.key]?.automations ?? null))
+    .sort((a, b) => RANK[a.state] - RANK[b.state] || b.needs - a.needs), [roster, sidebar.threads, pulses, needs.items, chatgpt, now, health]);
   const blocked = cards.flatMap(card => [
     ...(card.coordinator && (card.coordinator.hasPendingInteraction || card.coordinator.indicator === "waiting-for-input") ? [{ bot: card.bot, thread: card.coordinator }] : []),
     ...card.workers.filter(w => w.state === "needs-you").map(w => ({ bot: card.bot, thread: w.thread })),
-  ]);
+  ]).filter(({ bot, thread }) => !health?.bots[bot.key]?.automations.some(automation => automation.state === "blocked" &&
+    (needs.items ?? []).some(item => item.bot === bot.key && item.state !== "snoozed" &&
+      (automation.incident?.needsItemId === item.id || item.source.automationId === automation.id) &&
+      (item.source.threadId === thread.id || automation.incident?.repairThreadId === thread.id))));
+  const automationBlockers = cards.some(card => card.automations?.some(item => item.state === "blocked" || item.state === "overdue"));
   const line = chatgptLine(chatgpt, now, ms => day.format(ms));
   const waiting = (needs.items ?? []).filter(item => item.state !== "snoozed").length + blocked.length;
   const ready = sidebar.status === "ready" && roster.length > 0;
@@ -126,7 +136,7 @@ export function CrewWorkspace() {
         </p> : <NeedsYouList items={needs.items} roster={roster} now={now} onUpdate={needs.update} onOpen={open} />}
         {/* All clear only when every bot's coordinator could be read too: it once showed beside "Live bot activity is
             unavailable.", and beside a bot whose coordinator was missing from the list (Astra, 2026-10-10). */}
-        {needs.items !== null && ready && cards.every(card => card.coordinator) && !waiting ? <p className="crew-calm crew-all-clear">Nothing needs you.</p> : null}
+        {needs.items !== null && ready && cards.every(card => card.coordinator) && !waiting && !automationBlockers ? <p className="crew-calm crew-all-clear">Nothing needs you.</p> : null}
       </section>
       <section aria-labelledby="crew-bots-title">
         <h2 id="crew-bots-title" className="crew-section-title">Bots</h2>
@@ -147,6 +157,7 @@ function BotCard({ card, now, onOpen }: { card: CrewCard; now: number; onOpen: (
       <span className={cn("crew-chip", `crew-chip-${state}`)}>{STATE_TEXT[state]}</span>
       {context !== null ? <ContextRing value={context} /> : null}
     </button>
+    <AutomationLine bot={bot} items={card.automations} onOpen={onOpen} />
     {workers.length ? <div className="crew-card-section">
       <span className="crew-label">Now</span>
       <ul className="crew-workers">{workers.slice(0, WORKERS_SHOWN).map(({ thread, state: worker }) => <li key={thread.id}>
@@ -168,4 +179,40 @@ function BotCard({ card, now, onOpen }: { card: CrewCard; now: number; onOpen: (
       {olderFailures ? <span className="crew-muted">{olderFailures} older failed worker{olderFailures === 1 ? "" : "s"}</span> : null}
     </div> : null}
   </article>;
+}
+
+const AUTOMATION_ORDER: Automation["state"][] = ["blocked", "overdue", "repairing", "waiting", "failing", "paused", "healthy"];
+const automationDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "Africa/Cairo" });
+function automationLabel(item: Automation): string {
+  if (item.state === "repairing") return "being fixed";
+  if (item.state === "waiting") return item.waitingOn ? `waiting on ${item.waitingOn}` : "waiting";
+  if (item.state === "paused" && item.pausedUntil) return `paused until ${automationDay.format(Date.parse(item.pausedUntil))}`;
+  return item.state;
+}
+function AutomationLine({ bot, items, onOpen }: { bot: RosterBot; items: Automation[] | null; onOpen: (threadId: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!items?.length) return null;
+  const ordered = AUTOMATION_ORDER.flatMap(state => items.filter(item => item.state === state)
+    .sort((a, b) => state === "waiting" ? ["host", "capacity", null].indexOf(a.waitingOn) - ["host", "capacity", null].indexOf(b.waitingOn) : 0));
+  const groups = new Map<string, number>();
+  for (const item of ordered) {
+    const label = automationLabel(item);
+    groups.set(label, (groups.get(label) ?? 0) + 1);
+  }
+  const summary = [...groups].map(([label, count]) => `${count} ${label}`).join(" · ");
+  const issues = ordered.filter(item => item.state !== "healthy");
+  return <div className="crew-automations">
+    {issues.length ? <button type="button" className="crew-automation-toggle" aria-label={`${bot.name} automations: ${summary}`}
+      aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{summary}</button>
+      : <p className="crew-automation-summary">{summary}</p>}
+    {expanded && issues.length ? <ul className="crew-automation-list" aria-label={`${bot.name} automation details`}>{issues.map(item => {
+      const since = automationSince(item);
+      return <li key={item.id}>
+        <strong>{item.name}</strong>
+        <span className="crew-automation-meta">{automationLabel(item)}{since ? <> · since <time dateTime={since}>{day.format(Date.parse(since))}</time></> : " · since unknown"}</span>
+        {item.incident?.repairThreadId ? <button type="button" className="crew-button" aria-label={`Open repair thread for ${item.name}`}
+          onClick={() => onOpen(item.incident!.repairThreadId!)}>Open repair</button> : null}
+      </li>;
+    })}</ul> : null}
+  </div>;
 }

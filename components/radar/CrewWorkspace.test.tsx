@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import type { Automation, AutomationHealth } from "@/lib/automationHealth";
 import type { RosterBot } from "./bots";
 import { makeThread } from "./fixtures";
 import { makeNeed } from "./needsFixtures";
@@ -16,8 +17,16 @@ const now = Date.now();
 const chatgpt = { connected: true, status: { reportedAt: new Date().toISOString(),
   alerts: { watching: true, refreshBefore: new Date(now + 5 * 86400_000).toISOString(), watches: [], lastDeliveredAt: null },
   activity: { home: { instructions: 3, lastAt: now - 600_000 } } } };
-function sdk(status: unknown = chatgpt) {
-  return { plugins: { callRpc: async <TOutput,>({ pluginId }: { pluginId: string }) => (pluginId === "chatgpt-events" ? status : { bots: [home, work] }) as TOutput } };
+function sdk(status: unknown = chatgpt, health: AutomationHealth | Error = new Error("Unknown RPC")) {
+  return { plugins: { callRpc: async <TOutput,>({ pluginId, method, input }: { pluginId: string; method: string; input?: unknown }) => {
+    if (pluginId === "saelmbot-automations") {
+      expect(method).toBe("automation_health");
+      expect(input).toEqual({});
+      if (health instanceof Error) throw health;
+      return health as TOutput;
+    }
+    return (pluginId === "chatgpt-events" ? status : { bots: [home, work] }) as TOutput;
+  } } };
 }
 const threads = [
   makeThread({ id: "coord", title: "Home Bot" }),
@@ -99,4 +108,118 @@ it("treats a sign-off as nothing new rather than the bot's latest news", () => {
   expect(quiet.reply).toMatchObject({ quiet: true });
   const finding = crewCard(home, threads, { subject: "Run 9 passed", preview: "Run 9 passed", decision: null, quiet: true }, [], null, now);
   expect(finding.reply).toMatchObject({ text: "Run 9 passed", quiet: false });
+});
+
+function automation(state: Automation["state"], fields: Partial<Automation> = {}): Automation {
+  return { id: state, name: `${state} schedule`, projectId: "p", state, lastSuccessAt: null, failingSince: null,
+    nextRunAt: null, pausedUntil: null, pauseReason: null, waitingOn: null, incident: null, ...fields };
+}
+function automationHealth(items: Automation[]): AutomationHealth {
+  return { generatedAt: new Date(now).toISOString(), bots: { home: { automations: items }, work: { automations: [] } } };
+}
+const quietThreads = threads.filter(thread => thread.id === "coord" || thread.id === "work-coord");
+const incident = { id: "incident", openedAt: "2026-10-10T08:00:00Z", attempt: 1 as const, repairThreadId: "repair", needsItemId: "need-auto", summary: "Check the schedule" };
+
+it("summarizes non-zero automation states in priority order and opens a repair", async () => {
+  const items = [automation("healthy"), automation("paused", { pausedUntil: "2026-10-11T08:00:00Z" }),
+    automation("failing"), automation("waiting", { id: "capacity", waitingOn: "capacity" }),
+    automation("waiting", { waitingOn: "host" }), automation("repairing", { incident }),
+    automation("overdue"), automation("blocked")];
+  const slot = renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) },
+    sdk: sdk(chatgpt, automationHealth(items)), sidebarThreads: { status: "ready", threads: quietThreads } });
+  const card = await screen.findByRole("article", { name: "Home Bot: Needs you" });
+  const summary = "1 blocked · 1 overdue · 1 being fixed · 1 waiting on host · 1 waiting on capacity · 1 failing · 1 paused until Sun · 1 healthy";
+  const toggle = await within(card).findByRole("button", { name: `Home Bot automations: ${summary}` });
+  expect(toggle.textContent).toBe(summary);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(within(card).queryByRole("list", { name: "Home Bot automation details" })).toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  const details = within(card).getByRole("list", { name: "Home Bot automation details" });
+  expect(within(details).getAllByRole("listitem")).toHaveLength(7);
+  expect(within(details).queryByText("healthy schedule")).toBeNull();
+  expect(within(details).getByText("Sat 10 Oct, 11:00").getAttribute("dateTime")).toBe(incident.openedAt);
+  fireEvent.click(within(details).getByRole("button", { name: "Open repair thread for repairing schedule" }));
+  expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "repair" });
+  fireEvent.click(toggle);
+  expect(within(card).queryByRole("list", { name: "Home Bot automation details" })).toBeNull();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
+});
+
+it("leaves out unavailable automation health without claiming healthy automations", async () => {
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) },
+    sdk: sdk(chatgpt, new Error("Older plugin has no RPC method")), sidebarThreads: { status: "ready", threads: quietThreads } });
+  await screen.findByRole("article", { name: "Home Bot: Quiet" });
+  await act(async () => {});
+  expect(screen.queryByRole("button", { name: /automations:/ })).toBeNull();
+  expect(screen.queryByText(/healthy/)).toBeNull();
+  expect(screen.queryByText(/Older plugin/)).toBeNull();
+});
+
+it("shows healthy automations only as a count", async () => {
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) },
+    sdk: sdk(chatgpt, automationHealth([automation("healthy"), automation("healthy", { id: "second" })])),
+    sidebarThreads: { status: "ready", threads: quietThreads } });
+  expect(await screen.findByText("2 healthy")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /automations:/ })).toBeNull();
+  expect(screen.queryByText("healthy schedule")).toBeNull();
+});
+
+it("keeps blocked automation asks on the saved list without repeating their pending interaction", async () => {
+  const saved = makeNeed({ id: "need-auto", bot: "home", text: "Approve schedule repair", source: { automationId: "blocked" } });
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [saved] }) },
+    sdk: sdk(chatgpt, automationHealth([automation("blocked", { incident })])),
+    sidebarThreads: { status: "ready", threads: [...quietThreads, makeThread({ id: "repair", parentThreadId: "coord", hasPendingInteraction: true })] } });
+  await screen.findByRole("button", { name: "Home Bot automations: 1 blocked" });
+  expect(screen.getAllByText("Approve schedule repair")).toHaveLength(1);
+  expect(screen.queryByRole("list", { name: "Waiting for your answer or approval" })).toBeNull();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
+  expect(screen.getByRole("article", { name: "Home Bot: Needs you" })).toBeTruthy();
+});
+
+it("overdue health changes a quiet card to failed and prevents all clear", async () => {
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) },
+    sdk: sdk(chatgpt, automationHealth([automation("overdue")])), sidebarThreads: { status: "ready", threads: quietThreads } });
+  expect(await screen.findByRole("article", { name: "Home Bot: Failed" })).toBeTruthy();
+  expect(screen.queryByText("Nothing needs you.")).toBeNull();
+});
+
+it("drops previously healthy counts silently when the health refresh fails", async () => {
+  const fake = sdk(chatgpt, automationHealth([automation("healthy")]));
+  let unavailable = false;
+  const call = fake.plugins.callRpc;
+  fake.plugins.callRpc = async args => {
+    if (unavailable && args.pluginId === "saelmbot-automations") throw new Error("Offline");
+    return call(args);
+  };
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [] }) }, sdk: fake,
+    sidebarThreads: { status: "ready", threads: quietThreads } });
+  await screen.findByText("1 healthy");
+  unavailable = true;
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  expect(screen.queryByText("1 healthy")).toBeNull();
+  expect(screen.queryByText("Offline")).toBeNull();
+});
+
+it("keeps unrelated pending approvals visible beside a saved blocked automation ask", async () => {
+  const saved = makeNeed({ id: "need-auto", bot: "home", text: "Approve schedule repair", source: { threadId: "repair" } });
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [saved] }) },
+    sdk: sdk(chatgpt, automationHealth([automation("blocked", { incident })])), sidebarThreads: { status: "ready", threads: [
+      ...quietThreads, makeThread({ id: "repair", parentThreadId: "coord", hasPendingInteraction: true }),
+      makeThread({ id: "unrelated", title: "Approve router change", parentThreadId: "coord", hasPendingInteraction: true }),
+    ] } });
+  await screen.findByRole("button", { name: "Home Bot automations: 1 blocked" });
+  const pending = screen.getByRole("list", { name: "Waiting for your answer or approval" });
+  expect(within(pending).getAllByRole("listitem")).toHaveLength(1);
+  expect(within(pending).getByText(/Approve router change/)).toBeTruthy();
+});
+
+it("does not hide an approval just because another saved ask came from the same thread", async () => {
+  const saved = makeNeed({ id: "unrelated-need", bot: "home", text: "Current balance?", source: { threadId: "coord" } });
+  renderSlot(panel, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: [saved] }) },
+    sdk: sdk(chatgpt, automationHealth([automation("blocked", { incident })])), sidebarThreads: { status: "ready", threads: [
+      ...quietThreads.filter(thread => thread.id !== "coord"), makeThread({ id: "coord", hasPendingInteraction: true }),
+    ] } });
+  await screen.findByRole("button", { name: "Home Bot automations: 1 blocked" });
+  expect(screen.getByRole("list", { name: "Waiting for your answer or approval" })).toBeTruthy();
 });
