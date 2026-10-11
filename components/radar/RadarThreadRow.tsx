@@ -1,8 +1,9 @@
-import { threadActionTarget, runThreadAction, type RadarThreadActions } from "./threadActions";
 import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -21,8 +22,14 @@ import {
   type PluginBrowserBbSdk,
   type PluginSidebarThread,
   experimental_useThreadActions,
+  experimental_ThreadActionsMenu as ThreadActionsMenu,
+  experimental_ThreadActionsContextMenu as ThreadActionsContextMenu,
+  experimental_THREAD_ACTION_GROUPS,
+  type PluginSidebarSection,
+  type PluginThreadActionsInlineItem,
 } from "@get-bb/plugin-sdk/app";
 import { createPortal } from "react-dom";
+import { runThreadAction, threadActionTarget, type RadarThreadActions } from "./threadActions";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,6 +41,7 @@ import {
 } from "./useThreadExecution";
 import { RadarHoverCard, type ContextUsage } from "./RadarHoverCard";
 import { useRowSwipe } from "./useRowSwipe";
+import { useRowViewport } from "./useRowViewport";
 import {
   swipeActionView,
   type SwipeActionId,
@@ -299,7 +307,8 @@ function RadarThreadRowImpl({
   actions,
   timeText,
   onNavigate,
-  onOpenMenu,
+  sections,
+  onMarkFamilyRead,
   onStartRename,
   onCommitRename,
   onCancelRename,
@@ -344,7 +353,8 @@ function RadarThreadRowImpl({
    * so the minute tick re-renders only rows whose label actually moved. */
   timeText: string;
   onNavigate: () => void;
-  onOpenMenu: (clientX: number, clientY: number, thread: PluginSidebarThread) => void;
+  sections: readonly PluginSidebarSection[];
+  onMarkFamilyRead: (thread: PluginSidebarThread) => Promise<void>;
   onStartRename: (thread: PluginSidebarThread) => void;
   onCommitRename: (thread: PluginSidebarThread, title: string) => void;
   onCancelRename: () => void;
@@ -382,28 +392,67 @@ function RadarThreadRowImpl({
    */
   isShortcutTarget: boolean;
 }) {
-  const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
-  const rowStatus = useSidebarThreadRowStatus(thread.id);
-  const shortcut = useSidebarThreadShortcut(thread.id);
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
-  const navigate = useBbNavigate();
-  const nativeActions = experimental_useThreadActions(threadActionTarget(thread), { requestRename: () => onStartRename(thread) });
-  useEffect(() => actions.register(thread.id, nativeActions), [actions, thread.id, nativeActions]);
-  const { splitProps, layout: splitLayout } =
-    experimental_useSidebarThreadSplit(thread.id);
-
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const activateMore = useRef<(() => void) | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [moreEnabled, setMoreEnabled] = useState(false);
+  const requestedMore = useRef(false);
   const [renameValue, setRenameValue] = useState("");
   const [copiedBranch, setCopiedBranch] = useState(false);
   const copiedTimer = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  const touchPointer = useRef(false);
+  const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
   const hoverTimer = useRef<number | null>(null);
   const hoverCardTimer = useRef<number | null>(null);
   const isHoveringCard = useRef(false);
   const [hoverCard, setHoverCard] = useState<{
     anchor: { top: number; bottom: number; left: number; right: number };
   } | null>(null);
+
+  const viewport = useRowViewport(rowRef,
+    isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||
+      rowRef.current?.hasAttribute("data-swipe-phase") === true,
+    JSON.stringify([density, adaptiveCollapse, thread.isUnread, thread.indicator, collapse?.collapsed,
+      thread.displayTitle, thread.environment?.branchName, depth, sectionName, projectTag]),
+    setRowElement,
+  );
+
+  const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
+  const rowStatus = useSidebarThreadRowStatus(thread.id);
+  const shortcut = useSidebarThreadShortcut(thread.id);
+  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const navigate = useBbNavigate();
+  const { splitProps, layout: splitLayout } =
+    experimental_useSidebarThreadSplit(thread.id);
+
+  const actionTarget = threadActionTarget(thread);
+  const requestRename = () => onStartRename(thread);
+  const registeredActions = experimental_useThreadActions(actionTarget, { requestRename,
+    keys: viewport.renderContents ? undefined : ["bb--core/archive", "bb--core/delete"],
+  });
+  useLayoutEffect(() => actions.register(thread.id, registeredActions), [actions, thread.id, registeredActions]);
+  const inlineActions = useMemo<PluginThreadActionsInlineItem[]>(() => [
+    ...(hasChildren || thread.parentThreadId ? [{
+      key: "radar-sidebar/family-read", group: experimental_THREAD_ACTION_GROUPS.organize,
+      action: { label: "Mark family read", icon: "MailOpen", run: () => onMarkFamilyRead(thread) },
+    } satisfies PluginThreadActionsInlineItem] : []),
+    ...(registeredActions.some(entry => entry.key === "thread-list/move") ? [] : [{
+      key: "radar-sidebar/move", group: experimental_THREAD_ACTION_GROUPS.organize,
+      action: { label: "Move to section", icon: "Folder", choices: { heading: "Move to section", items: [
+        ...sections.map(section => ({ id: section.id, label: section.name, selected: section.id === thread.sectionId })),
+        { id: "none", label: "No section", selected: thread.sectionId === null },
+      ] }, run: async ({ value }) => { if (value) await sdk.threads.update({ threadId: thread.id, sectionId: value === "none" ? null : value }); } },
+    } satisfies PluginThreadActionsInlineItem]),
+  ], [hasChildren, thread, sections, sdk, registeredActions, onMarkFamilyRead]);
+
+  useLayoutEffect(() => {
+    if (!moreEnabled || !requestedMore.current) return;
+    requestedMore.current = false;
+    activateMore.current?.();
+  }, [moreEnabled]);
 
   const fetchThreadContext = useCallback(
     async (targetThreadId: string): Promise<ContextUsage | null> => {
@@ -553,13 +602,13 @@ function RadarThreadRowImpl({
   };
   const toggleArchive = () => {
     if (thread.isArchived) onUnarchive(thread);
-    else runThreadAction(nativeActions, "bb--core/archive");
+    else runThreadAction(registeredActions, "bb--core/archive");
   };
   const openInSplit = () => {
     actions.open(thread.id, { split: true });
     onNavigate();
   };
-  const runSwipeAction = (action: SwipeActionView, offset: number) => {
+  const runSwipeAction = (action: SwipeActionView) => {
     closeHoverCard(true);
     switch (action.id) {
       case "read":
@@ -579,24 +628,22 @@ function RadarThreadRowImpl({
       case "rename":
         onStartRename(thread);
         break;
-      case "menu": {
-        // The row is still drawn aside by the swipe: anchor on where it rests.
-        const rect = rowRef.current?.getBoundingClientRect();
-        if (rect) onOpenMenu(rect.right - offset - 220, rect.bottom + 4, thread);
+      case "menu":
+        activateMore.current?.();
         break;
-      }
       case "delete":
-        actions.requestDelete(thread.id);
+        runThreadAction(registeredActions, "bb--core/delete");
         break;
     }
   };
   const swipeReveal = useRowSwipe({
     rowRef,
-    enabled: isVisible && !isEditing && !selectionActive && !!(rightSwipe || leftSwipe),
+    rowElement,
+    enabled: isVisible && viewport.renderContents && !isEditing && !selectionActive && !!(rightSwipe || leftSwipe),
     right: rightSwipe,
     left: leftSwipe,
     restoreKey: `${thread.isArchived}`,
-    onStart: () => closeHoverCard(true),
+    onStart: () => { setMoreEnabled(true); closeHoverCard(true); },
     onCommit: runSwipeAction,
   });
 
@@ -654,14 +701,54 @@ function RadarThreadRowImpl({
     modelEpoch,
     showExecution,
     thread.latestAttentionAt,
-    isVisible,
+    isVisible && viewport.renderContents,
   );
   const modelName = useModelDisplayName(
     thread.providerId,
     execution?.model ?? null,
     sdk,
-    isVisible,
+    isVisible && viewport.renderContents,
   );
+
+  const handleNavigate = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || selectionActive) {
+      event.preventDefault();
+      event.stopPropagation();
+      onToggleSelect?.(event, thread.id);
+      return;
+    }
+    onNavigate();
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLAnchorElement>) => {
+    touchPointer.current = event.pointerType === "touch";
+    splitProps.onPointerDown?.(event);
+  };
+  const handleMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+    // A touch tap emits compatibility mouse events after touchend. Native
+    // focus in between can scroll the drawer or replace a deferred link,
+    // leaving mouseup/click on its container. Keep the tap's target in place;
+    // mouse and keyboard focus retain their normal behavior.
+    if (touchPointer.current && event.button === 0) event.preventDefault();
+  };
+
+  if (!viewport.renderContents) {
+    return <div ref={viewport.ref}
+      className={cn("radar-row radar-row-placeholder", density === "compact" && "radar-row-compact",
+        depth === 0 && "radar-row-root", depth === 1 && "radar-row-child", depth > 1 && "radar-row-deep",
+        depth > 0 && isLastChild && "radar-row-last", isActive && "radar-row-active", isSelected && "radar-row-selected")}
+      data-has-branch={depth === 0 && !!thread.environment?.branchName || undefined}
+      style={viewport.height === undefined ? undefined : { height: viewport.height }}
+      onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}>
+      <a href={thread.href} data-sidebar-thread-id={thread.id}
+        data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
+        aria-label={rowLabel} aria-current={isActive ? "true" : undefined}
+        aria-keyshortcuts={shortcut?.ariaKeyshortcuts} {...splitProps}
+        onPointerDown={handlePointerDown} onMouseDown={handleMouseDown}
+        className="radar-row-main" onClick={handleNavigate}>
+      </a>
+    </div>;
+  }
 
   const branch = thread.environment?.branchName ?? null;
   const hostName = thread.host?.name ?? null;
@@ -963,7 +1050,8 @@ function RadarThreadRowImpl({
 
   if (isEditing) {
     return (
-      <div className={cn("radar-row", isActive && "radar-row-active")}>
+      <div ref={viewport.ref} onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}
+        className={cn("radar-row", isActive && "radar-row-active")}>
         {gutterNode}
         <div className="radar-row-main">
           {leadNode}
@@ -997,6 +1085,9 @@ function RadarThreadRowImpl({
   }
 
   return (
+    <ThreadActionsContextMenu thread={actionTarget} inline={inlineActions} requestRename={requestRename}
+      disabled={!isVisible || selectionActive} dragging={dragHandle?.isDragging ?? false}
+      onOpenChange={open => { setMenuOpen(open); if (open) closeHoverCard(true); }}>
     <div
       className={cn(
         "radar-row",
@@ -1016,7 +1107,9 @@ function RadarThreadRowImpl({
         actionPulseClass,
         collapsed && "radar-row-collapsed",
       )}
-      ref={rowRef}
+      ref={viewport.ref}
+      onFocusCapture={() => { setMoreEnabled(true); viewport.onFocusCapture(); }}
+      onBlurCapture={viewport.onBlurCapture}
       draggable={!isEditing}
       onDragStart={(event) => {
         if (isEditing) return;
@@ -1036,8 +1129,20 @@ function RadarThreadRowImpl({
         event.dataTransfer.setData("text/plain", thread.id);
         event.dataTransfer.effectAllowed = "move";
       }}
-      onMouseEnter={scheduleHoverCard}
-      onMouseLeave={() => closeHoverCard(false)}
+      onPointerEnter={(event) => {
+        // iOS sends compatibility hover events before click and can consume
+        // the tap if they reveal or replace content. Only a mouse prepares
+        // the hover actions; touch opens the existing More trigger directly.
+        if (event.pointerType !== "mouse") return;
+        event.currentTarget.dataset.radarHover = "mouse";
+        setMoreEnabled(true);
+        scheduleHoverCard();
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== "mouse") return;
+        delete event.currentTarget.dataset.radarHover;
+        closeHoverCard(false);
+      }}
     >
       {swipeReveal?.action ? (
         <span
@@ -1064,20 +1169,9 @@ function RadarThreadRowImpl({
         aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
         title={thread.displayTitle}
         {...splitProps}
-        onClick={(event) => {
-          if (event.metaKey || event.ctrlKey || event.shiftKey || selectionActive) {
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSelect?.(event, thread.id);
-            return;
-          }
-          onNavigate();
-        }}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          closeHoverCard(true);
-          onOpenMenu(event.clientX, event.clientY, thread);
-        }}
+        onPointerDown={handlePointerDown}
+        onMouseDown={handleMouseDown}
+        onClick={handleNavigate}
         onDoubleClick={(event) => {
           // Double-click the title area renames instead of navigating.
           event.preventDefault();
@@ -1265,23 +1359,34 @@ function RadarThreadRowImpl({
             <Icon name="Archive" aria-hidden="true" />
           </button>
         )}
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="More actions"
-          title="More actions"
-          aria-haspopup="menu"
-          className="radar-action radar-action-more"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            closeHoverCard(true);
-            const rect = event.currentTarget.getBoundingClientRect();
-            onOpenMenu(rect.left - 200, rect.bottom + 4, thread);
-          }}
-        >
-          <Icon name="MoreHorizontal" aria-hidden="true" />
-        </button>
+        {moreEnabled ? <ThreadActionsMenu thread={actionTarget} inline={inlineActions} requestRename={requestRename}
+          side="right" align="start" sideOffset={8} onOpenChange={open => { setMenuOpen(open); if (open) closeHoverCard(true); }}
+          trigger={props => {
+            // Compact drawers supply a click handler; desktop menus supply
+            // keyboard/pointer handlers. Use one activation so ArrowDown does
+            // not leak into the list's navigation when opening a drawer.
+            activateMore.current = () => {
+              if (props.onClick) menuTriggerRef.current?.click();
+              else menuTriggerRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+            };
+            return <button {...props} type="button" tabIndex={-1} aria-label="More actions" title="More actions"
+            ref={node => { menuTriggerRef.current = node; if (typeof props.ref === "function") props.ref(node); else if (props.ref) props.ref.current = node; }}
+            className={cn(props.className, "radar-action radar-action-more")}
+            onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
+            <Icon name="MoreHorizontal" aria-hidden="true" />
+          </button>;
+          }} /> : <button type="button" tabIndex={-1} aria-label="More actions" title="More actions"
+            aria-haspopup="menu" className="radar-action radar-action-more" ref={menuTriggerRef}
+            onPointerDown={event => { touchPointer.current = event.pointerType === "touch"; }}
+            onMouseDown={handleMouseDown}
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              requestedMore.current = true;
+              setMoreEnabled(true);
+            }}>
+            <Icon name="MoreHorizontal" aria-hidden="true" />
+          </button>}
       </span>
       {hoverCard
         ? createPortal(
@@ -1329,6 +1434,7 @@ function RadarThreadRowImpl({
           )
         : null}
     </div>
+    </ThreadActionsContextMenu>
   );
 }
 

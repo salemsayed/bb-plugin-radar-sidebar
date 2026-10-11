@@ -1417,7 +1417,9 @@
   align-items: stretch;
   margin: 1px 0;
   border-radius: 8px;
-  content-visibility: auto;
+  /* Offscreen contents are deferred in React; visible rows must report their
+     real height so their lightweight replacements keep the scroll position. */
+  content-visibility: visible;
   contain-intrinsic-size: auto 52px;
   box-shadow: inset 3px 0 0 transparent;
   transition:
@@ -1663,6 +1665,31 @@
 .radar-density-compact .radar-tree-gutter,
 .radar-row-compact .radar-tree-gutter {
   padding-top: 4px;
+}
+
+/* Preserve DOM order for keyboard navigation and BB jump shortcuts without
+   retaining hundreds of offscreen icon trees and native menu components.
+   ResizeObserver replaces these initial estimates with each row's real size. */
+.radar-row-placeholder {
+  height: 48px;
+  content-visibility: auto;
+}
+.radar-row-placeholder[data-has-branch] {
+  height: 66px;
+}
+.radar-title-wrap .radar-row-placeholder {
+  height: 64px;
+}
+.radar-title-wrap .radar-row-placeholder[data-has-branch] {
+  height: 82px;
+}
+.radar-density-compact .radar-row-placeholder,
+.radar-row-placeholder.radar-row-compact {
+  height: 28px;
+}
+.radar-title-wrap.radar-density-compact .radar-row-placeholder,
+.radar-title-wrap .radar-row-placeholder.radar-row-compact {
+  height: 40px;
 }
 
 .radar-select-checkbox {
@@ -2751,7 +2778,7 @@ a.radar-row-main:hover {
   background: var(--accent, var(--muted));
 }
 
-.radar-row:hover .radar-row-actions {
+.radar-row[data-radar-hover="mouse"] .radar-row-actions {
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
@@ -3275,7 +3302,7 @@ a.radar-row-main:hover {
   touch-action: none;
 }
 
-.radar-row:hover .radar-row-grip,
+.radar-row[data-radar-hover="mouse"] .radar-row-grip,
 .radar-row-grip:focus-visible {
   opacity: 1;
 }
@@ -3501,6 +3528,24 @@ a.radar-row-main:hover {
   border-top: 1px solid var(--border);
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+/* Wide touch screens need the same visible More target as compact phones.
+   Tapping a row must not reveal hover controls before its click. */
+@media (hover: none) {
+  .radar-row-actions {
+    position: static;
+    flex: none;
+    align-self: center;
+    background: transparent;
+    box-shadow: none;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .radar-action:not(.radar-action-more) {
+    display: none;
+  }
 }
 
 /* Narrow sidebars: keep the faces and rings, drop the words. */

@@ -1,4 +1,3 @@
-import { useRadarThreadActions } from "./threadActions";
 import {
   Fragment,
   useCallback,
@@ -52,6 +51,7 @@ import {
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { RadarThreadRow } from "./RadarThreadRow";
+import { useRadarThreadActions } from "./threadActions";
 import { RadarBotSwitcher } from "./RadarBotSwitcher";
 import { RadarBotCard } from "./RadarBotCard";
 import { BotFace } from "./BotFace";
@@ -523,11 +523,6 @@ export function RadarThreadList({
   const collapsedGroupIds: ReadonlySet<string> =
     isFiltering ? EMPTY_ID_SET : collapsed;
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{
-    x: number;
-    y: number;
-    threadId: string;
-  } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // Bumped to revalidate per-thread model info (cheap, cached reads).
   const [modelEpoch, setModelEpoch] = useState(0);
@@ -1215,139 +1210,11 @@ export function RadarThreadList({
     [rowById, childrenOf, sdk],
   );
 
-  const openMenu = useCallback(
-    (clientX: number, clientY: number, thread: PluginSidebarThread) => {
-      setEditingId(null);
-      setMenu({ x: clientX, y: clientY, threadId: thread.id });
-    },
+  const markFamilyReadRef = useRef(markFamilyRead);
+  markFamilyReadRef.current = markFamilyRead;
+  const requestMarkFamilyRead = useCallback(
+    (thread: PluginSidebarThread) => markFamilyReadRef.current(thread),
     [],
-  );
-
-  const menuThread = menu
-    ? (threads.find((thread) => thread.id === menu.threadId) ?? null)
-    : null;
-
-  const menuItems = useMemo<RadarMenuItem[]>(() => {
-    if (!menuThread) return [];
-    const items: RadarMenuItem[] = [
-      { kind: "item", id: "open-split", label: "Open in split", icon: "Columns2" },
-      {
-        kind: "item",
-        id: "pin",
-        label: menuThread.isPinned ? "Unpin" : "Pin",
-        icon: menuThread.isPinned ? "PinOff" : "Pin",
-        checked: menuThread.isPinned,
-      },
-      {
-        kind: "item",
-        id: "read",
-        label: menuThread.isUnread ? "Mark as read" : "Mark as unread",
-        icon: menuThread.isUnread ? "MailOpen" : "Mail",
-      },
-      ...(menuThread.parentThreadId !== null ||
-      (childrenOf.get(menuThread.id)?.length ?? 0) > 0
-        ? [
-            {
-              kind: "item",
-              id: "family-read",
-              label: "Mark family read",
-              icon: "MailOpen",
-            } as RadarMenuItem,
-          ]
-        : []),
-      { kind: "item", id: "rename", label: "Rename…", icon: "Edit" },
-      { kind: "separator" },
-      { kind: "header", label: "Move to section" },
-      ...sections.map(
-        (section): RadarMenuItem => ({
-          kind: "item",
-          id: `section:${section.id}`,
-          label: section.name,
-          icon: "Folder",
-          checked: menuThread.sectionId === section.id,
-        }),
-      ),
-      ...(menuThread.sectionId
-        ? [
-            {
-              kind: "item",
-              id: "section-none",
-              label: "No section",
-              icon: "Folder",
-            } as RadarMenuItem,
-          ]
-        : []),
-      { kind: "separator" },
-      ...(menuThread.isArchived
-        ? [
-            {
-              kind: "item",
-              id: "unarchive",
-              label: "Unarchive",
-              icon: "ArchiveRestore",
-            } as RadarMenuItem,
-          ]
-        : [
-            {
-              kind: "item",
-              id: "archive",
-              label: "Archive",
-              icon: "Archive",
-            } as RadarMenuItem,
-          ]),
-      { kind: "item", id: "copy-link", label: "Copy link", icon: "Copy" },
-      {
-        kind: "item",
-        id: "delete",
-        label: "Delete…",
-        icon: "Trash2",
-        danger: true,
-      },
-    ];
-    return items;
-  }, [menuThread, sections, childrenOf]);
-
-  const handleMenuSelect = useCallback(
-    async (id: string) => {
-      const thread = menuThread;
-      setMenu(null);
-      if (!thread) return;
-      try {
-        if (id === "open-split") {
-          actions.open(thread.id, { split: true });
-          onNavigate();
-        } else if (id === "pin") {
-          await actions.setPinned(thread.id, !thread.isPinned);
-        } else if (id === "read") {
-          await actions.setRead(thread.id, thread.isUnread);
-        } else if (id === "family-read") {
-          await markFamilyRead(thread);
-        } else if (id === "rename") {
-          setEditingId(thread.id);
-        } else if (id === "archive") {
-          actions.archive(thread.id);
-        } else if (id === "unarchive") {
-          await sdk.threads.unarchive({ threadId: thread.id });
-        } else if (id === "copy-link") {
-          await navigator.clipboard.writeText(
-            `${window.location.origin}${thread.href}`,
-          );
-          toast.success("Link copied");
-        } else if (id === "delete") {
-          actions.requestDelete(thread.id);
-        } else if (id === "section-none") {
-          await sdk.threads.update({ threadId: thread.id, sectionId: null });
-        } else if (id.startsWith("section:")) {
-          await sdk.threads.update({
-            threadId: thread.id,
-            sectionId: id.slice("section:".length),
-          });
-        }
-      } catch (cause) {
-        toast.error(problem(cause));
-      }
-    },
-    [menuThread, actions, sdk, onNavigate, markFamilyRead],
   );
 
   const commitRename = useCallback(
@@ -1439,7 +1306,8 @@ export function RadarThreadList({
           actions={actions}
           timeText={timeAgo(activityTime(thread, now), now)}
           onNavigate={onNavigate}
-          onOpenMenu={openMenu}
+          sections={sections}
+          onMarkFamilyRead={requestMarkFamilyRead}
           onStartRename={startRename}
           onCommitRename={commitRename}
           onCancelRename={cancelRename}
@@ -1479,7 +1347,8 @@ export function RadarThreadList({
       actions,
       now,
       onNavigate,
-      openMenu,
+      sections,
+      requestMarkFamilyRead,
       commitRename,
       startRename,
       cancelRename,
@@ -2055,7 +1924,7 @@ export function RadarThreadList({
                         size="sm"
                         onClick={() => {
                           requestBotAttention(scopedBot.current, !!(scopedBot.unseenAttention || scopedBot.actionableNeeds));
-                          actions.open(scopedBot.current);
+          actions.open(scopedBot.current);
                           onNavigate();
                         }}
                       >
@@ -2395,16 +2264,6 @@ export function RadarThreadList({
             }
           }}
           onClose={() => setGroupMenu(null)}
-        />
-      ) : null}
-
-      {menu && menuThread ? (
-        <RadarMenu
-          x={menu.x}
-          y={menu.y}
-          items={menuItems}
-          onSelect={handleMenuSelect}
-          onClose={() => setMenu(null)}
         />
       ) : null}
 

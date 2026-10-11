@@ -89,6 +89,7 @@ function prefersReducedMotion(): boolean {
  */
 export function useRowSwipe({
   rowRef,
+  rowElement,
   enabled,
   right,
   left,
@@ -97,6 +98,8 @@ export function useRowSwipe({
   onCommit,
 }: {
   rowRef: RefObject<HTMLDivElement | null>;
+  /** Rebind listeners when a deferred row replaces its placeholder. */
+  rowElement?: HTMLDivElement | null;
   enabled: boolean;
   /** Action for a rightward swipe, or null for none. */
   right: SwipeActionView | null;
@@ -125,7 +128,7 @@ export function useRowSwipe({
   const restoreRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    const row = rowRef.current;
+    const row = rowElement === undefined ? rowRef.current : rowElement;
     if (!row || !enabled) return;
 
     let tracking = false;
@@ -147,11 +150,20 @@ export function useRowSwipe({
     /** A removing action the user has committed to but not yet delivered:
      *  the row is still sliding out and folding. */
     let pending: SwipeActionView | null = null;
+    let committing = false;
+    const commitAction = (committed: SwipeActionView) => {
+      committing = true;
+      try {
+        latest.current.onCommit(committed, x);
+      } finally {
+        committing = false;
+      }
+    };
 
     const deliver = () => {
       const committed = pending;
       pending = null;
-      if (committed) latest.current.onCommit(committed, x);
+      if (committed) commitAction(committed);
     };
 
     const setPhase = (phase: Phase | null) => {
@@ -247,6 +259,21 @@ export function useRowSwipe({
       springTo(0, velocity, SPRING_BACK, reset);
     };
 
+    const commitNonRemoving = (committed: SwipeActionView, velocity: number) => {
+      if (committed.id === "menu") {
+        // Native menus measure their trigger. Return it to its resting place
+        // before opening, so opposite swipes have the same menu position.
+        setPhase("settle");
+        springTo(0, velocity, SPRING_BACK, () => {
+          reset();
+          commitAction(committed);
+        });
+      } else {
+        commitAction(committed);
+        settle(velocity);
+      }
+    };
+
     /** Rest aside with the action showing as a button, until dismissed. */
     const openRow = (velocity: number) => {
       if (closeOpenRow && closeOpenRow !== closeThis) closeOpenRow();
@@ -273,8 +300,7 @@ export function useRowSwipe({
         remove(action, 0);
         return;
       }
-      latest.current.onCommit(action, x);
-      settle(0);
+      commitNonRemoving(action, 0);
     };
 
     // An open row closes on any press outside its button (a press on the
@@ -392,8 +418,7 @@ export function useRowSwipe({
           remove(action, velocity);
           return;
         }
-        latest.current.onCommit(action, x);
-        settle(velocity);
+        commitNonRemoving(action, velocity);
         return;
       }
       if (openBelow && action && Math.abs(x) >= OPEN_MIN_PX) {
@@ -589,6 +614,9 @@ export function useRowSwipe({
     // Capture on this row before its links handle the click. Listening on
     // window made every app click visit every mounted row, even outside Radar.
     const onClickCapture = (event: MouseEvent) => {
+      // A committed action can click a native menu trigger synchronously.
+      // Allow that click while continuing to suppress the gesture's ghost click.
+      if (committing && !event.isTrusted) return;
       if (
         phaseRef.current === "open" &&
         row.querySelector(".radar-swipe-underlay")?.contains(event.target as Node)
@@ -625,7 +653,7 @@ export function useRowSwipe({
       deliver();
       reset();
     };
-  }, [enabled, rowRef]);
+  }, [enabled, rowRef, rowElement]);
 
   useEffect(() => {
     if (phaseRef.current === "gone") restoreRef.current?.();

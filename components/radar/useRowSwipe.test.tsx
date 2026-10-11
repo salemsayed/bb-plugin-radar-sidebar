@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { swipeActionView, type SwipeActionView } from "@/lib/swipe";
@@ -66,6 +66,29 @@ function openByTrackpad(row: HTMLElement) {
 }
 
 describe("row-scoped swipe click capture", () => {
+  it("moves swipe listeners to a replacement row element", () => {
+    const onCommit = vi.fn();
+    function ReplacedRow({ nodeKey }: { nodeKey: string }) {
+      const rowRef = useRef<HTMLDivElement>(null);
+      const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
+      const ref = useCallback((node: HTMLDivElement | null) => {
+        rowRef.current = node;
+        setRowElement(node);
+      }, []);
+      useRowSwipe({ rowRef, rowElement, enabled: true, right: readAction, left: null, restoreKey: "active", onCommit });
+      return <div key={nodeKey} ref={ref} data-testid="row" />;
+    }
+    const slot = render(<ReplacedRow nodeKey="placeholder" />);
+    const previous = slot.getByTestId("row");
+    slot.rerender(<ReplacedRow nodeKey="contents" />);
+    const current = slot.getByTestId("row");
+    expect(current).not.toBe(previous);
+    touchSwipe(previous);
+    expect(onCommit).not.toHaveBeenCalled();
+    touchSwipe(current);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(readAction, 120);
+  });
+
   it("does not install window click handlers or inspect rows on unrelated clicks", () => {
     const windowListeners = vi.spyOn(window, "addEventListener");
     const onCommit = vi.fn();

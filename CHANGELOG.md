@@ -13,6 +13,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Changed
 
+- Defer offscreen row contents and inactive More menus, retaining lightweight links, measured heights, keyboard navigation and native bulk actions. Suspend offscreen model requests and gestures, and rebind swipes when a deferred row becomes visible.
+
+- Use BB's shared thread-action menus on desktop and mobile, including actions contributed by other plugins such as per-thread notifications. Replace the retired sidebar action hook with public navigation and thread APIs; retain BB's archive/delete confirmation and Undo flows for shortcuts, swipes and bulk actions. Require SDK 0.6.37.
+
 - Rebuild Crew as a read-only overview: pending approvals and the Needs You list, then one card per bot with state, machine, context ring, live or blocked workers (hidden included), latest reply and ChatGPT's instructions today. Old failures are counted, not listed. The header shows ChatGPT's connection and alert-watch deadline.
 - The Crew rail icon shows a count of what needs Salem, or a dot while bots work.
 - The bot row starts with **All** instead of a house icon, so it is not mistaken for BB's rail Home.

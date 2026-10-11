@@ -62,16 +62,15 @@ const props = {
 };
 const sdk: Record<string, unknown> = {
   threads: {
-    pin: async()=>({}), unpin: async()=>({}), markUnread: async()=>({}), defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
+    defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
     update: async () => ({}), unarchive: async () => ({}), markRead: async () => ({}),
   },
   providers: { models: async () => ({ models: [] }) },
 };
 function mount(threads: PluginSidebarThread[], settings: Record<string, boolean> = {}) {
-  const native = threadActionsFixture();
-  return native.capture(renderSlot(list, props, {
-    threadActions: native.threadActions,
-    sdk, settings, sidebarThreads: { status: "ready", threads,
+  const actions = threadActionsFixture();
+  return actions.capture(renderSlot(list, props, {
+    sdk, settings, threadActions: actions.threadActions, sidebarThreads: { status: "ready", threads,
       projects: [makeProject({ id: "proj_a" })], sections: [] },
   }));
 }
@@ -80,6 +79,43 @@ afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unst
   probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; });
 
 describe("sidebar behavior regressions", () => {
+  it("defers offscreen controls while retaining jump links, keyboard focus and bulk archive actions", async () => {
+    let intersect: IntersectionObserverCallback;
+    const observed = new Set<Element>();
+    const disconnect = vi.fn();
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) { intersect = callback; }
+      observe(element: Element) { observed.add(element); }
+      unobserve(element: Element) { observed.delete(element); }
+      disconnect() { disconnect(); }
+    });
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {} unobserve() {} disconnect() {}
+    });
+    const slot = mount([makeThread({ id: "one", title: "First" }), makeThread({ id: "two", title: "Second" })]);
+    const links = () => Array.from(document.querySelectorAll<HTMLElement>("[data-sidebar-thread-shortcut-target]"));
+    expect(links()).toHaveLength(2);
+    expect(document.querySelectorAll(".radar-row-placeholder")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    const first = links()[0].closest(".radar-row")!;
+    act(() => intersect!([{ target: first, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(screen.getAllByRole("button", { name: "More actions" })).toHaveLength(1);
+    // Select both, including the still-deferred row. Actions must stay bound.
+    fireEvent.click(links()[0], { ctrlKey: true });
+    fireEvent.click(links()[1], { ctrlKey: true });
+    fireEvent.keyDown(links()[0], { key: "e" });
+    await waitFor(() => expect(recordedActions(slot).filter(call => call.method === "archive")).toHaveLength(2));
+    fireEvent.keyDown(links()[0], { key: "Escape" });
+    act(() => links()[1].focus());
+    const focused = document.activeElement as HTMLElement;
+    expect(focused.dataset.sidebarThreadId).toBe(links()[1].dataset.sidebarThreadId);
+    expect(focused.closest(".radar-row-placeholder")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "More actions" })).toHaveLength(2);
+    slot.unmount();
+    expect(observed.size).toBe(0);
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
   it("applies an adaptiveCollapse setting change to already mounted rows", async () => {
     const settings = { adaptiveCollapse: true };
     const slot = mount([makeThread({ id: "quiet" })], settings);
@@ -253,7 +289,7 @@ describe("sidebar behavior regressions", () => {
   it.each(["more", "context"])("closes the preview before opening the row action menu (%s)", async (trigger) => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     const slot = mount([makeThread({ id: "hover" })]);
-    fireEvent.mouseEnter(slot.container.querySelector(".radar-row")!);
+    fireEvent.pointerEnter(slot.container.querySelector(".radar-row")!, { pointerType: "mouse" });
     await screen.findByRole("dialog");
     if (trigger === "more") fireEvent.click(screen.getByRole("button", { name: "More actions" }));
     else fireEvent.contextMenu(slot.container.querySelector('[data-sidebar-thread-id="hover"]')!);
@@ -264,7 +300,7 @@ describe("sidebar behavior regressions", () => {
   it("cancels a pending preview when the row menu opens", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     const slot = mount([makeThread({ id: "hover" })]);
-    fireEvent.mouseEnter(slot.container.querySelector(".radar-row")!);
+    fireEvent.pointerEnter(slot.container.querySelector(".radar-row")!, { pointerType: "mouse" });
     fireEvent.click(screen.getByRole("button", { name: "More actions" }));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
     expect(screen.getByRole("menu")).toBeTruthy();

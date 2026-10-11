@@ -21,6 +21,7 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
 - **Bot Attention** (`threadPanelAction`, id `bot-attention`): questions, reminders and important updates inside each bot coordinator, opened through its Attention header action. Crew navigation is retired.
+- **Thread actions**: row More and context/long-press menus use BB's shared registry, including Notifications and other plugins' actions. Mobile choices open native drawers. Keyboard, swipe and bulk archive/delete actions keep BB's confirmation and Undo flows. Requires SDK 0.6.37.
 
 ## Bot shortcuts
 

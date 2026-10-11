@@ -3,7 +3,7 @@ import { recordedActions, threadActionsFixture } from "./threadActions.fixtures"
 import { act, cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { createElement, Fragment, type FunctionComponent } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot, type TestThreadActionsResolver } from "@get-bb/plugin-sdk/testing/app";
 import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
@@ -26,8 +26,11 @@ function sdkFakes(
 ): Record<string, unknown> {
   return {
     threads: {
-      pin: async()=>({}), unpin: async()=>({}), markUnread: async()=>({}), defaultExecutionOptions: async () => execution,
+      defaultExecutionOptions: async () => execution,
       update: async () => ({ ok: true }),
+      pin: async () => ({ ok: true }),
+      unpin: async () => ({ ok: true }),
+      markUnread: async () => ({ ok: true }),
       unarchive: async () => ({ ok: true }),
       markRead: async () => ({ ok: true }),
       context: async () => ({ usage: null }),
@@ -54,11 +57,12 @@ function renderThreads(
     rpc?: Record<string, (input: unknown) => unknown>;
     isCompactViewport?: boolean;
     onNavigate?: () => void;
+    threadActions?: TestThreadActionsResolver;
   } = {},
 ) {
   const { isCompactViewport = false, onNavigate = () => {}, ...harness } = options;
-  const native = threadActionsFixture();
-  return native.capture(renderSlot(
+  const actions = threadActionsFixture();
+  return actions.capture(renderSlot(
     threadList,
     {
       activeThreadId: null,
@@ -69,7 +73,7 @@ function renderThreads(
     },
     {
       sdk: sdkFakes(options.execution),
-      threadActions: native.threadActions,
+      threadActions: actions.threadActions,
       ...harness,
       sidebarThreads: {
         status: "ready",
@@ -118,6 +122,33 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("shared thread actions", () => {
+  it.each(["More", "context"])("includes another plugin's action in the %s menu", (surface) => {
+    const run = vi.fn(async (_threadId: string) => {});
+    const core = threadActionsFixture();
+    const slot = renderThreads([makeThread({ id: "notifications-thread" })], {
+      threadActions: (thread, options) => [
+        ...core.threadActions(thread, options),
+        { key: "push-notifications/notifications", pluginId: "push-notifications", group: "3_preferences", action: {
+          label: "Notifications", icon: "Bell", run: async () => run(thread.id),
+        } },
+      ],
+    });
+    if (surface === "More") fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    else fireEvent.contextMenu(slot.container.querySelector("[data-sidebar-thread-id]")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Notifications" }));
+    expect(run).toHaveBeenCalledWith("notifications-thread");
+    expect(slot.inspection.navigateCalls).toEqual([]);
+  });
+
+  it("opens Radar's inline editor through the host Rename action", async () => {
+    renderThreads([makeThread({ id: "rename-thread", title: "Before" })]);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByDisplayValue("Before")));
+  });
 });
 
 describe("retired project tile scope", () => {
@@ -1332,22 +1363,23 @@ describe("swipe actions", () => {
     expect(row(slot.container).dataset.swipePhase).toBe("settle");
   });
 
-  it("anchors the More menu on the row's resting place, whichever way it was swiped", () => {
-    const place = (dx: number) => {
+  it("opens the native More menu from either swipe direction", async () => {
+    const place = async (dx: number) => {
       const slot = renderSwipe([makeThread({ id: "t" })], {
         settings: { swipeRight: "More actions", swipeLeft: "More actions" },
       });
-      // Where the row sits when untouched: its right edge at 600px.
-      const target = row(slot.container);
-      target.getBoundingClientRect = () =>
-        ({ right: 600 + (parseFloat(target.style.transform.split("(")[1] ?? "0") || 0), bottom: 50 }) as DOMRect;
       swipe(slot.container, dx);
-      const menu = screen.getByRole("menu");
-      const left = menu.style.left;
+      const menu = await screen.findByRole("menu");
+      expect(row(slot.container).style.transform).toBe("");
+      // The harness renders its menu inside the row instead of a host portal.
+      await waitFor(() => {
+        fireEvent.click(within(menu).getByRole("menuitem", { name: "Archive" }));
+        expect(recordedActions(slot)).toContainEqual({ method: "archive", threadId: "t" });
+      });
       cleanup();
-      return left;
     };
-    expect(place(160)).toBe(place(-160));
+    await place(160);
+    await place(-160);
   });
 });
 
@@ -1670,7 +1702,7 @@ describe("folded row work", () => {
     ], { sdk: { ...sdkFakes(), threads: { context } } });
     const child = slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')!
       .closest(".radar-row")!;
-    fireEvent.mouseEnter(child);
+    fireEvent.pointerEnter(child, { pointerType: "mouse" });
     fireEvent.click(screen.getByRole("button", { name: "Collapse replies" }));
     act(() => { vi.advanceTimersByTime(400); });
     expect(screen.queryByRole("dialog")).toBeNull();

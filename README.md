@@ -12,8 +12,8 @@ Grouping, folding and attention states do the sorting for you, so nothing that
 needs a decision hides at the bottom of the list.
 
 ![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)
-![bb ≥ 0.44](https://img.shields.io/badge/bb-%E2%89%A5%200.44-22d3ee)
-![Plugin SDK ≥ 0.5.29](https://img.shields.io/badge/plugin%20sdk-%E2%89%A5%200.5.29-0369a1)
+![bb ≥ 0.46](https://img.shields.io/badge/bb-%E2%89%A5%200.46-22d3ee)
+![Plugin SDK ≥ 0.6.37](https://img.shields.io/badge/plugin%20sdk-%E2%89%A5%200.6.37-0369a1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 
 [Features](#features) · [Install](#install) · [Bot shortcuts](#navigation-and-bot-shortcuts) · [How it works](#how-it-works) · [Settings](#settings) · [Development](#development)
@@ -173,7 +173,7 @@ bb plugin install path:$PWD --yes
 
 **Requirements**
 
-- bb **0.44+** (Plugin SDK 0.5.29+)
+- bb **0.46+** with Plugin SDK **0.6.37+**
 
 ## Where to find it
 
@@ -187,7 +187,7 @@ bb plugin install path:$PWD --yes
 
 ## Navigation and bot shortcuts
 
-BB owns the native navigation rail, destination order, More menu, footer and New thread control. Radar replaces only the thread list. It supports the mandatory desktop and mobile rail in SDK 0.6.33 and the earlier SDK 0.6.31 navigation.
+BB owns the native navigation rail, destination order, More menu, footer and New thread control. Radar replaces only the thread list and follows BB's desktop and mobile navigation.
 
 Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or **All** at the start of the row, to show every thread. (BB's rail Home only switches the sidebar to this list; it does not clear the bot filter.) Crew opens from BB's native rail. On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
 
@@ -196,6 +196,8 @@ Bot state and unread badges retain their existing meaning. Hidden bots stay hidd
 ## Compatibility notes
 
 SDK 0.6.33 removes the sidebar navigation replacement API. Radar no longer registers or imports it, and emits no CSS for BB's shell. Crew remains a supported `navPanel`; reminders remain native message and thread-panel actions. The old navigation and labelled-rail settings are retired, while BB keeps the user's destination arrangement.
+
+Thread menus use BB's shared action registry, including per-thread notification settings and other plugins' actions. On mobile, menus and choices use BB's native drawers. Keyboard, swipe and bulk archive/delete actions keep BB's confirmation and Undo flows. This version requires SDK 0.6.37 and no longer uses the retired sidebar thread-action hook.
 
 ## How it works
 
@@ -218,6 +220,10 @@ flowchart LR
   resolves *defaults*, so model and thinking are shown only while a thread is
   actually in flight. Remounts within the same run reuse cached values;
   new activity, a restart or window focus triggers a refresh.
+- **Large lists defer offscreen content.** Lightweight links preserve BB's
+  shortcut order and keyboard navigation. Nearby rows render full controls;
+  measured heights preserve spacing, and native archive/delete actions remain
+  available for bulk selection. Offscreen model requests and gestures pause.
 - **It will not move a thread between projects.** BB's thread API exposes no
   `projectId` on update, so project grouping is view-only; drag-to-organise
   files threads into sections, which BB does allow.
