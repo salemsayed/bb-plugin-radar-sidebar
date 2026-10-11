@@ -11,7 +11,7 @@ import { botStyle, QUIET_LINE, shortBotName, type BotState, type Pulse, type Ros
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { NeedsYouList } from "./NeedsYouList";
 import { AttentionList } from "./AttentionList";
-import { isRunningThread, shortAgo } from "./time";
+import { isQueuedThread, isRunningThread, shortAgo } from "./time";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
 
@@ -53,7 +53,8 @@ function workerState(thread: PluginSidebarThread, now: number): WorkerState | nu
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") return "needs-you";
   if (isRunningThread(thread)) return "working";
   if (thread.status === "error" || thread.queuedWork === "failed") return now - thread.updatedAt < RECENT_FAILURE_MS ? "failed" : null;
-  if (thread.queuedWork === "waiting") return "queued";
+  // Held (parked on an idle worker) is not work in flight: not listed.
+  if (isQueuedThread(thread)) return "queued";
   return null;
 }
 
@@ -73,7 +74,7 @@ export function crewCard(bot: RosterBot, threads: readonly PluginSidebarThread[]
     : coordinator.status === "error" || workers.some(w => w.state === "failed") ? "failed"
     : isRunningThread(coordinator) || workers.some(w => w.state === "working") ? "working"
     : bot.rollover ? "handover"
-    : coordinator.queuedWork === "waiting" || workers.some(w => w.state === "queued") ? "queued"
+    : isQueuedThread(coordinator) || workers.some(w => w.state === "queued") ? "queued"
     : coordinator.runtimeStatus === "waiting-for-host" ? "waiting" : (bot.unseenAttention ?? 0) > 0 ? "unread" : "quiet";
   const automationState = automations?.some(item => item.state === "blocked") ? "needs-you"
     : automations?.some(item => item.state === "overdue") ? "failed" : null;

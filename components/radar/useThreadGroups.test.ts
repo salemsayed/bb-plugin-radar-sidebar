@@ -1,6 +1,6 @@
 import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeThread, makeProject, makeSection, NOW, HOUR } from "./fixtures";
+import { makeThread, makeProject, makeSection, NOW, HOUR, DAY } from "./fixtures";
 import { useThreadGroups } from "./useThreadGroups";
 
 type Args = Parameters<typeof useThreadGroups>[0];
@@ -204,14 +204,17 @@ describe("working drawer", () => {
       makeThread({ id: "plan", activity: { ...idle, planMode: 1 } }),
       makeThread({ id: "agents", activity: { ...idle, backgroundAgents: 2 } }),
       makeThread({ id: "goal", activity: { ...idle, goals: 1 } }),
-      makeThread({ id: "queued", queuedWork: "waiting" }),
+      makeThread({ id: "queued", status: "active", queuedWork: "waiting" }),
       makeThread({ id: "stuck", queuedWork: "failed", indicator: "queued-failed" }),
       makeThread({ id: "done", indicator: "unread-success", isUnread: true }),
+      // A message parked on an idle thread is held, not work in flight.
+      makeThread({ id: "held", queuedWork: "waiting", indicator: "queued-waiting" }),
     ];
     const result = renderHook(() => useThreadGroups({ ...argsFor(threads), hideWorking: true })).result.current;
     expect(ids(result.workingGroup?.roots).sort()).toEqual(["agents", "goal", "plan", "queued", "server"]);
     expect(ids(result.needsYouGroup?.roots)).toEqual(["stuck"]);
-    expect(listed(result.groups)).toEqual(["done"]);
+    expect(listed(result.groups).sort()).toEqual(["done", "held"]);
+    expect(result.workingCount).toBe(5);
   });
 
   it("shows matches in place while searching or filtering", () => {
@@ -223,4 +226,22 @@ describe("working drawer", () => {
       expect(listed(result.groups)).toEqual(["run"]);
     }
   });
+
+describe("held threads", () => {
+  it("leave the live filter and live counts, and sort like idle threads", () => {
+    const threads = [
+      makeThread({ id: "held", queuedWork: "waiting", indicator: "queued-waiting", latestAttentionAt: NOW - 3 * DAY }),
+      makeThread({ id: "behind", status: "active", queuedWork: "waiting", latestAttentionAt: NOW - 3 * DAY }),
+      makeThread({ id: "recent", latestAttentionAt: NOW - HOUR }),
+    ];
+    const all = renderHook(() => useThreadGroups(argsFor(threads))).result.current;
+    expect(all.statusCounts.live).toBe(1);
+    expect(all.groups.map((group) => [group.id, ids(group.roots)])).toEqual([
+      ["time:today", ["behind", "recent"]],
+      ["time:week", ["held"]],
+    ]);
+    const live = renderHook(() => useThreadGroups({ ...argsFor(threads), statusFilter: "live" })).result.current;
+    expect(listed(live.groups)).toEqual(["behind"]);
+  });
+});
 });

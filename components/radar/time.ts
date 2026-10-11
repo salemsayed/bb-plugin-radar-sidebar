@@ -4,15 +4,31 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 
 /**
  * True while a thread is live: executing, winding down, running background
- * work, holding a queued message, or blocked on the user. Live threads
- * count as active right now for grouping and sorting.
+ * work (with or without messages queued behind it), or blocked on the user.
+ * Queued work alone is not live: on an idle thread it is held (see
+ * `isHeldThread`). Live threads count as active right now for grouping and
+ * sorting.
  */
 export function isLiveThread(thread: PluginSidebarThread): boolean {
+  return isRunningThread(thread) || thread.hasPendingInteraction;
+}
+
+/**
+ * A message parked on an idle thread. BB reports `queuedWork: "waiting"` both
+ * for a message queued behind a running turn and for one held on a thread
+ * that is not running; only the first will run on its own.
+ */
+export function isHeldThread(thread: PluginSidebarThread): boolean {
   return (
-    isRunningThread(thread) ||
-    thread.queuedWork !== "none" ||
-    thread.hasPendingInteraction
+    thread.queuedWork === "waiting" &&
+    !isRunningThread(thread) &&
+    !thread.hasPendingInteraction
   );
+}
+
+/** A queued message that will run on its own (not held). */
+export function isQueuedThread(thread: PluginSidebarThread): boolean {
+  return thread.queuedWork === "waiting" && !isHeldThread(thread);
 }
 
 /** Execution and background work, excluding queued or blocked work. */

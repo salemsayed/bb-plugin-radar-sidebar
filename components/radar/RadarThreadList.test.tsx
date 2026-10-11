@@ -2357,11 +2357,28 @@ describe("state colors and stable rows", () => {
   });
 
   it("keeps queued rows muted and still", () => {
-    const slot = renderThreads([makeThread({ id: "queued", queuedWork: "waiting", indicator: "queued-waiting" })]);
+    const slot = renderThreads([makeThread({ id: "queued", status: "active", queuedWork: "waiting", indicator: "queued-waiting" })]);
     const queued = row(slot.container, "queued");
     expect(queued.className).not.toContain("radar-row-pulse");
     expect(queued.querySelector(".radar-status-icon")?.className).toContain("radar-tone-muted");
     expect(within(queued as HTMLElement).getByText("Queued").className).toContain("radar-tone-muted");
+  });
+
+  it("shows a message parked on an idle thread as held, outside the Working drawer", () => {
+    const slot = renderThreads([
+      makeThread({ id: "held", title: "Parked", queuedWork: "waiting", indicator: "queued-waiting", indicatorLabel: "Message queued" }),
+      makeThread({ id: "run", status: "active", indicator: "runtime" }),
+    ], { settings: { hideWorking: true } });
+    const held = row(slot.container, "held");
+    expect(held.closest(".radar-working-drawer")).toBeNull();
+    expect(screen.getByRole("button", { name: "Working, 1 thread" })).toBeTruthy();
+    expect(held.className).not.toMatch(/radar-row-(pulse|needs-user|failed)/);
+    expect(held.querySelector(".radar-status-icon")?.className).toContain("radar-tone-muted");
+    expect(held.querySelector("[data-icon=\"Pause\"]")).not.toBeNull();
+    expect(within(held as HTMLElement).getByText("Held").className).toContain("radar-tone-muted");
+    expect(within(held as HTMLElement).queryByText("Queued")).toBeNull();
+    expect(held.querySelector(".radar-row-status-badge")?.getAttribute("title")).toBe("Message held until you send it");
+    expect(held.querySelector("[data-sidebar-thread-id]")?.getAttribute("aria-label")).toContain("Message held until you send it");
   });
 
   it("decides a row's fold once, so reading or finishing never changes its height", () => {

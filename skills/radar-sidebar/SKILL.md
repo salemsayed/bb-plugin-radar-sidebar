@@ -84,11 +84,14 @@ back to BB's list automatically.
 ## Row behaviour
 
 - Colour legend: blue = running, green = done, amber = needs you, red =
-  failed, muted = queued, tinted row = act on it.
+  failed, muted = queued or held, tinted row = act on it.
 - Status visual: spinning blue loader = thread working; one pulsing blue
   icon for background agent (bot), background command (terminal),
   workflow, goal (target), and plan mode (checklist); amber dot =
-  needs input, muted clock = message queued to send, red X icon = error /
+  needs input, muted clock + QUEUED = message queued behind a running turn,
+  muted pause + HELD = message parked on an idle thread until the user sends
+  it (`isHeldThread`: not live, so outside the Working drawer, live filter
+  and counts, sorted like idle, idle for bots and Crew), red X icon = error /
   failed send, green check-circle + DONE = finished but unseen (static).
   Only rows that need you are tinted: waiting-for-input gets an amber wash
   + 3px left bar + glow, failed gets the red equivalents — both stay until

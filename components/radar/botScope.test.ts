@@ -38,10 +38,12 @@ describe("bot scope", () => {
     expect(botRailState([root, { ...worker, status: "error" }], bot, null)).toBe("failed");
     expect(botRailState([root, { ...worker, isHidden: true }], bot, null)).toBe("needs-you");
   });
-  it("keeps queued work distinct from running work and handovers", () => {
+  it("reads held work as idle, keeping failures, handovers and running work", () => {
     const root = makeThread({ id: "root" });
     const queued = makeThread({ id: "worker", parentThreadId: "root", queuedWork: "waiting" });
-    expect(botRailState([root, queued], bot, null)).toBe("queued");
+    expect(botRailState([root, queued], bot, null)).toBe("idle");
+    expect(botRailState([{ ...root, queuedWork: "waiting" }, queued], bot, null)).toBe("idle");
+    expect(botRailState([root, { ...queued, status: "active" }], bot, null)).toBe("working");
     expect(botRailState([root, { ...queued, queuedWork: "failed" }], bot, null)).toBe("failed");
     expect(botRailState([root, queued], { ...bot, rollover: "summary" }, null)).toBe("rollover");
     expect(botRailState([root, queued, makeThread({ id: "running", parentThreadId: "root", status: "active" })], bot, null)).toBe("working");

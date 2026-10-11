@@ -245,3 +245,13 @@ it("does not hide an approval just because another saved ask came from the same 
   await screen.findByRole("button", { name: "Home Bot automations: 1 blocked" });
   expect(screen.getByRole("list", { name: "Waiting for your answer or approval" })).toBeTruthy();
 });
+
+it("does not count a message held on an idle bot as queued work", () => {
+  const coordinator = makeThread({ id: "coord", projectId: "p", queuedWork: "waiting" });
+  const worker = makeThread({ id: "held-worker", projectId: "p", parentThreadId: "coord", queuedWork: "waiting" });
+  const card = crewCard(home, [coordinator, worker], null, [], null, now);
+  expect(card.state).toBe("quiet");
+  expect(card.workers).toEqual([]);
+  const behind = crewCard(home, [coordinator, { ...worker, status: "active" }], null, [], null, now);
+  expect(behind.state).toBe("working");
+});

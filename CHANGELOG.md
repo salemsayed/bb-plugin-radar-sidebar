@@ -4,6 +4,13 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.2 - 2026-10-11
+
+### Changed
+
+- A message parked on an idle thread is **Held** (muted pause icon, HELD, tooltip "Message held until you send it") instead of Queued. BB reports both as queued work, but only a message queued behind a running turn will run on its own. Held threads are not live: they leave the Working drawer and the live filter and counts, sort by their latest attention like idle threads, and read as idle for bots and Crew. A message queued behind a running turn keeps the grey clock and QUEUED.
+- Queued work no longer makes a thread live on its own, failed queues included; running work and pending questions or approvals still do.
+
 ## 0.6.1 - 2026-10-11
 
 ### Changed

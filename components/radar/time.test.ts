@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activityTime, isLiveThread, isRunningThread, timeAgo, timeGroupFor, shortAgo } from "./time";
+import { activityTime, isHeldThread, isLiveThread, isQueuedThread, isRunningThread, timeAgo, timeGroupFor, shortAgo } from "./time";
 import { makeThread, NOW, DAY, HOUR, MINUTE } from "./fixtures";
 
 describe("isLiveThread", () => {
@@ -24,9 +24,9 @@ describe("isLiveThread", () => {
     expect(isLiveThread(thread)).toBe(true);
   });
 
-  it("treats queued work and pending interactions as live", () => {
+  it("treats work queued behind a run and pending interactions as live", () => {
     expect(
-      isLiveThread(makeThread({ id: "q", queuedWork: "waiting" })),
+      isLiveThread(makeThread({ id: "q", status: "active", queuedWork: "waiting" })),
     ).toBe(true);
     expect(
       isLiveThread(makeThread({ id: "p", hasPendingInteraction: true })),
@@ -39,19 +39,39 @@ describe("isLiveThread", () => {
 });
 
 describe("isRunningThread", () => {
-  it("keeps queued, failed and blocked work live without calling it running", () => {
-    for (const thread of [
-      makeThread({ id: "queued", queuedWork: "waiting" }),
-      makeThread({ id: "failed", queuedWork: "failed", indicator: "queued-failed" }),
-      makeThread({ id: "approval", hasPendingInteraction: true, indicator: "waiting-for-input" }),
-    ]) {
-      expect(isLiveThread(thread)).toBe(true);
-      expect(isRunningThread(thread)).toBe(false);
-    }
+  it("keeps blocked work live without calling it running", () => {
+    const approval = makeThread({ id: "approval", hasPendingInteraction: true, indicator: "waiting-for-input", queuedWork: "waiting" });
+    expect(isLiveThread(approval)).toBe(true);
+    expect(isRunningThread(approval)).toBe(false);
+    expect(isHeldThread(approval)).toBe(false);
+    // Queued work on its own never makes a thread live, failed or not.
+    expect(isLiveThread(makeThread({ id: "failed", queuedWork: "failed", indicator: "queued-failed" }))).toBe(false);
     expect(isRunningThread(makeThread({ id: "run", status: "active" }))).toBe(true);
     expect(isRunningThread(makeThread({ id: "background", activity: {
       workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0, goals: 0,
     } }))).toBe(true);
+  });
+});
+
+describe("isHeldThread", () => {
+  it("holds a message parked on an idle thread, and nothing else", () => {
+    const parked = makeThread({ id: "parked", status: "idle", queuedWork: "waiting", indicator: "queued-waiting" });
+    expect(isHeldThread(parked)).toBe(true);
+    expect(isQueuedThread(parked)).toBe(false);
+    expect(isLiveThread(parked)).toBe(false);
+    const behind = { ...parked, status: "active" as const };
+    expect(isHeldThread(behind)).toBe(false);
+    expect(isQueuedThread(behind)).toBe(true);
+    expect(isLiveThread(behind)).toBe(true);
+    const background = { ...parked, activity: { workflows: 0, backgroundAgents: 1, backgroundCommands: 0, planMode: 0, goals: 0 } };
+    expect(isHeldThread(background)).toBe(false);
+    expect(isHeldThread({ ...parked, queuedWork: "none" as const })).toBe(false);
+  });
+
+  it("sorts a held thread by its latest attention, never floating it", () => {
+    const parked = makeThread({ id: "parked-sort", queuedWork: "waiting", latestAttentionAt: NOW - 3 * DAY });
+    expect(activityTime(parked, NOW)).toBe(NOW - 3 * DAY);
+    expect(activityTime(parked, NOW + HOUR)).toBe(NOW - 3 * DAY);
   });
 });
 

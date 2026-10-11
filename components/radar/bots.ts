@@ -2,7 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
 import { openNeeds, type NeedsItem } from "@/lib/needs";
-import { isRunningThread } from "./time";
+import { isQueuedThread, isRunningThread } from "./time";
 
 /** What the bb-salem-bots plugin publishes for sidebars: identity only, no thread content. */
 export const rosterSchema = z.object({
@@ -146,7 +146,8 @@ export function botState(
   if (pulse?.decision && !isRunningThread(thread)) return "decision";
   if (rollover) return "rollover";
   if (isRunningThread(thread) || family.live > 0) return "working";
-  if (thread.queuedWork === "waiting") return "queued";
+  // A message held on an idle coordinator is not work in flight: idle.
+  if (isQueuedThread(thread)) return "queued";
   if (thread.isUnread) return "unread";
   return "idle";
 }

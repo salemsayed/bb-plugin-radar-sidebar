@@ -35,7 +35,9 @@ describe("botState", () => {
     expect(botState(makeThread({ ...base, isUnread: true }), { subject: "x", decision: "pay?", quiet: false }, null, { live: 1, needsUser: 0, failed: 0 })).toBe("decision");
   });
   it("distinguishes queued, failed-queue, background work, handover and an answered decision", () => {
-    expect(botState(makeThread({ ...base, queuedWork: "waiting" }), null, null)).toBe("queued");
+    // A message held on an idle coordinator is not busy; one queued behind a run is working.
+    expect(botState(makeThread({ ...base, queuedWork: "waiting" }), null, null)).toBe("idle");
+    expect(botState(makeThread({ ...base, status: "active", queuedWork: "waiting" }), null, null)).toBe("working");
     expect(botState(makeThread({ ...base, queuedWork: "failed" }), null, null)).toBe("failed");
     expect(botState(makeThread({ ...base, activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 1, planMode: 0, goals: 0 } }), null, null)).toBe("working");
     expect(botState(makeThread({ ...base, status: "active" }), null, "summary")).toBe("rollover");

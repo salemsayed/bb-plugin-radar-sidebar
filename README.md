@@ -73,7 +73,9 @@ or use **Move to section** in a thread's right-click menu.
 
 **Blue** = running (a spinner, or one pulsing icon for background work),
 **green** = done, **amber** = needs you, **red** = failed, **muted** =
-queued. A **tinted row** with a left bar means act on it: only needs-you
+queued (a clock: a message waiting behind a running turn) or held (a pause
+icon and HELD: a message parked on an idle thread until you send it; held
+threads are not live and stay out of the Working drawer). A **tinted row** with a left bar means act on it: only needs-you
 (amber) and failed (red) rows are tinted, and only they glow. Unread rows
 just get a bold title, plus a blue pip when no DONE badge already says so.
 Rows keep their height when their state changes, and hold their order while

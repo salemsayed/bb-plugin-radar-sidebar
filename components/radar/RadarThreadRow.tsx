@@ -33,7 +33,7 @@ import { runThreadAction, threadActionTarget, type RadarThreadActions } from "./
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { isLiveThread } from "./time";
+import { isHeldThread, isLiveThread } from "./time";
 import {
   formatReasoningLevel,
   useModelDisplayName,
@@ -152,6 +152,10 @@ function statusVisualFor(indicator: string): StatusVisual {
       return null;
   }
 }
+
+const HELD_LABEL = "Message held until you send it";
+const HELD_VISUAL: StatusVisual = { kind: "icon", name: "Pause", className: "radar-tone-muted" };
+const HELD_WORD = { text: "Held", tone: "radar-tone-muted" };
 
 /** Human label for a pull request: attention first, then bare state. */
 function prLabel(state: string, attention: string): string {
@@ -672,7 +676,11 @@ function RadarThreadRowImpl({
     onCommit: runSwipeAction,
   });
 
-  const visual: StatusVisual = statusVisualFor(thread.indicator);
+  // BB marks a message parked on an idle thread `queued-waiting` too; it
+  // will not run until the user sends it, so it reads as held, not queued.
+  const held = thread.indicator === "queued-waiting" && isHeldThread(thread);
+  const statusLabel = held ? HELD_LABEL : (thread.indicatorLabel ?? null);
+  const visual: StatusVisual = held ? HELD_VISUAL : statusVisualFor(thread.indicator);
   // Only action states get the wash + left bar + glow, read or not: a tinted
   // row always means "act on this". Plain unread is a bold title only.
   const needsUser = thread.indicator === "waiting-for-input";
@@ -693,13 +701,13 @@ function RadarThreadRowImpl({
       : null;
   const rowLabel = [
     thread.displayTitle,
-    thread.indicatorLabel ?? null,
+    statusLabel,
     thread.isPinned ? "pinned" : null,
     foldedSummary,
   ]
     .filter((part): part is string => !!part)
     .join(" — ");
-  const statusWord = statusWordFor(thread.indicator);
+  const statusWord = held ? HELD_WORD : statusWordFor(thread.indicator);
 
   // Model + thinking only while the thread is in flight. The options
   // endpoint resolves *defaults*, so it reports a model for any thread at
@@ -1026,7 +1034,7 @@ function RadarThreadRowImpl({
         "radar-row-status-badge",
         celebrate && "radar-celebrate",
       )}
-      title={thread.indicatorLabel ?? undefined}
+      title={statusLabel ?? undefined}
     >
       {visual?.kind === "spinner" ? (
         <span key="spinner" className="radar-spinner radar-tone-running">
