@@ -22,6 +22,10 @@ export function threadActionsFixture() {
     { key: "bb--core/delete", pluginId: "bb--core", group: "4_lifecycle", action: {
       label: "Delete", icon: "Trash", run: async () => { calls.push({ method: "requestDelete", threadId: thread.id }); },
     } },
+    { key: "bb--core/pin", pluginId: "bb--core", group: "2_organize", action: {
+      label: thread.pinnedAt === null ? "Pin" : "Unpin", icon: "Pin",
+      run: async () => { calls.push({ method: "setPinned", threadId: thread.id, pinned: thread.pinnedAt === null }); },
+    } },
     { key: "bb--core/rename", pluginId: "bb--core", group: "2_organize", action: {
       label: "Rename", icon: "Edit", run: async () => requestRename(thread.id),
     } },

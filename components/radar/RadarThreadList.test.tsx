@@ -629,27 +629,32 @@ describe("filtering", () => {
 });
 
 describe("actions", () => {
-  it("routes the archive hover action through the host", () => {
-    const thread = makeThread({ id: "t", title: "Archive me" });
-    const slot = renderThreads([thread]);
+  it("offers only ⋯ on the row, with pin, rename and archive in its menu", () => {
+    const slot = renderThreads([makeThread({ id: "t", title: "Act on me" })]);
+    const strip = slot.container.querySelector(".radar-row-actions")!;
+    expect(within(strip as HTMLElement).getAllByRole("button").map((button) => button.getAttribute("aria-label")))
+      .toEqual(["More actions"]);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    for (const name of ["Pin", "Rename", "Archive"]) {
+      expect(screen.getByRole("menuitem", { name })).toBeTruthy();
+    }
+  });
 
-    fireEvent.click(screen.getByLabelText("Archive thread"));
+  it("routes archive from the ⋯ menu through the host", () => {
+    const slot = renderThreads([makeThread({ id: "t", title: "Archive me" })]);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
     expect(recordedActions(slot)).toContainEqual({
       method: "archive",
       threadId: "t",
     });
   });
 
-  it("routes pin through the host with the toggled state", () => {
-    const thread = makeThread({ id: "t", title: "Pin me" });
-    const slot = renderThreads([thread]);
-
-    fireEvent.click(screen.getByLabelText("Pin thread"));
-    expect(recordedActions(slot)).toContainEqual({
-      method: "setPinned",
-      threadId: "t",
-      pinned: true,
-    });
+  it("routes pin from the ⋯ menu through the host", () => {
+    const slot = renderThreads([makeThread({ id: "t", title: "Pin me" })]);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
+    expect(recordedActions(slot)).toContainEqual({ method: "setPinned", threadId: "t", pinned: true });
   });
 });
 

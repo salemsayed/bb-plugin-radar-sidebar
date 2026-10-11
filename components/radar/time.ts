@@ -40,12 +40,51 @@ export function isRunningThread(thread: PluginSidebarThread): boolean {
 
 // When each live thread went live, as first seen by this client. Sorting a
 // live thread by `now` floated it to the top on every clock tick, moving rows
-// under the pointer; sorting by when it went live places it once.
-const wentLiveAt = new Map<string, number>();
+// under the pointer; sorting by when it went live places it once. Kept in
+// sessionStorage so a reload doesn't restart every live thread's clock.
+const WENT_LIVE_KEY = "radar-sidebar:went-live:v1";
+const WENT_LIVE_CAP = 500;
+let wentLiveAt: Map<string, number> | null = null;
 
-/** Forget every went-live time (tests). */
+function wentLiveTimes(): Map<string, number> {
+  if (wentLiveAt) return wentLiveAt;
+  wentLiveAt = new Map();
+  try {
+    const stored: unknown = JSON.parse(globalThis.sessionStorage?.getItem(WENT_LIVE_KEY) ?? "null");
+    if (Array.isArray(stored)) {
+      for (const entry of stored) {
+        if (Array.isArray(entry) && typeof entry[0] === "string" && Number.isFinite(entry[1])) {
+          wentLiveAt.set(entry[0], entry[1]);
+        }
+      }
+    }
+  } catch {
+    // Unavailable or corrupt storage: start empty.
+  }
+  return wentLiveAt;
+}
+
+function saveWentLive(times: Map<string, number>): void {
+  // Oldest first in insertion order: drop those (often deleted threads).
+  for (const id of times.keys()) {
+    if (times.size <= WENT_LIVE_CAP) break;
+    times.delete(id);
+  }
+  try {
+    globalThis.sessionStorage?.setItem(WENT_LIVE_KEY, JSON.stringify([...times]));
+  } catch {
+    // Storage full or blocked: the in-memory times still apply.
+  }
+}
+
+/** Forget every went-live time, stored ones included (tests). */
 export function resetWentLive(): void {
-  wentLiveAt.clear();
+  wentLiveAt = null;
+  try {
+    globalThis.sessionStorage?.removeItem(WENT_LIVE_KEY);
+  } catch {
+    // Nothing stored to forget.
+  }
 }
 
 /**
@@ -58,15 +97,17 @@ export function activityTime(
   thread: PluginSidebarThread,
   now: number,
 ): number {
+  const times = wentLiveTimes();
   if (!isLiveThread(thread)) {
-    wentLiveAt.delete(thread.id);
+    if (times.delete(thread.id)) saveWentLive(times);
     return thread.latestAttentionAt;
   }
-  let since = wentLiveAt.get(thread.id);
+  let since = times.get(thread.id);
   if (since === undefined) {
     if (!Number.isFinite(now)) return thread.latestAttentionAt;
     since = now;
-    wentLiveAt.set(thread.id, since);
+    times.set(thread.id, since);
+    saveWentLive(times);
   }
   return Math.max(since, thread.latestAttentionAt);
 }

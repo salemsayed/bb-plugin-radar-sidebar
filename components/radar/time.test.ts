@@ -83,6 +83,38 @@ describe("activityTime", () => {
     expect(activityTime(live, NOW + 2 * HOUR)).toBe(NOW + 2 * HOUR);
   });
 
+  it("remembers went-live times across a reload of the page", async () => {
+    const live = makeThread({ id: "reloaded", status: "active", latestAttentionAt: NOW - DAY });
+    expect(activityTime(live, NOW)).toBe(NOW);
+    expect(JSON.parse(sessionStorage.getItem("radar-sidebar:went-live:v1")!)).toEqual([["reloaded", NOW]]);
+    vi.resetModules();
+    const reloaded = await import("./time");
+    expect(reloaded.activityTime(live, NOW + HOUR)).toBe(NOW);
+    // Stopping clears the stored time too.
+    reloaded.activityTime({ ...live, status: "idle" }, NOW + HOUR);
+    expect(JSON.parse(sessionStorage.getItem("radar-sidebar:went-live:v1")!)).toEqual([]);
+  });
+
+  it("keeps at most 500 stored went-live times, dropping the oldest", () => {
+    for (let i = 0; i < 510; i++) {
+      activityTime(makeThread({ id: `cap-${i}`, status: "active" }), NOW + i);
+    }
+    const stored = JSON.parse(sessionStorage.getItem("radar-sidebar:went-live:v1")!) as [string, number][];
+    expect(stored).toHaveLength(500);
+    expect(stored[0]).toEqual(["cap-10", NOW + 10]);
+  });
+
+  it("ignores unreadable or failing storage", () => {
+    sessionStorage.setItem("radar-sidebar:went-live:v1", "{not json");
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    const live = makeThread({ id: "quota", status: "active", latestAttentionAt: NOW - DAY });
+    expect(activityTime(live, NOW)).toBe(NOW);
+    expect(activityTime(live, NOW + HOUR)).toBe(NOW);
+    setItem.mockRestore();
+  });
+
   it("falls back to the latest attention when the went-live time is unknown", () => {
     const live = makeThread({ id: "unknown", status: "active", latestAttentionAt: NOW - HOUR });
     expect(activityTime(live, Number.NaN)).toBe(NOW - HOUR);

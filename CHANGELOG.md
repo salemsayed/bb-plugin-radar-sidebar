@@ -4,6 +4,14 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.1 - 2026-10-11
+
+### Changed
+
+- Working drawer rows fit the drawer: the spinner or clock stays, the status word and model/thinking chips go, and each row keeps its title on one line with the project chip and the full time on one line below.
+- Desktop hover shows a single ⋯ (More actions) instead of a strip of pin, rename and archive buttons that covered the row's text and took clicks meant for it. Those actions stay in the ⋯ menu, the context menu and swipes; touch layouts are unchanged.
+- Went-live times survive a page reload: they are kept in `sessionStorage` (`radar-sidebar:went-live:v1`, at most 500), so a refresh no longer sorts every live thread as just started.
+
 ## 0.6.0 - 2026-10-11
 
 ### Removed

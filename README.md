@@ -184,7 +184,7 @@ bb plugin install path:$PWD --yes
 | **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one view-options panel for status, lifecycle, grouping, density and expand/collapse all. |
 | **Smart views** | Saved query-plus-filter presets in the view-options panel, and a shortcut to save the current one. |
 | **Native navigation rail** | BB destinations and Crew. Bot shortcuts sit in Radar’s list header. |
-| **Row hover** | Pin, rename, archive and a fuller menu; a peek card after a short pause. |
+| **Row hover** | A single ⋯ menu (pin, rename, archive and more); a peek card after a short pause. |
 | **Settings → Appearance** | Choose Radar for the thread list. |
 
 ## Navigation and bot shortcuts
@@ -261,11 +261,11 @@ flowchart LR
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last
-saw, so rows paint at their final height. In two-line mode, hover actions sit
+saw, so rows paint at their final height. In two-line mode, the hover ⋯ sits
 on the row's last line of plain text (the subtitle, or the project chip and
 time where the subtitle is folded away), so they stay off a wrapped title and
-off the PR badge. A row that is only one line tall still has them over the end
-of its title, as in one-line mode. They never change the row's layout.
+off the PR badge. A row that is only one line tall still has it over the end
+of its title, as in one-line mode. It never changes the row's layout.
 
 </details>
 

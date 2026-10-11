@@ -180,4 +180,18 @@ describe("app.css", () => {
     expect(rules().filter((rule) => rule.selector.includes(".radar-row-badges > *"))).toEqual([]);
     expect(body(".radar-row-badges")).toMatch(/animation:\s*radar-badge-in/);
   });
+  it("keeps working-drawer rows to a spinner, a one-line title, chip and full time", () => {
+    const hidden = rules().find((rule) => rule.selector.includes(".radar-working-drawer .radar-status-word"));
+    expect(hidden?.selector).toContain(".radar-working-drawer .radar-subtitle-model");
+    expect(hidden?.body).toMatch(/display:\s*none/);
+    expect(rules().find((rule) => rule.selector === ".radar-working-drawer .radar-thread-title")?.body)
+      .toMatch(/-webkit-line-clamp:\s*1/);
+    expect(rules().find((rule) => rule.selector === ".radar-working-drawer .radar-row-time")?.body)
+      .toMatch(/flex:\s*none/);
+  });
+
+  it("has no styles left for the retired hover buttons", () => {
+    expect(css).not.toContain("radar-action-active");
+    expect(css).not.toContain(".radar-action:not(.radar-action-more)");
+  });
 });

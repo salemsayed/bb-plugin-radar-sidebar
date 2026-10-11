@@ -179,12 +179,12 @@ back to BB's list automatically.
   coloured by attention: red for failed checks/conflicts, amber for changes
   requested/blocked, blue for review pending, green for ready/merged).
   Clicking the badge opens the PR. The branch never appears on line two.
-- Hover actions: pin, rename (pencil), archive/unarchive, and a menu (⋯).
-  They never resize the row. In one-line mode they sit at its top right. In
-  two-line mode they sit on its last line of plain text (the subtitle, or
+- Hover action: a single ⋯ (More actions); pin, rename and archive are in
+  that menu, the context menu and swipes. It never resizes the row. In
+  one-line mode it sits at its top right. In two-line mode it sits on its last line of plain text (the subtitle, or
   the chip and time where the subtitle is folded away), lifted clear of the
   branch line so the PR badge stays clickable; only a row one line tall
-  still has them over the end of its title.
+  still has it over the end of its title.
   Right-click opens the fuller menu: open in split, pin, mark read/unread,
   mark family read (whole tree, for threads with parents or children —
   a child's completion lands as the parent's own notification turn, so

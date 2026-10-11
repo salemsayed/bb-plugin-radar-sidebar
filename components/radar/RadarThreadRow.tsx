@@ -814,7 +814,7 @@ function RadarThreadRowImpl({
   }
   if (execution && showExecution) {
     subtitleSegments.push(
-      <span key="model">
+      <span key="model" className="radar-subtitle-model">
         <span className="radar-model-chip" title={modelName ?? undefined}>
           <Icon name="Bot" aria-hidden="true" />
           {modelName}
@@ -855,7 +855,7 @@ function RadarThreadRowImpl({
         subtitleSegments.map((segment, index) => (
           // eslint-disable-next-line react/no-array-index-key
           <span key={index}>
-            {index > 0 ? " • " : null}
+            {index > 0 ? <span className="radar-subtitle-sep"> • </span> : null}
             {segment}
           </span>
         ))
@@ -1306,70 +1306,10 @@ function RadarThreadRowImpl({
           ) : null}
         </span>
       </a>
+      {/* Only ⋯ on hover: a strip of buttons overlaid the row's text and took
+          clicks meant for it. Pin, rename and archive live in the menu, the
+          context menu and swipes. */}
       <span className="radar-row-actions">
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label={thread.isPinned ? "Unpin thread" : "Pin thread"}
-          aria-pressed={thread.isPinned}
-          title={thread.isPinned ? "Unpin" : "Pin"}
-          className={cn(
-            "radar-action",
-            thread.isPinned && "radar-action-active",
-          )}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            togglePin();
-          }}
-        >
-          <Icon name={thread.isPinned ? "PinOff" : "Pin"} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Rename thread"
-          title="Rename"
-          className="radar-action"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onStartRename(thread);
-          }}
-        >
-          <Icon name="Edit" aria-hidden="true" />
-        </button>
-        {thread.isArchived ? (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Unarchive thread"
-            title="Unarchive"
-            className="radar-action"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              toggleArchive();
-            }}
-          >
-            <Icon name="ArchiveRestore" aria-hidden="true" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Archive thread"
-            title="Archive"
-            className="radar-action"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              toggleArchive();
-            }}
-          >
-            <Icon name="Archive" aria-hidden="true" />
-          </button>
-        )}
         {moreEnabled ? <ThreadActionsMenu thread={actionTarget} inline={inlineActions} requestRename={requestRename}
           side="right" align="start" sideOffset={8} onOpenChange={open => { setMenuOpen(open); if (open) closeHoverCard(true); }}
           trigger={props => {

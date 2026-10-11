@@ -486,10 +486,6 @@
   pointer-events: auto;
 }
 
-.radar-list-compact .radar-action:not(.radar-action-more) {
-  display: none;
-}
-
 .radar-segmented {
   display: inline-flex;
   align-items: center;
@@ -2721,7 +2717,8 @@ a.radar-row-main:hover {
   color: inherit;
 }
 
-/* Hover actions overlay the badges; keyboard users get the context menu. */
+/* On hover, a single ⋯ overlays the badges; keyboard users get the context
+   menu. */
 
 .radar-row-actions {
   position: absolute;
@@ -2769,10 +2766,6 @@ a.radar-row-main:hover {
 .radar-action [data-icon-root] {
   width: 14px;
   height: 14px;
-}
-
-.radar-action-active {
-  color: var(--primary);
 }
 
 .radar-row-collapsed .radar-row-actions {
@@ -3479,6 +3472,44 @@ a.radar-row-main:hover {
   scrollbar-color: var(--border) transparent;
 }
 
+/* Drawer rows are narrow and all running: the spinner or clock says enough,
+   so the status word and model/thinking chips go. The title keeps one line
+   to itself, with the project chip and time on one line below it; the time
+   never truncates. */
+.radar-working-drawer .radar-status-word,
+.radar-working-drawer .radar-model-loading,
+.radar-working-drawer .radar-subtitle-model,
+.radar-working-drawer .radar-row-subtitle > :has(> .radar-subtitle-model) + * > .radar-subtitle-sep {
+  display: none;
+}
+
+.radar-working-drawer .radar-row-title {
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+
+.radar-working-drawer .radar-row-title-text {
+  flex: 1 0 100%;
+  max-width: 100%;
+}
+
+.radar-working-drawer .radar-thread-title {
+  -webkit-line-clamp: 1;
+}
+
+.radar-working-drawer .radar-row-meta {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.radar-working-drawer .radar-row-time {
+  flex: none;
+}
+
 /* Wide touch screens need the same visible More target as compact phones.
    Tapping a row must not reveal hover controls before its click. */
 @media (hover: none) {
@@ -3491,9 +3522,6 @@ a.radar-row-main:hover {
     opacity: 1;
     transform: none;
     pointer-events: auto;
-  }
-  .radar-action:not(.radar-action-more) {
-    display: none;
   }
 }
 
