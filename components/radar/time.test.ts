@@ -56,7 +56,7 @@ describe("isRunningThread", () => {
 });
 
 describe("activityTime", () => {
-  it("counts a live thread as now so it lands in Today", () => {
+  it("counts a live thread from when it went live so it lands in Today", () => {
     const stale = makeThread({
       id: "live",
       status: "active",
@@ -64,6 +64,28 @@ describe("activityTime", () => {
       latestAttentionAt: NOW - 30 * DAY,
     });
     expect(activityTime(stale, NOW)).toBe(NOW);
+    expect(timeGroupFor(activityTime(stale, NOW), NOW)).toBe("today");
+  });
+
+  it("keeps a live thread at the time it went live instead of floating with the clock", () => {
+    const live = makeThread({ id: "live", status: "active", latestAttentionAt: NOW - DAY });
+    expect(activityTime(live, NOW)).toBe(NOW);
+    expect(activityTime(live, NOW + HOUR)).toBe(NOW);
+    // Newer attention while still live (a finished turn, more queued) counts.
+    expect(activityTime({ ...live, latestAttentionAt: NOW + 30 * MINUTE }, NOW + HOUR)).toBe(NOW + 30 * MINUTE);
+  });
+
+  it("forgets the went-live time once the thread stops being live", () => {
+    const live = makeThread({ id: "again", status: "active", latestAttentionAt: NOW - DAY });
+    expect(activityTime(live, NOW)).toBe(NOW);
+    const idle = { ...live, status: "idle" as const, latestAttentionAt: NOW + MINUTE };
+    expect(activityTime(idle, NOW + HOUR)).toBe(NOW + MINUTE);
+    expect(activityTime(live, NOW + 2 * HOUR)).toBe(NOW + 2 * HOUR);
+  });
+
+  it("falls back to the latest attention when the went-live time is unknown", () => {
+    const live = makeThread({ id: "unknown", status: "active", latestAttentionAt: NOW - HOUR });
+    expect(activityTime(live, Number.NaN)).toBe(NOW - HOUR);
   });
 
   it("ignores read time: opening a thread must not float it to Today", () => {

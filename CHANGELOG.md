@@ -4,14 +4,24 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.6.0 - 2026-10-11
 
 ### Removed
 
+- The `loudUnread` setting: unread rows no longer have a loud treatment to turn off.
 - Remove the in-list Crew view (no longer reachable), its job feed and roster helpers, the unused Jev ask classifier and answer resolver, and the frozen "Reply seen, not confirmed" marker those left behind.
 - Retire the Crew Bot coordinator: its work board, outbox, shadow pilot, agent tools and `bb crew` commands. ChatGPT coordinates the bots through the BB Bots connection. Existing `crew_*` tables stay in the plugin database, unused.
 
 ### Changed
+
+- One colour per meaning. Blue = running (the spinner, one pulsing icon for background agents, commands, workflows, goals and plan mode, and the working-draft and live rollup dots), green = done (static check and DONE), amber = needs you, red = failed, muted = queued (a clock and a muted QUEUED, with no glow). A tinted row with a left bar means act on it: only needs-you and failed rows are tinted.
+- Plain unread rows lose the green wash and left bar and keep a bold title plus the unread pip. A row showing DONE shows no extra pip.
+- The 3px left bar carries state only. Selection is a tint plus the checkbox; a row open in a split pane gets a thin mark on its right edge instead of a second stripe.
+- Rows never change height when their state changes: the adaptive fold is decided when a row appears (and again only when the setting or density changes), and no longer animates.
+- Rows don't move under the pointer or a finger. While the list is hovered, touched, or for 600ms after a touch or scroll ends, rows keep their order and update in place, and new threads join the end of their group. The new order lands after about 400ms without pointer movement. Dropping a thread onto a section still moves it at once.
+- A live thread sorts by when it went live instead of the current time, so it no longer keeps floating to the top.
+- Less motion: the badge strip pops in once when a row appears instead of on every status change; status words never blink; each row has at most one loop (spinner, icon pulse, or the needs-you/failed glow).
+- `adaptiveCollapse` now defaults to off, keeping every row a fixed height.
 
 - Redesign each bot's Attention panel: tone-coloured cards with kind, age and due chips; one primary action per card; bot fields shown as lines; long updates clamped behind Show more (a clamped update is never auto-marked seen); Mark all seen; folded Later (soonest first, next date), With the bot and paged compact History.
 

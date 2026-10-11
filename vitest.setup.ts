@@ -10,3 +10,8 @@ if (jsdom) {
     value: jsdom.window.localStorage,
   });
 }
+
+// Went-live times are module state keyed by thread id; fixtures reuse ids.
+import { afterEach } from "vitest";
+import { resetWentLive } from "./components/radar/time";
+afterEach(() => resetWentLive());

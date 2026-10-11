@@ -9,7 +9,7 @@ import { botStyle, STATE_LABELS, type Pulse, type RosterBot } from "./bots";
 import { moveRailFocus, type RailTip } from "./railTooltip";
 
 /** Bot shortcuts belong to our thread list; BB owns the navigation rail. */
-export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId, compact, motion, loudUnread, onSelect, onClear, onNavigate }: {
+export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId, compact, motion, onSelect, onClear, onNavigate }: {
   bots: readonly RosterBot[];
   threads: readonly PluginSidebarThread[];
   pulses: ReadonlyMap<string, Pulse>;
@@ -17,7 +17,6 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
   activeThreadId: string | null;
   compact: boolean;
   motion: boolean;
-  loudUnread: boolean;
   onSelect: (bot: RosterBot) => void;
   onClear: () => void;
   onNavigate: () => void;
@@ -91,7 +90,7 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
         const releases = scope === bot.key && activeThreadId === bot.current;
         const details = `${label.text}${unread ? " · Unread reply" : ""} · ${workers.length} worker${workers.length === 1 ? "" : "s"}`;
         return <button key={bot.key} type="button"
-          className={cn("radar-bot-shortcut", scope === bot.key && "radar-bot-shortcut-selected", unread && loudUnread && "radar-bot-shortcut-unread")}
+          className={cn("radar-bot-shortcut", scope === bot.key && "radar-bot-shortcut-selected", unread && "radar-bot-shortcut-unread")}
           style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties}
           aria-label={`${bot.name}, ${details}: ${releases ? "show all threads" : "open coordinator and its workers"}`}
           aria-pressed={scope === bot.key}

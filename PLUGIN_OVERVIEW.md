@@ -9,11 +9,10 @@ A thread list you can read at a glance, for BB.
   activity rather than when you last opened them, so merely reading a thread
   never floats it to the top. Group by project or by section instead with one
   toggle, and reorder projects by dragging them.
-- **Attention states you cannot miss.** Working, needs-you, failed and
-  finished-but-unread each get their own icon, status word, colour and row
-  treatment. Rows needing a decision wash amber or red and breathe a slow
-  glow; motion is reserved for things that need action, so movement always
-  means something.
+- **One colour per meaning.** Blue is running, green done, amber needs you,
+  red failed, muted queued. Only rows needing a decision are tinted (amber or
+  red, with a slow glow), so a tinted row always means act on it. Rows keep
+  their height and hold their order while you point at or touch the list.
 - **Nested families.** Child threads sit under their parent with indent
   guides, and a family sorts by its freshest activity. Fold one and the
   summary tells you how many are hidden, how many are unseen, and the loudest

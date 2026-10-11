@@ -38,16 +38,37 @@ export function isRunningThread(thread: PluginSidebarThread): boolean {
   return false;
 }
 
+// When each live thread went live, as first seen by this client. Sorting a
+// live thread by `now` floated it to the top on every clock tick, moving rows
+// under the pointer; sorting by when it went live places it once.
+const wentLiveAt = new Map<string, number>();
+
+/** Forget every went-live time (tests). */
+export function resetWentLive(): void {
+  wentLiveAt.clear();
+}
+
 /**
- * Last real activity: live threads count as now, otherwise the latest
- * attention (completions, failures). Reads bump `updatedAt` but never
- * touch this — merely visiting a thread must not float it to Today.
+ * Last real activity: when a live thread went live (or its latest attention,
+ * if that is newer), otherwise the latest attention (completions, failures).
+ * Reads bump `updatedAt` but never touch this — merely visiting a thread must
+ * not float it to Today.
  */
 export function activityTime(
   thread: PluginSidebarThread,
   now: number,
 ): number {
-  return isLiveThread(thread) ? now : thread.latestAttentionAt;
+  if (!isLiveThread(thread)) {
+    wentLiveAt.delete(thread.id);
+    return thread.latestAttentionAt;
+  }
+  let since = wentLiveAt.get(thread.id);
+  if (since === undefined) {
+    if (!Number.isFinite(now)) return thread.latestAttentionAt;
+    since = now;
+    wentLiveAt.set(thread.id, since);
+  }
+  return Math.max(since, thread.latestAttentionAt);
 }
 
 export type TimeGroupId = "today" | "yesterday" | "week" | "month" | "older";

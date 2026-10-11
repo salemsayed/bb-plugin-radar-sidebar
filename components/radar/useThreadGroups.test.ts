@@ -55,14 +55,15 @@ describe("family derivation cache", () => {
     expect(hook.result.current.countSubtree(parent)).toMatchObject({ total: 2, unread: 1, failed: 1 });
   });
 
-  it("invalidates cached activity when the clock advances or live work ends", () => {
+  it("sorts live work by when it went live and invalidates when live work ends", () => {
     const parent = makeThread({ id: "p", latestAttentionAt: NOW - 3 * HOUR });
     const child = makeThread({ id: "c", parentThreadId: "p", status: "active", latestAttentionAt: NOW - HOUR });
     const args = argsFor([parent, child]);
     const hook = renderHook((props: Args) => useThreadGroups(props), { initialProps: args });
     expect(hook.result.current.subtreeActivity(parent)).toBe(NOW);
+    // The clock moving on must not float the family again.
     hook.rerender({ ...args, now: NOW + HOUR });
-    expect(hook.result.current.subtreeActivity(parent)).toBe(NOW + HOUR);
+    expect(hook.result.current.subtreeActivity(parent)).toBe(NOW);
     hook.rerender({ ...args, threads: [parent, { ...child, status: "idle" }] });
     expect(hook.result.current.subtreeActivity(parent)).toBe(NOW - HOUR);
     expect(hook.result.current.countSubtree(parent).live).toBe(0);

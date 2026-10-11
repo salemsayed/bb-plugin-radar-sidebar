@@ -153,4 +153,31 @@ describe("app.css", () => {
     // padding regression came back during this fix.
     expect(duplicated.map(([selector]) => selector)).toEqual([]);
   });
+  it("keeps one color per meaning and the left bar for state only", () => {
+    const body = (selector: string) =>
+      rules().filter((rule) => rule.selector === selector).map((rule) => rule.body).join("\n");
+    expect(body(".radar-dot-running")).toMatch(/background:\s*var\(--primary\)/);
+    expect(body(".radar-tone-running")).toMatch(/color:\s*var\(--primary\)/);
+    // Plain unread is a bold title: no wash, no bar.
+    expect(body(".radar-row-unread")).toBe("");
+    expect(rules().filter((rule) => /\.radar-row-unread(?![\w-])/.test(rule.selector) && /background|box-shadow/.test(rule.body)))
+      .toEqual([]);
+    // Selection and split never draw on the left bar.
+    expect(body(".radar-row-selected")).not.toMatch(/box-shadow/);
+    expect(rules().filter((rule) => /^\.radar-row-split(\.|$)/.test(rule.selector))).toEqual([]);
+    expect(css).not.toContain("data-radar-loud-unread");
+  });
+
+  it("never animates a row's height and keeps one loop per row", () => {
+    const body = (selector: string) =>
+      rules().filter((rule) => rule.selector === selector).map((rule) => rule.body).join("\n");
+    expect(body(".radar-row-extra")).not.toMatch(/transition/);
+    // Running text is static; only the spinner or one pulsing icon/dot moves.
+    expect(body(".radar-tone-running")).not.toMatch(/animation/);
+    expect(rules().filter((rule) => rule.selector === ".radar-spinner.radar-tone-running")).toEqual([]);
+    expect(body(".radar-spinner")).toMatch(/animation:\s*radar-spin/);
+    // Badges animate once when the container mounts, not per status change.
+    expect(rules().filter((rule) => rule.selector.includes(".radar-row-badges > *"))).toEqual([]);
+    expect(body(".radar-row-badges")).toMatch(/animation:\s*radar-badge-in/);
+  });
 });

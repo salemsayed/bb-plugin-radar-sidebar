@@ -77,19 +77,12 @@ export default async function plugin(bb: BbPluginApi) {
         "Breathe a soft glow on rows that need input or have failed. Turns off automatically under prefers-reduced-motion.",
       default: true,
     },
-    loudUnread: {
-      type: "boolean",
-      label: "Loud unread rows",
-      description:
-        "Tinted wash and accent bar on finished-but-unseen threads. Off keeps the check icon and unread pip only.",
-      default: true,
-    },
     adaptiveCollapse: {
       type: "boolean",
       label: "Collapse quiet rows",
       description:
-        "Fold read-idle threads down to title, project and time so rows that matter stand out.",
-      default: true,
+        "Fold read-idle threads down to title, project and time. A row folds or unfolds only when it appears, never while you look at it. Off keeps every row a fixed height.",
+      default: false,
     },
     defaultDensity: {
       type: "select",

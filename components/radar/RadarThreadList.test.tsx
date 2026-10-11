@@ -1618,7 +1618,7 @@ describe("settings gates", () => {
       sections,
     });
     const subtitle = folded.container.querySelector(".radar-row-subtitle");
-    // Hidden rather than removed: the fold animates, so it stays mounted.
+    // Hidden rather than removed: the subtitle stays mounted.
     expect(
       subtitle?.closest(".radar-row-extra-collapsed") ??
         folded.container.querySelector(".radar-row-collapsed"),
@@ -2312,5 +2312,90 @@ describe("selection", () => {
       expect(visibleRowIds(slot.container)).toEqual(["unread"]),
     );
     expect(screen.queryByText("1 selected")).toBeNull();
+  });
+});
+
+describe("state colors and stable rows", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const props = {
+    activeThreadId: null, activeProjectId: "proj_a", isCompactViewport: false,
+    onNavigate: () => {}, searchQuery: "",
+  };
+  const row = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-sidebar-thread-id="${id}"]`)!.closest(".radar-row")!;
+
+  it("draws running work in blue, with only the icon moving", () => {
+    const slot = renderThreads([
+      makeThread({ id: "run", status: "active", indicator: "runtime" }),
+      makeThread({ id: "agent", activity: { workflows: 0, backgroundAgents: 1, backgroundCommands: 0, planMode: 0, goals: 0 }, indicator: "background-agent" }),
+    ]);
+    const run = row(slot.container, "run");
+    expect(run.querySelector(".radar-spinner")?.className).toContain("radar-tone-running");
+    expect(within(run as HTMLElement).getByText("Working").className).toContain("radar-tone-running");
+    const icon = row(slot.container, "agent").querySelector(".radar-status-icon")!;
+    expect(icon.className).toContain("radar-tone-running");
+    expect(icon.className).toContain("radar-icon-pulse");
+    expect(slot.container.querySelector(".radar-row-badges .radar-tone-success")).toBeNull();
+  });
+
+  it("shows a done row's unread state once, without a wash", () => {
+    const slot = renderThreads([
+      makeThread({ id: "done", isUnread: true, indicator: "unread-success" }),
+      makeThread({ id: "plain", isUnread: true }),
+    ]);
+    const done = row(slot.container, "done");
+    expect(done.querySelector(".radar-status-icon.radar-tone-success")).not.toBeNull();
+    expect(done.querySelector(".radar-unread")).toBeNull();
+    expect(done.className).toContain("radar-row-unread");
+    expect(done.className).not.toMatch(/radar-row-(needs-user|failed|pulse)/);
+    expect(row(slot.container, "plain").querySelector(".radar-unread")).not.toBeNull();
+  });
+
+  it("keeps queued rows muted and still", () => {
+    const slot = renderThreads([makeThread({ id: "queued", queuedWork: "waiting", indicator: "queued-waiting" })]);
+    const queued = row(slot.container, "queued");
+    expect(queued.className).not.toContain("radar-row-pulse");
+    expect(queued.querySelector(".radar-status-icon")?.className).toContain("radar-tone-muted");
+    expect(within(queued as HTMLElement).getByText("Queued").className).toContain("radar-tone-muted");
+  });
+
+  it("decides a row's fold once, so reading or finishing never changes its height", () => {
+    const threads = [makeThread({ id: "quiet" }), makeThread({ id: "busy", isUnread: true, indicator: "unread-success" })];
+    const state: PluginSidebarThreadsState = {
+      status: "ready", threads, projects: [makeProject({ id: "proj_a" })], sections: [], experimental_archived: null,
+    };
+    const snapshot = vi.spyOn(pluginSdk, "experimental_useSidebarThreads").mockReturnValue(state);
+    const slot = renderSlot(threadList, props, { sdk: sdkFakes(), settings: { adaptiveCollapse: true } });
+    expect(row(slot.container, "quiet").className).toContain("radar-row-collapsed");
+    expect(row(slot.container, "busy").className).not.toContain("radar-row-collapsed");
+    snapshot.mockReturnValue({ ...state, threads: [
+      { ...threads[0]!, isUnread: true, indicator: "unread-success" },
+      { ...threads[1]!, isUnread: false, indicator: "none" },
+    ] });
+    slot.rerender(createElement(threadList.component, props));
+    expect(row(slot.container, "quiet").className).toContain("radar-row-collapsed");
+    expect(row(slot.container, "busy").className).not.toContain("radar-row-collapsed");
+  });
+
+  it("holds row order while the pointer is over the list", () => {
+    const threads = [
+      makeThread({ id: "first", latestAttentionAt: NOW - HOUR }),
+      makeThread({ id: "second", latestAttentionAt: NOW - 2 * HOUR }),
+    ];
+    const state: PluginSidebarThreadsState = {
+      status: "ready", threads, projects: [makeProject({ id: "proj_a" })], sections: [], experimental_archived: null,
+    };
+    const snapshot = vi.spyOn(pluginSdk, "experimental_useSidebarThreads").mockReturnValue(state);
+    const slot = renderSlot(threadList, props, { sdk: sdkFakes() });
+    expect(visibleRowIds(slot.container)).toEqual(["first", "second"]);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fireEvent.pointerEnter(slot.container.querySelector(".radar-list")!, { pointerType: "mouse" });
+    snapshot.mockReturnValue({ ...state, threads: [threads[0]!, { ...threads[1]!, latestAttentionAt: NOW - 1000, isUnread: true }] });
+    slot.rerender(createElement(threadList.component, props));
+    expect(visibleRowIds(slot.container)).toEqual(["first", "second"]);
+    expect(row(slot.container, "second").className).toContain("radar-row-unread");
+    fireEvent.pointerLeave(slot.container.querySelector(".radar-list")!, { pointerType: "mouse" });
+    act(() => { vi.advanceTimersByTime(450); });
+    expect(visibleRowIds(slot.container)).toEqual(["second", "first"]);
   });
 });

@@ -377,6 +377,13 @@ export function useThreadGroups(args: {
     [countSubtree],
   );
 
+  /** The same group holding other roots, with counts to match (frozen order). */
+  const regroup = useCallback(
+    (group: ThreadGroup, members: PluginSidebarThread[]): ThreadGroup =>
+      assembleGroup(group.id, group.label, group.icon, members, group.projectId, group.sectionId),
+    [assembleGroup],
+  );
+
   // Coordinators get a card each, in roster order, and leave the pinned block.
   const botGroups = useMemo<ThreadGroup[]>(() => {
     const rootIds = new Set(roots.map((root) => root.id));
@@ -599,6 +606,7 @@ export function useThreadGroups(args: {
     workingGroup,
     workingCount,
     groups,
+    regroup,
     shownTotal,
     projectNameFor,
     projectById,

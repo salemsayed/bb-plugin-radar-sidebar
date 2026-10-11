@@ -83,18 +83,21 @@ back to BB's list automatically.
 
 ## Row behaviour
 
-- Status visual: spinning green loader = thread working; distinct pulsing
-  green icons for background agent (bot), background command (terminal),
+- Colour legend: blue = running, green = done, amber = needs you, red =
+  failed, muted = queued, tinted row = act on it.
+- Status visual: spinning blue loader = thread working; one pulsing blue
+  icon for background agent (bot), background command (terminal),
   workflow, goal (target), and plan mode (checklist); amber dot =
-  needs input / message waiting to send, red X icon = error / failed send,
-  green check-circle = finished but unseen. Rows that need you are the
-  loudest: waiting-for-input gets an amber wash + bar + glow pulse, failed
-  gets the red equivalents — both stay until resolved, whether read or
-  not. Finished-unseen gets the green wash + bar + semibold title + blue
-  pip, clearing once opened. Auto-resolving queued states keep just the
-  dot/pulse. Motion is reserved for action items (off under
-  prefers-reduced-motion); finished-unseen and everything else stays
-  static. Drafts show no status dot
+  needs input, muted clock = message queued to send, red X icon = error /
+  failed send, green check-circle + DONE = finished but unseen (static).
+  Only rows that need you are tinted: waiting-for-input gets an amber wash
+  + 3px left bar + glow, failed gets the red equivalents — both stay until
+  resolved, whether read or not. Plain unread is a semibold title plus a
+  blue pip (no pip when the DONE badge already shows). The left bar
+  carries state only: selection is a tint plus the checkbox, and a row open
+  in a split pane gets a thin mark on its right edge. At most one loop per
+  row (spinner, icon pulse, or the needs-you/failed glow); status words
+  never blink; all off under prefers-reduced-motion. Drafts show no status dot
   (the pencil badge covers them). Unknown indicators draw nothing
   (forward-compatible), and the row's accessible name appends the host's
   status label.
@@ -105,15 +108,23 @@ back to BB's list automatically.
   while the app command modifier is held (only rows on screen get one:
   rows in a folded family or collapsed group are skipped), another
   plugin's row status (takes the draft slot, as BB's list does), amber pip
-  for an unsent composer draft, blue pip for unread.
-- State changes animate: washes fade, badges pop in, quiet rows fold
-  smoothly, and groups + families expand/collapse with an animated roll
+  for an unsent composer draft, blue pip for unread (not beside DONE).
+- Stable rows: a row's height never changes with its state, and while the
+  pointer is over the list (or for 600ms after a touch or scroll ends) rows
+  keep their order and update in place; new threads join the end of their
+  group. The new order lands after ~400ms without pointer movement
+  (`useFrozenOrder.ts`). A live thread sorts by when it went live, not by
+  the clock, so it does not keep floating.
+- State changes are calm: washes fade, the badge strip pops in once when a
+  row appears, and groups + families expand/collapse with an animated roll
   (rows stay mounted only while the fold closes, hidden from keyboard and
   screen readers, then unmount so a folded group or family costs nothing;
   all off under prefers-reduced-motion).
   Threads flipping from live work to done get a one-time springy
   check-pop on their status badge.
-- Adaptive rows (`adaptiveCollapse`): quiet read-idle rows collapse to the
+- Adaptive rows (`adaptiveCollapse`, off by default): decided once when the
+  row mounts (and again only when the setting or density changes), quiet
+  read-idle rows collapse to the
   title line (title, project chip, time) and drop the subtitle, keeping
   only the branch line (which always shows). Anything worth a glance
   (unread, working, needs-you, failed, drafts, plugin statuses, PRs needing
@@ -195,7 +206,7 @@ back to BB's list automatically.
   summary of who's folded (stacked people faces + remainder, names in
   the tooltip), keeps its branch line, and shows a pill
   only when the fold hides unseen threads (blue count) or loud states
-  (red failed, amber needs-you, pulsing green live rollup dot). Group
+  (red failed, amber needs-you, pulsing blue live rollup dot). Group
   counts/rollups always include folded members and count each thread. Failed
   work takes priority over input waits, which take priority over running work.
 - Hidden helper threads (`isHidden`) are filtered out, as in BB's list.
@@ -233,8 +244,7 @@ rows paint at their final height.
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
-| `loudUnread` | `true` | Wash and accent bar on finished-but-unseen rows; off keeps the icon and pip only. |
-| `adaptiveCollapse` | `true` | Fold quiet read-idle rows to their title line. |
+| `adaptiveCollapse` | `false` | Fold quiet read-idle rows to their title line, decided when a row appears; off keeps every row a fixed height. |
 | `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
 | `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. |

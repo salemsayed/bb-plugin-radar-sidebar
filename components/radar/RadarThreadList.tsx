@@ -71,6 +71,7 @@ import {
 } from "./RadarGroupHeader";
 import { RadarMenu, type RadarMenuItem } from "./RadarMenu";
 import { useArrivals } from "./useArrivals";
+import { useFrozenOrder, useOrderFreeze } from "./useFrozenOrder";
 import { setRailScope, useValidatedRailScope } from "./railScope";
 import {
   useThreadGroups,
@@ -183,8 +184,7 @@ function useSidebarSettings() {
     hoverCard: flag("hoverCard", true),
     celebrate: flag("celebrate", true),
     motion: flag("motion", true),
-    loudUnread: flag("loudUnread", true),
-    adaptiveCollapse: flag("adaptiveCollapse", true),
+    adaptiveCollapse: flag("adaptiveCollapse", false),
     defaultDensity,
     wrapTitles,
     swipeRight: swipeOn
@@ -657,14 +657,15 @@ export function RadarThreadList({
     rowById,
     childrenOf,
     statusCounts,
-    shownChildren,
+    shownChildren: latestChildren,
     countSubtree,
-    pinnedGroup,
-    botGroups,
-    needsYouGroup,
-    workingGroup,
+    pinnedGroup: latestPinned,
+    botGroups: latestBots,
+    needsYouGroup: latestNeedsYou,
+    workingGroup: latestWorking,
     workingCount,
-    groups,
+    groups: latestGroups,
+    regroup,
     shownTotal,
     projectNameFor,
     sectionById,
@@ -685,6 +686,32 @@ export function RadarThreadList({
     hideWorking: settings.hideWorking && !scopedBot,
     activeThreadId,
   });
+
+  // Rows never move under the pointer or a finger: while the list is hovered,
+  // touched or scrolling, it keeps its order (with live data) and appends new
+  // rows to their group; the new order lands once the pointer is gone.
+  const orderFreeze = useOrderFreeze();
+  const latestLayout = useMemo(() => ({
+    regions: [
+      latestNeedsYou ? [latestNeedsYou] : [],
+      latestBots,
+      latestPinned ? [latestPinned] : [],
+      latestGroups,
+      latestWorking ? [latestWorking] : [],
+    ],
+    children: latestChildren,
+  }), [latestNeedsYou, latestBots, latestPinned, latestGroups, latestWorking, latestChildren]);
+  const shownLayout = useFrozenOrder(latestLayout, orderFreeze.frozen, regroup, JSON.stringify([
+    grouping, deferredQuery, statusFilter, lifecycle, railScope, projectOrder,
+    settings.needsYouLane, settings.hideWorking, settings.nestByOwner, settings.hideEmptySections,
+  ]));
+  const [needsYouRegion, botGroups, pinnedRegion, groups, workingRegion] = shownLayout.regions as [
+    ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[],
+  ];
+  const needsYouGroup = needsYouRegion[0] ?? null;
+  const pinnedGroup = pinnedRegion[0] ?? null;
+  const workingGroup = workingRegion[0] ?? null;
+  const shownChildren = shownLayout.children;
 
   const activeGroup = useMemo(
     () => (dragActiveId ? (groups.find((g) => g.id === dragActiveId) ?? null) : null),
@@ -1579,7 +1606,7 @@ export function RadarThreadList({
         settings.wrapTitles && "radar-title-wrap",
       )}
       data-radar-motion={settings.motion ? "on" : "off"}
-      data-radar-loud-unread={settings.loudUnread ? "on" : "off"}
+      {...orderFreeze.handlers}
       data-radar-swipe={
         settings.swipeRight !== "none" || settings.swipeLeft !== "none"
           ? "on"
@@ -1589,7 +1616,7 @@ export function RadarThreadList({
       <div className="radar-list-header">
         {botRail ? <RadarBotSwitcher bots={visible.bots} threads={allThreads} pulses={attentionPulses}
           scope={railScope} activeThreadId={activeThreadId} compact={isCompactViewport}
-          motion={settings.motion} loudUnread={settings.loudUnread}
+          motion={settings.motion}
           onClear={() => setRailScope(null)}
           onSelect={bot => { requestBotAttention(bot.current, !!(bot.unseenAttention || bot.actionableNeeds)); setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
           onNavigate={onNavigate} /> : null}
@@ -1872,6 +1899,7 @@ export function RadarThreadList({
           switchPending && "radar-list-switching",
         )}
         aria-busy={switchPending || undefined}
+        onScroll={orderFreeze.onScroll}
       >
         {status === "loading" ? (
           <div className="radar-state" role="status" aria-label="Loading threads">
@@ -2035,6 +2063,8 @@ export function RadarThreadList({
                   if (!target || typeof target !== "object") return;
                   const sectionId = (target as { sectionId?: string | null })
                     .sectionId;
+                  // A drop is a deliberate move: show it despite the hover.
+                  orderFreeze.allowMoves();
                   moveThreadToSection(threadId, sectionId ?? null, ids.length ? ids : [threadId]);
                 }}
                 onDragCancel={() => {

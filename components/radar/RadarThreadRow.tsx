@@ -91,8 +91,9 @@ export interface RowProviderIcon {
 
 /**
  * Map the host-resolved indicator to a status visual. Unknown → none.
- * Working (runtime) is a spinner; background activity pulses; finished but
- * unseen is a small static muted dot — never the same as working.
+ * One color per meaning: blue is running (a spinner, or one pulsing icon for
+ * background work), green is done, amber needs you, red failed, and muted is
+ * queued. Only running visuals move.
  */
 type StatusVisual =
   | { kind: "spinner" }
@@ -108,37 +109,38 @@ function statusVisualFor(indicator: string): StatusVisual {
       return {
         kind: "icon",
         name: "Bot",
-        className: "radar-tone-success radar-icon-pulse",
+        className: "radar-tone-running radar-icon-pulse",
       };
     case "background-command":
       return {
         kind: "icon",
         name: "Terminal",
-        className: "radar-tone-success radar-icon-pulse",
+        className: "radar-tone-running radar-icon-pulse",
       };
     case "workflow":
       return {
         kind: "icon",
         name: "Workflow",
-        className: "radar-tone-success radar-icon-pulse",
+        className: "radar-tone-running radar-icon-pulse",
       };
     case "goal":
       return {
         kind: "icon",
         name: "Target",
-        className: "radar-tone-success radar-icon-pulse",
+        className: "radar-tone-running radar-icon-pulse",
       };
     case "plan-mode":
       return {
         kind: "icon",
         name: "ListTodo",
-        className: "radar-tone-success radar-icon-pulse",
+        className: "radar-tone-running radar-icon-pulse",
       };
     case "working-draft":
       return { kind: "dot", className: "radar-dot-running radar-dot-pulse" };
     case "waiting-for-input":
-    case "queued-waiting":
       return { kind: "dot", className: "radar-dot-attention" };
+    case "queued-waiting":
+      return { kind: "icon", name: "Clock", className: "radar-tone-muted" };
     case "unread-error":
     case "queued-failed":
       return { kind: "icon", name: "CircleX", className: "radar-tone-error" };
@@ -232,21 +234,21 @@ function statusWordFor(
   switch (indicator) {
     case "runtime":
     case "working-draft":
-      return { text: "Working", tone: "radar-tone-success" };
+      return { text: "Working", tone: "radar-tone-running" };
     case "background-agent":
-      return { text: "Agent", tone: "radar-tone-success" };
+      return { text: "Agent", tone: "radar-tone-running" };
     case "background-command":
-      return { text: "Command", tone: "radar-tone-success" };
+      return { text: "Command", tone: "radar-tone-running" };
     case "workflow":
-      return { text: "Workflow", tone: "radar-tone-success" };
+      return { text: "Workflow", tone: "radar-tone-running" };
     case "goal":
-      return { text: "Goal", tone: "radar-tone-success" };
+      return { text: "Goal", tone: "radar-tone-running" };
     case "plan-mode":
-      return { text: "Plan", tone: "radar-tone-success" };
+      return { text: "Plan", tone: "radar-tone-running" };
     case "waiting-for-input":
       return { text: "Needs you", tone: "radar-tone-warning" };
     case "queued-waiting":
-      return { text: "Queued", tone: "radar-tone-warning" };
+      return { text: "Queued", tone: "radar-tone-muted" };
     case "unread-error":
     case "queued-failed":
       return { text: "Failed", tone: "radar-tone-error" };
@@ -300,7 +302,7 @@ function RadarThreadRowImpl({
   sectionId,
   celebrate,
   allowHoverCard = true,
-  adaptiveCollapse = true,
+  adaptiveCollapse = false,
   isActive,
   isEditing,
   isVisible = true,
@@ -412,18 +414,41 @@ function RadarThreadRowImpl({
     anchor: { top: number; bottom: number; left: number; right: number };
   } | null>(null);
 
-  const viewport = useRowViewport(rowRef,
-    isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||
-      rowRef.current?.hasAttribute("data-swipe-phase") === true,
-    JSON.stringify([density, adaptiveCollapse, thread.isUnread, thread.indicator, collapse?.collapsed,
-      thread.displayTitle, thread.environment?.branchName, depth, sectionName, projectTag]),
-    setRowElement,
-  );
-
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const shortcut = useSidebarThreadShortcut(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const prNeedsAttention =
+    !!pullRequest &&
+    !["none", "merged", "closed", "draft"].includes(pullRequest.attention);
+  // Quiet rows collapse to title + time; anything worth a glance keeps the
+  // full row. Unknown indicators default to full (never hide the unknown).
+  // Decided once per mount, and again only when the setting or density
+  // changes: a row that grew or shrank as its state changed moved every row
+  // below it under the pointer.
+  const collapsedNow =
+    adaptiveCollapse &&
+    !thread.isUnread &&
+    thread.indicator === "none" &&
+    !hasUnsubmittedDraft &&
+    !rowStatus &&
+    !prNeedsAttention;
+  const collapseKey = `${adaptiveCollapse}:${density}`;
+  const [frozenCollapse, setFrozenCollapse] = useState({ key: collapseKey, collapsed: collapsedNow });
+  let collapsed = frozenCollapse.collapsed;
+  if (frozenCollapse.key !== collapseKey) {
+    collapsed = collapsedNow;
+    setFrozenCollapse({ key: collapseKey, collapsed });
+  }
+
+  const viewport = useRowViewport(rowRef,
+    isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||
+      rowRef.current?.hasAttribute("data-swipe-phase") === true,
+    JSON.stringify([density, collapsed, collapse?.collapsed,
+      thread.displayTitle, thread.environment?.branchName, depth, sectionName, projectTag]),
+    setRowElement,
+  );
+
   const navigate = useBbNavigate();
   const { splitProps, layout: splitLayout } =
     experimental_useSidebarThreadSplit(thread.id);
@@ -648,17 +673,15 @@ function RadarThreadRowImpl({
   });
 
   const visual: StatusVisual = statusVisualFor(thread.indicator);
-  // Action states get the full wash+bar+pulse treatment whether read or not:
-  // they stay loud until resolved. Plain unread (FYI-done) keeps the green
-  // wash only while unseen.
+  // Only action states get the wash + left bar + glow, read or not: a tinted
+  // row always means "act on this". Plain unread is a bold title only.
   const needsUser = thread.indicator === "waiting-for-input";
   const failed =
     thread.indicator === "unread-error" ||
     thread.indicator === "queued-failed";
-  // Motion is reserved for rows that need action — FYI-done stays static.
+  // Glow is reserved for rows that need action; done and queued stay static.
   const actionPulseClass =
-    thread.indicator === "waiting-for-input" ||
-    thread.indicator === "queued-waiting"
+    thread.indicator === "waiting-for-input"
       ? "radar-row-pulse-amber"
       : thread.indicator === "unread-error" ||
           thread.indicator === "queued-failed"
@@ -677,19 +700,6 @@ function RadarThreadRowImpl({
     .filter((part): part is string => !!part)
     .join(" — ");
   const statusWord = statusWordFor(thread.indicator);
-  const prNeedsAttention =
-    !!pullRequest &&
-    !["none", "merged", "closed", "draft"].includes(pullRequest.attention);
-  // Quiet rows collapse to title + time; anything worth a glance keeps the
-  // full row. Unknown indicators default to full (never hide the unknown).
-  const collapsed =
-    adaptiveCollapse &&
-    !isEditing &&
-    !thread.isUnread &&
-    thread.indicator === "none" &&
-    !hasUnsubmittedDraft &&
-    !rowStatus &&
-    !prNeedsAttention;
 
   // Model + thinking only while the thread is in flight. The options
   // endpoint resolves *defaults*, so it reports a model for any thread at
@@ -1019,7 +1029,7 @@ function RadarThreadRowImpl({
       title={thread.indicatorLabel ?? undefined}
     >
       {visual?.kind === "spinner" ? (
-        <span key="spinner" className="radar-spinner radar-tone-success">
+        <span key="spinner" className="radar-spinner radar-tone-running">
           <Icon name="Loading" aria-hidden="true" />
         </span>
       ) : visual?.kind === "icon" ? (
@@ -1285,7 +1295,8 @@ function RadarThreadRowImpl({
               aria-label="Unsent draft"
             />
           ) : null}
-          {thread.isUnread ? (
+          {/* One unread signal: a DONE badge already says "finished, unseen". */}
+          {thread.isUnread && thread.indicator !== "unread-success" ? (
             <span
               className="radar-unread"
               role="img"

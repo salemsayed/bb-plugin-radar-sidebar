@@ -69,13 +69,15 @@ or use **Move to section** in a thread's right-click menu.
 </td>
 <td width="50%" valign="top">
 
-### 🔴 Loud attention states
+### 🔴 One colour per meaning
 
-Working, needs-you, failed and finished-unread each get their own icon, status
-word, colour and row treatment. Rows that need a decision wash amber or red and
-breathe a slow glow; finished-but-unseen threads get a green wash, accent bar
-and bold title. Motion is reserved for things that need action, so movement
-always means something.
+**Blue** = running (a spinner, or one pulsing icon for background work),
+**green** = done, **amber** = needs you, **red** = failed, **muted** =
+queued. A **tinted row** with a left bar means act on it: only needs-you
+(amber) and failed (red) rows are tinted, and only they glow. Unread rows
+just get a bold title, plus a blue pip when no DONE badge already says so.
+Rows keep their height when their state changes, and hold their order while
+your pointer or finger is on the list, so nothing moves under a click or tap.
 
 </td>
 </tr>
@@ -250,8 +252,7 @@ flowchart LR
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
-| `loudUnread` | `true` | Wash and accent bar on finished-but-unseen threads. Off keeps the icon and pip only. |
-| `adaptiveCollapse` | `true` | Fold quiet read-idle rows down to title, project and time. |
+| `adaptiveCollapse` | `false` | Fold quiet read-idle rows down to title, project and time. A row folds or unfolds only when it appears (or when this setting or density changes), never while you look at it. Off keeps every row a fixed height. |
 | `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in view options, which is remembered per client. |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |

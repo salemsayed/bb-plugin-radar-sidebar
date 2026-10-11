@@ -1440,9 +1440,9 @@
   outline-offset: -2px;
 }
 
+/* Selection is the tint plus the checkbox; the left bar carries state only. */
 .radar-row-selected {
   background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
-  box-shadow: inset 3px 0 0 var(--primary) !important;
 }
 
 .radar-row-selected:hover {
@@ -1649,8 +1649,8 @@
 }
 
 /* Single-line rows. The subtitle lives in a grid wrapper, so it collapses
-   the same way the adaptive fold does and still animates; the branch line is
-   a plain flex row outside that wrapper, so it needs display:none. */
+   the same way the adaptive fold does; the branch line is a plain flex row
+   outside that wrapper, so it needs display:none. */
 .radar-density-compact .radar-row-extra,
 .radar-row-compact .radar-row-extra {
   grid-template-rows: 0fr;
@@ -1883,8 +1883,10 @@
   margin-left: 16px;
 }
 
-.radar-row-split {
-  box-shadow: inset 2px 0 0 var(--primary);
+/* Open in a split pane: a thin mark on the right edge, clear of the state
+   bar on the left (the row's own pseudo-elements draw the tree guides). */
+.radar-row-split > .radar-row-main {
+  box-shadow: inset -2px 0 0 color-mix(in srgb, var(--primary) 70%, transparent);
 }
 
 .radar-row-main {
@@ -2391,12 +2393,11 @@ a.radar-row-main:hover {
   border-color: rgba(248, 81, 73, 0.35);
 }
 
+/* No transition: a row's height never animates (and the fold is decided
+   once per mount, so it rarely changes at all). */
 .radar-row-extra {
   display: grid;
   grid-template-rows: 1fr;
-  transition:
-    grid-template-rows 280ms ease,
-    opacity 220ms ease;
 }
 
 .radar-row-extra-collapsed {
@@ -2500,7 +2501,9 @@ a.radar-row-main:hover {
   padding-top: 3px;
 }
 
-.radar-row-badges > * {
+/* The container animates once when it mounts. Per-badge animation replayed
+   on every status change, so badges popped as threads ran and finished. */
+.radar-row-badges {
   animation: radar-badge-in 200ms ease-out;
 }
 
@@ -2520,15 +2523,11 @@ a.radar-row-main:hover {
   height: 14px;
 }
 
+/* Blue means running. The color is static: words never blink, and only the
+   spinner (.radar-spinner) or one pulsing icon/dot (.radar-icon-pulse,
+   .radar-dot-pulse) moves, so a row has at most one loop. */
 .radar-tone-running {
   color: var(--primary);
-  animation: radar-pulse 1.6s steps(12, end) infinite;
-}
-
-/* A running spinner already communicates activity. Pulsing its wrapper too
-   would replace the rotation animation and create a second paint loop. */
-.radar-spinner.radar-tone-running {
-  animation: radar-spin 1s steps(12, end) infinite;
 }
 
 /* Success tones mix toward the foreground so they stay readable in light
@@ -2564,24 +2563,11 @@ a.radar-row-main:hover {
   flex: none;
 }
 
+/* Unread is a bold title plus the unread pip (or the DONE badge). The wash
+   and left bar belong to needs-you and failed only: a tinted row always
+   means "act on this". */
 .radar-row-unread .radar-row-title {
   font-weight: 600;
-}
-
-/* Unseen rows are unmissable: tinted wash + solid accent bar. */
-
-.radar-row-unread {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 12%, transparent);
-  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
-}
-
-.radar-row-unread:hover {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 18%, var(--muted));
-}
-
-.radar-row-active.radar-row-unread {
-  background: var(--accent, var(--muted));
-  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
 }
 
 .radar-row-failed {
@@ -2610,24 +2596,6 @@ a.radar-row-main:hover {
 .radar-row-active.radar-row-needs-user {
   background: var(--accent, var(--muted));
   box-shadow: inset 3px 0 0 var(--warning, #b98533);
-}
-
-.radar-row-split.radar-row-unread {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--success, #3f9a6b);
-}
-
-.radar-row-split.radar-row-failed {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--destructive, #d43d3d);
-}
-
-.radar-row-split.radar-row-needs-user {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--warning, #b98533);
 }
 
 /* Gentle glow pulse, reserved for rows that need action. FYI-done rows
@@ -2672,7 +2640,6 @@ a.radar-row-main:hover {
   }
   .radar-row,
   .radar-row-actions,
-  .radar-row-extra,
   .radar-fold,
   .radar-list-switching,
   .radar-segmented-button:active {
@@ -2685,13 +2652,13 @@ a.radar-row-main:hover {
   .radar-hover-card {
     animation: none;
   }
-  .radar-row-badges > * {
+  .radar-row-badges {
     animation: none;
   }
 }
 
 .radar-dot-running {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 72%, var(--foreground));
+  background: var(--primary);
 }
 
 .radar-dot-attention {
@@ -2722,9 +2689,7 @@ a.radar-row-main:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .radar-dot-pulse,
-  .radar-icon-pulse,
-  .radar-tone-running,
-  .radar-spinner.radar-tone-running {
+  .radar-icon-pulse {
     animation: none;
     will-change: auto;
   }
@@ -3386,22 +3351,6 @@ a.radar-row-main:hover {
 [data-radar-motion="off"] .radar-celebrate,
 [data-radar-motion="off"] .radar-group-status .radar-dot-pulse {
   animation: none;
-}
-
-/* Loud unread off: drop the wash + bar on finished-but-unseen rows, keeping
-   the check icon and unread pip. The needs-you and failed washes are NOT
-   gated here: they mean "act now", not "look at me". */
-[data-radar-loud-unread="off"] .radar-row-unread {
-  background: transparent;
-  box-shadow: none;
-}
-
-[data-radar-loud-unread="off"] .radar-row-unread:hover {
-  background: var(--muted);
-}
-
-[data-radar-loud-unread="off"] .radar-row-active.radar-row-unread {
-  box-shadow: none;
 }
 
 /* ---- Bots deck and needs-you lane (salem fork) ---------------------------- */
