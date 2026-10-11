@@ -43,7 +43,7 @@ it("acknowledges only foreground visible cards and leaves collapsed history unto
     bot_attention: () => ({ board: { ...board, events: [...board.events, { ...event("att_past", "update"), resolvedAt: now }] } }),
   } });
   await screen.findByRole("heading", { name: question.text });
-  expect(callbacks).toHaveLength(1);
+  await waitFor(() => expect(callbacks).toHaveLength(1));
   vi.useFakeTimers();
   callbacks[0]!([{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry], {} as IntersectionObserver);
   await vi.advanceTimersByTimeAsync(1199); expect(seen).toEqual([]);
@@ -70,4 +70,44 @@ it("opens attention on direct focused coordinator entry with an actionable badge
  const result=renderSlot(header,{threadId:"thr_current",projectId:"proj_a",isCompactViewport:false},{context:{threadId:"thr_current"},rpc:{bot_attention:()=>({board})}});
  await screen.findByRole("button",{name:"Attention, 1 items"});
  await waitFor(()=>expect(result.inspection.navigateCalls.some(c=>c.method==="openThreadPanel")).toBe(true));
+});
+
+function update(id: string, summary: string) { return { ...event(id, "update"), summary }; }
+it("a clamped update is not a display receipt until expanded to its complete content", async () => {
+  const callbacks: IntersectionObserverCallback[] = [];
+  class Observer {
+    constructor(callback: IntersectionObserverCallback) { callbacks.push(callback); }
+    observe() {} disconnect() {} unobserve() {} takeRecords() { return []; }
+    readonly root = null; readonly rootMargin = ""; readonly thresholds = [1];
+  }
+  vi.stubGlobal("IntersectionObserver", Observer);
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) { return this.className.startsWith("bot-attention-clamp") ? 600 : 0; });
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) { return this.className.startsWith("bot-attention-clamp") ? 150 : 0; });
+  const seen: string[][] = [];
+  renderSlot(slot, { threadId: "thr_current", params: null }, { rpc: {
+    crew_attention_seen: (raw: unknown) => { const input = raw as { ids: string[] }; seen.push(input.ids); return { acknowledged: input.ids.length }; },
+    bot_attention: () => ({ board: { ...board, items: [], events: [update("att_long", "A long inbox report")] } }),
+  } });
+  const more = await screen.findByRole("button", { name: "Show more" });
+  expect(document.querySelector("[data-attention-occurrences]")?.getAttribute("data-attention-occurrences")).toBe("");
+  expect(callbacks).toHaveLength(0);
+  fireEvent.click(more);
+  await waitFor(() => expect(callbacks).toHaveLength(1));
+  vi.useFakeTimers();
+  callbacks[0]!([{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry], {} as IntersectionObserver);
+  await vi.advanceTimersByTimeAsync(1200); expect(seen).toEqual([["att_long"]]);
+});
+it("marks every unseen update seen only on an explicit click and formats bot fields as lines", async () => {
+  const seen: string[][] = [];
+  renderSlot(slot, { threadId: "thr_current", params: null }, { rpc: {
+    crew_attention_seen: (raw: unknown) => { const input = raw as { ids: string[] }; seen.push(input.ids); return { acknowledged: input.ids.length }; },
+    bot_attention: () => ({ board: { ...board, items: [], events: [update("att_a", "Backup failed. | Next: Check the log"), update("att_b", "Instance paused")] } }),
+  } });
+  await screen.findByText("Instance paused");
+  expect(screen.getAllByTestId("bb-markdown")[0]!.textContent).toBe("Backup failed.  \n**Next:** Check the log");
+  expect(screen.getByText("2 need you")).toBeDefined();
+  expect(seen).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Mark all seen" }));
+  await waitFor(() => expect(seen).toEqual([["att_a", "att_b"]]));
 });

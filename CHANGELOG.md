@@ -13,6 +13,8 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Changed
 
+- Redesign each bot's Attention panel: tone-coloured cards with kind, age and due chips; one primary action per card; bot fields shown as lines; long updates clamped behind Show more (a clamped update is never auto-marked seen); Mark all seen; folded Later (soonest first, next date), With the bot and paged compact History.
+
 - Defer offscreen row contents and inactive More menus, retaining lightweight links, measured heights, keyboard navigation and native bulk actions. Suspend offscreen model requests and gestures, and rebind swipes when a deferred row becomes visible.
 
 - Use BB's shared thread-action menus on desktop and mobile, including actions contributed by other plugins such as per-thread notifications. Replace the retired sidebar action hook with public navigation and thread APIs; retain BB's archive/delete confirmation and Undo flows for shortcuts, swipes and bulk actions. Require SDK 0.6.37.
