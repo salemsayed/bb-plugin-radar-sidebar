@@ -1,6 +1,6 @@
 ---
 name: radar-sidebar
-description: Use the Radar Sidebar plugin's thread list and Crew workspace. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
+description: Use the Radar Sidebar plugin's thread list and bot Attention panels. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
 ---
 
 # Radar Sidebar
@@ -20,11 +20,11 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   expand/collapse all. Active filters show as removable pills under the
   search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
-- **Crew** (`navPanel`, id `crew`): a read-only overview reached from BB's native rail.
+- **Bot Attention** (`threadPanelAction`, id `bot-attention`): questions, reminders and important updates inside each bot coordinator, opened through its Attention header action. Crew navigation is retired.
 
 ## Bot shortcuts
 
-Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. Crew is reached from BB's native navigation. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
+Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A badged bot opens its Attention panel automatically, including direct entry to its current coordinator. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
 States and unread badges retain the same meaning as the bot deck. Saved bot scopes and hidden preferences persist. Open asks, pending input and unread failures keep a hidden bot accessible. Turning shortcuts off restores the deck. Retired `railNav` and `wideRail` values have no effect. Navigation, arrangement, More and the footer belong to BB, without shell CSS overrides or removed SDK calls.
 
@@ -259,6 +259,10 @@ filter, density, smart-view, project-order and collapse keys.
   behind the `radar-` prefix.
 
 
-## Crew workspace
+## Bot Attention
 
-Crew opens from the native rail and only reads: pending approvals and the Needs You list first, then one card per bot (state, machine, context, live or blocked workers including hidden ones, latest reply, ChatGPT instructions today). Coordination happens in ChatGPT through the BB Bots connection; the Crew Bot coordinator and `bb crew` commands are retired (2026-10-09). A bot's open decision or urgent item on the Needs You list is its ask (face, bubble and list agree) until a bot, Salem or ChatGPT closes or snoozes it with `bb saelmbot needs done|drop|snooze <id>`. The rail icon's count is saved asks plus pending approvals.
+The Attention panel replaces Crew. The dot means unseen important occurrences; the question badge means an unanswered decision or due action. Reading BB history, bot auto-read and ChatGPT callback acceptance are separate from human seen. A displayed occurrence clears only after its complete content stays foreground-visible; collapsed, offscreen and newly arriving updates remain unseen.
+
+Each saved question/reminder appears once with its exactly linked context. Reply prepares a native saved-question mention in an empty coordinator draft, or opens the linked native form. It sends nothing. Source opens the original conversation with a current-coordinator fallback if deleted. Seen acknowledges only this card's occurrences; it does not answer a question or complete work. Done settles an obligation. Later defers it. Closed records fold into History, future/held reminders into Later, and unfinished owner work into With the bot. Important completion updates remain active until seen even after the old question is answered.
+
+All surfaces read the same durable bot-owned board. Jev is advisory: independent owner verification, exact source and transition guards govern changes. Preserve the latest approved notification preferences and explicit holds; completion, answer, seen and transport acceptance never grant new execution permission.

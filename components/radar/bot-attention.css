@@ -1,0 +1,16 @@
+.bot-attention { display:flex; flex-direction:column; gap:14px; max-width:680px; margin:auto; padding-bottom:32px; }
+.bot-attention header h2 { margin:0 0 5px; font-size:19px; }
+.bot-attention header p,.bot-attention-date,.bot-attention-empty { color:var(--muted-foreground); font-size:13px; }
+.bot-attention-card { border:1px solid var(--border); border-radius:12px; padding:14px; overflow-wrap:anywhere; }
+.bot-attention-card h3 { margin:8px 0; font-size:15px; line-height:1.5; }
+.bot-attention-card-heading { display:flex; justify-content:space-between; align-items:center; color:var(--muted-foreground); }
+.bot-attention-card .markdown-body { font-size:14px; }
+.bot-attention-new { color:var(--primary); font-size:11px; }
+.bot-attention-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.bot-attention-actions button,.bot-attention-fold,.bot-attention-header { border:1px solid var(--border); border-radius:7px; padding:7px 12px; background:var(--background); color:var(--foreground); cursor:pointer; }
+.bot-attention-actions button:hover,.bot-attention-header:hover { background:var(--accent); }
+.bot-attention-actions button:disabled { opacity:.5; cursor:wait; }
+.bot-attention-fold { text-align:left; width:100%; }
+.bot-attention-header { display:flex; gap:6px; align-items:center; font-size:12px; padding:5px 8px; }
+.bot-attention-header b { font-size:11px; color:var(--primary); }
+@media (pointer:coarse) { .bot-attention-actions button,.bot-attention-fold { min-height:44px; } }

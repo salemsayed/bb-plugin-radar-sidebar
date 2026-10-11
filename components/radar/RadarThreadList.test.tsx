@@ -1,3 +1,4 @@
+import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 // @vitest-environment jsdom
 import { act, cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { createElement, Fragment, type FunctionComponent } from "react";
@@ -25,7 +26,7 @@ function sdkFakes(
 ): Record<string, unknown> {
   return {
     threads: {
-      defaultExecutionOptions: async () => execution,
+      pin: async()=>({}), unpin: async()=>({}), markUnread: async()=>({}), defaultExecutionOptions: async () => execution,
       update: async () => ({ ok: true }),
       unarchive: async () => ({ ok: true }),
       markRead: async () => ({ ok: true }),
@@ -56,7 +57,8 @@ function renderThreads(
   } = {},
 ) {
   const { isCompactViewport = false, onNavigate = () => {}, ...harness } = options;
-  return renderSlot(
+  const native = threadActionsFixture();
+  return native.capture(renderSlot(
     threadList,
     {
       activeThreadId: null,
@@ -67,6 +69,7 @@ function renderThreads(
     },
     {
       sdk: sdkFakes(options.execution),
+      threadActions: native.threadActions,
       ...harness,
       sidebarThreads: {
         status: "ready",
@@ -76,7 +79,7 @@ function renderThreads(
         experimental_archived: options.archived ?? null,
       },
     },
-  );
+  ));
 }
 
 /** Row anchors are the stable handle: ThreadTitle renders empty in the
@@ -142,7 +145,7 @@ describe("bot scope and experiment fallback", () => {
     const slot = renderThreads(threads, { projects, sdk, settings: { railNav: false, botRail: true }, isCompactViewport: true, onNavigate: navigated });
     const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
     fireEvent.click(within(shortcuts).getByRole("button", { name: /Personal Bot,/ }));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+    expect(recordedActions(slot)).toContainEqual({ method: "open", threadId: "root" });
     expect(navigated).toHaveBeenCalledOnce();
     expect(visibleRowIds(slot.container)).toEqual(["worker"]);
     expect(localStorage.getItem("radar-sidebar:rail-bot-scope:v1")).toBe("personal");
@@ -158,7 +161,7 @@ describe("bot scope and experiment fallback", () => {
     expect(document.activeElement).toBe(within(shortcuts).getByRole("button", { name: /Personal Bot,/ }));
     fireEvent.keyDown(document.activeElement!, { key: "End" });
     expect(document.activeElement?.getAttribute("aria-label")).toContain("Personal Bot");
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
   });
   it("preserves desktop bot details and closes them with Escape", async () => {
     renderThreads(threads, { projects, sdk, settings: { botRail: true, hoverCard: false } });
@@ -208,7 +211,7 @@ describe("bot scope and experiment fallback", () => {
     const navigated = vi.fn();
     const slot = renderThreads(threads, { projects, sdk, settings: { railNav: true, botRail: true }, onNavigate: navigated });
     fireEvent.click(await screen.findByRole("button", { name: "Open Personal Bot" }));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+    expect(recordedActions(slot)).toContainEqual({ method: "open", threadId: "root" });
     expect(navigated).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" })).toBeTruthy();
   });
@@ -216,7 +219,7 @@ describe("bot scope and experiment fallback", () => {
     setRailScope("personal");
     const slot = renderThreads(threads.filter(thread => thread.id !== "worker"), { projects, sdk, settings: { railNav: true, botRail: true } });
     fireEvent.click(await screen.findByRole("button", { name: "Open Personal" }));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "root" });
+    expect(recordedActions(slot)).toContainEqual({ method: "open", threadId: "root" });
   });
   it("shows a bot's working threads in its view, and hides them again outside it", async () => {
     const running = threads.map(thread => thread.id === "worker" || thread.id === "other" ? { ...thread, status: "active" as const } : thread);
@@ -600,7 +603,7 @@ describe("actions", () => {
     const slot = renderThreads([thread]);
 
     fireEvent.click(screen.getByLabelText("Archive thread"));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({
+    expect(recordedActions(slot)).toContainEqual({
       method: "archive",
       threadId: "t",
     });
@@ -611,7 +614,7 @@ describe("actions", () => {
     const slot = renderThreads([thread]);
 
     fireEvent.click(screen.getByLabelText("Pin thread"));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({
+    expect(recordedActions(slot)).toContainEqual({
       method: "setPinned",
       threadId: "t",
       pinned: true,
@@ -667,7 +670,7 @@ describe("swipe actions", () => {
       makeThread({ id: "t", lastReadAt: null, latestAttentionAt: NOW }),
     ]);
     swipe(slot.container, 160);
-    expect(slot.inspection.sidebarActionCalls).toContainEqual(
+    expect(recordedActions(slot)).toContainEqual(
       expect.objectContaining({ method: "setRead", threadId: "t" }),
     );
   });
@@ -678,11 +681,11 @@ describe("swipe actions", () => {
       const slot = renderSwipe([makeThread({ id: "t" })]);
       swipe(slot.container, -160);
       expect(row(slot.container).dataset.swipePhase).toBe("out");
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       act(() => {
         vi.advanceTimersByTime(600);
       });
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
+      expect(recordedActions(slot)).toContainEqual({
         method: "archive",
         threadId: "t",
       });
@@ -696,7 +699,7 @@ describe("swipe actions", () => {
       settings: { swipeLeft: "Pin / unpin" },
     });
     swipe(slot.container, -160);
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({
+    expect(recordedActions(slot)).toContainEqual({
       method: "setPinned",
       threadId: "t",
       pinned: true,
@@ -723,7 +726,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
@@ -732,14 +735,14 @@ describe("swipe actions", () => {
   it("springs back without acting on a short drag", () => {
     const slot = renderSwipe([makeThread({ id: "t" })]);
     swipe(slot.container, -30);
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
     expect(row(slot.container).dataset.swipePhase).toBe("settle");
   });
 
   it("leaves vertical movement to the scroller", () => {
     const slot = renderSwipe([makeThread({ id: "t" })]);
     swipe(slot.container, -20, 160);
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
     expect(row(slot.container).dataset.swipePhase).toBeUndefined();
   });
 
@@ -779,14 +782,14 @@ describe("swipe actions", () => {
       });
       expect(row(slot.container).dataset.swipePhase).toBe("open");
       expect(row(slot.container).style.transform).toContain("-96px");
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       // Moving again carries on from there.
       wheelSwipe(slot.container, -100);
       momentumTail(slot.container, -1);
       act(() => {
         vi.advanceTimersByTime(150);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "setPinned", threadId: "t", pinned: true },
       ]);
     } finally {
@@ -811,7 +814,7 @@ describe("swipe actions", () => {
       const button = slot.container.querySelector(".radar-swipe-underlay") as HTMLElement;
       fireEvent.pointerDown(button);
       fireEvent.click(button);
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "setPinned", threadId: "t", pinned: true },
       ]);
       act(() => {
@@ -849,7 +852,7 @@ describe("swipe actions", () => {
         // The harness's split-drag stand-in logs any press on a row link as
         // "open"; the real host only drags once the pointer leaves the list.
         expect(
-          slot.inspection.sidebarActionCalls.filter((call) => call.method !== "open"),
+          recordedActions(slot).filter((call) => call.method !== "open"),
         ).toEqual([]);
       } finally {
         vi.useRealTimers();
@@ -993,7 +996,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(2000);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       expect(target.dataset.swipePhase).toBeUndefined();
       expect(target.style.transform).toBe("");
     } finally {
@@ -1009,11 +1012,11 @@ describe("swipe actions", () => {
       });
       wheelSwipe(slot.container, -160);
       momentumTail(slot.container, -1);
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       act(() => {
         vi.advanceTimersByTime(120);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "setPinned", threadId: "t", pinned: true },
       ]);
 
@@ -1027,7 +1030,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(slot.inspection.sidebarActionCalls).toHaveLength(1);
+      expect(recordedActions(slot)).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
@@ -1055,7 +1058,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(150);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "setPinned", threadId: "t", pinned: true },
       ]);
     } finally {
@@ -1074,7 +1077,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
@@ -1090,11 +1093,11 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(500);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       act(() => {
         vi.advanceTimersByTime(300);
       });
-      expect(slot.inspection.sidebarActionCalls).toHaveLength(1);
+      expect(recordedActions(slot)).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
@@ -1108,7 +1111,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(500);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       expect(row(slot.container).dataset.swipePhase).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -1127,7 +1130,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(500);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       expect(target.dataset.swipePhase).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -1144,7 +1147,7 @@ describe("swipe actions", () => {
       act(() => {
         vi.advanceTimersByTime(1500);
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([]);
+      expect(recordedActions(slot)).toEqual([]);
       expect(row(slot.container).dataset.swipePhase).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -1156,7 +1159,7 @@ describe("swipe actions", () => {
       settings: { swipeActions: false },
     });
     swipe(slot.container, -160);
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
     expect(row(slot.container).dataset.swipePhase).toBeUndefined();
     expect(slot.container.querySelector("[data-radar-swipe=\"off\"]")).not.toBeNull();
   });
@@ -1164,7 +1167,7 @@ describe("swipe actions", () => {
     // No `settings`: still loading, so a swipe must not run on the defaults.
     const slot = renderThreads([makeThread({ id: "t" })]);
     swipe(slot.container, -160);
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
     expect(row(slot.container).dataset.swipePhase).toBeUndefined();
   });
 
@@ -1206,7 +1209,7 @@ describe("swipe actions", () => {
     fireEvent.touchMove(target, { touches: [{ clientX: 0, clientY: 20 }] });
     fireEvent.touchCancel(target, { touches: [] });
     expect(target.dataset.swipePhase).toBe("settle");
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
   });
 
   it("leaves a touch on the drag grip to its section drag", () => {
@@ -1219,7 +1222,7 @@ describe("swipe actions", () => {
     fireEvent.touchMove(grip, { touches: [{ clientX: 138, clientY: 20 }] });
     fireEvent.touchMove(grip, { touches: [{ clientX: 0, clientY: 20 }] });
     fireEvent.touchEnd(grip, { touches: [] });
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
     expect(target.dataset.swipePhase).toBeUndefined();
   });
 
@@ -1232,7 +1235,7 @@ describe("swipe actions", () => {
       act(() => {
         slot.unmount();
       });
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "archive", threadId: "t" },
       ]);
     } finally {
@@ -1271,7 +1274,7 @@ describe("swipe actions", () => {
         makeThread({ id: "c", parentThreadId: "p" }),
       ]);
       swipe(slot.container, -160);
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "archive", threadId: "p" },
       ]);
       expect(row(slot.container).dataset.swipePhase).toBe("settle");
@@ -1293,7 +1296,7 @@ describe("swipe actions", () => {
       expect(visibleRowIds(slot.container)).toEqual(["p"]);
       swipe(slot.container, -160);
       // The host still confirms archiving the replies it cannot see here.
-      expect(slot.inspection.sidebarActionCalls).toEqual([
+      expect(recordedActions(slot)).toEqual([
         { method: "archive", threadId: "p" },
       ]);
       expect(row(slot.container).dataset.swipePhase).toBe("settle");
@@ -1323,7 +1326,7 @@ describe("swipe actions", () => {
     localStorage.setItem("radar-sidebar:lifecycles:v1", "all");
     const slot = renderSwipe([makeThread({ id: "t" })]);
     swipe(slot.container, -160);
-    expect(slot.inspection.sidebarActionCalls).toEqual([
+    expect(recordedActions(slot)).toEqual([
       { method: "archive", threadId: "t" },
     ]);
     expect(row(slot.container).dataset.swipePhase).toBe("settle");
@@ -1435,7 +1438,7 @@ describe("working drawer", () => {
     expect(within(card).getByText("1 failing")).toBeTruthy();
 
     fireEvent.click(within(card).getByRole("button", { name: /Long refactor/ }));
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "open", threadId: "run" });
+    expect(recordedActions(slot)).toContainEqual({ method: "open", threadId: "run" });
     expect(navigated).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog", { name: "Working threads" })).toBeNull();
   });
@@ -1949,7 +1952,7 @@ describe("view options", () => {
 
 describe("keyboard shortcuts", () => {
   const archived = (slot: ReturnType<typeof renderThreads>) =>
-    slot.inspection.sidebarActionCalls.filter(
+    recordedActions(slot).filter(
       (call) => call.method === "archive",
     );
 
@@ -2075,7 +2078,7 @@ describe("review regressions", () => {
     slot.container.querySelector<HTMLElement>('[data-sidebar-thread-id="a"]')!.focus();
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     fireEvent.keyDown(document.activeElement!, { key: "e" });
-    expect(slot.inspection.sidebarActionCalls).toEqual([
+    expect(recordedActions(slot)).toEqual([
       { method: "archive", threadId: "b" },
     ]);
   });
@@ -2207,7 +2210,7 @@ describe("section creation", () => {
     expect((screen.getByRole("textbox", { name: "Section name" }) as HTMLInputElement).value).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(create).not.toHaveBeenCalled();
-    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(recordedActions(slot)).toEqual([]);
   });
 
   it("keeps a failed name for retry and shows the API error", async () => {

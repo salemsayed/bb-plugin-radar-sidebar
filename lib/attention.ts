@@ -1,5 +1,5 @@
 import { z } from "zod";
-export const attentionEventSchema = z.object({ seq: z.number(), id: z.string(), bot: z.string(), source: z.string(), threadId: z.string(), summary: z.string(), needsItemId: z.string().nullable(), createdAt: z.number(), seenAt: z.number().nullable(), resolvedAt: z.number().nullable().default(null) });
+export const attentionEventSchema = z.object({ seq: z.number(), id: z.string(), bot: z.string(), source: z.string(), threadId: z.string(), summary: z.string(), needsItemId: z.string().nullable(), createdAt: z.number(), seenAt: z.number().nullable(), resolvedAt: z.number().nullable().default(null), interactionId: z.string().optional(), interactionThreadId: z.string().optional(), kind: z.enum(["question", "reminder", "update", "completion"]).default("update") });
 export type AttentionEvent = z.infer<typeof attentionEventSchema>;
 export const attentionPageSchema = z.object({ events: z.array(attentionEventSchema), cursor: z.number(), more: z.boolean() });
 export const attentionRpcContract = {

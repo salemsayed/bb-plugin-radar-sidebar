@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { CrewWorkspace } from "./CrewWorkspace";
 import { NeedsYouList } from "./NeedsYouList";
 import { useNeedsYou } from "./useCrewData";
 import { NEEDS_BOT, NEEDS_NOW, makeNeed } from "./needsFixtures";
@@ -32,7 +33,7 @@ it("renders full asks in due order with bot labels and expandable snoozed remind
 it("shows an unavailable saved-decisions service honestly and recovers through Retry", async () => {
   let available = false;
   const sdk = { plugins: { callRpc: async <T,>({ pluginId }: { pluginId: string }) => (pluginId === "chatgpt-events" ? { connected: false } : { bots: [NEEDS_BOT] }) as T } };
-  renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) }, sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: NEEDS_BOT.current })] } });
+  renderSlot({ component: CrewWorkspace }, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) }, sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: NEEDS_BOT.current })] } });
   expect(await screen.findByText("Saved questions are unavailable.")).toBeTruthy();
   expect(screen.queryByText("Nothing needs you.")).toBeNull();
   available = true;
@@ -104,11 +105,11 @@ describe("needs hook/server bridge", () => {
     expect(load.mock.calls.length).toBeGreaterThan(calls);
   });
   it("renders Needs you on the Crew page and opens the source thread", async () => {
-    const host = renderSlot(app.navPanels.find(panel => panel.id === "crew")!, { subPath: "" }, {
+    const host = renderSlot({ component: CrewWorkspace }, { subPath: "" }, {
       rpc: { crew_needs_list: () => ({ items: [makeNeed()] }) },
     });
     const region = await screen.findByRole("region", { name: "Needs you" });
-    fireEvent.click(within(region).getByRole("button", { name: /^Open:/ }));
+    fireEvent.click(await within(region).findByRole("button", { name: /^Open:/ }));
     expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
   });
 });

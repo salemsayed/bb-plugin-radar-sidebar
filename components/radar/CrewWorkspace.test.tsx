@@ -6,10 +6,10 @@ import type { RosterBot } from "./bots";
 import { makeThread } from "./fixtures";
 import { makeNeed } from "./needsFixtures";
 import { CrewRailIcon, publishCrewSignal } from "./crewSignal";
-import { crewCard } from "./CrewWorkspace";
+import { CrewWorkspace, crewCard } from "./CrewWorkspace";
 
 const app = await loadPluginApp(() => import("../../app"));
-const panel = app.navPanels.find(p => p.id === "crew")!;
+const panel = { id: "crew-legacy-fixture", title: "Legacy Crew", component: CrewWorkspace };
 afterEach(() => { cleanup(); localStorage.clear(); publishCrewSignal({ needs: 0, working: false, failed: false }); });
 const home: RosterBot = { key: "home", name: "Home Bot", current: "coord", projectId: "p", projects: [], hostId: "h", providerId: "pi", model: "m", rollover: null };
 const work: RosterBot = { key: "work", name: "Work Bot", current: "work-coord", projectId: "w", projects: [], hostId: "h", providerId: "pi", model: "m", rollover: null };

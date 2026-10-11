@@ -1,3 +1,4 @@
+import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 // Behavior regressions found during the deep plugin review.
 import { createElement } from "react";
 import { act, cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
@@ -61,16 +62,18 @@ const props = {
 };
 const sdk: Record<string, unknown> = {
   threads: {
-    defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
+    pin: async()=>({}), unpin: async()=>({}), markUnread: async()=>({}), defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
     update: async () => ({}), unarchive: async () => ({}), markRead: async () => ({}),
   },
   providers: { models: async () => ({ models: [] }) },
 };
 function mount(threads: PluginSidebarThread[], settings: Record<string, boolean> = {}) {
-  return renderSlot(list, props, {
+  const native = threadActionsFixture();
+  return native.capture(renderSlot(list, props, {
+    threadActions: native.threadActions,
     sdk, settings, sidebarThreads: { status: "ready", threads,
       projects: [makeProject({ id: "proj_a" })], sections: [] },
-  });
+  }));
 }
 beforeAll(() => { Element.prototype.scrollIntoView = () => {}; });
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals();
@@ -147,7 +150,7 @@ describe("sidebar behavior regressions", () => {
     fireEvent.keyDown(document.body, { key: "ArrowDown" });
     fireEvent.click(viewOptions().getByRole("button", { name: "Collapse all folders" }));
     fireEvent.keyDown(document.body, { key: "e" });
-    expect(slot.inspection.sidebarActionCalls.filter(call => call.method === "archive")).toEqual([]);
+    expect(recordedActions(slot).filter(call => call.method === "archive")).toEqual([]);
   });
 
   it.each(["arrows", "tab"])("returns %s focus to a visible parent when its child is folded", (focus) => {
@@ -166,7 +169,7 @@ describe("sidebar behavior regressions", () => {
     const slot = mount([makeThread({ id: "archive" })]);
     fireEvent.keyDown(document.body, { key: "ArrowDown" });
     fireEvent.keyDown(document.body, { key: "e" });
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "archive", threadId: "archive" });
+    expect(recordedActions(slot)).toContainEqual({ method: "archive", threadId: "archive" });
     expect(success).not.toHaveBeenCalled();
   });
 
@@ -176,7 +179,7 @@ describe("sidebar behavior regressions", () => {
     fireEvent.click(slot.container.querySelector('[data-sidebar-thread-id="parent"]')!, { ctrlKey: true });
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     // The SDK harness records archive(), but does not archive anything or confirm.
-    expect(slot.inspection.sidebarActionCalls).toContainEqual({ method: "archive", threadId: "parent" });
+    expect(recordedActions(slot)).toContainEqual({ method: "archive", threadId: "parent" });
     expect(success).not.toHaveBeenCalled();
   });
 

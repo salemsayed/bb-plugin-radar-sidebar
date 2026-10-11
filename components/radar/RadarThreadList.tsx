@@ -1,3 +1,4 @@
+import { useRadarThreadActions } from "./threadActions";
 import {
   Fragment,
   useCallback,
@@ -33,7 +34,6 @@ import {
 } from "@dnd-kit/sortable";
 import {
   experimental_useProviders,
-  experimental_useSidebarThreadActions,
   experimental_useSidebarThreads,
   useSdk,
   useSettings,
@@ -61,6 +61,7 @@ import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
 import { crewCard } from "./CrewWorkspace";
 import { publishCrewSignal } from "./crewSignal";
 import { useBotRoster } from "./useBotRoster";
+import { requestBotAttention } from "@/lib/botAttention";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
 import { activityTime, isLiveThread, isRunningThread, timeAgo } from "./time";
@@ -623,7 +624,7 @@ export function RadarThreadList({
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
   }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots]);
-  const actions = experimental_useSidebarThreadActions();
+  const actions = useRadarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();
   const providerById = useMemo(
@@ -1668,6 +1669,7 @@ export function RadarThreadList({
         aria-current={activeThreadId === scopedBot.current ? "page" : undefined}
         title={`Open ${scopedBot.name}`}
         onClick={() => {
+          requestBotAttention(scopedBot.current, !!(scopedBot.unseenAttention || scopedBot.actionableNeeds));
           actions.open(scopedBot.current);
           onNavigate();
         }}
@@ -1720,7 +1722,7 @@ export function RadarThreadList({
           scope={railScope} activeThreadId={activeThreadId} compact={isCompactViewport}
           motion={settings.motion} loudUnread={settings.loudUnread}
           onClear={() => setRailScope(null)}
-          onSelect={bot => { setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
+          onSelect={bot => { requestBotAttention(bot.current, !!(bot.unseenAttention || bot.actionableNeeds)); setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
           onNavigate={onNavigate} /> : null}
         <div className="radar-search-row">
           <div className="radar-search">
@@ -2052,6 +2054,7 @@ export function RadarThreadList({
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          requestBotAttention(scopedBot.current, !!(scopedBot.unseenAttention || scopedBot.actionableNeeds));
                           actions.open(scopedBot.current);
                           onNavigate();
                         }}
@@ -2125,7 +2128,7 @@ export function RadarThreadList({
                     hasChildren={kids.length > 0}
                     timeText={timeAgo(activityTime(root, now), now)}
                     onToggle={() => toggleGroup(group.id)}
-                    onNavigate={onNavigate}
+                    onNavigate={() => { if (bot) requestBotAttention(bot.current, !!(bot.unseenAttention || bot.actionableNeeds)); onNavigate(); }}
                   />
                   {kids.length > 0 ? (
                     <Fold collapsed={isCollapsed} role="list" label={`${group.label} threads`}>

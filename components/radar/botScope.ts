@@ -101,7 +101,11 @@ export function botRailState(threads: readonly PluginSidebarThread[], bot: Roste
   if (state === "decision" || state === "rollover") return state;
   if (family.some(isRunningThread)) return "working";
   if (family.some(t => t.queuedWork === "waiting")) return "queued";
-  return state === "idle" && (family.some(t => t.isUnread) || (bot.unseenAttention ?? 0) > 0) ? "unread" : state;
+  if (bot.unseenAttention !== undefined) {
+    if (bot.unseenAttention > 0 && (state === "idle" || state === "unread")) return "unread";
+    return state === "unread" ? "idle" : state;
+  }
+  return state === "idle" && family.some(t => t.isUnread) ? "unread" : state;
 }
 
 /** Order-independent 32-bit mix of a string (FNV-1a), so sorting is unnecessary. */

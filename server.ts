@@ -11,6 +11,8 @@ import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
 import { needsRpcContract } from "./lib/needs";
 import { attentionPageSchema, attentionRpcContract } from "./lib/attention";
+import { botAttentionContract, boardSchema } from "./lib/botAttention";
+import { rosterSchema } from "./components/radar/bots";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
 import {
   DEFAULT_SWIPE_LEFT,
@@ -135,6 +137,26 @@ export default async function plugin(bb: BbPluginApi) {
 
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
+  async function botBoard(threadId: string) {
+      const { bots: roster } = await bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "bot_roster", input: null, outputSchema: rosterSchema });
+      const bot = roster.find(b => b.current === threadId || b.coordinatorIds?.includes(threadId));
+      if (!bot) return null;
+      return await bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "attention_board", input: { bot: bot.key }, outputSchema: boardSchema });
+  }
+  bb.rpc.register(botAttentionContract, { bot_attention: async i => ({ board: await botBoard(i.threadId) }) });
+  bb.ui.registerMentionProvider({ id: "bot-attention", label: "Bot questions", triggers: ["@"],
+    search: async ctx => {
+      if (!ctx.threadId) return [];
+      const board = await botBoard(ctx.threadId);
+      return (board?.items ?? []).filter(i => i.kind === "decision" && (i.state === "open" || i.state === "reminded") && i.text.toLowerCase().includes(ctx.query.toLowerCase())).slice(0, 12).map(i => ({ id: i.id, title: i.text, icon: "Bell" }));
+    },
+    resolve: async itemId => {
+      const result = await needs.handlers.crew_needs_list();
+      const item = result.items?.find(i => i.id === itemId);
+      if (!item || item.kind !== "decision" || ["done", "dropped"].includes(item.state)) throw new Error("This question has changed. Open Attention and choose it again.");
+      return { context: `[attention:${item.id}] This human reply names this exact saved question: ${item.text}. Interpret the human's actual answer and its conditions; this reference grants no permission itself.` };
+    },
+  });
   bb.rpc.register(attentionRpcContract, {
     crew_attention_list: async i => { try { return { page: await bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "attention_list", input: { after: i.after, unseen: true }, outputSchema: attentionPageSchema }) }; } catch { return { page: null }; } },
     crew_attention_seen: i => bb.sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "attention_seen", input: i, outputSchema: attentionRpcContract.crew_attention_seen.output }),

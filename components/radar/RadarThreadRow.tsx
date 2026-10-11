@@ -1,3 +1,4 @@
+import { threadActionTarget, runThreadAction, type RadarThreadActions } from "./threadActions";
 import {
   memo,
   useCallback,
@@ -19,7 +20,7 @@ import {
   useSidebarThreadShortcut,
   type PluginBrowserBbSdk,
   type PluginSidebarThread,
-  type PluginSidebarThreadActions,
+  experimental_useThreadActions,
 } from "@get-bb/plugin-sdk/app";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
@@ -338,7 +339,7 @@ function RadarThreadRowImpl({
   isEditing: boolean;
   /** False inside a folded group or ancestor; suspend requests and gestures. */
   isVisible?: boolean;
-  actions: PluginSidebarThreadActions;
+  actions: RadarThreadActions;
   /** Relative activity time, e.g. "5m ago". A string rather than the clock,
    * so the minute tick re-renders only rows whose label actually moved. */
   timeText: string;
@@ -386,6 +387,8 @@ function RadarThreadRowImpl({
   const shortcut = useSidebarThreadShortcut(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
   const navigate = useBbNavigate();
+  const nativeActions = experimental_useThreadActions(threadActionTarget(thread), { requestRename: () => onStartRename(thread) });
+  useEffect(() => actions.register(thread.id, nativeActions), [actions, thread.id, nativeActions]);
   const { splitProps, layout: splitLayout } =
     experimental_useSidebarThreadSplit(thread.id);
 
@@ -550,7 +553,7 @@ function RadarThreadRowImpl({
   };
   const toggleArchive = () => {
     if (thread.isArchived) onUnarchive(thread);
-    else actions.archive(thread.id);
+    else runThreadAction(nativeActions, "bb--core/archive");
   };
   const openInSplit = () => {
     actions.open(thread.id, { split: true });
