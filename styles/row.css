@@ -1,0 +1,41 @@
+/* Radar Sidebar — Thread row frame: state backgrounds, focus and selection. */
+
+/* ---- Thread rows. ---- */
+
+.radar-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  margin: 1px 0;
+  border-radius: 8px;
+  /* Offscreen contents are deferred in React; visible rows must report their
+     real height so their lightweight replacements keep the scroll position. */
+  content-visibility: visible;
+  contain-intrinsic-size: auto 52px;
+  box-shadow: inset 3px 0 0 transparent;
+  transition:
+    background-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.radar-row:hover {
+  background: var(--muted);
+}
+
+.radar-row-active {
+  background: var(--accent, var(--muted));
+}
+
+.radar-row-keyboard-focused {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* Selection is the tint plus the checkbox; the left bar carries state only. */
+.radar-row-selected {
+  background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+}
+
+.radar-row-selected:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}

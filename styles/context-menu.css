@@ -1,0 +1,100 @@
+/* Radar Sidebar — Context menu. */
+
+/* ---- Context menu. ---- */
+
+.radar-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.16),
+    0 2px 6px rgb(0 0 0 / 0.08);
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  outline: none;
+}
+
+.radar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.radar-menu-item:hover,
+.radar-menu-item:focus-visible {
+  background: var(--accent, var(--muted));
+  outline: none;
+}
+
+.radar-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.radar-menu-item-danger {
+  color: var(--destructive, #d43d3d);
+}
+
+.radar-menu-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+
+.radar-menu-item-danger .radar-menu-icon {
+  color: inherit;
+}
+
+.radar-menu-icon[data-icon-root] {
+  width: 16px;
+  height: 16px;
+}
+
+.radar-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-menu-check {
+  flex: none;
+  color: var(--primary);
+}
+
+.radar-menu-check[data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-menu-header {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.radar-menu-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}

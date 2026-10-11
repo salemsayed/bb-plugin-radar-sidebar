@@ -8,8 +8,6 @@ import { RadarThreadList } from "./components/radar/RadarThreadList";
 import { RemindMePanel, remindMeAction } from "./components/radar/RemindMePanel";
 import { BotAttentionHeader, BotAttentionPanel } from "./components/radar/BotAttentionPanel";
 import "./app.css";
-import "./components/radar/crew-workspace.css";
-import "./components/radar/needs.css";
 
 // Runs before any slot renders, so preferences read below the rename are
 // already carried forward from the `codex-sidebar:` era.

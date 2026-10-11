@@ -1,0 +1,183 @@
+/* Radar Sidebar — Swipe actions: underlay, pill, arming and fold. */
+
+/* Swipe actions. The row itself slides; the underlay sits in the gap it
+   leaves (outside the row box, sized to the offset), so the colored pill
+   grows from the edge instead of showing through the row. Script drives the
+   position every frame (finger, then a spring), so neither has a transform
+   or width transition: they are painted together and cannot drift apart.
+   --radar-swipe-p is 0..1 progress toward the arming distance. */
+.radar-list[data-radar-swipe="on"] .radar-row {
+  touch-action: pan-y pinch-zoom;
+}
+
+.radar-row[data-swipe-phase] {
+  /* content-visibility paints inside the row box, which would clip the
+     underlay. */
+  content-visibility: visible;
+  z-index: 1;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.radar-row[data-swipe-phase="drag"],
+.radar-row[data-swipe-phase="settle"],
+.radar-row[data-swipe-phase="out"] {
+  will-change: transform;
+}
+
+.radar-row[data-swipe-phase="fold"],
+.radar-row[data-swipe-phase="gone"] {
+  /* !important: the compact and two-line density rules are as specific and
+     come later, and a row held at 28px never folds shut. */
+  min-height: 0 !important;
+  margin-block: 0;
+  opacity: 0;
+  /* The script sets --radar-swipe-fold and waits that long before acting. */
+  transition:
+    height var(--radar-swipe-fold, 220ms) cubic-bezier(0.4, 0, 0.2, 1),
+    margin var(--radar-swipe-fold, 220ms) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 180ms ease;
+}
+
+.radar-swipe-underlay {
+  --radar-swipe-color: var(--muted-foreground);
+  --radar-swipe-fg: #fff;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  width: var(--radar-swipe-w, 0px);
+  overflow: hidden;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--radar-swipe-color) 18%, var(--muted));
+  color: var(--radar-swipe-color);
+  pointer-events: none;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.radar-swipe-underlay[data-side="right"] {
+  right: 100%;
+  justify-content: flex-end;
+}
+
+.radar-swipe-underlay[data-side="left"] {
+  left: 100%;
+  justify-content: flex-start;
+}
+
+.radar-row[data-swipe-armed] .radar-swipe-underlay {
+  background: var(--radar-swipe-color);
+  color: var(--radar-swipe-fg);
+}
+
+/* The icon rides beside the row's edge and grows with the pull (`scale`,
+   untransitioned, so it tracks the finger), then pops once as the swipe arms
+   (`transform`, a separate property, so the two never fight). */
+.radar-swipe-content {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: calc(0.35 + 0.65 * var(--radar-swipe-p, 0));
+  scale: calc(0.7 + 0.2 * var(--radar-swipe-p, 0));
+  transform-origin: center;
+}
+
+.radar-swipe-underlay[data-side="right"] .radar-swipe-content {
+  transform-origin: right center;
+}
+
+.radar-swipe-underlay[data-side="left"] .radar-swipe-content {
+  transform-origin: left center;
+}
+
+@keyframes radar-swipe-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+.radar-swipe-content [data-icon-root] {
+  width: 18px;
+  height: 18px;
+}
+
+.radar-row[data-swipe-armed] .radar-swipe-content {
+  opacity: 1;
+  transform: scale(1.1);
+  animation: radar-swipe-pop 320ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+/* A trackpad swipe stopped short rests open: the pill becomes a button. */
+.radar-row[data-swipe-phase="open"] .radar-swipe-underlay {
+  background: var(--radar-swipe-color);
+  color: var(--radar-swipe-fg);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.radar-row[data-swipe-phase="open"] .radar-swipe-content {
+  opacity: 1;
+  scale: 1;
+}
+
+.radar-row[data-swipe-phase="open"] .radar-swipe-underlay:hover {
+  filter: brightness(1.08);
+}
+
+.radar-row[data-swipe-phase="open"] .radar-swipe-underlay:active {
+  filter: brightness(0.92);
+}
+
+/* Un-arming eases back instead of snapping. */
+.radar-row[data-swipe-phase="drag"]:not([data-swipe-armed]) .radar-swipe-content {
+  transition: transform 160ms ease-out;
+}
+
+.radar-swipe-read {
+  --radar-swipe-color: #3b82f6;
+}
+
+.radar-swipe-pin {
+  --radar-swipe-color: var(--warning, #b98533);
+}
+
+.radar-swipe-archive {
+  --radar-swipe-color: var(--success, #3f9a6b);
+}
+
+.radar-swipe-split {
+  --radar-swipe-color: #0d9488;
+}
+
+.radar-swipe-rename,
+.radar-swipe-menu {
+  --radar-swipe-color: #6b7280;
+}
+
+.radar-swipe-delete {
+  --radar-swipe-color: var(--destructive, #d43d3d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-row[data-swipe-phase],
+  .radar-row[data-swipe-phase] .radar-swipe-underlay,
+  .radar-swipe-content,
+  .radar-row[data-swipe-phase="drag"]:not([data-swipe-armed]) .radar-swipe-content {
+    animation: none;
+    transition: none;
+  }
+}

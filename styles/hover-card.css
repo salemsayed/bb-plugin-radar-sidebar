@@ -1,0 +1,534 @@
+/* Radar Sidebar — Hover peek card. */
+
+/* ---------- Hover peek card ---------- */
+
+.radar-hover-card {
+  --radar-hover-w: 300px;
+  position: fixed;
+  z-index: 1000;
+  /* Overwritten by the placement effect before first paint. */
+  left: 0;
+  top: 0;
+  width: var(--radar-hover-w);
+  max-width: min(var(--radar-hover-w), calc(100vw - 16px));
+  max-height: calc((100vh - 16px) * 0.92);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover, var(--card));
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
+    0 12px 32px rgb(0 0 0 / 0.22),
+    0 2px 8px rgb(0 0 0 / 0.12);
+  animation: radar-hover-in 160ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Pointer bridging the gap between row and card. */
+.radar-hover-card::before,
+.radar-hover-card::after {
+  content: "";
+  position: absolute;
+  top: var(--radar-arrow-y, 18px);
+  margin-top: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--popover, var(--card));
+  transform: rotate(45deg);
+}
+
+.radar-hover-card::before {
+  left: -5px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.radar-hover-card::after {
+  right: -5px;
+  display: none;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* Placed to the left of the row: show the right-hand arrow instead. */
+.radar-hover-card[data-side="left"]::before {
+  display: none;
+}
+
+.radar-hover-card[data-side="left"]::after {
+  display: block;
+}
+
+@keyframes radar-hover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+/* Header */
+
+.radar-hover-head {
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.radar-hover-head-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.radar-hover-provider {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding-top: 2px;
+  color: var(--muted-foreground);
+}
+
+.radar-hover-provider [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-hover-provider-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+.radar-hover-provider-icon * {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+}
+
+.radar-hover-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.radar-hover-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-left: 21px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.radar-hover-status {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Goal */
+
+.radar-hover-goal {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 9px 0 0;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.radar-hover-goal-label {
+  margin-right: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--muted-foreground) 80%, var(--foreground));
+}
+
+/* Chips */
+
+.radar-hover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.radar-hover-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-hover-chip [data-icon-root] {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.radar-hover-chip-strong {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+/* Git rows */
+
+.radar-hover-git {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.radar-hover-git-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.radar-hover-git-row:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.radar-hover-git-row [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.radar-hover-git-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.radar-hover-git-hint {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0;
+}
+
+.radar-hover-git-row:hover .radar-hover-git-hint {
+  opacity: 0.75;
+}
+
+.radar-hover-git-ext {
+  opacity: 0;
+}
+
+.radar-hover-git-row:hover .radar-hover-git-ext {
+  opacity: 0.7;
+}
+
+.radar-hover-pr {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+/* Context meter */
+
+.radar-hover-context {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.radar-hover-context-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.radar-hover-context-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.radar-hover-context-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-hover-context-values strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.radar-hover-context-sep {
+  color: var(--muted-foreground);
+}
+
+/* Percentage badge. Text is mixed toward --foreground so it stays readable
+   on light and dark palettes alike; the fill is a soft tint, never a solid
+   block behind small type. */
+.radar-hover-context-pct {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
+  color: color-mix(in srgb, var(--muted-foreground) 55%, var(--foreground));
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.radar-pct-warning {
+  border-color: color-mix(in srgb, var(--warning, #b98533) 55%, transparent);
+  background: color-mix(in srgb, var(--warning, #b98533) 16%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--warning, #b98533) 45%,
+    var(--foreground)
+  );
+}
+
+.radar-pct-critical {
+  border-color: color-mix(in srgb, var(--destructive, #d43d3d) 60%, transparent);
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 18%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--destructive, #d43d3d) 40%,
+    var(--foreground)
+  );
+}
+
+.radar-hover-bar {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
+  overflow: hidden;
+}
+
+.radar-hover-bar-seg {
+  height: 100%;
+  min-width: 2px;
+  transition: width 220ms ease;
+}
+
+/* Bar-segment fills: background only. For text badges use .radar-pct-*. */
+.radar-token-normal {
+  background: var(--primary);
+}
+
+.radar-token-warning {
+  background: color-mix(in srgb, var(--warning, #b98533) 85%, var(--foreground));
+}
+
+.radar-token-critical {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 85%, var(--foreground));
+}
+
+/* Auto-compact threshold marker */
+.radar-hover-bar-mark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--foreground);
+  opacity: 0.55;
+}
+
+.radar-hover-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin-top: 6px;
+}
+
+.radar-hover-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.radar-hover-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+  /* Ring keeps faint segments legible against any card background. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+
+.radar-hover-legend-tokens {
+  font-weight: 600;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Folded family */
+
+.radar-hover-kids {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.radar-hover-kids [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 1px;
+}
+
+/* Actions */
+
+.radar-hover-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.radar-hover-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.radar-hover-action:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.radar-hover-action [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.radar-hover-action-primary {
+  flex: 1.35;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--foreground);
+}
+
+.radar-hover-action-primary:hover {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.radar-hover-action-on {
+  color: var(--primary);
+}
+
+.radar-list-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* A swiped row slides past the edge; never scroll sideways to follow it. */
+  overflow-x: hidden;
+  padding: 0 4px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.radar-list-body::before {
+  content: "";
+  display: block;
+  height: 4px;
+}
+
+.radar-result-count {
+  margin: 6px 8px 2px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}

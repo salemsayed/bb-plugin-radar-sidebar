@@ -116,16 +116,6 @@ describe("sidebar behavior regressions", () => {
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
-  it("applies an adaptiveCollapse setting change to already mounted rows", async () => {
-    const settings = { adaptiveCollapse: true };
-    const slot = mount([makeThread({ id: "quiet" })], settings);
-    await act(async () => {});
-    expect(slot.container.querySelector(".radar-row-collapsed")).not.toBeNull();
-    settings.adaptiveCollapse = false;
-    slot.rerender(createElement(list.component, { ...props, isCompactViewport: true }));
-    expect(slot.container.querySelector(".radar-row-collapsed")).toBeNull();
-  });
-
   it("shows an approval-only group's attention state instead of running", () => {
     const slot = mount([makeThread({ id: "waiting", indicator: "waiting-for-input",
       hasPendingInteraction: true, indicatorLabel: "Thread needs user input" })]);

@@ -1,0 +1,14 @@
+/* Radar Sidebar — Settings-driven behaviour gates. */
+
+/* ---- Settings-driven behaviour gates. ----
+   data-* lives on the list root so a settings change re-styles without
+   remounting rows. `off` disables the assertive visuals entirely. */
+
+[data-radar-motion="off"] .radar-row-pulse-amber,
+[data-radar-motion="off"] .radar-row-pulse-red,
+[data-radar-motion="off"] .radar-icon-pulse,
+[data-radar-motion="off"] .radar-dot-pulse,
+[data-radar-motion="off"] .radar-celebrate,
+[data-radar-motion="off"] .radar-group-status .radar-dot-pulse {
+  animation: none;
+}

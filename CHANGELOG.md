@@ -4,6 +4,18 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.4 - 2026-10-11
+
+### Changed
+
+- Split the thread list into focused modules with `RadarThreadList.tsx` as the composition root: `RadarListHeader`, `RadarGroupList`, `RadarWorkingDrawer`, `RadarListStates`, `RadarBulkBar`, `useListKeyboard` and `useListSettings`. Behaviour is unchanged.
+- Split the stylesheet into per-area files under `styles/`, imported in cascade order from the single `app.css` entry; the build still produces one `dist/app.css` with the same rules.
+- Bot context polling reads only threads that are live or have a new reply, at most four requests at a time, and pauses while the page is hidden (a return to the page refreshes at once).
+
+### Removed
+
+- The "Collapse quiet rows" setting (`adaptiveCollapse`) and its code: rows always keep their full layout.
+
 ## 0.6.3 - 2026-10-11
 
 ### Changed

@@ -1,0 +1,109 @@
+/* Radar Sidebar — Floating bulk action dock. */
+
+/* ---- Floating Bulk Action Dock. ---- */
+
+.radar-bulk-bar {
+  position: sticky;
+  bottom: 12px;
+  margin: 0 auto;
+  width: calc(100% - 20px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--primary) 25%);
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.18),
+    0 2px 6px rgb(0 0 0 / 0.1);
+  z-index: 40;
+  animation: radarSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes radarSlideUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.radar-bulk-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.radar-bulk-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.radar-bulk-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.radar-bulk-clear:hover {
+  background: var(--muted-foreground);
+  color: var(--background);
+}
+
+.radar-bulk-clear [data-icon-root] {
+  width: 10px;
+  height: 10px;
+}
+
+.radar-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.radar-bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 80ms ease;
+}
+
+.radar-bulk-btn:hover {
+  background: color-mix(in srgb, var(--primary) 20%, var(--muted));
+  color: var(--foreground);
+}
+
+.radar-bulk-btn:active {
+  transform: scale(0.95);
+}
+
+.radar-bulk-btn [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}

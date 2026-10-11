@@ -1,0 +1,170 @@
+/* Radar Sidebar — Smart views bar. */
+
+/* ---- Smart views bar. ---- */
+
+.radar-smart-views-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 2px;
+}
+
+.radar-smart-views-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.radar-smart-views-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.radar-smart-view-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.radar-smart-view-pill:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.radar-smart-view-active {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.radar-smart-view-pill [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-smart-view-count {
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pill + its delete affordance sit side by side as siblings. */
+.radar-smart-view-group {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+
+.radar-smart-view-del {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.radar-smart-view-group:hover .radar-smart-view-del,
+.radar-smart-view-del:focus-visible {
+  opacity: 0.7;
+}
+
+.radar-smart-view-del:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground, #fff);
+  opacity: 1;
+}
+
+.radar-smart-view-del [data-icon-root] {
+  width: 10px;
+  height: 10px;
+}
+
+.radar-smart-view-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px dashed var(--border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.radar-smart-view-add:hover {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+
+.radar-smart-view-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.radar-smart-view-input {
+  width: 110px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--primary);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 11px;
+  outline: none;
+}
+
+.radar-smart-view-save-btn,
+.radar-smart-view-cancel-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.radar-smart-view-save-btn {
+  background: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+
+.radar-smart-view-save-btn [data-icon-root],
+.radar-smart-view-cancel-btn [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}

@@ -1,0 +1,340 @@
+/* Radar Sidebar — Scrolling body, group headers and thread clusters. */
+
+/* ---- Scrolling body + groups. ---- */
+
+.radar-group {
+  margin-top: 1px;
+}
+
+/* Subtle breathing room only after an expanded section */
+.radar-group-expanded + .radar-group {
+  margin-top: 8px;
+}
+
+.radar-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 5px 8px;
+  background: color-mix(
+    in srgb,
+    var(--sidebar, var(--background)) 82%,
+    transparent
+  );
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.radar-group-header:hover {
+  background: color-mix(
+    in srgb,
+    var(--muted) 60%,
+    transparent
+  );
+  color: var(--foreground);
+}
+
+/* Touch lists spend less height between groups; the header stays a
+   full-width tap target. */
+.radar-list-compact .radar-group-header { padding-block: 3px; }
+.radar-list-compact .radar-group-expanded + .radar-group { margin-top: 4px; }
+
+.radar-group-expanded > .radar-group-header {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.radar-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.radar-group-header:hover .radar-group-toggle {
+  color: var(--foreground);
+}
+
+.radar-group-header-sortable .radar-group-toggle {
+  cursor: grab;
+}
+
+.radar-group-header-sortable .radar-group-toggle:active {
+  cursor: grabbing;
+}
+
+.radar-group-chevron {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-chevron [data-icon-root],
+.radar-group-header [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+
+.radar-group-header:hover .radar-group-icon {
+  color: var(--foreground);
+}
+
+.radar-group-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-group-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.radar-group-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "2 unread · 4": the unread count reads as words, not a second dot. */
+.radar-group-unread {
+  display: inline-flex;
+  align-items: center;
+  margin-right: -6px;
+  color: var(--primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.radar-group-sep {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.radar-group-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.radar-group-status [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-group-new-thread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease;
+  flex-shrink: 0;
+}
+
+.radar-group-header:hover .radar-group-new-thread {
+  opacity: 0.9;
+}
+
+.radar-group-new-thread:hover {
+  opacity: 1;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.radar-group-new-thread:active {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  transform: scale(0.92);
+}
+
+.radar-group-new-thread:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 1px;
+}
+
+.radar-group-new-thread [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-new-thread-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  opacity: 0.7;
+  color: var(--muted-foreground);
+}
+
+.radar-group-new-thread-preview [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  opacity: 0.35;
+  transition: opacity 150ms ease, color 150ms ease;
+  flex-shrink: 0;
+}
+
+.radar-group-header:hover .radar-group-grip {
+  opacity: 0.9;
+  color: var(--foreground);
+}
+
+.radar-group-grip [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-group-dragging {
+  opacity: 0.35;
+}
+
+.radar-group-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--sidebar, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 4px 10px -2px rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground);
+  cursor: grabbing;
+  pointer-events: none;
+  user-select: none;
+  z-index: 9999;
+}
+
+.radar-group-drag-preview .radar-group-grip {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.radar-group-drag-preview .radar-group-drag-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.radar-group-drag-preview .radar-group-drag-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-group-drag-preview .radar-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-group-drag-preview .radar-group-count {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.radar-group > .radar-fold > .radar-fold-inner {
+  padding-top: 2px;
+  padding-bottom: 4px;
+}
+
+/* ---- Thread clusters & top-level thread separation ---- */
+
+.radar-thread-cluster {
+  position: relative;
+}
+
+.radar-thread-cluster + .radar-thread-cluster {
+  margin-top: 3px;
+  padding-top: 4px;
+}
+
+.radar-thread-cluster + .radar-thread-cluster::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 35%, transparent);
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+/* Smoothly hide divider when either the thread above or below is hovered or active */
+.radar-thread-cluster:has(.radar-row:hover)::before,
+.radar-thread-cluster:has(.radar-row-active)::before,
+.radar-thread-cluster:has(.radar-row:hover) + .radar-thread-cluster::before,
+.radar-thread-cluster:has(.radar-row-active) + .radar-thread-cluster::before {
+  opacity: 0;
+}

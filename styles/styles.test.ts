@@ -1,18 +1,22 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Structural guards over app.css.
+ * Structural guards over the plugin stylesheet.
  *
  * jsdom does not resolve the real cascade, so these assert on the stylesheet
  * text for classes of bug that are invisible to a render test.
  */
-// The test sits beside app.css at the package root.
-const css = readFileSync(
-  resolve(import.meta.dirname ?? ".", "app.css"),
-  "utf8",
-);
+// app.css is the entry: its @imports (styles/*.css) inline in order, as the
+// build does, so rules keep their cascade order here too.
+function inline(file: string): string {
+  return readFileSync(file, "utf8").replace(
+    /@import\s+"([^"]+)";/g,
+    (_, path: string) => inline(resolve(dirname(file), path)),
+  );
+}
+const css = inline(resolve(import.meta.dirname ?? ".", "..", "app.css"));
 
 /** Every `selector { body }` block, with comments stripped. */
 function rules(source = css): { selector: string; body: string }[] {
@@ -23,7 +27,13 @@ function rules(source = css): { selector: string; body: string }[] {
   }));
 }
 
-describe("app.css", () => {
+describe("plugin stylesheet", () => {
+  it("inlines every styles/ file from the app.css entry", () => {
+    expect(css).not.toMatch(/@import/);
+    expect(css).toContain(".radar-row-main");
+    expect(css).toContain(".radar-working-drawer");
+  });
+
   it("keeps our stylesheet out of BB's rail and sidebar shell", () => {
     const selectors = rules().flatMap(rule => rule.selector.split(/,(?![^()]*\))/));
     expect(selectors.filter(selector => /\[data-sidebar=|\.group\.peer|\[data-testid=|\bhtml\b|data-radar-rail/.test(selector))).toEqual([]);
@@ -202,5 +212,8 @@ describe("app.css", () => {
     const chips = rules().filter((rule) => /radar-(project|section)-hue\)/.test(rule.body));
     expect(chips.length).toBeGreaterThan(0);
     for (const chip of chips) expect(chip.body).not.toMatch(/in oklch/);
+  });
+  it("has no styles left for the retired quiet-row collapse", () => {
+    expect(css).not.toMatch(/radar-row-collapsed|radar-row-extra-collapsed/);
   });
 });

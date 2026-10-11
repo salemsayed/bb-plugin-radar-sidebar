@@ -128,20 +128,15 @@ back to BB's list automatically.
   all off under prefers-reduced-motion).
   Threads flipping from live work to done get a one-time springy
   check-pop on their status badge.
-- Adaptive rows (`adaptiveCollapse`, off by default): decided once when the
-  row mounts (and again only when the setting or density changes), quiet
-  read-idle rows collapse to the
-  title line (title, project chip, time) and drop the subtitle, keeping
-  only the branch line (which always shows). Anything worth a glance
-  (unread, working, needs-you, failed, drafts, plugin statuses, PRs needing
-  attention, unknown states) keeps the full row. Editing never collapses.
+- Rows always keep their full layout: a state change never adds or removes
+  a line (the old "Collapse quiet rows" setting is gone).
 - Compact density compresses **vertically only** — inline padding and the
   child indent stay identical to comfortable so tree guides keep lining up.
   Titles stay on one line by default; **Two-line titles** also applies to
   compact density and the forced-compact touch layout.
   It uses `margin-block` rather than `margin`, since the shorthand also
   zeroes `margin-left` and wipes `.radar-row-child` / `.radar-row-deep`.
-  `css.test.ts` guards both as static assertions (jsdom does not resolve the
+  `styles/styles.test.ts` guards both as static assertions (jsdom does not resolve the
   real cascade).
 - Pinned rows carry a small pin marker at the start of the title, so
   pinned children nested under unpinned parents stay recognisable (and
@@ -158,7 +153,7 @@ back to BB's list automatically.
   name, rename and hover card keep it), then a project chip in the project's
   own muted hue (stable per project id, always 75°–325° so never in the
   red-to-amber band of Failed and Needs you, readable light and dark — always shown, even on
-  collapsed rows and children, hidden only when it would echo the project
+  children, hidden only when it would echo the project
   group header), then a muted tabular last-activity time that never
   truncates.
   Choose **Two-line titles** to wrap the whole title, including mention
@@ -192,8 +187,9 @@ back to BB's list automatically.
   Clicking the badge opens the PR. The branch never appears on line two.
 - Hover action: a single ⋯ (More actions); pin, rename and archive are in
   that menu, the context menu and swipes. It never resizes the row. In
-  one-line mode it sits at its top right. In two-line mode it sits on its last line of plain text (the subtitle, or
-  the chip and time where the subtitle is folded away), lifted clear of the
+  one-line mode it sits at its top right. In two-line mode it sits on its
+  last line of plain text (the subtitle, or the chip and time on a row
+  without one), lifted clear of the
   branch line so the PR badge stays clickable; only a row one line tall
   still has it over the end of its title.
   Right-click opens the fuller menu: open in split, pin, mark read/unread,
@@ -256,7 +252,6 @@ rows paint at their final height.
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
-| `adaptiveCollapse` | `false` | Fold quiet read-idle rows to their title line, decided when a row appears; off keeps every row a fixed height. |
 | `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
 | `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. Starts only when sideways travel passes 12px and 1.5× vertical travel (`swipeIntent`); arms at max(64px, 40% of the row) for touch; a flick commits short of that only after arming once. |

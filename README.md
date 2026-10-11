@@ -264,7 +264,6 @@ flowchart LR
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
-| `adaptiveCollapse` | `false` | Fold quiet read-idle rows down to title, project and time. A row folds or unfolds only when it appears (or when this setting or density changes), never while you look at it. Off keeps every row a fixed height. |
 | `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in view options, which is remembered per client. |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A swipe starts only once sideways travel passes 12px and 1.5× the vertical travel, and arms at 40% of the row (at least 64px); a quick flick commits only after the gesture has armed once. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
@@ -275,7 +274,7 @@ The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last
 saw, so rows paint at their final height. In two-line mode, the hover ⋯ sits
 on the row's last line of plain text (the subtitle, or the project chip and
-time where the subtitle is folded away), so they stay off a wrapped title and
+time on a row without one), so it stays off a wrapped title and
 off the PR badge. A row that is only one line tall still has it over the end
 of its title, as in one-line mode. It never changes the row's layout.
 
@@ -308,8 +307,21 @@ bb plugin dev                      # rebuild and reload on every save
 ```
 server.ts               the settings the frontend reads; no storage, no CLI
 app.tsx                 registers the thread-list, Crew and reminder slots
-app.css                 styles on BB theme tokens, behind the radar- prefix
+app.css                 the one stylesheet entry: @imports styles/*.css in cascade order
+styles/                 per-area CSS on BB theme tokens, behind the radar- prefix:
+                        base, header, hover-card, groups, row, swipe, row-layout,
+                        context-menu, states, dock, smart-views, drag, gates, bots,
+                        drawer, crew-workspace, needs (+ styles.test.ts, the guards)
 components/radar/       the list, bot shortcuts, menus, peek card and smart views
+  RadarThreadList.tsx   composition root: thread data, bots, groups, order freeze
+  RadarListHeader.tsx   search, view options, status chips, active filter pills
+  RadarGroupList.tsx    groups, rows, folds, drag to sections/projects, group menu
+  RadarWorkingDrawer.tsx  the Working drawer and its hover peek
+  RadarListStates.tsx   loading, error and empty states, archived pager
+  RadarBulkBar.tsx      the multi-select dock
+  useListSettings.ts    plugin settings, view state, density and persisted prefs
+  useListKeyboard.ts    keyboard focus and navigation, selection, bulk actions
+  RadarThreadRow.tsx    one row: states, badges, swipe, menus, hover card
 components/radar/*.ts   grouping hook, time bucketing, bot scope and model cache
 lib/swipe.ts            swipe actions and gesture math, shared with server.ts
 components/storage.ts   one-time migration of codex-sidebar: preferences
@@ -323,7 +335,8 @@ docs/                   logo and screenshots
 rendered list through BB's plugin test harness (`renderSlot` with seeded
 sidebar threads), saved-view validation, preference migration, execution-cache
 refreshes, completion timers, and render counts, so a sidebar update re-renders
-only the rows that changed. Static guards over `app.css` cover cascade mistakes jsdom cannot reproduce.
+only the rows that changed. Static guards over the stylesheet (`styles/styles.test.ts`, which
+inlines `app.css`'s imports in order) cover cascade mistakes jsdom cannot reproduce.
 The test setup uses jsdom's `localStorage` explicitly, including on Node 26,
 whose native storage global otherwise shadows it without a backing file.
 

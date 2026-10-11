@@ -37,7 +37,7 @@ export interface ThreadGroup {
   sectionId: string | null;
 }
 
-interface SubtreeCounts {
+export interface SubtreeCounts {
   total: number;
   unread: number;
   live: number;

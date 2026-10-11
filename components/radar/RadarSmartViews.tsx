@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { StatusFilter } from "./RadarThreadList";
+import type { StatusFilter } from "./useListSettings";
 
 export interface CustomSmartView {
   id: string;

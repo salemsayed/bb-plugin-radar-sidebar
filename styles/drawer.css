@@ -1,0 +1,139 @@
+/* Radar Sidebar — Working drawer and its hover peek. */
+
+/* Working drawer: pinned under the list, folded by default, and scrolling on
+   its own when open so a busy afternoon never pushes the list off screen. */
+.radar-working-drawer {
+  flex: none;
+  max-height: 40%;
+  margin: 0;
+  padding: 4px 4px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Drawer rows are narrow and all running: the spinner or clock says enough,
+   so the status word and model/thinking chips go. The title keeps one line
+   to itself, with the project chip and time on one line below it; the time
+   never truncates. */
+.radar-working-drawer .radar-status-word,
+.radar-working-drawer .radar-model-loading,
+.radar-working-drawer .radar-subtitle-model,
+.radar-working-drawer .radar-row-subtitle > :has(> .radar-subtitle-model) + * > .radar-subtitle-sep {
+  display: none;
+}
+
+.radar-working-drawer .radar-row-title {
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+
+.radar-working-drawer .radar-row-title-text {
+  flex: 1 0 100%;
+  max-width: 100%;
+}
+
+.radar-working-drawer .radar-thread-title {
+  -webkit-line-clamp: 1;
+}
+
+.radar-working-drawer .radar-row-meta {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.radar-working-drawer .radar-row-time {
+  flex: none;
+}
+
+/* ---- Working peek: hover the Working drawer's header (salem fork) ---------- */
+.radar-working-peek {
+  --radar-hover-w: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.radar-working-peek::before,
+.radar-working-peek::after { display: none; }
+.radar-peek-head { display: flex; align-items: baseline; gap: 6px; }
+.radar-peek-head strong { font-size: 13px; }
+.radar-peek-count {
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.radar-peek-head-meta { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-summary { margin: 0; font-size: 11px; font-weight: 500; }
+.radar-peek-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.radar-peek-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.radar-peek-item:hover { background: var(--muted); }
+.radar-peek-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-peek-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-peek-title .radar-dot { flex: none; margin-top: 0; }
+.radar-peek-title-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.radar-peek-time { flex: none; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.radar-peek-meta,
+.radar-peek-muted { color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-peek-muted { margin: 0; }
+.radar-peek-line { font-size: 11px; color: var(--foreground); }
+.radar-peek-line b { color: var(--muted-foreground); font-weight: 600; }
+.radar-peek-saying {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--foreground);
+  font-style: italic;
+}
+.radar-peek-doing { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted-foreground); font-size: 11px; }
+.radar-peek-doing > span:not(.radar-peek-doing-icon) { flex: none; }
+.radar-peek-doing-icon { display: inline-flex; flex: none; }
+.radar-peek-doing-icon [data-icon-root] { width: 12px; height: 12px; }
+.radar-peek-doing code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 10.5px;
+}
+.radar-peek-todos { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--muted-foreground); }
+.radar-peek-todos > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-peek-progress { flex: none; width: 44px; height: 4px; border-radius: 9999px; background: var(--muted); overflow: hidden; }
+.radar-peek-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.radar-peek-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+.radar-peek-flag {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+}

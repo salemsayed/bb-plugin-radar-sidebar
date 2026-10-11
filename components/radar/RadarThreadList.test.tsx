@@ -1602,32 +1602,22 @@ describe("settings gates", () => {
     expect(slot.container.querySelector(".radar-title-wrap")).toBeNull();
   });
 
-  it("keeps quiet rows expanded when adaptive collapse is off", () => {
+  it("keeps quiet rows at their full layout, even with the retired collapse setting saved", () => {
     const quiet = makeThread({
       id: "quiet",
       title: "Idle read thread",
       sectionId: "s1",
     });
     const sections = [makeSection({ id: "s1", name: "Backlog" })];
-
-    // The subtitle line is what adaptive collapse folds away.
-    const expanded = renderThreads([quiet], {
-      settings: { adaptiveCollapse: false },
-      sections,
-    });
-    expect(expanded.container.querySelector(".radar-row-subtitle")).toBeTruthy();
-    cleanup();
-
-    const folded = renderThreads([quiet], {
+    // A value saved before "Collapse quiet rows" was removed changes nothing.
+    const slot = renderThreads([quiet], {
       settings: { adaptiveCollapse: true },
       sections,
     });
-    const subtitle = folded.container.querySelector(".radar-row-subtitle");
-    // Hidden rather than removed: the subtitle stays mounted.
-    expect(
-      subtitle?.closest(".radar-row-extra-collapsed") ??
-        folded.container.querySelector(".radar-row-collapsed"),
-    ).toBeTruthy();
+    const subtitle = slot.container.querySelector(".radar-row-subtitle");
+    expect(subtitle).toBeTruthy();
+    expect(subtitle?.closest("[aria-hidden]")).toBeNull();
+    expect(slot.container.querySelector(".radar-row-collapsed, .radar-row-extra-collapsed")).toBeNull();
   });
 });
 
@@ -2381,22 +2371,22 @@ describe("state colors and stable rows", () => {
     expect(held.querySelector("[data-sidebar-thread-id]")?.getAttribute("aria-label")).toContain("Message held until you send it");
   });
 
-  it("decides a row's fold once, so reading or finishing never changes its height", () => {
+  it("keeps every row's lines when reading or finishing changes its state", () => {
     const threads = [makeThread({ id: "quiet" }), makeThread({ id: "busy", isUnread: true, indicator: "unread-success" })];
     const state: PluginSidebarThreadsState = {
       status: "ready", threads, projects: [makeProject({ id: "proj_a" })], sections: [], experimental_archived: null,
     };
     const snapshot = vi.spyOn(pluginSdk, "experimental_useSidebarThreads").mockReturnValue(state);
-    const slot = renderSlot(threadList, props, { sdk: sdkFakes(), settings: { adaptiveCollapse: true } });
-    expect(row(slot.container, "quiet").className).toContain("radar-row-collapsed");
-    expect(row(slot.container, "busy").className).not.toContain("radar-row-collapsed");
+    const slot = renderSlot(threadList, props, { sdk: sdkFakes() });
+    const lines = (id: string) => row(slot.container, id).querySelectorAll(".radar-row-title, .radar-row-extra").length;
+    expect([lines("quiet"), lines("busy")]).toEqual([2, 2]);
     snapshot.mockReturnValue({ ...state, threads: [
       { ...threads[0]!, isUnread: true, indicator: "unread-success" },
       { ...threads[1]!, isUnread: false, indicator: "none" },
     ] });
     slot.rerender(createElement(threadList.component, props));
-    expect(row(slot.container, "quiet").className).toContain("radar-row-collapsed");
-    expect(row(slot.container, "busy").className).not.toContain("radar-row-collapsed");
+    expect([lines("quiet"), lines("busy")]).toEqual([2, 2]);
+    expect(slot.container.querySelector(".radar-row-collapsed")).toBeNull();
   });
 
   it("holds row order while the pointer is over the list", () => {

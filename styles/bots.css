@@ -1,0 +1,199 @@
+/* Radar Sidebar — Bots deck, bot shortcuts, faces and Crew automation health. */
+
+/* ---- Bots deck and needs-you lane (salem fork) ---------------------------- */
+.radar-crew-header {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 4px;
+  font-size: 11px; color: var(--muted-foreground);
+}
+.radar-crew-label { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.radar-crew-digest { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-bot-group { margin-top: 2px; }
+.radar-bot-group + .radar-bot-group { margin-top: 5px; }
+.radar-bot-card {
+  --bot-color: hsl(var(--bot-hue) 70% 50%);
+  --bot-soft: hsl(var(--bot-hue) 70% 50% / 0.12);
+  position: relative;
+  display: flex; align-items: stretch; gap: 4px;
+  padding: 7px 8px 7px 10px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--bot-color) 28%, var(--border));
+  background:
+    linear-gradient(135deg, var(--bot-soft), transparent 55%),
+    color-mix(in srgb, var(--sidebar, var(--background)) 94%, transparent);
+  transition: transform 160ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.radar-bot-card::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; border-radius: 12px 0 0 12px;
+  background: var(--bot-color); opacity: 0.9;
+}
+.radar-bot-card:hover { transform: translateY(-1px); box-shadow: 0 6px 18px -12px var(--bot-color); }
+.radar-bot-main { display: flex; flex: 1; min-width: 0; gap: 9px; align-items: center; text-decoration: none; color: inherit; }
+.radar-bot-avatar { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; }
+/* Emoji ink can extend beyond a one-em line box. Leave room for the full
+   glyph without a filter creating a separate paint surface around it. */
+/* The face fills the avatar; the mascot art's own margin leaves the ring a clear band around the body. */
+.radar-bot-face { position: absolute; inset: 1%; z-index: 1; display: grid; place-items: center; font-size: 17px; line-height: 1.4; }
+.radar-bot-face > .bot-mascot { width: 100%; height: 100%; vertical-align: top; }
+/* Crew mascots replace the old emoji faces; the letter fallback keeps the same box. */
+.bot-mascot { display: inline-block; vertical-align: -0.25em; }
+.bot-face-text { display: inline-block; }
+.radar-bot-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.radar-bot-ring circle { fill: none; stroke-width: 3; }
+.radar-bot-ring-track { stroke: color-mix(in srgb, var(--bot-color) 22%, transparent); }
+.radar-bot-ring-fill { stroke: var(--bot-color); stroke-linecap: round; transition: stroke-dashoffset 600ms ease; }
+.radar-bot-ring-warm .radar-bot-ring-fill { stroke: var(--warning, #d97706); }
+.radar-bot-ring-hot .radar-bot-ring-fill { stroke: var(--destructive); }
+/* Activity rings and attention badges never encode context usage. */
+.radar-bot-avatar-state { --badge-cut: var(--sidebar, var(--background)); }
+.radar-bot-state-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.radar-bot-state-ring circle { fill: none; stroke-width: 2.6; stroke: var(--primary); }
+.radar-bot-state-ring-working circle { stroke-dasharray: 70 200; stroke-linecap: round; }
+.radar-bot-state-ring-rollover circle { stroke-dasharray: 26 32; stroke-linecap: round; stroke: color-mix(in srgb, var(--primary) 70%, var(--foreground)); }
+.radar-bot-state-ring-unavailable circle { stroke: var(--muted-foreground); stroke-dasharray: 3 4; opacity: .6; }
+.radar-bot-avatar-unavailable .radar-bot-face { filter: grayscale(1); opacity: .45; }
+/* Badges sit in the avatar's corner, clear of the eyes; a cut-out ring separates them from the face. */
+.radar-bot-attention-badge { position: absolute; z-index: 2; top: -3px; right: -3px; width: max(13px, 40%); height: max(13px, 40%); display: grid; place-items: center; border-radius: 50%; font-size: 10px; font-weight: 800; line-height: 1; color: white; box-shadow: 0 0 0 2px var(--badge-cut); }
+.radar-bot-badge-error { background: var(--destructive, #c03a3a); }
+/* Bright amber with dark ink: theme warnings are often brown, which disappears on orange and yellow bots. */
+.radar-bot-badge-warning { background: #f6b21b; color: #2a1a00; }
+.radar-bot-unread-dot { position: absolute; z-index: 2; top: -1px; right: -1px; width: max(8px, 24%); height: max(8px, 24%); border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--badge-cut); }
+.radar-bot-state-spin { position: absolute; inset: 0; }
+@keyframes radar-bot-ring-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .radar-bot-state-spin-working.radar-bot-state-motion { animation: radar-bot-ring-rotate 1.4s linear infinite; will-change: transform; }
+  .radar-bot-state-spin-rollover.radar-bot-state-motion { animation: radar-bot-ring-rotate 4s linear infinite; will-change: transform; }
+}
+[data-radar-motion="off"] .radar-bot-state-spin { animation: none !important; }
+.radar-bot-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
+.radar-bot-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-bot-name { font-size: 13px; font-weight: 650; white-space: nowrap; color: var(--foreground); }
+.radar-bot-chip {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.radar-bot-time { margin-left: auto; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.radar-bot-line { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-bot-line-decision { color: var(--foreground); font-weight: 500; }
+.radar-bot-line-prefix { color: var(--warning, #d97706); font-weight: 700; }
+.radar-bot-unread .radar-bot-name::after {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 999px;
+  background: var(--bot-color); vertical-align: middle;
+}
+/* States: the card tells you with colour; motion only where something is happening. */
+.radar-bot-card.radar-bot-decision,
+.radar-bot-card.radar-bot-needs-you {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 60%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #d97706) 16%, transparent), transparent 60%), var(--sidebar, var(--background));
+}
+.radar-bot-card.radar-bot-failed {
+  border-color: color-mix(in srgb, var(--destructive) 60%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--destructive) 14%, transparent), transparent 60%), var(--sidebar, var(--background));
+}
+.radar-bot-card.radar-bot-working .radar-bot-ring-track { stroke: color-mix(in srgb, var(--bot-color) 45%, transparent); }
+@keyframes radar-bot-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning, #d97706) 0%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning, #d97706) 22%, transparent); }
+}
+@keyframes radar-bot-orbit { to { transform: rotate(270deg); } }
+@keyframes radar-bot-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1px); } 75% { transform: translateX(1px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .radar-bot-motion.radar-bot-decision, .radar-bot-motion.radar-bot-needs-you { animation: radar-bot-breathe 2.6s ease-in-out infinite; }
+  .radar-bot-motion.radar-bot-working .radar-bot-ring { animation: radar-bot-orbit 1.6s linear infinite; }
+  .radar-bot-motion.radar-bot-working .radar-bot-ring-fill { stroke-dasharray: 22 85; stroke-dashoffset: 0; }
+  .radar-bot-motion.radar-bot-failed .radar-bot-face { animation: radar-bot-shake 900ms ease-in-out 2; }
+}
+.radar-bot-toggle {
+  display: flex; align-items: center; gap: 4px; padding: 0 4px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted-foreground); font-size: 11px; cursor: pointer;
+}
+.radar-bot-toggle:hover { background: color-mix(in srgb, var(--foreground) 8%, transparent); color: var(--foreground); }
+.radar-bot-count { font-variant-numeric: tabular-nums; }
+.radar-group-needs-you .radar-group-header { color: var(--warning, #d97706); }
+.radar-group-needs-you .radar-group-icon { color: var(--warning, #d97706); }
+
+
+/* Narrow sidebars: keep the faces and rings, drop the words. */
+.radar-bot-group, .radar-crew-header { container-type: inline-size; }
+@container (max-width: 170px) {
+  .radar-bot-body, .radar-bot-toggle { display: none; }
+  .radar-bot-card { padding: 6px; justify-content: center; }
+  .radar-bot-main { justify-content: center; gap: 0; }
+  .radar-crew-digest { display: none; }
+}
+
+.radar-bot-ring-unknown .radar-bot-ring-track { stroke-dasharray: 3 3; }
+
+/* Bot details replace the terse rail tooltip without adding list rows. */
+.radar-bot-hover {
+  --bot-color: oklch(0.65 0.14 var(--bot-hue));
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: min(520px, calc(100vh - 16px));
+  overflow-y: auto;
+  padding: 14px;
+  gap: 12px;
+  pointer-events: auto;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+.radar-bot-hover::before { display: none; }
+.radar-bot-hover-head { display: flex; align-items: center; gap: 9px; }
+.radar-bot-hover-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.radar-bot-hover-heading strong { font-size: 14px; overflow-wrap: anywhere; }
+.radar-bot-hover-state { animation: none; font-size: 11px; font-weight: 650; white-space: nowrap; border-radius: 10px; padding: 3px 7px; background: color-mix(in srgb, currentColor 10%, transparent); }
+.radar-bot-hover-section { display: flex; flex-direction: column; gap: 6px; }
+.radar-bot-hover-section + .radar-bot-hover-section { padding-top: 10px; border-top: 1px solid var(--border); }
+.radar-bot-hover-section-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--muted-foreground); }
+.radar-bot-hover-section-head > :first-child { font-weight: 650; letter-spacing: 0; }
+.radar-bot-hover p { margin: 0; }
+.radar-bot-hover-reply { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.radar-bot-hover-muted { color: var(--muted-foreground); font-size: 11px; }
+.radar-bot-hover-decision { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: color-mix(in srgb, var(--warning, #d97706) 10%, transparent); }
+.radar-bot-hover-decision > strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.radar-bot-hover-workers { display: flex; flex-direction: column; gap: 3px; }
+.radar-bot-hover-worker { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 6px; margin-inline: -6px; border-radius: 6px; text-decoration: none; color: var(--foreground); }
+.radar-bot-hover-worker > :first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.radar-bot-hover-worker > :last-child { flex: none; font-size: 10px; animation: none; }
+.radar-bot-hover-worker:hover { background: var(--muted); }
+.radar-bot-hover-context { height: 5px; overflow: hidden; border-radius: 3px; background: var(--muted); }
+.radar-bot-hover-context > span { display: block; height: 100%; border-radius: inherit; background: var(--bot-color); }
+.radar-bot-hover-context-hot > span { background: var(--destructive); }
+.radar-bot-hover-context-warm > span { background: var(--warning, #d97706); }
+.radar-bot-hover-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted-foreground); font-size: 10px; }
+.radar-bot-hover-meta > span { min-width: 0; overflow-wrap: anywhere; }
+.radar-bot-hover-meta > :first-child { flex: none; }
+.radar-bot-hover-meta > :last-child { text-align: right; }
+.radar-bot-hover-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.radar-bot-hover-actions > * { flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; font-size: 11px; color: var(--foreground); background: transparent; cursor: pointer; }
+.radar-bot-hover-actions > .radar-bot-hover-primary { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+.radar-bot-hover-actions > *:hover { background: var(--muted); }
+.radar-bot-hover-actions > .radar-bot-hover-primary:hover { background: color-mix(in srgb, var(--primary) 85%, var(--foreground)); }
+.radar-bot-hover a:focus-visible, .radar-bot-hover button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* Crew: one inbox, a stable roster, and a flat recent-work list. */
+
+/* Bot shortcuts stay inside the thread-list region on every screen size. */
+.radar-bot-switcher { display: flex; align-items: center; gap: 3px; padding: 2px 1px 5px; overflow-x: auto; scrollbar-width: none; }
+.radar-bot-shortcut { display: inline-flex; align-items: center; justify-content: center; position: relative; flex: none; width: 36px; height: 36px; padding: 1px; border: 1px solid transparent; border-radius: 10px; color: var(--muted-foreground); background: transparent; cursor: pointer; }
+.radar-bot-shortcut > :is(svg, [data-icon-root]) { width: 18px; height: 18px; }
+.radar-bot-shortcut .radar-bot-avatar { width: 34px; height: 34px; }
+.radar-bot-shortcut:hover { background: var(--state-hover, color-mix(in srgb, var(--foreground) 7%, transparent)); color: var(--foreground); }
+.radar-bot-shortcut-selected { border-color: var(--border); background: var(--state-active, color-mix(in srgb, var(--foreground) 10%, transparent)); }
+.radar-bot-shortcut-unread { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.radar-bot-shortcut:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
+/* Six shortcuts must fit a phone's sidebar drawer (~258px) without scrolling. */
+.radar-list-compact .radar-bot-shortcut { width: 40px; height: 40px; }
+.radar-bot-shortcut-all, .radar-list-compact .radar-bot-shortcut-all { width: auto; min-width: 36px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 650; letter-spacing: 0.01em; }
+.radar-list-compact .radar-bot-shortcut .radar-bot-avatar { width: 38px; height: 38px; }
+.radar-list-compact .radar-bot-attention-badge { font-size: 11px; }
+
+/* Crew automation health. */
+.crew-automation-toggle, .crew-automation-summary { margin: 0; padding: 0; border: 0; background: none; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; }
+.crew-automation-toggle { width: 100%; min-height: 44px; }
+.crew-automation-toggle::after { content: " ▾"; }
+.crew-automation-toggle[aria-expanded="true"]::after { content: " ▴"; }
+.crew-automation-toggle:hover { color: var(--foreground); }
+.crew-automation-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+.crew-automation-list { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; }
+.crew-automation-list > li { display: flex; align-items: flex-start; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.crew-automation-meta { color: var(--muted-foreground); line-height: 1.5; }

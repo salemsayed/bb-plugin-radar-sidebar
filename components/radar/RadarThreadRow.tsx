@@ -325,7 +325,6 @@ function RadarThreadRowImpl({
   sectionId,
   celebrate,
   allowHoverCard = true,
-  adaptiveCollapse = false,
   isActive,
   isEditing,
   isVisible = true,
@@ -368,7 +367,6 @@ function RadarThreadRowImpl({
   celebrate: boolean;
   /** Plugin settings: gate the peek card and the quiet-row fold. */
   allowHoverCard?: boolean;
-  adaptiveCollapse?: boolean;
   isActive: boolean;
   isEditing: boolean;
   /** False inside a folded group or ancestor; suspend requests and gestures. */
@@ -401,7 +399,7 @@ function RadarThreadRowImpl({
   isKeyboardFocused?: boolean;
   onToggleSelect?: (event: React.MouseEvent, threadId: string) => void;
   /** Grip affordance for drag-to-section (section grouping only). */
-  dragHandle?: import("./RadarThreadList").RowDragHandle | null;
+  dragHandle?: import("./RadarGroupList").RowDragHandle | null;
   /** Touch swipe actions per direction; "none" leaves that side inert. */
   swipeRight?: SwipeActionId;
   swipeLeft?: SwipeActionId;
@@ -441,33 +439,11 @@ function RadarThreadRowImpl({
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const shortcut = useSidebarThreadShortcut(thread.id);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
-  const prNeedsAttention =
-    !!pullRequest &&
-    !["none", "merged", "closed", "draft"].includes(pullRequest.attention);
-  // Quiet rows collapse to title + time; anything worth a glance keeps the
-  // full row. Unknown indicators default to full (never hide the unknown).
-  // Decided once per mount, and again only when the setting or density
-  // changes: a row that grew or shrank as its state changed moved every row
-  // below it under the pointer.
-  const collapsedNow =
-    adaptiveCollapse &&
-    !thread.isUnread &&
-    thread.indicator === "none" &&
-    !hasUnsubmittedDraft &&
-    !rowStatus &&
-    !prNeedsAttention;
-  const collapseKey = `${adaptiveCollapse}:${density}`;
-  const [frozenCollapse, setFrozenCollapse] = useState({ key: collapseKey, collapsed: collapsedNow });
-  let collapsed = frozenCollapse.collapsed;
-  if (frozenCollapse.key !== collapseKey) {
-    collapsed = collapsedNow;
-    setFrozenCollapse({ key: collapseKey, collapsed });
-  }
 
   const viewport = useRowViewport(rowRef,
     isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||
       rowRef.current?.hasAttribute("data-swipe-phase") === true,
-    JSON.stringify([density, collapsed, collapse?.collapsed,
+    JSON.stringify([density, collapse?.collapsed,
       thread.displayTitle, thread.environment?.branchName, depth, sectionName, projectTag]),
     setRowElement,
   );
@@ -1050,8 +1026,6 @@ function RadarThreadRowImpl({
       ) : null}
     </span>
   ) : null;
-  // A folded family always shows its summary, even on quiet rows.
-  const extraHidden = collapsed && !kidsNode;
   const statusBadge = visual || statusWord ? (
     <span
       className={cn(
@@ -1147,7 +1121,6 @@ function RadarThreadRowImpl({
         needsUser && "radar-row-needs-user",
         failed && "radar-row-failed",
         actionPulseClass,
-        collapsed && "radar-row-collapsed",
       )}
       ref={viewport.ref}
       onFocusCapture={() => { setMoreEnabled(true); viewport.onFocusCapture(); }}
@@ -1287,13 +1260,7 @@ function RadarThreadRowImpl({
               {timeNode}
             </span>
           </span>
-          <span
-            className={cn(
-              "radar-row-extra",
-              extraHidden && "radar-row-extra-collapsed",
-            )}
-            aria-hidden={extraHidden || undefined}
-          >
+          <span className="radar-row-extra">
             <span className="radar-row-extra-inner">
               {kidsNode ?? subtitleNode}
             </span>

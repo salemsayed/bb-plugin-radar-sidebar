@@ -1,0 +1,81 @@
+/* Radar Sidebar — List container, rail tooltip and narrow-width container queries. */
+
+/* Rail tooltip: beside the hovered control, above the host's panels. */
+.radar-rail-tip {
+  position: fixed;
+  z-index: 110;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover, var(--card));
+  color: var(--foreground);
+  box-shadow:
+    0 6px 20px rgb(0 0 0 / 0.14),
+    0 1px 3px rgb(0 0 0 / 0.08);
+  font-size: 12px;
+  line-height: 1.3;
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: radar-rail-tip-in 120ms ease-out;
+}
+.radar-rail-tip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: inherit;
+  transform: translateY(-50%) rotate(45deg);
+}
+.radar-rail-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.radar-rail-tip-label { font-weight: 600; }
+.radar-rail-tip-accessory { display: inline-flex; align-items: center; }
+.radar-rail-tip-hint { color: var(--muted-foreground); font-size: 11px; }
+@keyframes radar-rail-tip-in {
+  from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radar-rail-tip { animation: none; }
+}
+
+.radar-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: 13px;
+  color: var(--foreground);
+  container-type: inline-size;
+  container-name: radar-thread-list;
+}
+
+/* Narrow sidebar: status words go first (glyphs + tooltips remain). */
+@container radar-thread-list (max-width: 249px) {
+  .radar-status-word,
+  .radar-group-unread-word {
+    display: none;
+  }
+}
+
+/* Very narrow: project chips go, badges slim to status + unread. */
+@container radar-thread-list (max-width: 194px) {
+  .radar-row-project {
+    display: none;
+  }
+  .radar-row-badges > :not(.radar-row-status-badge):not(.radar-unread) {
+    display: none;
+  }
+}

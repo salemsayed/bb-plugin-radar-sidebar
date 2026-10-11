@@ -1,0 +1,1166 @@
+/* Radar Sidebar — Row layout: density, titles, metadata, badges, tones, state washes and the hover ⋯. */
+
+/* Compact compresses vertically only. Inline padding and the child indent
+   stay identical to comfortable, so tree guides keep lining up with text.
+   `margin-block` rather than `margin`: the shorthand would zero margin-left
+   and wipe .radar-row-child / .radar-row-deep's indent. */
+.radar-density-compact .radar-row,
+.radar-row-compact {
+  contain-intrinsic-size: auto 28px;
+  margin-block: 0;
+  min-height: 28px;
+}
+
+.radar-density-compact .radar-row-main,
+.radar-row-compact .radar-row-main {
+  min-height: 24px;
+  padding: 2px 8px;
+}
+
+/* Single-line rows. The subtitle lives in a grid wrapper that collapses to
+   nothing; the branch line is a plain flex row outside that wrapper, so it
+   needs display:none. */
+.radar-density-compact .radar-row-extra,
+.radar-row-compact .radar-row-extra {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.radar-density-compact .radar-branch-line,
+.radar-row-compact .radar-branch-line {
+  display: none;
+}
+
+.radar-density-compact .radar-tree-gutter,
+.radar-row-compact .radar-tree-gutter {
+  padding-top: 4px;
+}
+
+/* Preserve DOM order for keyboard navigation and BB jump shortcuts without
+   retaining hundreds of offscreen icon trees and native menu components.
+   ResizeObserver replaces these initial estimates with each row's real size. */
+.radar-row-placeholder {
+  height: 48px;
+  content-visibility: auto;
+}
+.radar-row-placeholder[data-has-branch] {
+  height: 66px;
+}
+.radar-title-wrap .radar-row-placeholder {
+  height: 64px;
+}
+.radar-title-wrap .radar-row-placeholder[data-has-branch] {
+  height: 82px;
+}
+.radar-density-compact .radar-row-placeholder,
+.radar-row-placeholder.radar-row-compact {
+  height: 28px;
+}
+.radar-title-wrap.radar-density-compact .radar-row-placeholder,
+.radar-title-wrap .radar-row-placeholder.radar-row-compact {
+  height: 40px;
+}
+
+.radar-select-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    transform 100ms ease,
+    color 120ms ease;
+}
+
+.radar-select-checkbox [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-select-checkbox-checked {
+  color: var(--primary);
+}
+
+.radar-select-checkbox:hover {
+  color: var(--foreground);
+  transform: scale(1.1);
+}
+
+.radar-row-child {
+  margin-left: 16px;
+}
+
+.radar-row-deep {
+  margin-left: 28px;
+}
+
+.radar-row-child::before,
+.radar-row-deep::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+.radar-row-child.radar-row-last::before,
+.radar-row-deep.radar-row-last::before {
+  bottom: auto;
+  height: 15px;
+}
+
+.radar-row-child::after,
+.radar-row-deep::after {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 14px;
+  width: 8px;
+  height: 1px;
+  background: var(--border);
+}
+
+.radar-tree-gutter {
+  width: 18px;
+  flex: none;
+  align-self: flex-start;
+  padding-top: 6px;
+}
+
+.radar-tree-toggle {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.radar-tree-toggle:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.radar-tree-toggle [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-kids-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  align-self: center;
+  animation: radar-badge-in 200ms ease-out;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 220ms ease,
+    visibility 0s;
+}
+
+.radar-fold-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 220ms ease,
+    visibility 0s linear 280ms;
+}
+
+.radar-fold-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.radar-kids-pill-unread {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.radar-kids-pill .radar-dot {
+  margin-top: 0;
+}
+
+.radar-kids-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  animation: radar-badge-in 200ms ease-out;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.radar-kids-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-face-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.radar-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: -5px;
+  border: 1px solid var(--sidebar, var(--background));
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.radar-face:first-child {
+  margin-left: 0;
+}
+
+.radar-face [data-icon-root] {
+  width: 9px;
+  height: 9px;
+}
+
+.radar-row-child .radar-row-subtitle,
+.radar-row-deep .radar-row-subtitle {
+  margin-left: 16px;
+}
+
+/* Open in a split pane: a thin mark on the right edge, clear of the state
+   bar on the left (the row's own pseudo-elements draw the tree guides). */
+.radar-row-split > .radar-row-main {
+  box-shadow: inset -2px 0 0 color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+.radar-row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.radar-row-main:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.radar-row-lead {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  min-width: 14px;
+  padding-top: 2px;
+}
+
+.radar-row-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.radar-status-word {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.radar-row-status-badge .radar-dot {
+  margin-top: 0;
+}
+
+.radar-provider-icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+.radar-provider-icon * {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+}
+
+.radar-spinner {
+  display: inline-flex;
+  /* Animate the HTML box, not the SVG: its pixels can be reused between
+     frames. Tiny status icons need 12 positions, not the monitor's 120Hz. */
+  animation: radar-spin 1s steps(12, end) infinite;
+  will-change: transform;
+}
+
+.radar-spinner [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes radar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-spinner {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+.radar-status-icon {
+  display: inline-flex;
+}
+
+.radar-status-icon [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-row-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Backstop for squeezed rows: once the chip and time have shrunk and the
+   title is at its floor, anything left over (a year timestamp plus a
+   rollup pill beside a badge) clips at the text edge instead of painting
+   under the badge. */
+.radar-row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: clip;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* The title keeps a floor instead of shrinking to zero: it used to be the
+   only shrinkable item, so on badge rows at phone widths it vanished
+   entirely and left chip and time alone on the line. */
+.radar-row-title-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-thread-title {
+  display: contents;
+}
+
+.radar-thread-title > :last-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two-line titles. Size from the title's content so short titles can keep
+   their metadata beside them. Clamp the whole SDK title, including mentions. */
+.radar-title-wrap .radar-row-title {
+  position: relative;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 1px;
+  padding-inline-start: var(--radar-title-indent, 0px);
+}
+
+.radar-title-wrap .radar-row-title-text {
+  flex: 1 1 auto;
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.radar-title-wrap .radar-thread-title {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.radar-title-wrap .radar-thread-title > * {
+  flex: initial;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Keep wrapped metadata beneath the text, rather than beneath its markers.
+   Removing the markers from flex sizing also keeps their indent on line two. */
+.radar-title-wrap .radar-row-title:has(.radar-child-glyph),
+.radar-title-wrap .radar-row-title:has(.radar-pin-marker) {
+  --radar-title-indent: 16px;
+}
+
+.radar-title-wrap .radar-row-title:has(.radar-child-glyph):has(.radar-pin-marker) {
+  --radar-title-indent: 32px;
+}
+
+.radar-title-wrap .radar-child-glyph,
+.radar-title-wrap .radar-pin-marker {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 3px;
+}
+
+.radar-title-wrap .radar-row-title:has(.radar-child-glyph) .radar-pin-marker {
+  inset-inline-start: 16px;
+}
+
+.radar-title-wrap .radar-kids-pill {
+  margin-top: 1px;
+}
+
+/* Chip and time wrap as one unit in two-line mode. */
+.radar-row-meta {
+  display: contents;
+}
+
+.radar-title-wrap .radar-row-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  max-width: 100%;
+}
+
+/* Height estimates for rows not yet rendered. Rows now range from one title
+   line (about 47px, 28px compact) to two lines with metadata below (about
+   84px, 60px compact), so estimate between the two rather than at either
+   end. The auto form remembers each row's real size once it has rendered. */
+.radar-title-wrap .radar-row {
+  contain-intrinsic-size: auto 64px;
+}
+
+.radar-title-wrap.radar-density-compact .radar-row,
+.radar-title-wrap .radar-row-compact {
+  contain-intrinsic-size: auto 40px;
+}
+
+/* Desktop hover actions sit on the row's last line of plain text: the
+   subtitle, or the chip and time on a row without one. That
+   keeps them off a wrapped title and off the branch line, whose PR badge has
+   to stay clickable. Only a row one line tall still has them over the end of
+   its title, as in one-line mode. They stay out of flex sizing, so revealing
+   them never resizes a title or moves a row. Offsets are from the row's
+   bottom edge to that line; the lift clears the 18px branch line and its gap. */
+.radar-title-wrap:not(.radar-list-compact) .radar-row {
+  --radar-actions-bottom: 4px;
+  --radar-actions-lift: 0px;
+}
+
+.radar-title-wrap:not(.radar-list-compact) .radar-row:has(.radar-branch-line) {
+  --radar-actions-lift: 20px;
+}
+
+/* Compact density hides the branch line, so nothing needs clearing. A row one
+   line tall is held at 28px with its text at the top, leaving that line 7px
+   above the bottom edge; taller rows end 3px below their last line. */
+.radar-title-wrap.radar-density-compact:not(.radar-list-compact) .radar-row,
+.radar-title-wrap:not(.radar-list-compact) .radar-row.radar-row-compact {
+  --radar-actions-bottom: clamp(3px, calc(35px - 100%), 7px);
+  --radar-actions-lift: 0px;
+}
+
+.radar-title-wrap:not(.radar-list-compact) .radar-row-actions {
+  top: auto;
+  bottom: calc(var(--radar-actions-bottom) + var(--radar-actions-lift));
+  padding: 0;
+}
+
+.radar-title-wrap:not(.radar-list-compact) .radar-action {
+  width: 20px;
+  height: 18px;
+}
+
+/* Should the offsets above ever drift, the PR badge still wins the click. */
+.radar-title-wrap .radar-branch-line {
+  position: relative;
+  z-index: 1;
+}
+
+/* The inline ⋯ on touch layouts holds still instead of sliding. */
+.radar-title-wrap.radar-list-compact .radar-row-actions {
+  transform: none;
+}
+
+/* The chip yields before the title: it shrinks behind its ellipsis instead
+   of holding full width while the title collapses. */
+.radar-row-project {
+  --radar-project-hue: 220;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-self: center;
+  max-width: 110px;
+  padding: 0 5px;
+  border: 1px solid
+    color-mix(
+      in oklab,
+      hsl(var(--radar-project-hue) 65% 62%) 45%,
+      var(--border)
+    );
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: color-mix(
+    in oklab,
+    hsl(var(--radar-project-hue) 65% 62%) 60%,
+    var(--foreground)
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The time yields last: it shrinks behind an ellipsis (never wraps) rather
+   than overflowing the text box. The full text stays on the title
+   attribute. */
+.radar-row-time {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-row-active .radar-row-title {
+  font-weight: 600;
+}
+
+.radar-child-glyph {
+  flex: none;
+  align-self: center;
+  color: var(--muted-foreground);
+}
+
+.radar-pin-marker {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--primary);
+}
+
+.radar-pin-marker [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-child-glyph[data-icon-root],
+.radar-row-title [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.radar-row-subtitle {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-draft-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--warning, #b98533);
+  flex: none;
+}
+
+.radar-branch-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.radar-branch-line [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.radar-branch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  min-width: 0;
+  max-width: calc(100% - 70px);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.radar-branch-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.radar-branch-copied {
+  background: color-mix(in srgb, #2da44e 16%, transparent);
+  color: #3fb950 !important;
+}
+
+.radar-branch-copied-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #2da44e;
+  color: #fff;
+  margin-left: 2px;
+  animation: radarBadgePop 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes radarBadgePop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.radar-branch-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-pr-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--card);
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    filter 120ms ease,
+    transform 100ms ease;
+}
+
+.radar-pr-link:hover {
+  filter: brightness(1.08);
+  transform: scale(1.02);
+  text-decoration: none;
+}
+
+.radar-pr-link [data-icon-root] {
+  width: 11px;
+  height: 11px;
+}
+
+.radar-pr-open {
+  background: rgba(46, 160, 67, 0.12);
+  color: #3fb950;
+  border-color: rgba(46, 160, 67, 0.35);
+}
+
+.radar-pr-merged {
+  background: rgba(130, 80, 223, 0.14);
+  color: #a371f7;
+  border-color: rgba(130, 80, 223, 0.35);
+}
+
+.radar-pr-draft {
+  background: rgba(110, 118, 129, 0.12);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
+.radar-pr-closed {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.35);
+}
+
+/* No transition: a row's height never animates. */
+.radar-row-extra {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.radar-row-extra-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.radar-model-chip {
+  display: inline-block;
+  max-width: 130px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-thinking-chip {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.radar-model-chip [data-icon-root] {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+
+.radar-section-chip {
+  --radar-section-hue: 220;
+  display: inline-block;
+  max-width: 110px;
+  padding: 0 5px;
+  border: 1px solid
+    color-mix(
+      in oklab,
+      hsl(var(--radar-section-hue) 65% 62%) 45%,
+      var(--border)
+    );
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: color-mix(
+    in oklab,
+    hsl(var(--radar-section-hue) 65% 62%) 60%,
+    var(--foreground)
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-celebrate {
+  animation: radar-celebrate 600ms cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes radar-celebrate {
+  0% {
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.radar-model-loading {
+  display: inline-block;
+  width: 56px;
+  height: 9px;
+  border-radius: 4px;
+  background: var(--muted);
+  animation: radar-pulse 1.6s ease-in-out infinite;
+  vertical-align: 1px;
+}
+
+.radar-row-badges {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding-top: 3px;
+}
+
+/* The container animates once when it mounts. Per-badge animation replayed
+   on every status change, so badges popped as threads ran and finished. */
+.radar-row-badges {
+  animation: radar-badge-in 200ms ease-out;
+}
+
+@keyframes radar-badge-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+.radar-badge-icon {
+  display: inline-flex;
+}
+
+.radar-badge-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+/* Blue means running. BB has no blue token and its default --primary is a
+   near-white grey in dark mode (indistinguishable from muted), so running
+   gets its own blue, pulled toward --foreground for contrast in either mode.
+   The color is static: words never blink, and only the spinner
+   (.radar-spinner) or one pulsing icon/dot (.radar-icon-pulse,
+   .radar-dot-pulse) moves, so a row has at most one loop. */
+:root {
+  --radar-running: color-mix(in oklab, oklch(62% 0.17 250) 72%, var(--foreground));
+}
+
+.radar-tone-running {
+  color: var(--radar-running);
+}
+
+/* Success tones mix toward the foreground so they stay readable in light
+   mode (deep green) and dark mode (bright mint) alike. */
+
+.radar-tone-success {
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+}
+
+.radar-tone-error {
+  color: var(--destructive, #d43d3d);
+}
+
+.radar-tone-muted {
+  color: var(--muted-foreground);
+}
+
+.radar-tone-warning {
+  color: var(--warning, #b98533);
+}
+
+.radar-tone-info {
+  color: var(--primary);
+}
+
+/* Status dots read the host status tokens; unknown indicators draw nothing. */
+
+.radar-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 2px;
+  border-radius: 9999px;
+  flex: none;
+}
+
+/* Unread is a bold title plus the unread pip (or the DONE badge). The wash
+   and left bar belong to needs-you and failed only: a tinted row always
+   means "act on this". */
+.radar-row-unread .radar-row-title {
+  font-weight: 600;
+}
+
+.radar-row-failed {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
+}
+
+.radar-row-failed:hover {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 18%, var(--muted));
+}
+
+.radar-row-active.radar-row-failed {
+  background: var(--accent, var(--muted));
+  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
+}
+
+.radar-row-needs-user {
+  background: color-mix(in srgb, var(--warning, #b98533) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--warning, #b98533);
+}
+
+.radar-row-needs-user:hover {
+  background: color-mix(in srgb, var(--warning, #b98533) 20%, var(--muted));
+}
+
+.radar-row-active.radar-row-needs-user {
+  background: var(--accent, var(--muted));
+  box-shadow: inset 3px 0 0 var(--warning, #b98533);
+}
+
+/* Gentle glow pulse, reserved for rows that need action. FYI-done rows
+   (and everything else) stay static so motion always means "act". */
+
+.radar-row-pulse-amber {
+  animation: radar-glow-amber 2.4s ease-in-out infinite;
+}
+
+.radar-row-pulse-red {
+  animation: radar-glow-red 2.4s ease-in-out infinite;
+}
+
+@keyframes radar-glow-amber {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 7px color-mix(in srgb, var(--warning, #b98533) 65%, transparent)
+    );
+  }
+}
+
+@keyframes radar-glow-red {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 7px color-mix(in srgb, var(--destructive, #d43d3d) 65%, transparent)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-row-pulse-amber,
+  .radar-row-pulse-red {
+    animation: none;
+  }
+  .radar-row,
+  .radar-row-actions,
+  .radar-fold,
+  .radar-list-switching,
+  .radar-segmented-button:active {
+    transition: none;
+    transform: none;
+  }
+  .radar-kids-pill,
+  .radar-kids-line,
+  .radar-celebrate,
+  .radar-hover-card {
+    animation: none;
+  }
+  .radar-row-badges {
+    animation: none;
+  }
+}
+
+.radar-dot-running {
+  background: var(--radar-running);
+}
+
+.radar-dot-attention {
+  background: var(--warning, #b98533);
+}
+
+.radar-dot-error {
+  background: var(--destructive, #d43d3d);
+}
+
+.radar-dot-pulse {
+  animation: radar-pulse 1.6s steps(12, end) infinite;
+}
+
+.radar-icon-pulse {
+  animation: radar-pulse 1.6s steps(12, end) infinite;
+}
+
+@keyframes radar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-dot-pulse,
+  .radar-icon-pulse {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+.radar-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--primary);
+  flex: none;
+}
+
+.radar-kbd {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.radar-kbd-on-primary {
+  border-color: transparent;
+  background: rgb(255 255 255 / 0.18);
+  color: inherit;
+}
+
+/* On hover, a single ⋯ overlays the badges; keyboard users get the context
+   menu. */
+
+.radar-row-actions {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--muted);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+}
+
+.radar-row-active .radar-row-actions {
+  background: var(--accent, var(--muted));
+}
+
+.radar-row[data-radar-hover="mouse"] .radar-row-actions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.radar-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.radar-action:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.radar-action [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.radar-rename {
+  width: 100%;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--ring, var(--primary));
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  outline: none;
+}
+
+/* Wide touch screens need the same visible More target as compact phones.
+   Tapping a row must not reveal hover controls before its click. */
+@media (hover: none) {
+  .radar-row-actions {
+    position: static;
+    flex: none;
+    align-self: center;
+    background: transparent;
+    box-shadow: none;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}

@@ -77,13 +77,6 @@ export default async function plugin(bb: BbPluginApi) {
         "Breathe a soft glow on rows that need input or have failed. Turns off automatically under prefers-reduced-motion.",
       default: true,
     },
-    adaptiveCollapse: {
-      type: "boolean",
-      label: "Collapse quiet rows",
-      description:
-        "Fold read-idle threads down to title, project and time. A row folds or unfolds only when it appears, never while you look at it. Off keeps every row a fixed height.",
-      default: false,
-    },
     defaultDensity: {
       type: "select",
       label: "Default row density",
