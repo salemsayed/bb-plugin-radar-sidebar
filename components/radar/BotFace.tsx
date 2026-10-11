@@ -37,7 +37,7 @@ function eyes(state: BotState | undefined): ReactNode {
   if (state === "failed") {
     return <g><g stroke={INK} strokeWidth="2.2" strokeLinecap="round"><path d="M14.5 19.5l4 4M18.5 19.5l-4 4" /><path d="M25.5 19.5l4 4M29.5 19.5l-4 4" /></g>{mouth("M18 29.5q4-2.6 8 0")}</g>;
   }
-  if (state === "working" || state === "queued" || state === "rollover") {
+  if (state === "working" || state === "rollover") {
     return <g><circle cx="18" cy="21" r="2.3" fill={INK} /><circle cx="28" cy="21" r="2.3" fill={INK} />{mouth("M19 28.5h6")}</g>;
   }
   if (state === "needs-you" || state === "decision") {

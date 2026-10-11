@@ -11,7 +11,6 @@ describe("bot faces", () => {
     const expressions = (["idle", "working", "needs-you", "failed", "unavailable"] as const).map(face);
     expect(new Set(expressions).size).toBe(5);
     // Busy states share one expression; asking states share another.
-    expect(face("queued")).toBe(face("working"));
     expect(face("rollover")).toBe(face("working"));
     expect(face("decision")).toBe(face("needs-you"));
   });

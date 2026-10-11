@@ -11,27 +11,27 @@ import { botStyle, QUIET_LINE, shortBotName, type BotState, type Pulse, type Ros
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { NeedsYouList } from "./NeedsYouList";
 import { AttentionList } from "./AttentionList";
-import { isQueuedThread, isRunningThread, shortAgo } from "./time";
+import { isRunningThread, shortAgo } from "./time";
 import { useBotRoster } from "./useBotRoster";
 import { useThreadPulses } from "./useThreadPulses";
 
 /** A failed worker older than this is history, not something to act on now. */
 const RECENT_FAILURE_MS = 24 * 3600_000;
 const WORKERS_SHOWN = 3;
-export type CardState = "needs-you" | "failed" | "working" | "queued" | "handover" | "waiting" | "quiet" | "unavailable" | "unread";
+export type CardState = "needs-you" | "failed" | "working" | "handover" | "waiting" | "quiet" | "unavailable" | "unread";
 const STATE_TEXT: Record<CardState, string> = {
   unread: "New alert",
-  "needs-you": "Needs you", failed: "Failed", working: "Working", queued: "Queued", handover: "Handing over",
+  "needs-you": "Needs you", failed: "Failed", working: "Working", handover: "Handing over",
   waiting: "Machine offline", quiet: "Quiet", unavailable: "Unavailable",
 };
 /** The card's face wears the same expression as the bot row. */
 const FACE_STATE: Record<CardState, BotState> = {
   unread: "unread",
-  "needs-you": "needs-you", failed: "failed", working: "working", queued: "queued", handover: "rollover",
+  "needs-you": "needs-you", failed: "failed", working: "working", handover: "rollover",
   waiting: "unavailable", unavailable: "unavailable", quiet: "idle",
 };
-const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, queued: 3, handover: 4, unread: 5, waiting: 6, unavailable: 7, quiet: 8 };
-type WorkerState = "needs-you" | "failed" | "working" | "queued";
+const RANK: Record<CardState, number> = { "needs-you": 0, failed: 1, working: 2, handover: 3, unread: 4, waiting: 5, unavailable: 6, quiet: 7 };
+type WorkerState = "needs-you" | "failed" | "working";
 const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
 const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Cairo" });
 
@@ -53,8 +53,8 @@ function workerState(thread: PluginSidebarThread, now: number): WorkerState | nu
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") return "needs-you";
   if (isRunningThread(thread)) return "working";
   if (thread.status === "error" || thread.queuedWork === "failed") return now - thread.updatedAt < RECENT_FAILURE_MS ? "failed" : null;
-  // Held (parked on an idle worker) is not work in flight: not listed.
-  if (isQueuedThread(thread)) return "queued";
+  // Queued work only runs behind a run or a question (both above); a
+  // message held on an idle worker is not work in flight: not listed.
   return null;
 }
 
@@ -74,7 +74,6 @@ export function crewCard(bot: RosterBot, threads: readonly PluginSidebarThread[]
     : coordinator.status === "error" || workers.some(w => w.state === "failed") ? "failed"
     : isRunningThread(coordinator) || workers.some(w => w.state === "working") ? "working"
     : bot.rollover ? "handover"
-    : isQueuedThread(coordinator) || workers.some(w => w.state === "queued") ? "queued"
     : coordinator.runtimeStatus === "waiting-for-host" ? "waiting" : (bot.unseenAttention ?? 0) > 0 ? "unread" : "quiet";
   const automationState = automations?.some(item => item.state === "blocked") ? "needs-you"
     : automations?.some(item => item.state === "overdue") ? "failed" : null;

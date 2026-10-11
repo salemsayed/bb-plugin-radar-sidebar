@@ -2119,8 +2119,9 @@ export function RadarThreadList({
                       <span className="radar-group-label">{activeGroup.label}</span>
                       {activeGroup.unread > 0 ? (
                         <span className="radar-group-unread" aria-hidden="true">
-                          <span className="radar-unread" />
                           {activeGroup.unread}
+                          <span className="radar-group-unread-word"> unread</span>
+                          <span className="radar-group-sep"> · </span>
                         </span>
                       ) : null}
                       <span className="radar-group-count">{activeGroup.total}</span>

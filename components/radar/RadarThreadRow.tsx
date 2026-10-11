@@ -263,14 +263,33 @@ function statusWordFor(
   }
 }
 
+/** Chip hues avoid red through amber, which mean Failed and Needs you. */
+export const CHIP_HUE_MIN = 75;
+export const CHIP_HUE_MAX = 325;
+
 /** Stable hue per project id, so chips keep identity across renames. */
 export function projectHue(projectId: string): number {
   let hash = 0;
   for (let i = 0; i < projectId.length; i += 1) {
     hash = (hash * 31 + projectId.charCodeAt(i)) | 0;
   }
-  return Math.abs(hash) % 360;
+  return CHIP_HUE_MIN + (Math.abs(hash) % (CHIP_HUE_MAX - CHIP_HUE_MIN));
 }
+
+// One leading emoji (with any skin tone, variation selector or ZWJ joins)
+// and the space after it. Bot threads prefix their state (🟢 ✅ ❌ ⏳); the
+// row already shows state in colour, so the prefix only crowds the title.
+const LEADING_EMOJI =
+  /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})[\u{1F3FB}-\u{1F3FF}]?\uFE0F?(?:\u200D(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})[\u{1F3FB}-\u{1F3FF}]?\uFE0F?)*\s*/u;
+
+/** The title without one leading status emoji; unchanged if nothing is left. */
+export function stripLeadingEmoji(title: string): string {
+  const stripped = title.replace(LEADING_EMOJI, "");
+  return stripped.trim() === "" ? title : stripped;
+}
+
+// A raw title with mentions needs bb's ThreadTitle to draw its chips.
+const MENTION = /@(?:project|section|thread):/;
 
 let hoverCapable: boolean | null = null;
 
@@ -708,6 +727,11 @@ function RadarThreadRowImpl({
     .filter((part): part is string => !!part)
     .join(" — ");
   const statusWord = held ? HELD_WORD : statusWordFor(thread.indicator);
+  // Drawn by the row only when it drops a leading emoji from a title without
+  // mentions; otherwise bb's ThreadTitle. Tooltips and labels keep it all.
+  const strippedTitle = stripLeadingEmoji(thread.displayTitle);
+  const shownTitle =
+    strippedTitle !== thread.displayTitle && !MENTION.test(thread.title ?? thread.titleFallback ?? "") ? strippedTitle : null;
 
   // Model + thinking only while the thread is in flight. The options
   // endpoint resolves *defaults*, so it reports a model for any thread at
@@ -1190,11 +1214,6 @@ function RadarThreadRowImpl({
         onPointerDown={handlePointerDown}
         onMouseDown={handleMouseDown}
         onClick={handleNavigate}
-        onDoubleClick={(event) => {
-          // Double-click the title area renames instead of navigating.
-          event.preventDefault();
-          onStartRename(thread);
-        }}
         className="radar-row-main"
       >
         {leadNode}
@@ -1219,7 +1238,7 @@ function RadarThreadRowImpl({
                 </span>
               ) : null}
               <span className="radar-thread-title">
-                <ThreadTitle threadId={thread.id} />
+                {shownTitle !== null ? <span>{shownTitle}</span> : <ThreadTitle threadId={thread.id} />}
               </span>
             </span>
             {(() => {

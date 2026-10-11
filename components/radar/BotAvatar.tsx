@@ -13,7 +13,7 @@ export function BotAvatar({ botKey, name, context = null, state, unread = false,
   const fill = context === null ? 0 : Math.min(1, Math.max(0, context));
   const tone = context === null ? "radar-bot-ring-unknown" : fill >= 0.75 ? "radar-bot-ring-hot" : fill >= 0.6 ? "radar-bot-ring-warm" : "";
   const badge = state === "failed" ? "!" : state === "needs-you" || state === "decision" ? "?" : null;
-  const ring = state === "working" || state === "queued" || state === "rollover" || state === "unavailable";
+  const ring = state === "working" || state === "rollover" || state === "unavailable";
   return <span className={cn("radar-bot-avatar", state && "radar-bot-avatar-state", state === "unavailable" && "radar-bot-avatar-unavailable")}
     data-bot-state={state} aria-hidden="true">
     {state === undefined ? <svg className={cn("radar-bot-ring", tone)} viewBox="0 0 40 40">

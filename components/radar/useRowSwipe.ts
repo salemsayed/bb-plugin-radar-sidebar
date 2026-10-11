@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   SPRING_BACK,
   SPRING_OUT,
-  SWIPE_SLOP_PX,
   shouldCommitSwipe,
   springAtRest,
   stepSpring,
   swipeOffset,
+  swipeIntent,
   swipeThreshold,
   type SwipeActionView,
 } from "@/lib/swipe";
@@ -143,6 +143,8 @@ export function useRowSwipe({
     let side: SwipeSide | null = null;
     let action: SwipeActionView | null = null;
     let armed = false;
+    /** This gesture reached the threshold at some point. */
+    let armedOnce = false;
     let samples: { x: number; t: number }[] = [];
     let suppressClickUntil = 0;
     let frame: number | null = null;
@@ -371,6 +373,7 @@ export function useRowSwipe({
       width = row.offsetWidth;
       threshold = swipeThreshold(width, input);
       samples = [];
+      armedOnce = false;
       setPhase("drag");
       latest.current.onStart?.();
       return x;
@@ -394,6 +397,7 @@ export function useRowSwipe({
 
       const nextArmed = !!action && Math.abs(x) >= threshold;
       if (nextArmed && !armed) navigator.vibrate?.(8);
+      if (nextArmed) armedOnce = true;
       setArmed(nextArmed);
 
       const now = performance.now();
@@ -412,7 +416,7 @@ export function useRowSwipe({
       const moving = !!last && performance.now() - last.t <= VELOCITY_WINDOW_MS;
       const velocity =
         moving && first && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
-      if (action && shouldCommitSwipe(x, velocity, threshold)) {
+      if (action && shouldCommitSwipe(x, velocity, threshold, armedOnce)) {
         setArmed(true);
         if (action.removes) {
           remove(action, velocity);
@@ -463,14 +467,16 @@ export function useRowSwipe({
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
       if (!locked) {
-        if (Math.abs(dx) < SWIPE_SLOP_PX && Math.abs(dy) < SWIPE_SLOP_PX) return;
-        if (Math.abs(dy) >= Math.abs(dx)) {
-          // A scroll: let the list have it.
+        const intent = swipeIntent(dx, dy);
+        if (!intent) return;
+        if (intent === "scroll") {
+          // A scroll, diagonal ones included: let the list have it.
           tracking = false;
           return;
         }
         locked = true;
-        originX = touch.clientX - beginDrag("touch");
+        // From the touch point: the row is under the finger once it locks.
+        originX = startX - beginDrag("touch");
       }
       if (event.cancelable) event.preventDefault();
       // Keep the host's own drawer gestures out of a row swipe.
@@ -579,12 +585,13 @@ export function useRowSwipe({
         }
         wheel.dx += event.deltaX;
         wheel.dy += event.deltaY;
-        if (Math.abs(wheel.dx) < SWIPE_SLOP_PX && Math.abs(wheel.dy) < SWIPE_SLOP_PX) {
+        const intent = swipeIntent(wheel.dx, wheel.dy);
+        if (!intent) {
           armWheelIdle();
           if (sideways) event.preventDefault();
           return;
         }
-        if (Math.abs(wheel.dy) >= Math.abs(wheel.dx)) {
+        if (intent === "scroll") {
           closeThis();
           wheel = null;
           wheelIgnored = true;
@@ -592,7 +599,8 @@ export function useRowSwipe({
           return;
         }
         wheel.locked = true;
-        wheel.travel = beginDrag("trackpad");
+        // Count the travel that decided the gesture; this event's adds below.
+        wheel.travel = beginDrag("trackpad") - (wheel.dx - event.deltaX);
         followWindow(true);
       }
       armWheelIdle();

@@ -75,7 +75,13 @@ or use **Move to section** in a thread's right-click menu.
 **green** = done, **amber** = needs you, **red** = failed, **muted** =
 queued (a clock: a message waiting behind a running turn) or held (a pause
 icon and HELD: a message parked on an idle thread until you send it; held
-threads are not live and stay out of the Working drawer). A **tinted row** with a left bar means act on it: only needs-you
+threads are not live and stay out of the Working drawer). Running blue is
+the plugin's own (BB's dark theme has no blue accent), mixed toward the
+theme's text colour so it stays readable in light and dark. Project and
+section chips only use hues outside red-to-amber, so a chip never looks like
+a state. A leading status emoji in a bot's title (🟢 ✅ ❌ ⏳) is dropped from
+the row, which already shows state in colour; tooltips keep the full title.
+Group headers read "2 unread · 4", or just the total. A **tinted row** with a left bar means act on it: only needs-you
 (amber) and failed (red) rows are tinted, and only they glow. Unread rows
 just get a bold title, plus a blue pip when no DONE badge already says so.
 Rows keep their height when their state changes, and hold their order while
@@ -122,7 +128,11 @@ stay out of text fields, open dialogs and menus, and buttons or links outside th
 list, so they never steal keys from the rest of BB. <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click also selects several,
 to act on them together from a floating dock. Save a query plus filters as a
 named smart view. Swipe a row, by touch or with two fingers on a trackpad,
-to mark it read or archive it; each direction's action is a setting.
+to mark it read or archive it; each direction's action is a setting. A swipe
+starts only when the movement is clearly sideways, so a diagonal scroll stays
+a scroll, and a finger must pull the row 40% of its width (at least 64px)
+before the action arms. The **Waiting** filter shows threads that need you
+(a question or approval), not held or queued messages.
 
 </td>
 </tr>
@@ -257,7 +267,7 @@ flowchart LR
 | `adaptiveCollapse` | `false` | Fold quiet read-idle rows down to title, project and time. A row folds or unfolds only when it appears (or when this setting or density changes), never while you look at it. Off keeps every row a fixed height. |
 | `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in view options, which is remembered per client. |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
-| `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
+| `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A swipe starts only once sideways travel passes 12px and 1.5× the vertical travel, and arms at 40% of the row (at least 64px); a quick flick commits only after the gesture has armed once. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |
 | `swipeLeft` | `"Archive / unarchive"` | Action for a leftward swipe, from the same list. |
 

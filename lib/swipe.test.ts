@@ -5,6 +5,7 @@ import {
   SWIPE_ACTION_OPTION_LABELS,
   shouldCommitSwipe,
   swipeActionFromSetting,
+  swipeIntent,
   swipeActionView,
   swipeOffset,
   swipeThreshold,
@@ -86,10 +87,20 @@ describe("swipeActionView", () => {
 });
 
 describe("gesture math", () => {
-  it("arms at a third of the row within finger reach", () => {
-    expect(swipeThreshold(300)).toBe(90);
+  it("arms a finger at 40% of the row, never under 64px", () => {
+    expect(swipeThreshold(300)).toBe(120);
     expect(swipeThreshold(100)).toBe(64);
-    expect(swipeThreshold(1000)).toBe(128);
+    expect(swipeThreshold(1000)).toBe(400);
+  });
+
+  it("takes over only a clearly sideways gesture; diagonal scrolls stay scrolls", () => {
+    expect(swipeIntent(8, 2)).toBeNull();
+    expect(swipeIntent(12, 0)).toBeNull();
+    expect(swipeIntent(13, 0)).toBe("swipe");
+    expect(swipeIntent(-30, 19)).toBe("swipe");
+    expect(swipeIntent(30, 21)).toBe("scroll");
+    expect(swipeIntent(20, 20)).toBe("scroll");
+    expect(swipeIntent(3, 10)).toBe("scroll");
   });
 
   it("asks a trackpad for over half the row", () => {
@@ -110,17 +121,23 @@ describe("gesture math", () => {
   });
 
   it("commits past the threshold unless pulled back hard", () => {
-    expect(shouldCommitSwipe(100, 0, 90)).toBe(true);
-    expect(shouldCommitSwipe(-100, 0, 90)).toBe(true);
-    expect(shouldCommitSwipe(100, -1, 90)).toBe(false);
+    expect(shouldCommitSwipe(100, 0, 90, true)).toBe(true);
+    expect(shouldCommitSwipe(-100, 0, 90, true)).toBe(true);
+    expect(shouldCommitSwipe(100, -1, 90, true)).toBe(false);
   });
 
-  it("commits a short flick but not a short drag", () => {
-    expect(shouldCommitSwipe(40, 0.8, 90)).toBe(true);
-    expect(shouldCommitSwipe(-40, -0.8, 90)).toBe(true);
-    expect(shouldCommitSwipe(40, 0.1, 90)).toBe(false);
-    expect(shouldCommitSwipe(20, 2, 90)).toBe(false);
-    expect(shouldCommitSwipe(0, 2, 90)).toBe(false);
+  it("commits a short flick after arming once, but not a short drag", () => {
+    expect(shouldCommitSwipe(40, 0.8, 90, true)).toBe(true);
+    expect(shouldCommitSwipe(-40, -0.8, 90, true)).toBe(true);
+    expect(shouldCommitSwipe(40, 0.1, 90, true)).toBe(false);
+    expect(shouldCommitSwipe(20, 2, 90, true)).toBe(false);
+    expect(shouldCommitSwipe(0, 2, 90, true)).toBe(false);
+  });
+
+  it("never commits on speed alone when the threshold was never reached", () => {
+    expect(shouldCommitSwipe(40, 0.8, 90, false)).toBe(false);
+    expect(shouldCommitSwipe(-80, -3, 90, false)).toBe(false);
+    expect(shouldCommitSwipe(95, 0, 90, false)).toBe(true);
   });
 });
 

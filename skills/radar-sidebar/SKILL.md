@@ -52,7 +52,10 @@ States and unread badges retain the same meaning as the bot deck. Saved bot scop
   Threads cannot be moved between *projects*: BB's update API has no
   `projectId` field, so project grouping is view-only.
 - **Smart views** (`RadarSmartViews.tsx`): the view-options panel offers a
-  Pinned preset plus any saved view. Configure query + status chip +
+  Pinned preset plus any saved view. Status chips: Live (running work or a
+  pending question), Waiting (Needs you only: `waiting-for-input` or a
+  pending interaction; held and queued messages excluded), Unread, Pinned.
+  Configure query + status chip +
   lifecycle, hit **Save view**, name it — stored in
   `radar-sidebar:smart-views:v1`. Click a pill to apply (click again to
   clear).
@@ -150,8 +153,11 @@ back to BB's list automatically.
   narrows (status words first, then project chips, then badges down to
   status + unread); compact touch viewports pin the ⋯ menu inline since
   hover doesn't exist there, and filters wrap.
-- Title line: title, then a project chip in the project's own muted hue
-  (stable per project id, readable light and dark — always shown, even on
+- Title line: title (one leading status emoji such as 🟢 ✅ ❌ ⏳ dropped
+  from the shown text when the title has no mentions; tooltip, accessible
+  name, rename and hover card keep it), then a project chip in the project's
+  own muted hue (stable per project id, always 75°–325° so never in the
+  red-to-amber band of Failed and Needs you, readable light and dark — always shown, even on
   collapsed rows and children, hidden only when it would echo the project
   group header), then a muted tabular last-activity time that never
   truncates.
@@ -159,12 +165,14 @@ back to BB's list automatically.
   chips, before truncating at two lines. Metadata stays beside short titles
   when it fits, or wraps below aligned with the text after child/pin markers.
   Groups, sorting, and timestamps all key off activity — live threads
-  (executing, background work, queued messages, waiting on you) count as
-  now, everything else keys off latest attention — so merely opening a
+  (executing, background work with any messages queued behind it, waiting
+  on you) sort by when they went live, everything else (held messages
+  included) keys off latest attention — so merely opening a
   thread never floats it to Today.
 - Subtitle: model and thinking each in an outlined chip (bot icon +
   semibold model name, brain icon + uppercase level), then a section chip
-  in the section's own muted hue (stable per section id) and host.
+  in the section's own muted hue (stable per section id, same 75°–325°
+  range) and host.
   **Shown only while the thread is in flight** (`isLiveThread`):
   `threads.defaultExecutionOptions` resolves *defaults*, so it answers with a
   model and reasoning level for any thread at all — including idle and
@@ -193,7 +201,8 @@ back to BB's list automatically.
   a child's completion lands as the parent's own notification turn, so
   clearing one often means clearing both), rename, move to section,
   archive/unarchive, copy link, delete (host confirmation).
-- Double-click a row to rename inline; Enter commits, Escape cancels.
+- Rename from the ⋯ menu, the context menu or a swipe (not double-click,
+  which misfired on rows); Enter commits, Escape cancels.
 - Child threads nest directly under their parent (indented, person icon,
   deeper indent past one level, VS Code-style indent guides with stubs on
   last children), and child activity bubbles up: a family
@@ -250,7 +259,7 @@ rows paint at their final height.
 | `adaptiveCollapse` | `false` | Fold quiet read-idle rows to their title line, decided when a row appears; off keeps every row a fixed height. |
 | `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
 | `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
-| `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. |
+| `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. Starts only when sideways travel passes 12px and 1.5× vertical travel (`swipeIntent`); arms at max(64px, 40% of the row) for touch; a flick commits short of that only after arming once. |
 | `swipeRight` | `Mark read / unread` | Rightward swipe action: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` or `Nothing`. |
 | `swipeLeft` | `Archive / unarchive` | Leftward swipe action, same options. |
 

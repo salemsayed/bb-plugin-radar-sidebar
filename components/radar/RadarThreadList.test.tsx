@@ -2421,3 +2421,57 @@ describe("state colors and stable rows", () => {
     expect(visibleRowIds(slot.container)).toEqual(["second", "first"]);
   });
 });
+
+describe("chips, titles and headers", () => {
+  it("keeps every project and section chip hue out of the red-to-amber band", async () => {
+    const { projectHue, CHIP_HUE_MIN, CHIP_HUE_MAX } = await import("./RadarThreadRow");
+    expect([CHIP_HUE_MIN, CHIP_HUE_MAX]).toEqual([75, 325]);
+    const ids = ["edgerouter", "ERBareeq", "bb", "bricks-tickets", "t2c", "proj_a", "",
+      ...Array.from({ length: 5000 }, (_, i) => `proj_${i.toString(36)}`),
+      ...Array.from({ length: 2000 }, (_, i) => `section:sec_${i}`)];
+    for (const id of ids) {
+      const hue = projectHue(id);
+      expect(hue).toBeGreaterThanOrEqual(75);
+      expect(hue).toBeLessThanOrEqual(325);
+    }
+    expect(projectHue("edgerouter")).toBe(projectHue("edgerouter"));
+  });
+
+  it("drops one leading status emoji from the shown title only", () => {
+    const slot = renderThreads([
+      makeThread({ id: "emoji", title: "🟢 Redemption #116" }),
+      makeThread({ id: "plain", title: "Plain #1 title" }),
+      makeThread({ id: "middle", title: "Fix 🟢 middle" }),
+    ]);
+    const link = (id: string) => slot.container.querySelector(`[data-sidebar-thread-id="${id}"]`)!;
+    const shown = (id: string) => link(id).querySelector(".radar-thread-title")!.textContent;
+    expect(shown("emoji")).toBe("Redemption #116");
+    // Tooltip and accessible name keep the full title.
+    expect(link("emoji").getAttribute("title")).toBe("🟢 Redemption #116");
+    expect(link("emoji").getAttribute("aria-label")).toContain("🟢 Redemption #116");
+    // Untouched titles stay with bb's ThreadTitle, which draws mention chips.
+    expect(link("emoji").querySelector("[data-thread-title]")).toBeNull();
+    expect(link("plain").querySelector("[data-thread-title]")).not.toBeNull();
+    expect(link("middle").querySelector("[data-thread-title]")).not.toBeNull();
+  });
+
+  it("does not rename on double-click", () => {
+    const slot = renderThreads([makeThread({ id: "t", title: "Keep" })]);
+    fireEvent.doubleClick(slot.container.querySelector('[data-sidebar-thread-id="t"]')!);
+    expect(screen.queryByRole("textbox", { name: "Rename thread" })).toBeNull();
+  });
+
+  it("shows unread group counts as words beside the total", () => {
+    const slot = renderThreads([
+      makeThread({ id: "a", isUnread: true, indicator: "unread-success" }),
+      makeThread({ id: "b" }),
+    ]);
+    const toggle = screen.getByRole("button", { name: /, 1 unread of 2$/ });
+    expect(toggle.querySelector(".radar-group-meta")?.textContent).toBe("1 unread · 2");
+    expect(toggle.querySelector(".radar-group-meta .radar-unread")).toBeNull();
+    cleanup();
+    renderThreads([makeThread({ id: "c" })]);
+    expect(screen.getByRole("button", { name: /, 1 thread$/ }).querySelector(".radar-group-meta")?.textContent).toBe("1");
+    void slot;
+  });
+});

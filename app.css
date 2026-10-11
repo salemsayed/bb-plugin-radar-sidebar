@@ -64,7 +64,8 @@
 
 /* Narrow sidebar: status words go first (glyphs + tooltips remain). */
 @container radar-thread-list (max-width: 249px) {
-  .radar-status-word {
+  .radar-status-word,
+  .radar-group-unread-word {
     display: none;
   }
 }
@@ -1210,13 +1211,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* "2 unread · 4": the unread count reads as words, not a second dot. */
 .radar-group-unread {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  margin-right: -6px;
   color: var(--primary);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.radar-group-sep {
+  color: var(--muted-foreground);
+  font-weight: 400;
 }
 
 .radar-group-status {
@@ -2179,7 +2187,7 @@ a.radar-row-main:hover {
   padding: 0 5px;
   border: 1px solid
     color-mix(
-      in oklch,
+      in oklab,
       hsl(var(--radar-project-hue) 65% 62%) 45%,
       var(--border)
     );
@@ -2188,7 +2196,7 @@ a.radar-row-main:hover {
   line-height: 1.6;
   font-weight: 500;
   color: color-mix(
-    in oklch,
+    in oklab,
     hsl(var(--radar-project-hue) 65% 62%) 60%,
     var(--foreground)
   );
@@ -2445,7 +2453,7 @@ a.radar-row-main:hover {
   padding: 0 5px;
   border: 1px solid
     color-mix(
-      in oklch,
+      in oklab,
       hsl(var(--radar-section-hue) 65% 62%) 45%,
       var(--border)
     );
@@ -2454,7 +2462,7 @@ a.radar-row-main:hover {
   line-height: 1.6;
   font-weight: 500;
   color: color-mix(
-    in oklch,
+    in oklab,
     hsl(var(--radar-section-hue) 65% 62%) 60%,
     var(--foreground)
   );
@@ -2519,11 +2527,18 @@ a.radar-row-main:hover {
   height: 14px;
 }
 
-/* Blue means running. The color is static: words never blink, and only the
-   spinner (.radar-spinner) or one pulsing icon/dot (.radar-icon-pulse,
+/* Blue means running. BB has no blue token and its default --primary is a
+   near-white grey in dark mode (indistinguishable from muted), so running
+   gets its own blue, pulled toward --foreground for contrast in either mode.
+   The color is static: words never blink, and only the spinner
+   (.radar-spinner) or one pulsing icon/dot (.radar-icon-pulse,
    .radar-dot-pulse) moves, so a row has at most one loop. */
+:root {
+  --radar-running: color-mix(in oklab, oklch(62% 0.17 250) 72%, var(--foreground));
+}
+
 .radar-tone-running {
-  color: var(--primary);
+  color: var(--radar-running);
 }
 
 /* Success tones mix toward the foreground so they stay readable in light
@@ -2654,7 +2669,7 @@ a.radar-row-main:hover {
 }
 
 .radar-dot-running {
-  background: var(--primary);
+  background: var(--radar-running);
 }
 
 .radar-dot-attention {
@@ -3393,7 +3408,6 @@ a.radar-row-main:hover {
 .radar-bot-state-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .radar-bot-state-ring circle { fill: none; stroke-width: 2.6; stroke: var(--primary); }
 .radar-bot-state-ring-working circle { stroke-dasharray: 70 200; stroke-linecap: round; }
-.radar-bot-state-ring-queued circle { stroke-dasharray: 0.1 5.6; stroke-linecap: round; stroke-width: 3; }
 .radar-bot-state-ring-rollover circle { stroke-dasharray: 26 32; stroke-linecap: round; stroke: color-mix(in srgb, var(--primary) 70%, var(--foreground)); }
 .radar-bot-state-ring-unavailable circle { stroke: var(--muted-foreground); stroke-dasharray: 3 4; opacity: .6; }
 .radar-bot-avatar-unavailable .radar-bot-face { filter: grayscale(1); opacity: .45; }

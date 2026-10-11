@@ -7,7 +7,7 @@ import { botState, botStyle, STATE_LABELS, type BotState, type Pulse, type Roste
 import { timeAgo } from "./time";
 import type { RailTip } from "./railTooltip";
 
-const PRIORITY = { failed: 0, "needs-you": 1, working: 2, queued: 3, unread: 4, idle: 5, decision: 1, rollover: 2, unavailable: 6 };
+const PRIORITY = { failed: 0, "needs-you": 1, working: 2, unread: 3, idle: 4, decision: 1, rollover: 2, unavailable: 5 };
 function tokenCount(n: number): string {
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
@@ -47,7 +47,7 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip
   const target = coordinatorState === state || state === "decision" || state === "rollover"
     ? coordinator : ordered.find(worker => worker.state === state)?.thread ?? coordinator;
   const counts = (wanted: string) => ordered.filter(worker => worker.state === wanted).length;
-  const activity = ([['working', 'working'], ['needs-you', 'waiting on you'], ['failed', 'failed'], ['queued', 'queued'], ['unread', 'new'], ['idle', 'idle']] as const)
+  const activity = ([['working', 'working'], ['needs-you', 'waiting on you'], ['failed', 'failed'], ['unread', 'new'], ['idle', 'idle']] as const)
     .filter(([key]) => counts(key) > 0).map(([key, word]) => `${counts(key)} ${word}`).join(" · ");
   const navigate = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) onNavigate();

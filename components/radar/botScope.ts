@@ -1,6 +1,6 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { botState, needsYou, type BotState, type Pulse, type RosterBot } from "./bots";
-import { isQueuedThread, isRunningThread } from "./time";
+import { isRunningThread } from "./time";
 
 /** Per threads array: child index, the family of each coordinator set, and the refresh key.
  * The sidebar hands the same array to every render until something changes, so
@@ -100,7 +100,6 @@ export function botRailState(threads: readonly PluginSidebarThread[], bot: Roste
   const state = botState(coordinator, pulse, bot.rollover);
   if (state === "decision" || state === "rollover") return state;
   if (family.some(isRunningThread)) return "working";
-  if (family.some(isQueuedThread)) return "queued";
   if (bot.unseenAttention !== undefined) {
     if (bot.unseenAttention > 0 && (state === "idle" || state === "unread")) return "unread";
     return state === "unread" ? "idle" : state;

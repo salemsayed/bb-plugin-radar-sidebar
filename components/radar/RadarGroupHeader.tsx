@@ -137,8 +137,9 @@ export function GroupHeader({
           <GroupStatus group={group} />
           {group.unread > 0 ? (
             <span className="radar-group-unread" aria-hidden="true">
-              <span className="radar-unread" />
               {group.unread}
+              <span className="radar-group-unread-word"> unread</span>
+              <span className="radar-group-sep"> · </span>
             </span>
           ) : null}
           <span className="radar-group-count">{group.total}</span>

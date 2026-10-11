@@ -57,6 +57,11 @@ function comparePinned(a: PluginSidebarThread, b: PluginSidebarThread): number {
   return (b.pinnedAt ?? b.updatedAt) - (a.pinnedAt ?? a.updatedAt);
 }
 
+/** The Waiting filter: Needs you only. Held and queued messages are not asks. */
+function isWaitingOnUser(thread: PluginSidebarThread): boolean {
+  return thread.indicator === "waiting-for-input" || thread.hasPendingInteraction;
+}
+
 export const UNFILED_GROUP_ID = "section:__unfiled__";
 export const NEEDS_YOU_GROUP_ID = "needs-you";
 export const WORKING_GROUP_ID = "working";
@@ -173,12 +178,7 @@ export function useThreadGroups(args: {
     let unread = 0;
     for (const thread of allRows) {
       if (isLiveThread(thread)) live += 1;
-      if (
-        thread.indicator === "waiting-for-input" ||
-        thread.indicator === "queued-waiting"
-      ) {
-        waiting += 1;
-      }
+      if (isWaitingOnUser(thread)) waiting += 1;
       if (thread.isUnread) unread += 1;
     }
     return { live, waiting, unread };
@@ -191,12 +191,7 @@ export function useThreadGroups(args: {
     const matchesStatus = (thread: PluginSidebarThread) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "live") return isLiveThread(thread);
-      if (statusFilter === "waiting") {
-        return (
-          thread.indicator === "waiting-for-input" ||
-          thread.indicator === "queued-waiting"
-        );
-      }
+      if (statusFilter === "waiting") return isWaitingOnUser(thread);
       if (statusFilter === "unread") return thread.isUnread;
       if (statusFilter === "pinned") return thread.isPinned;
       return true;

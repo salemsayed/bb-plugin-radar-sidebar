@@ -100,20 +100,38 @@ export function swipeActionView(
   }
 }
 
-/** Movement before a touch is read as a swipe or a scroll. */
+/** Vertical movement that reads a gesture as a scroll. */
 export const SWIPE_SLOP_PX = 10;
+/** Sideways travel, and its lead over vertical travel, that starts a swipe. */
+export const SWIPE_LOCK_PX = 12;
+export const SWIPE_LOCK_RATIO = 1.5;
 
 /**
- * Distance that arms the action. A finger gets a third of the row, within
- * reach. A trackpad needs over half: its momentum adds travel after the lift
- * and a short push is easy to make by accident, so arming takes intent.
+ * What a gesture is so far: a swipe once sideways travel passes 12px and is
+ * clearly ahead of vertical travel (1.5×), a scroll once vertical travel is
+ * real and the gesture is not clearly sideways, otherwise undecided. A
+ * diagonal scroll never starts a swipe.
+ */
+export function swipeIntent(dx: number, dy: number): "swipe" | "scroll" | null {
+  const across = Math.abs(dx);
+  const down = Math.abs(dy);
+  if (across > SWIPE_LOCK_PX && across > SWIPE_LOCK_RATIO * down) return "swipe";
+  if (down >= SWIPE_SLOP_PX) return "scroll";
+  return null;
+}
+
+/**
+ * Distance that arms the action. A finger needs 40% of the row (at least
+ * 64px), so a stray drag while scrolling never gets there. A trackpad needs
+ * over half: its momentum adds travel after the lift and a short push is easy
+ * to make by accident, so arming takes intent.
  */
 export function swipeThreshold(
   rowWidth: number,
   input: "touch" | "trackpad" = "touch",
 ): number {
   if (input === "trackpad") return Math.min(240, Math.max(120, rowWidth * 0.55));
-  return Math.min(128, Math.max(64, rowWidth * 0.3));
+  return Math.max(64, rowWidth * 0.4);
 }
 
 /**
@@ -140,18 +158,21 @@ const FLING_MIN_PX = 32;
 
 /**
  * Release decision. `velocity` is px/ms along x (positive = rightwards).
- * Past the threshold commits unless the finger was clearly pulling back.
+ * Past the threshold commits unless the finger was clearly pulling back. A
+ * flick commits short of it only if this gesture already reached the
+ * threshold once (`armedOnce`): speed alone never acts.
  */
 export function shouldCommitSwipe(
   offset: number,
   velocity: number,
   threshold: number,
+  armedOnce: boolean,
 ): boolean {
   if (offset === 0) return false;
   const sign = Math.sign(offset);
   const along = velocity * sign;
   if (Math.abs(offset) >= threshold) return along > -FLING_PX_PER_MS;
-  return Math.abs(offset) >= FLING_MIN_PX && along >= FLING_PX_PER_MS;
+  return armedOnce && Math.abs(offset) >= FLING_MIN_PX && along >= FLING_PX_PER_MS;
 }
 
 /** Spring tuning. `back` has a whisper of overshoot; `out` never bounces. */

@@ -4,6 +4,22 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.3 - 2026-10-11
+
+### Changed
+
+- Project and section chip hues stay between 75° and 325°, and chips mix with the text colour in oklab rather than oklch, so a chip never lands in the red-to-amber band that means Failed or Needs you. (In oklch, mixing with a grey text colour dragged chip hues toward red; in dark mode a green chip turned orange.)
+- Running work is a real blue in every theme: BB's default dark `--primary` is a near-white grey, which made the running spinner and word look like a muted Held or Queued. Running now uses `--radar-running`, a blue mixed toward the theme's `--foreground` for contrast in light and dark.
+- Rows drop one leading status emoji (🟢 🟠 🔴 ✅ ❌ ⏳ …) from the shown title; tooltips, accessible names, the rename field and the hover card keep the full title. Titles with mentions keep bb's own rendering.
+- Swipes are harder to trigger by accident: a gesture becomes a swipe only once sideways travel passes 12px and is 1.5× the vertical travel (a diagonal scroll stays a scroll), a finger arms at 40% of the row (at least 64px), and a quick flick commits only after the gesture has armed once.
+- The Waiting filter means Needs you only (a question or approval); held and queued messages no longer count.
+- Group headers read "2 unread · 4" instead of a blue dot and two bare numbers; narrow sidebars drop the word "unread".
+
+### Removed
+
+- Double-click no longer renames a row (it misfired); rename from the ⋯ menu, the context menu or a swipe.
+- The bot and Crew "Queued" state, which the Held change left unreachable: queued work only runs behind a running turn (Working) or a pending question (Needs you).
+
 ## 0.6.2 - 2026-10-11
 
 ### Changed

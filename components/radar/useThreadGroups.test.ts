@@ -244,4 +244,18 @@ describe("held threads", () => {
     expect(listed(live.groups)).toEqual(["behind"]);
   });
 });
+
+describe("waiting filter", () => {
+  it("means Needs you only: held and queued messages are not asks", () => {
+    const threads = [
+      makeThread({ id: "ask", indicator: "waiting-for-input" }),
+      makeThread({ id: "approval", hasPendingInteraction: true }),
+      makeThread({ id: "held", queuedWork: "waiting", indicator: "queued-waiting" }),
+      makeThread({ id: "queued", status: "active", queuedWork: "waiting", indicator: "queued-waiting" }),
+    ];
+    const result = renderHook(() => useThreadGroups({ ...argsFor(threads), statusFilter: "waiting", needsYouLane: false })).result.current;
+    expect(result.statusCounts.waiting).toBe(2);
+    expect(listed(result.groups).sort()).toEqual(["approval", "ask"]);
+  });
+});
 });

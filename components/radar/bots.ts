@@ -2,7 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
 import { openNeeds, type NeedsItem } from "@/lib/needs";
-import { isQueuedThread, isRunningThread } from "./time";
+import { isRunningThread } from "./time";
 
 /** What the bb-salem-bots plugin publishes for sidebars: identity only, no thread content. */
 export const rosterSchema = z.object({
@@ -118,13 +118,12 @@ export function askPulse(thread: PluginSidebarThread, pulse: Pulse | null, judge
   return { subject: ask?.text ?? "", quiet: false, ...pulse, decision: ask?.text ?? null };
 }
 
-export type BotState = "failed" | "needs-you" | "working" | "queued" | "rollover" | "decision" | "unread" | "idle" | "unavailable";
+export type BotState = "failed" | "needs-you" | "working" | "rollover" | "decision" | "unread" | "idle" | "unavailable";
 
 export const STATE_LABELS: Record<BotState, { text: string; tone: string; icon: string; action: string; description: string }> = {
   failed: { text: "Failed", tone: "radar-tone-error", icon: "AlertCircle", action: "Check failure", description: "A coordinator or worker failed. Open the affected thread to inspect it." },
   "needs-you": { text: "Needs you", tone: "radar-tone-warning", icon: "CircleQuestion", action: "Reply to question", description: "A question or approval is waiting for you, even if you have already read it." },
   working: { text: "Working", tone: "radar-tone-running", icon: "Loading", action: "View live work", description: "The coordinator or a worker has work in progress." },
-  queued: { text: "Queued", tone: "radar-tone-info", icon: "Clock", action: "View queued work", description: "A message is queued and waiting to run." },
   rollover: { text: "Handover", tone: "radar-tone-info", icon: "RotateCcw", action: "View handover", description: "The bot is moving to a replacement coordinator." },
   decision: { text: "Decision", tone: "radar-tone-warning", icon: "ListTodo", action: "Review decision", description: "The latest coordinator reply asks for a decision. Reading it does not resolve it." },
   unread: { text: "New reply", tone: "radar-tone-info", icon: "MessageSquare", action: "Read reply", description: "A reply in this bot's family is unread. Open the thread to read it." },
@@ -146,8 +145,8 @@ export function botState(
   if (pulse?.decision && !isRunningThread(thread)) return "decision";
   if (rollover) return "rollover";
   if (isRunningThread(thread) || family.live > 0) return "working";
-  // A message held on an idle coordinator is not work in flight: idle.
-  if (isQueuedThread(thread)) return "queued";
+  // Queued work runs behind a running turn (working, above) or a pending
+  // question (needs you); a message held on an idle coordinator is idle.
   if (thread.isUnread) return "unread";
   return "idle";
 }
@@ -192,7 +191,6 @@ export function crewDigest(states: readonly BotState[], items: readonly NeedsIte
   if (count("failed")) parts.push(`${count("failed")} failed`);
   if (decisions) parts.push(`${decisions} waiting on you`);
   if (count("working")) parts.push(`${count("working")} working`);
-  if (count("queued")) parts.push(`${count("queued")} queued`);
   if (count("rollover")) parts.push(`${count("rollover")} rolling over`);
   if (count("unread")) parts.push(`${count("unread")} new`);
   if (count("unavailable")) parts.push(`${count("unavailable")} unavailable`);

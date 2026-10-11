@@ -43,7 +43,7 @@
 .crew-card-name small { color: var(--muted-foreground); font-size: 11.5px; }
 .crew-chip { flex-shrink: 0; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; background: var(--muted); color: var(--muted-foreground); }
 .crew-chip-working { color: var(--info, #1f5fbf); background: color-mix(in srgb, var(--info, #3b82f6) 14%, transparent); }
-.crew-chip-needs-you, .crew-chip-queued, .crew-chip-handover { color: var(--warning, #b0640f); background: color-mix(in srgb, var(--warning, #b0640f) 14%, transparent); }
+.crew-chip-needs-you, .crew-chip-handover { color: var(--warning, #b0640f); background: color-mix(in srgb, var(--warning, #b0640f) 14%, transparent); }
 .crew-chip-failed, .crew-chip-waiting, .crew-chip-unavailable { color: var(--destructive, #c03a3a); background: color-mix(in srgb, var(--destructive, #c03a3a) 12%, transparent); }
 .crew-ring { --ring-tone: var(--muted-foreground); flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: conic-gradient(var(--ring-tone) var(--ring), var(--muted) 0); }
 .crew-ring span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--card, var(--background)); font-size: 9.5px; color: var(--muted-foreground); }
@@ -56,7 +56,7 @@
 .crew-worker:hover { background: var(--muted); }
 .crew-worker-dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--info, #3b82f6); }
 .crew-worker-working .crew-worker-dot { animation: crew-pulse 1.6s ease-in-out infinite; }
-.crew-worker-needs-you .crew-worker-dot, .crew-worker-queued .crew-worker-dot { background: var(--warning, #b0640f); }
+.crew-worker-needs-you .crew-worker-dot { background: var(--warning, #b0640f); }
 .crew-worker-failed .crew-worker-dot { background: var(--destructive, #c03a3a); }
 .crew-worker-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crew-worker-meta { flex-shrink: 0; color: var(--muted-foreground); font-size: 11.5px; }

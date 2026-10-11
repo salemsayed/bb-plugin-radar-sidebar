@@ -54,9 +54,10 @@ afterEach(() => {
 
 function touchSwipe(row: HTMLElement, travel = 120) {
   fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
-  // The first horizontal move locks the gesture; travel starts there.
+  // A clear sideways move locks the gesture; the row then tracks the finger
+  // from where it touched down.
   fireEvent.touchMove(row, { touches: [{ clientX: 120, clientY: 100 }] });
-  fireEvent.touchMove(row, { touches: [{ clientX: 120 + travel, clientY: 100 }] });
+  fireEvent.touchMove(row, { touches: [{ clientX: 100 + travel, clientY: 100 }] });
   fireEvent.touchEnd(row, { touches: [] });
 }
 
@@ -64,6 +65,35 @@ function openByTrackpad(row: HTMLElement) {
   for (let i = 0; i < 3; i++) fireEvent.wheel(row, { deltaX: -20, deltaY: 0 });
   act(() => { vi.advanceTimersByTime(260); });
 }
+
+describe("swipe arming", () => {
+  it("never starts a swipe from a diagonal scroll", () => {
+    const onCommit = vi.fn();
+    const slot = render(<SwipeRow onCommit={onCommit} onOpen={() => {}} />);
+    const row = slot.getByTestId("row");
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 130, clientY: 122 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 260, clientY: 140 }] });
+    fireEvent.touchEnd(row, { touches: [] });
+    expect(row.dataset.swipePhase).toBeUndefined();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("ignores a fast flick that never reached the arming distance", () => {
+    const onCommit = vi.fn();
+    const slot = render(<SwipeRow onCommit={onCommit} onOpen={() => {}} />);
+    const row = slot.getByTestId("row");
+    const now = vi.mocked(performance.now);
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    now.mockReturnValue(10);
+    fireEvent.touchMove(row, { touches: [{ clientX: 120, clientY: 100 }] });
+    now.mockReturnValue(20);
+    // 80px of a 120px threshold, at 6px/ms.
+    fireEvent.touchMove(row, { touches: [{ clientX: 180, clientY: 100 }] });
+    fireEvent.touchEnd(row, { touches: [] });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+});
 
 describe("row-scoped swipe click capture", () => {
   it("moves swipe listeners to a replacement row element", () => {

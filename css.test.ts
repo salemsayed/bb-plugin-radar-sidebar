@@ -156,8 +156,11 @@ describe("app.css", () => {
   it("keeps one color per meaning and the left bar for state only", () => {
     const body = (selector: string) =>
       rules().filter((rule) => rule.selector === selector).map((rule) => rule.body).join("\n");
-    expect(body(".radar-dot-running")).toMatch(/background:\s*var\(--primary\)/);
-    expect(body(".radar-tone-running")).toMatch(/color:\s*var\(--primary\)/);
+    expect(body(".radar-dot-running")).toMatch(/background:\s*var\(--radar-running\)/);
+    expect(body(".radar-tone-running")).toMatch(/color:\s*var\(--radar-running\)/);
+    // A real blue in every theme (BB's dark --primary is grey), with contrast
+    // from the theme's own foreground.
+    expect(body(":root")).toMatch(/--radar-running:\s*color-mix\(in oklab, oklch\(\d+% 0\.1\d \d+\) \d+%, var\(--foreground\)\)/);
     // Plain unread is a bold title: no wash, no bar.
     expect(body(".radar-row-unread")).toBe("");
     expect(rules().filter((rule) => /\.radar-row-unread(?![\w-])/.test(rule.selector) && /background|box-shadow/.test(rule.body)))
@@ -193,5 +196,11 @@ describe("app.css", () => {
   it("has no styles left for the retired hover buttons", () => {
     expect(css).not.toContain("radar-action-active");
     expect(css).not.toContain(".radar-action:not(.radar-action-more)");
+  });
+  it("mixes chip colors without interpolating hue", () => {
+    // In oklch a grey foreground (hue 0) dragged chip hues toward red/amber.
+    const chips = rules().filter((rule) => /radar-(project|section)-hue\)/.test(rule.body));
+    expect(chips.length).toBeGreaterThan(0);
+    for (const chip of chips) expect(chip.body).not.toMatch(/in oklch/);
   });
 });
