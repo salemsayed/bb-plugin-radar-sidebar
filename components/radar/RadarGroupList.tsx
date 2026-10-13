@@ -41,8 +41,8 @@ import { RadarThreadRow } from "./RadarThreadRow";
 import type { RadarThreadActions } from "./threadActions";
 import { RadarBotCard } from "./RadarBotCard";
 import { botState, botStyle, crewDigest, shortBotName, type Pulse, type RosterBot } from "./bots";
-import { openNeeds, type NeedsItem } from "@/lib/needs";
-import { NeedsYouList } from "./NeedsYouList";
+import type { NeedsItem } from "@/lib/needs";
+import { NeedsYouLane } from "./NeedsYouList";
 import type { useVisibleBots } from "./botVisibility";
 import { activityTime, isRunningThread, timeAgo } from "./time";
 import { GroupHeader, SortableGroupSection } from "./RadarGroupHeader";
@@ -550,6 +550,7 @@ export function RadarGroupList({
   roster,
   attentionPulses,
   needsItems,
+  laneItems,
   onUpdateNeed,
   onOpenNeed,
   onReplyToNeed,
@@ -574,9 +575,8 @@ export function RadarGroupList({
   totalRows: number;
   grouping: Grouping;
   needsYouGroup: ThreadGroup | null;
-  /** `scoped` while a bot filter is on (the lane stays open); otherwise the
-   * All view's folded row, with its remembered open state and toggle. */
-  needsLane: { scoped: boolean; open: boolean; toggle: () => void };
+  /** The folded lane's remembered open state and its toggle. */
+  needsLane: { open: boolean; toggle: () => void };
   botGroups: ThreadGroup[];
   pinnedGroup: ThreadGroup | null;
   groups: ThreadGroup[];
@@ -587,7 +587,10 @@ export function RadarGroupList({
   renderRow: RenderRow;
   roster: readonly RosterBot[];
   attentionPulses: ReadonlyMap<string, Pulse>;
+  /** Every bot's items for the Crew digest. */
   needsItems: readonly NeedsItem[] | null;
+  /** The lane's items: a selected bot's own, otherwise everyone's. */
+  laneItems: readonly NeedsItem[] | null;
   onUpdateNeed: (id: string, action: "done" | "snooze" | "reopen", until?: string) => Promise<void>;
   onOpenNeed: (threadId: string) => void;
   onReplyToNeed: (threadId: string, text: string) => void;
@@ -723,7 +726,7 @@ export function RadarGroupList({
   );
 
   const renderGroup = useCallback(
-    (group: ThreadGroup, isSortable = false, draggable = false, lead: React.ReactNode = null) => {
+    (group: ThreadGroup, isSortable = false, draggable = false) => {
       const isCollapsed = collapsedGroupIds.has(group.id);
 
       const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -785,7 +788,6 @@ export function RadarGroupList({
           className={cn(
             "radar-group",
             group.projectId && "radar-group-project",
-            group.id === "needs-you" && "radar-group-needs-you",
             isCollapsed ? "radar-group-collapsed" : "radar-group-expanded",
           )}
         >
@@ -800,7 +802,6 @@ export function RadarGroupList({
                 : undefined
             }
           />
-          {isCollapsed ? null : lead}
           {foldContent}
         </section>
       );
@@ -832,37 +833,15 @@ export function RadarGroupList({
   );
 
   // Saved asks and alerts stay in the lane even while a search or status filter
-  // narrows the threads. The list stays mounted while empty so Undo survives
-  // the last Done; it renders nothing on its own when there is nothing to show.
-  const needsList = settings.needsYouLane && needsItems !== null
-    ? <NeedsYouList items={needsItems} roster={roster} now={now} heading={!needsYouGroup && needsLane.scoped}
-      className={needsYouGroup || !needsLane.scoped ? "radar-needs-lane" : "radar-group radar-group-needs-you radar-group-expanded radar-needs-lane"}
-      onUpdate={onUpdateNeed} onOpen={onOpenNeed} onReply={onReplyToNeed} />
-    : null;
-  // The All view is for Salem's own threads, so the lane folds to one row,
-  // "Needs you · N" (open items plus waiting threads), and is gone at zero.
-  const laneCount = (settings.needsYouLane && needsItems ? openNeeds(needsItems).length : 0) + (needsYouGroup?.roots.length ?? 0);
-  const foldedLane = settings.needsYouLane && laneCount > 0
-    ? <section
-      key="needs-you"
-      aria-label="Needs you"
-      className={cn("radar-group radar-group-needs-you radar-needs-fold", needsLane.open ? "radar-group-expanded" : "radar-group-collapsed")}
-    >
-      <div className="radar-group-header">
-        <button type="button" className="radar-group-toggle" aria-expanded={needsLane.open} onClick={needsLane.toggle}>
-          <Icon name={needsLane.open ? "ChevronDown" : "ChevronRight"} aria-hidden="true" className="radar-group-chevron" />
-          <span className="radar-group-label">Needs you</span>
-          <span className="radar-needs-fold-count"> · {laneCount}</span>
-        </button>
-      </div>
-      {needsLane.open ? <>
-        {needsList}
-        {needsYouGroup ? <div role="list" aria-label="Needs you threads">
-          {needsYouGroup.roots.map((root, index) =>
-            renderSubtree(root, 0, renderRow, shownChildren, needsYouGroup.projectId, collapseIds, index === needsYouGroup.roots.length - 1, false, false))}
-        </div> : null}
-      </> : null}
-    </section>
+  // narrows the threads; a bot's view gets only that bot's items.
+  const lane = settings.needsYouLane
+    ? <NeedsYouLane items={laneItems ?? []} roster={roster} now={now} open={needsLane.open} onToggle={needsLane.toggle}
+      onUpdate={onUpdateNeed} onOpen={onOpenNeed} onReply={onReplyToNeed}
+      waitingCount={needsYouGroup?.roots.length ?? 0}
+      waiting={needsYouGroup ? <div role="list" aria-label="Needs you threads">
+        {needsYouGroup.roots.map((root, index) =>
+          renderSubtree(root, 0, renderRow, shownChildren, needsYouGroup.projectId, collapseIds, index === needsYouGroup.roots.length - 1, false, false))}
+      </div> : null} />
     : null;
 
   return (
@@ -872,9 +851,7 @@ export function RadarGroupList({
           {shownTotal} of {totalRows} threads
         </p>
       ) : null}
-      {/* The one Needs-you lane: saved asks and alerts first, then the threads waiting on you.
-          With no waiting thread the list stands alone and carries its own heading. */}
-      {!needsLane.scoped ? foldedLane : needsYouGroup ? renderGroup(needsYouGroup, false, false, needsList) : needsList}
+      {lane}
       {botGroups.length > 0 || visible.hiddenBots.length > 0 ? (
         <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY }); }}>
           <span className="radar-crew-label">Crew</span>

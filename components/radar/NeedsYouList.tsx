@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -149,6 +149,38 @@ export function NeedsYouList({ items, roster, now, onUpdate, onOpen, onReply, he
         <HugeiconsIcon icon={Clock01Icon} aria-hidden="true" /><span>{snoozed.length} snoozed{snoozed[0]?.snoozeUntil ? ` · ${`next ${new Intl.DateTimeFormat("en-GB", { timeZone: CAIRO, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(snoozed[0].snoozeUntil)).replace(",", "")}`}` : ""}</span><Icon name="ChevronDown" />
       </button>
       {snoozedOpen ? <ol aria-label="Snoozed asks">{snoozed.map(render)}</ol> : null}
+    </> : null}
+  </section>;
+}
+
+/**
+ * The one Needs-you lane, folded to "Needs you · N" (open items plus the
+ * threads waiting on you) in every view, and gone at zero. Opening it shows
+ * the saved asks and alerts first, then the waiting threads.
+ */
+export function NeedsYouLane({ items, waitingCount, waiting, open, onToggle, ...list }: {
+  items: readonly NeedsItem[]; roster: readonly RosterBot[]; now: number;
+  /** Waiting threads under the asks, and how many of them there are. */
+  waitingCount: number; waiting?: ReactNode;
+  open: boolean; onToggle: () => void;
+  onUpdate: (id: string, action: NeedsAction, until?: string) => Promise<void>;
+  onOpen: (threadId: string) => void;
+  onReply?: (threadId: string, text: string) => void;
+}) {
+  const count = openNeeds(items).length + waitingCount;
+  if (count === 0) return null;
+  return <section aria-label="Needs you"
+    className={cn("radar-group radar-group-needs-you radar-needs-fold", open ? "radar-group-expanded" : "radar-group-collapsed")}>
+    <div className="radar-group-header">
+      <button type="button" className="radar-group-toggle" aria-expanded={open} onClick={onToggle}>
+        <Icon name={open ? "ChevronDown" : "ChevronRight"} aria-hidden="true" className="radar-group-chevron" />
+        <span className="radar-group-label">Needs you</span>
+        <span className="radar-needs-fold-count"> · {count}</span>
+      </button>
+    </div>
+    {open ? <>
+      <NeedsYouList items={items} heading={false} className="radar-needs-lane" {...list} />
+      {waiting}
     </> : null}
   </section>;
 }

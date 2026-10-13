@@ -2508,12 +2508,64 @@ describe("Needs-you lane fold", () => {
     expect(slot.container.querySelector(".radar-needs")).toBeNull();
   });
 
-  it("keeps the lane open under its heading while a bot is selected", async () => {
+  it("folds a selected bot's lane to its own count and opens it in place", async () => {
     setRailScope("personal");
     const slot = renderThreads([...laneThreads, makeThread({ id: "worker", projectId: "other", lifecycleOwnerThreadId: "root" })], { projects, sdk, settings: { botRail: true }, rpc: rpc([need]) });
-    await waitFor(() => expect(slot.container.querySelector(".radar-needs-item")?.textContent).toContain("Approve the repair"));
-    expect(foldButton()).toBeNull();
-    expect(screen.getByRole("heading", { name: /Needs you/ })).toBeTruthy();
+    const button = await waitFor(() => { const found = foldButton(); expect(found).toBeTruthy(); return found!; });
+    expect(button.textContent).toBe("Needs you · 1");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(slot.container.querySelector(".radar-needs-item")).toBeNull();
+    expect(screen.queryByRole("heading", { name: /Needs you/ })).toBeNull();
+    fireEvent.click(button);
+    expect(slot.container.querySelector(".radar-needs-item")?.textContent).toContain("Approve the repair");
+    expect(localStorage.getItem(NEEDS_LANE_OPEN_KEY)).toBe("open");
+  });
+
+  // Regression: after a rollover every bot had open rows, yet only one bot's
+  // view showed a lane (with every bot's rows), and bots without worker rows showed none.
+  describe("with two bots' rows", () => {
+    const home = { ...bot, key: "home", name: "Home Bot", current: "home-root", coordinatorIds: ["home-old"] };
+    const twoBots = { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [{ ...bot, coordinatorIds: ["old-root"] }, home] }) } };
+    const items = [
+      need,
+      makeNeed({ id: "n2", bot: "personal", state: "snoozed", snoozeUntil: "2099-01-01T08:00:00+02:00", text: "Renew the licence", source: { threadId: "root" } }),
+      makeNeed({ id: "h1", bot: "home", text: "Replace the filter", source: { threadId: "home-root" } }),
+    ];
+    const threads = [...laneThreads, makeThread({ id: "home-root", projectId: "proj_a" }), makeThread({ id: "home-worker", projectId: "other", lifecycleOwnerThreadId: "home-root" })];
+    const shownTexts = (container: HTMLElement) => Array.from(container.querySelectorAll(".radar-needs-text")).map(node => node.textContent);
+
+    it("shows only the selected bot's rows, even with no worker or waiting thread", async () => {
+      localStorage.setItem(NEEDS_LANE_OPEN_KEY, "open");
+      setRailScope("personal");
+      const slot = renderThreads(threads, { projects, sdk: twoBots, settings: { botRail: true }, rpc: rpc(items) });
+      await waitFor(() => expect(foldButton()?.textContent).toBe("Needs you · 2"));
+      expect(shownTexts(slot.container)).toEqual(["Approve the repair"]);
+      expect(slot.container.textContent).toContain("1 snoozed");
+      expect(slot.container.textContent).toContain("No worker threads.");
+      expect(slot.container.textContent).not.toContain("Replace the filter");
+    });
+
+    it("shows the other bot's rows when it is selected, and every row in the All view", async () => {
+      localStorage.setItem(NEEDS_LANE_OPEN_KEY, "open");
+      setRailScope("home");
+      const slot = renderThreads(threads, { projects, sdk: twoBots, settings: { botRail: true }, rpc: rpc(items) });
+      await waitFor(() => expect(foldButton()?.textContent).toBe("Needs you · 1"));
+      expect(shownTexts(slot.container)).toEqual(["Replace the filter"]);
+      cleanup();
+      resetRailScope();
+      const all = renderThreads(threads, { projects, sdk: twoBots, settings: { botRail: true }, rpc: rpc(items) });
+      await waitFor(() => expect(foldButton()?.textContent).toBe("Needs you · 3"));
+      expect(shownTexts(all.container)).toEqual(["Approve the repair", "Replace the filter"]);
+    });
+
+    it("renders no lane for a selected bot with nothing open", async () => {
+      setRailScope("home");
+      const slot = renderThreads(threads, { projects, sdk: twoBots, settings: { botRail: true }, rpc: rpc(items.filter(item => item.bot === "personal")) });
+      await waitFor(() => expect(slot.container.querySelector("[data-sidebar-thread-id=\"home-worker\"]")).toBeTruthy());
+      await act(async () => {});
+      expect(foldButton()).toBeNull();
+      expect(slot.container.querySelector(".radar-needs")).toBeNull();
+    });
   });
 
   it("remembers an opened lane across reloads", async () => {

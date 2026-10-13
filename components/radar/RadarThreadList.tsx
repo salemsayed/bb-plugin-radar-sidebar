@@ -20,6 +20,7 @@ import { useRadarThreadActions } from "./threadActions";
 import { askPulse, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
+import { NeedsYouLane } from "./NeedsYouList";
 import { useReplyPrefill } from "./useReplyPrefill";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
@@ -264,16 +265,21 @@ export function RadarThreadList({
 
   const folds = useGroupFolds({ isFiltering, needsYouGroup, botGroups, pinnedGroup, groups });
   const { collapseIds, collapsedGroupIds, toggleThreadCollapse } = folds;
-  // The All view folds the whole lane to one row with its own remembered
-  // state; a bot's view keeps it open. Keyboard travel skips a folded lane.
+  // Every view folds the whole lane to one row with one remembered open
+  // state. Keyboard travel skips a folded lane.
   const needsLane = useMemo(() => ({
-    scoped: !!scopedBot,
     open: needsLaneOpen,
     toggle: () => setNeedsLaneOpen(value => !value),
-  }), [scopedBot, needsLaneOpen, setNeedsLaneOpen]);
+  }), [needsLaneOpen, setNeedsLaneOpen]);
+  // A bot's view shows that bot's items, matched by key so a rollover's new
+  // coordinator or a bot without waiting threads changes nothing.
+  const laneItems = useMemo(
+    () => scopedBot && needs.items ? needs.items.filter(item => item.bot === scopedBot.key) : needs.items,
+    [scopedBot, needs.items],
+  );
   const keyboardGroupIds = useMemo(
-    () => needsYouGroup && !needsLane.scoped && !needsLane.open ? new Set([...collapsedGroupIds, needsYouGroup.id]) : collapsedGroupIds,
-    [needsYouGroup, needsLane.scoped, needsLane.open, collapsedGroupIds],
+    () => needsYouGroup && !needsLane.open ? new Set([...collapsedGroupIds, needsYouGroup.id]) : collapsedGroupIds,
+    [needsYouGroup, needsLane.open, collapsedGroupIds],
   );
 
   const keyboard = useListKeyboard({
@@ -469,12 +475,28 @@ export function RadarThreadList({
         ) : status === "error" ? (
           <RadarListError />
         ) : shownTotal === 0 && (grouping !== "section" || sections.length === 0) ? (
-          <RadarListEmpty
-            query={deferredQuery}
-            statusFilter={statusFilter}
-            scopedBotName={scopedBot ? shortBotName(scopedBot.name) : null}
-            onOpenScopedBot={openScopedBot}
-          />
+          <>
+            {/* A bot with no worker threads can still have asks waiting on Salem. */}
+            {settings.needsYouLane ? (
+              <NeedsYouLane
+                items={laneItems ?? []}
+                waitingCount={0}
+                open={needsLane.open}
+                onToggle={needsLane.toggle}
+                roster={roster}
+                now={now}
+                onUpdate={needs.update}
+                onOpen={openNeed}
+                onReply={replyToNeed}
+              />
+            ) : null}
+            <RadarListEmpty
+              query={deferredQuery}
+              statusFilter={statusFilter}
+              scopedBotName={scopedBot ? shortBotName(scopedBot.name) : null}
+              onOpenScopedBot={openScopedBot}
+            />
+          </>
         ) : (
           <RadarGroupList
             deferredQuery={deferredQuery}
@@ -495,6 +517,7 @@ export function RadarThreadList({
             roster={roster}
             attentionPulses={attentionPulses}
             needsItems={needs.items}
+            laneItems={laneItems}
             onUpdateNeed={needs.update}
             onOpenNeed={openNeed}
             onReplyToNeed={replyToNeed}
