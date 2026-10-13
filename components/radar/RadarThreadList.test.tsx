@@ -9,6 +9,8 @@ import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plu
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
 import { resetRailScope, setRailScope } from "./railScope";
 import { hideBot, resetHiddenBots } from "./botVisibility";
+import { makeNeed } from "./needsFixtures";
+import { NEEDS_LANE_OPEN_KEY } from "./useListSettings";
 
 // Expose configurable test exports while retaining the SDK's slot runtime.
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => ({
@@ -2463,5 +2465,62 @@ describe("chips, titles and headers", () => {
     renderThreads([makeThread({ id: "c" })]);
     expect(screen.getByRole("button", { name: /, 1 thread$/ }).querySelector(".radar-group-meta")?.textContent).toBe("1");
     void slot;
+  });
+});
+
+describe("Needs-you lane fold", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
+  const projects = ["proj_a", "other"].map(id => makeProject({ id }));
+  const laneThreads = [
+    makeThread({ id: "root", projectId: "proj_a", pinnedAt: NOW }),
+    makeThread({ id: "mine", projectId: "other" }),
+  ];
+  const sdk = { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [bot] }) } };
+  const need = makeNeed({ id: "n1", bot: "personal", text: "Approve the repair", source: { threadId: "root", messageId: "m1" } });
+  const rpc = (items: unknown[]) => ({ crew_needs_list: () => ({ items }), crew_asks: () => ({ judgements: [] }) });
+  const foldButton = () => screen.queryByRole("button", { name: /^Needs you/ });
+
+  it("folds the lane to one counted row in the All view, collapsed by default, and opens it in place", async () => {
+    const asking = makeThread({ id: "ask", projectId: "other", hasPendingInteraction: true, indicator: "waiting-for-input" });
+    const slot = renderThreads([...laneThreads, asking], { projects, sdk, rpc: rpc([need]) });
+    const button = await waitFor(() => { const found = foldButton(); expect(found).toBeTruthy(); return found!; });
+    expect(button.textContent).toBe("Needs you · 2");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(slot.container.querySelector(".radar-needs-item")).toBeNull();
+    expect(visibleRowIds(slot.container)).toEqual(["mine"]);
+    expect(screen.queryByRole("heading", { name: /Needs you/ })).toBeNull();
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(slot.container.querySelector(".radar-needs-item")?.textContent).toContain("Approve the repair");
+    expect(visibleRowIds(slot.container)).toEqual(["ask", "mine"]);
+    expect(localStorage.getItem(NEEDS_LANE_OPEN_KEY)).toBe("open");
+    fireEvent.click(button);
+    expect(slot.container.querySelector(".radar-needs-item")).toBeNull();
+    expect(localStorage.getItem(NEEDS_LANE_OPEN_KEY)).toBe("closed");
+  });
+
+  it("renders nothing in the All view when nothing needs you", async () => {
+    const slot = renderThreads(laneThreads, { projects, sdk, rpc: rpc([]) });
+    await act(async () => {});
+    await waitFor(() => expect(slot.container.querySelector(".radar-bot-card, .radar-row")).toBeTruthy());
+    expect(foldButton()).toBeNull();
+    expect(slot.container.querySelector(".radar-group-needs-you")).toBeNull();
+    expect(slot.container.querySelector(".radar-needs")).toBeNull();
+  });
+
+  it("keeps the lane open under its heading while a bot is selected", async () => {
+    setRailScope("personal");
+    const slot = renderThreads([...laneThreads, makeThread({ id: "worker", projectId: "other", lifecycleOwnerThreadId: "root" })], { projects, sdk, settings: { botRail: true }, rpc: rpc([need]) });
+    await waitFor(() => expect(slot.container.querySelector(".radar-needs-item")?.textContent).toContain("Approve the repair"));
+    expect(foldButton()).toBeNull();
+    expect(screen.getByRole("heading", { name: /Needs you/ })).toBeTruthy();
+  });
+
+  it("remembers an opened lane across reloads", async () => {
+    localStorage.setItem(NEEDS_LANE_OPEN_KEY, "open");
+    const slot = renderThreads(laneThreads, { projects, sdk, rpc: rpc([need]) });
+    const button = await waitFor(() => { const found = foldButton(); expect(found).toBeTruthy(); return found!; });
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(slot.container.querySelector(".radar-needs-item")?.textContent).toContain("Approve the repair");
   });
 });

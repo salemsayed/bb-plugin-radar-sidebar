@@ -11,6 +11,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 - The Needs-you lane is the one bot surface in Radar. The bots' saved Needs items (decisions, reminders, deadlines and the new **alerts**) now render at the top of the sidebar list, above the threads waiting for an answer or approval, instead of on the Crew page.
 - A Needs item may carry the bot's recommended reply (`recommend`): it is the first, primary action, opens the item's thread and seeds an empty composer draft with the full text. `subject` (the bot plugin's dedupe key) and the `alert` kind are optional, so older bot servers still parse.
 - An alert leads with an exclamation badge and offers Seen (the same update as Done, also a rightward swipe) and Open.
+- In the All view the Needs-you lane folds to one row, "Needs you · N" (open items plus waiting threads), collapsed by default so it no longer pushes the threads down; tapping it opens the lane in place and the choice persists (`radar-sidebar:needs-lane-open:v1`). At zero the row is gone. With a bot selected the lane stays open as before.
 
 ### Removed
 

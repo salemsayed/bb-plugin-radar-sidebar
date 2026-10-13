@@ -117,8 +117,9 @@ describe("sidebar behavior regressions", () => {
   });
 
   it("shows an approval-only group's attention state instead of running", () => {
+    // With the lane off the waiting thread stays in its time group, which carries the status dot.
     const slot = mount([makeThread({ id: "waiting", indicator: "waiting-for-input",
-      hasPendingInteraction: true, indicatorLabel: "Thread needs user input" })]);
+      hasPendingInteraction: true, indicatorLabel: "Thread needs user input" })], { needsYouLane: false });
     const status = slot.container.querySelector(".radar-group-status");
     expect(status?.getAttribute("aria-label")).toBe("1 waiting for input");
   });
@@ -128,6 +129,8 @@ describe("sidebar behavior regressions", () => {
     { indicator: "waiting-for-input" as const, hasPendingInteraction: true },
     { indicator: "runtime" as const, status: "active" as const },
   ])("excludes the parent from hidden-child status (%s)", (state) => {
+    // A waiting parent sits in the Needs-you lane, folded in the All view until opened.
+    localStorage.setItem("radar-sidebar:needs-lane-open:v1", "open");
     const slot = mount([
       makeThread({ id: "parent", ...state }),
       makeThread({ id: "child", parentThreadId: "parent" }),

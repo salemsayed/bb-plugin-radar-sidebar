@@ -9,7 +9,7 @@ import { makeThread } from "./fixtures";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 
 const app = await loadPluginApp(() => import("../../app"));
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function mount(items = [makeNeed()], onReply?: (threadId: string, text: string) => void) {
   const update = vi.fn(async () => {}), open = vi.fn();
   return { update, open, ...render(<NeedsYouList items={items} roster={[NEEDS_BOT]} now={NEEDS_NOW} onUpdate={update} onOpen={open} onReply={onReply} />) };
@@ -50,20 +50,27 @@ describe("the sidebar's Needs-you lane", () => {
     expect(app.threadHeaderActions.some(action => action.id === "bot-attention")).toBe(false);
     expect(app.navPanels.some(panel => panel.id === "crew")).toBe(false);
   });
-  it("lists saved asks with their own heading when no thread is waiting, and opens the source", async () => {
+  it("folds saved asks into one counted row in the All view, and opens the source once unfolded", async () => {
     const host = renderLane([makeNeed()]);
-    const region = await screen.findByRole("region", { name: "Needs you" });
-    expect(within(region).getByRole("heading", { name: "Needs you 1" })).toBeTruthy();
-    expect(region.classList.contains("radar-group-needs-you")).toBe(true);
+    const fold = await screen.findByRole("button", { name: /^Needs you/ });
+    expect(fold.textContent).toBe("Needs you · 1");
+    expect(fold.closest(".radar-group-needs-you")).toBeTruthy();
+    expect(document.querySelector(".radar-needs")).toBeNull();
+    fireEvent.click(fold);
+    const region = document.querySelector<HTMLElement>(".radar-needs")!;
+    expect(region.getAttribute("aria-label")).toBe("Needs you");
+    expect(within(region).queryByRole("heading", { name: /^Needs you/ })).toBeNull();
     fireEvent.click(within(region).getByRole("button", { name: /^Open:/ }));
     expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
   });
-  it("sits under the lane's group header, without a second heading, when a thread waits too", async () => {
+  it("counts and holds the waiting threads in the same fold, without a second heading", async () => {
+    localStorage.setItem("radar-sidebar:needs-lane-open:v1", "open");
     renderLane([makeNeed()], [makeThread({ id: "coord" }), makeThread({ id: "asking", hasPendingInteraction: true })]);
-    const region = await screen.findByRole("region", { name: "Needs you" });
+    const region = await waitFor(() => { const found = document.querySelector<HTMLElement>(".radar-needs"); expect(found).toBeTruthy(); return found!; });
     expect(within(region).queryByRole("heading", { name: /^Needs you/ })).toBeNull();
     const lane = region.closest(".radar-group-needs-you")!;
     expect(lane).toBeTruthy();
+    expect(within(lane as HTMLElement).getByRole("button", { name: /^Needs you/ }).textContent).toBe("Needs you · 2");
     expect(lane.querySelector("[data-sidebar-thread-id='asking']")).toBeTruthy();
     expect(lane.querySelector("[data-sidebar-thread-id='coord']")).toBeNull();
   });
@@ -77,6 +84,7 @@ describe("the sidebar's Needs-you lane", () => {
     expect(screen.queryByRole("region", { name: "Needs you" })).toBeNull();
   });
   it("opens the thread for a recommendation when no composer for it is on screen", async () => {
+    localStorage.setItem("radar-sidebar:needs-lane-open:v1", "open");
     const host = renderLane([makeNeed({ kind: "alert", recommend: "Yes, go ahead" })]);
     fireEvent.click(await screen.findByRole("button", { name: "Reply: Yes, go ahead" }));
     expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });

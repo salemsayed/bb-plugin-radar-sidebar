@@ -284,4 +284,6 @@ The lane is the one bot surface in Radar; the others are the bot's own thread an
 
 An **alert** is an important report the bot resolves on its own; nothing waits for a human to close it. It leads with an exclamation badge, is labelled Alert, and offers **Seen** (the same `done` update, also a rightward swipe) and **Open**. When an item carries `recommend`, that suggested reply is the first, primary button, truncated to about 24 characters: it opens the item's thread (or the bot's current coordinator when the item has no thread) and, if that thread's composer is on screen and empty, places the full text in the draft. It never sends. `subject` is the bot plugin's dedupe key and is not shown. Both fields and the alert kind are optional in the schema, so older bot servers still parse.
 
+In the All view (no bot selected) the lane folds to one row, "Needs you · N" (open items plus waiting threads), collapsed by default and remembered per client (`radar-sidebar:needs-lane-open:v1`); at zero it renders nothing. With a bot selected the lane stays open under its heading.
+
 Reading the lane is read-only: no model call, no acknowledgement. A bot's open decision on the list is its ask everywhere in Radar until someone closes or snoozes it.

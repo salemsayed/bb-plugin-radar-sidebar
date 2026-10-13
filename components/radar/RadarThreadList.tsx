@@ -34,6 +34,7 @@ import {
   useDensity,
   useListSettings,
   useListView,
+  useNeedsLaneOpen,
   useWorkingOpen,
 } from "./useListSettings";
 import { useListKeyboard } from "./useListKeyboard";
@@ -78,6 +79,7 @@ export function RadarThreadList({
   );
   const [groupMenu, setGroupMenu] = useState<GroupMenuAnchor | null>(null);
   const [workingOpen, setWorkingOpen] = useWorkingOpen();
+  const [needsLaneOpen, setNeedsLaneOpen] = useNeedsLaneOpen();
   // Typing stays responsive: the heavy list derivation trails the input.
   const deferredQuery = useDeferredValue(query);
   // Filtering forces everything open so matches never hide inside folds.
@@ -262,6 +264,17 @@ export function RadarThreadList({
 
   const folds = useGroupFolds({ isFiltering, needsYouGroup, botGroups, pinnedGroup, groups });
   const { collapseIds, collapsedGroupIds, toggleThreadCollapse } = folds;
+  // The All view folds the whole lane to one row with its own remembered
+  // state; a bot's view keeps it open. Keyboard travel skips a folded lane.
+  const needsLane = useMemo(() => ({
+    scoped: !!scopedBot,
+    open: needsLaneOpen,
+    toggle: () => setNeedsLaneOpen(value => !value),
+  }), [scopedBot, needsLaneOpen, setNeedsLaneOpen]);
+  const keyboardGroupIds = useMemo(
+    () => needsYouGroup && !needsLane.scoped && !needsLane.open ? new Set([...collapsedGroupIds, needsYouGroup.id]) : collapsedGroupIds,
+    [needsYouGroup, needsLane.scoped, needsLane.open, collapsedGroupIds],
+  );
 
   const keyboard = useListKeyboard({
     rootRef,
@@ -274,7 +287,7 @@ export function RadarThreadList({
     groups,
     workingGroup,
     workingOpen,
-    collapsedGroupIds,
+    collapsedGroupIds: keyboardGroupIds,
     collapseIds,
     shownChildren,
     rowById,
@@ -470,6 +483,7 @@ export function RadarThreadList({
             totalRows={allRows.length}
             grouping={grouping}
             needsYouGroup={needsYouGroup}
+            needsLane={needsLane}
             botGroups={botGroups}
             pinnedGroup={pinnedGroup}
             groups={groups}

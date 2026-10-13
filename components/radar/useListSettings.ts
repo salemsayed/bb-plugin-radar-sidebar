@@ -42,6 +42,7 @@ const DENSITY_KEY = "radar-sidebar:density:v1";
 const LAST_DEFAULT_DENSITY_KEY = "radar-sidebar:last-default-density:v1";
 const LAST_TWO_LINE_TITLES_KEY = "radar-sidebar:last-two-line-titles:v1";
 const WORKING_OPEN_KEY = "radar-sidebar:working-open:v1";
+export const NEEDS_LANE_OPEN_KEY = "radar-sidebar:needs-lane-open:v1";
 
 export function readStored<T extends string>(
   key: string,
@@ -174,6 +175,18 @@ export function useWorkingOpen(): [boolean, Dispatch<SetStateAction<boolean>>] {
     writeStored(WORKING_OPEN_KEY, workingOpen ? "open" : "closed");
   }, [workingOpen]);
   return [workingOpen, setWorkingOpen];
+}
+
+/** In the All view the Needs-you lane starts folded to one row, so it never
+ * pushes the threads down; the choice is remembered per client. */
+export function useNeedsLaneOpen(): [boolean, Dispatch<SetStateAction<boolean>>] {
+  const [open, setOpen] = useState(
+    () => readStored(NEEDS_LANE_OPEN_KEY, "closed", ["closed", "open"]) === "open",
+  );
+  useEffect(() => {
+    writeStored(NEEDS_LANE_OPEN_KEY, open ? "open" : "closed");
+  }, [open]);
+  return [open, setOpen];
 }
 
 export interface SavedView {
