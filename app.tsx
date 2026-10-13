@@ -2,11 +2,12 @@
 //
 // Replaces the sidebar thread list (activity-grouped threads, nested families,
 // loud attention states). BB owns app navigation; bot shortcuts live in the list.
+// Saved bot asks and alerts show in the list's Needs-you lane: there is no
+// separate Attention panel or Crew page.
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { migrateLegacyPreferences } from "./components/storage";
 import { RadarThreadList } from "./components/radar/RadarThreadList";
 import { RemindMePanel, remindMeAction } from "./components/radar/RemindMePanel";
-import { BotAttentionHeader, BotAttentionPanel } from "./components/radar/BotAttentionPanel";
 import "./app.css";
 
 // Runs before any slot renders, so preferences read below the rename are
@@ -14,8 +15,6 @@ import "./app.css";
 migrateLegacyPreferences();
 
 export default definePluginApp((app) => {
-  app.slots.threadPanelAction({ id: "bot-attention", title: "Attention", icon: "Bell", component: BotAttentionPanel });
-  app.slots.experimental_threadHeaderAction({ id: "bot-attention", title: "Bot attention", component: BotAttentionHeader });
   app.slots.threadPanelAction({ id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
   app.slots.experimental_threadList({

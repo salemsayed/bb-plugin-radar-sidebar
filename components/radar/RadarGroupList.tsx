@@ -37,12 +37,12 @@ import type {
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { requestBotAttention } from "@/lib/botAttention";
 import { RadarThreadRow } from "./RadarThreadRow";
 import type { RadarThreadActions } from "./threadActions";
 import { RadarBotCard } from "./RadarBotCard";
 import { botState, botStyle, crewDigest, shortBotName, type Pulse, type RosterBot } from "./bots";
 import type { NeedsItem } from "@/lib/needs";
+import { NeedsYouList } from "./NeedsYouList";
 import type { useVisibleBots } from "./botVisibility";
 import { activityTime, isRunningThread, timeAgo } from "./time";
 import { GroupHeader, SortableGroupSection } from "./RadarGroupHeader";
@@ -549,6 +549,9 @@ export function RadarGroupList({
   roster,
   attentionPulses,
   needsItems,
+  onUpdateNeed,
+  onOpenNeed,
+  onReplyToNeed,
   visible,
   settings,
   now,
@@ -581,6 +584,9 @@ export function RadarGroupList({
   roster: readonly RosterBot[];
   attentionPulses: ReadonlyMap<string, Pulse>;
   needsItems: readonly NeedsItem[] | null;
+  onUpdateNeed: (id: string, action: "done" | "snooze" | "reopen", until?: string) => Promise<void>;
+  onOpenNeed: (threadId: string) => void;
+  onReplyToNeed: (threadId: string, text: string) => void;
   visible: VisibleBots;
   settings: ListSettings;
   now: number;
@@ -713,7 +719,7 @@ export function RadarGroupList({
   );
 
   const renderGroup = useCallback(
-    (group: ThreadGroup, isSortable = false, draggable = false) => {
+    (group: ThreadGroup, isSortable = false, draggable = false, lead: React.ReactNode = null) => {
       const isCollapsed = collapsedGroupIds.has(group.id);
 
       const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -790,6 +796,7 @@ export function RadarGroupList({
                 : undefined
             }
           />
+          {isCollapsed ? null : lead}
           {foldContent}
         </section>
       );
@@ -820,6 +827,15 @@ export function RadarGroupList({
     ],
   );
 
+  // Saved asks and alerts stay in the lane even while a search or status filter
+  // narrows the threads. The list stays mounted while empty so Undo survives
+  // the last Done; it renders nothing on its own when there is nothing to show.
+  const needsLane = settings.needsYouLane && needsItems !== null
+    ? <NeedsYouList items={needsItems} roster={roster} now={now} heading={!needsYouGroup}
+      className={needsYouGroup ? "radar-needs-lane" : "radar-group radar-group-needs-you radar-group-expanded radar-needs-lane"}
+      onUpdate={onUpdateNeed} onOpen={onOpenNeed} onReply={onReplyToNeed} />
+    : null;
+
   return (
     <>
       {deferredQuery.trim() !== "" || statusFilter !== "all" ? (
@@ -827,7 +843,9 @@ export function RadarGroupList({
           {shownTotal} of {totalRows} threads
         </p>
       ) : null}
-      {needsYouGroup ? renderGroup(needsYouGroup, false) : null}
+      {/* The one Needs-you lane: saved asks and alerts first, then the threads waiting on you.
+          With no waiting thread the list stands alone and carries its own heading. */}
+      {needsYouGroup ? renderGroup(needsYouGroup, false, false, needsLane) : needsLane}
       {botGroups.length > 0 || visible.hiddenBots.length > 0 ? (
         <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY }); }}>
           <span className="radar-crew-label">Crew</span>
@@ -872,7 +890,7 @@ export function RadarGroupList({
               hasChildren={kids.length > 0}
               timeText={timeAgo(activityTime(root, now), now)}
               onToggle={() => toggleGroup(group.id)}
-              onNavigate={() => { if (bot) requestBotAttention(bot.current, !!(bot.unseenAttention || bot.actionableNeeds)); onNavigate(); }}
+              onNavigate={onNavigate}
             />
             {kids.length > 0 ? (
               <Fold collapsed={isCollapsed} role="list" label={`${group.label} threads`}>

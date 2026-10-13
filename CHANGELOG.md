@@ -4,6 +4,19 @@ All notable changes to Radar Sidebar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- The Needs-you lane is the one bot surface in Radar. The bots' saved Needs items (decisions, reminders, deadlines and the new **alerts**) now render at the top of the sidebar list, above the threads waiting for an answer or approval, instead of on the Crew page.
+- A Needs item may carry the bot's recommended reply (`recommend`): it is the first, primary action, opens the item's thread and seeds an empty composer draft with the full text. `subject` (the bot plugin's dedupe key) and the `alert` kind are optional, so older bot servers still parse.
+- An alert leads with an exclamation badge and offers Seen (the same update as Done, also a rightward swipe) and Open.
+
+### Removed
+
+- The per-thread "Attention" panel, the "Bot attention" header action, the Crew page's "Important alerts" list, the Crew page itself and its rail signal, and the ChatGPT and automation-health status readers. Alerts are plain Needs rows now and resolve themselves server-side.
+- The `bot_attention`, `crew_attention_list` and `crew_attention_seen` RPCs and the `crew` branding icon.
+
 ## 0.6.4 - 2026-10-11
 
 ### Changed

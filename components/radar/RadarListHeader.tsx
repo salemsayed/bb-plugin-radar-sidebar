@@ -3,7 +3,6 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { requestBotAttention } from "@/lib/botAttention";
 import { RadarBotSwitcher } from "./RadarBotSwitcher";
 import { BotFace } from "./BotFace";
 import { shortBotName, type Pulse, type RosterBot } from "./bots";
@@ -93,7 +92,6 @@ export function RadarListHeader({
         aria-current={activeThreadId === scopedBot.current ? "page" : undefined}
         title={`Open ${scopedBot.name}`}
         onClick={() => {
-          requestBotAttention(scopedBot.current, !!(scopedBot.unseenAttention || scopedBot.actionableNeeds));
           actions.open(scopedBot.current);
           onNavigate();
         }}
@@ -130,7 +128,7 @@ export function RadarListHeader({
         scope={railScope} activeThreadId={activeThreadId} compact={isCompactViewport}
         motion={motion}
         onClear={() => setRailScope(null)}
-        onSelect={bot => { requestBotAttention(bot.current, !!(bot.unseenAttention || bot.actionableNeeds)); setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
+        onSelect={bot => { setRailScope(bot.key); actions.open(bot.current); onNavigate(); }}
         onNavigate={onNavigate} /> : null}
       <div className="radar-search-row">
         <div className="radar-search">

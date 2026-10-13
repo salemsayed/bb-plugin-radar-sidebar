@@ -9,6 +9,19 @@
 .radar-needs-item.radar-needs-is-snoozed { --needs-tone: var(--muted-foreground); }
 .radar-needs-is-snoozed .radar-needs-text { color: var(--muted-foreground); }
 .radar-needs-urgent { --needs-tone: var(--destructive, #c03a3a); }
+.radar-needs-alert { --needs-tone: var(--warning, #b0640f); }
+/* The sidebar lane: saved asks and alerts above the threads waiting on you. */
+.radar-needs-lane { padding: 0 6px 4px; }
+.radar-group-needs-you.radar-needs-lane { padding-top: 6px; }
+.radar-needs .radar-needs-badge { display: grid; place-items: center; width: 44px; height: 44px; margin: -4px 0 0 -7px; color: var(--needs-tone); }
+.radar-needs-badge svg { width: 18px; height: 18px; }
+/* The alert kind is spoken as well as shown, unlike the other kinds. */
+.radar-needs-kind.radar-needs-kind-alert { position: static; width: auto; height: auto; margin: 0; clip-path: none; color: var(--needs-tone); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
+.radar-needs-kind-alert::before { content: "·"; margin-right: 6px; color: var(--muted-foreground); font-weight: 400; letter-spacing: 0; }
+.radar-needs-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px; }
+.radar-needs .radar-needs-action { min-height: 30px; min-width: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.radar-needs .radar-needs-action-primary { color: var(--primary-foreground, #fff); background: var(--primary, #2563eb); border-color: transparent; }
+.radar-needs .radar-needs-action-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--primary, #2563eb) 88%, black); }
 .radar-needs-row { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); padding: 6px 2px 0; touch-action: pan-y; }
 .radar-needs-row[data-swipe-phase] { z-index: 1; }
 .radar-needs button, .radar-reminder-picker button { min-height: 44px; min-width: 44px; padding: 8px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; font: inherit; }

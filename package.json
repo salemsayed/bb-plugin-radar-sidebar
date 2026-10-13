@@ -8,12 +8,9 @@
   },
   "bb": {
     "name": "Radar Sidebar",
-    "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and Crew alongside BB’s native navigation.",
+    "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB’s native navigation.",
     "branding": {
-      "icon": "./assets/icon.svg",
-      "experimental_icons": {
-        "crew": "./assets/crew.svg"
-      }
+      "icon": "./assets/icon.svg"
     },
     "server": "./server.ts",
     "app": "./app.tsx"
@@ -67,5 +64,5 @@
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
-  "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and Crew alongside BB’s native navigation."
+  "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB’s native navigation."
 }

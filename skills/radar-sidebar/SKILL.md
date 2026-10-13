@@ -1,6 +1,6 @@
 ---
 name: radar-sidebar
-description: Use the Radar Sidebar plugin's thread list and bot Attention panels. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
+description: Use the Radar Sidebar plugin's thread list and its Needs-you lane for bot asks and alerts. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
 ---
 
 # Radar Sidebar
@@ -20,12 +20,13 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   expand/collapse all. Active filters show as removable pills under the
   search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
-- **Bot Attention** (`threadPanelAction`, id `bot-attention`): questions, reminders and important updates inside each bot coordinator, opened through its Attention header action. Crew navigation is retired.
+- **Needs-you lane** (setting `needsYouLane`, default on): the one place for what waits on Salem. The bots' saved Needs items (decisions, reminders, deadlines, alerts, with the bot's recommended reply as the first action) sit above the threads waiting for an answer or approval. There is no Attention panel, no "Bot attention" header action and no Crew page; alerts are plain Needs rows that the bot plugin resolves itself.
+- **Remind me** (`threadPanelAction`, id `remind-when`, and a message action): saves a reminder about a message as a Needs item.
 - **Thread actions**: row More and context/long-press menus use BB's shared registry, including Notifications and other plugins' actions. Mobile choices open native drawers. Keyboard, swipe and bulk archive/delete actions keep BB's confirmation and Undo flows. Requires SDK 0.6.37.
 
 ## Bot shortcuts
 
-Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A badged bot opens its Attention panel automatically, including direct entry to its current coordinator. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
+Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A badged bot has unseen alerts or open asks; they are rows in the Needs-you lane, and the face opens its coordinator. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
 States and unread badges retain the same meaning as the bot deck. Saved bot scopes and hidden preferences persist. Open asks, pending input and unread failures keep a hidden bot accessible. Turning shortcuts off restores the deck. Retired `railNav` and `wideRail` values have no effect. Navigation, arrangement, More and the footer belong to BB, without shell CSS overrides or removed SDK calls.
 
@@ -277,10 +278,10 @@ filter, density, smart-view, project-order and collapse keys.
   behind the `radar-` prefix.
 
 
-## Bot Attention
+## Needs-you lane
 
-The Attention panel replaces Crew. The dot means unseen important occurrences; the question badge means an unanswered decision or due action. Reading BB history, bot auto-read and ChatGPT callback acceptance are separate from human seen. A displayed occurrence clears only after its complete content stays foreground-visible; collapsed, offscreen and newly arriving updates remain unseen.
+The lane is the one bot surface in Radar; the others are the bot's own thread and phone pushes. Items come from bb-plugin-saelmbot (`crew_needs_list`, polled every 30 seconds, refreshed on focus and after each action) and are ordered by due date. Kinds: Decision, Urgent, Reminder, Deadline and Alert. Done (tick or swipe right) and Snooze (clock or swipe left) call `crew_needs_update`; Done offers six seconds of Undo (reopen). Open goes to the item's source thread.
 
-Each saved question/reminder appears once with its exactly linked context. Reply prepares a native saved-question mention in an empty coordinator draft, or opens the linked native form. It sends nothing. Source opens the original conversation with a current-coordinator fallback if deleted. Seen acknowledges only this card's occurrences; it does not answer a question or complete work. Done settles an obligation. Later defers it. Closed records fold into History, future/held reminders into Later, and unfinished owner work into With the bot. Important completion updates remain active until seen even after the old question is answered.
+An **alert** is an important report the bot resolves on its own; nothing waits for a human to close it. It leads with an exclamation badge, is labelled Alert, and offers **Seen** (the same `done` update, also a rightward swipe) and **Open**. When an item carries `recommend`, that suggested reply is the first, primary button, truncated to about 24 characters: it opens the item's thread (or the bot's current coordinator when the item has no thread) and, if that thread's composer is on screen and empty, places the full text in the draft. It never sends. `subject` is the bot plugin's dedupe key and is not shown. Both fields and the alert kind are optional in the schema, so older bot servers still parse.
 
-All surfaces read the same durable bot-owned board. Jev is advisory: independent owner verification, exact source and transition guards govern changes. Preserve the latest approved notification preferences and explicit holds; completion, answer, seen and transport acceptance never grant new execution permission.
+Reading the lane is read-only: no model call, no acknowledgement. A bot's open decision on the list is its ask everywhere in Radar until someone closes or snoozes it.

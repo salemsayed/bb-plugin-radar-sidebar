@@ -115,7 +115,7 @@ threshold. It is interactive, so you can pin, split or archive from the card.
 
 ### 🧭 Navigation that follows BB
 
-BB’s native rail owns destination order, visibility and More. Radar adds bot shortcuts within the thread list and a Crew destination.
+BB’s native rail owns destination order, visibility and More. Radar adds bot shortcuts within the thread list; there is no Crew destination.
 
 </td>
 <td valign="top">
@@ -195,7 +195,8 @@ bb plugin install path:$PWD --yes
 | --- | --- |
 | **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one view-options panel for status, lifecycle, grouping, density and expand/collapse all. |
 | **Smart views** | Saved query-plus-filter presets in the view-options panel, and a shortcut to save the current one. |
-| **Native navigation rail** | BB destinations and Crew. Bot shortcuts sit in Radar’s list header. |
+| **Needs-you lane** | The one place for what waits on you: the bots’ saved asks, reminders and alerts (Done or Seen, Snooze, Undo, the bot’s recommended reply) above the threads waiting for an answer or approval. |
+| **Native navigation rail** | BB destinations only. Bot shortcuts sit in Radar’s list header. |
 | **Row hover** | A single ⋯ menu (pin, rename, archive and more); a peek card after a short pause. |
 | **Settings → Appearance** | Choose Radar for the thread list. |
 
@@ -203,13 +204,13 @@ bb plugin install path:$PWD --yes
 
 BB owns the native navigation rail, destination order, More menu, footer and New thread control. Radar replaces only the thread list and follows BB's desktop and mobile navigation.
 
-Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or **All** at the start of the row, to show every thread. (BB's rail Home only switches the sidebar to this list; it does not clear the bot filter.) Crew opens from BB's native rail. On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
+Enable **Bot shortcuts** (`botRail`) to show a compact row of bot faces above the filter. A face opens its current coordinator and shows that bot's workers. Tap the selected face again from its coordinator, or **All** at the start of the row, to show every thread. (BB's rail Home only switches the sidebar to this list; it does not clear the bot filter.) On desktop, hover or focus a face for the latest reply, worker state, context usage and links. Arrow keys traverse the faces; Escape closes details.
 
 Bot state and unread badges retain their existing meaning. Hidden bots stay hidden unless they need attention; saved bot selection and visibility preferences are preserved. Turning shortcuts off restores the in-list deck. Existing `botRail` settings continue to work independently of the retired `railNav` and `wideRail` settings.
 
 ## Compatibility notes
 
-SDK 0.6.33 removes the sidebar navigation replacement API. Radar no longer registers or imports it, and emits no CSS for BB's shell. Crew remains a supported `navPanel`; reminders remain native message and thread-panel actions. The old navigation and labelled-rail settings are retired, while BB keeps the user's destination arrangement.
+SDK 0.6.33 removes the sidebar navigation replacement API. Radar no longer registers or imports it, and emits no CSS for BB's shell. Reminders remain native message and thread-panel actions; there is no Crew `navPanel` and no per-thread Attention panel. The old navigation and labelled-rail settings are retired, while BB keeps the user's destination arrangement.
 
 Thread menus use BB's shared action registry, including per-thread notification settings and other plugins' actions. On mobile, menus and choices use BB's native drawers. Keyboard, swipe and bulk archive/delete actions keep BB's confirmation and Undo flows. This version requires SDK 0.6.37 and no longer uses the retired sidebar thread-action hook.
 
@@ -306,12 +307,12 @@ bb plugin dev                      # rebuild and reload on every save
 
 ```
 server.ts               the settings the frontend reads; no storage, no CLI
-app.tsx                 registers the thread-list, Crew and reminder slots
+app.tsx                 registers the thread-list and reminder slots
 app.css                 the one stylesheet entry: @imports styles/*.css in cascade order
 styles/                 per-area CSS on BB theme tokens, behind the radar- prefix:
                         base, header, hover-card, groups, row, swipe, row-layout,
                         context-menu, states, dock, smart-views, drag, gates, bots,
-                        drawer, crew-workspace, needs (+ styles.test.ts, the guards)
+                        drawer, needs (+ styles.test.ts, the guards)
 components/radar/       the list, bot shortcuts, menus, peek card and smart views
   RadarThreadList.tsx   composition root: thread data, bots, groups, order freeze
   RadarListHeader.tsx   search, view options, status chips, active filter pills
@@ -348,6 +349,10 @@ whose native storage global otherwise shadows it without a backing file.
 [MIT](LICENSE)
 
 
-## Crew workspace
+## Needs-you lane
 
-Crew is a read-only overview; Salem's ChatGPT assistant coordinates the bots through the BB Bots connection. The page shows pending approvals and the shared Needs You list first (Done, Snooze, Undo), then one card per bot: state, machine, context use, live or blocked workers (hidden ones included), the latest reply and how many instructions ChatGPT sent it today. Failed workers older than a day are counted, not listed. The header says whether ChatGPT is connected and when its alert watch must be renewed. The rail icon shows a count of what needs you, or a dot while bots work. A bot's open decision on the Needs You list is its ask everywhere in Radar until someone closes or snoozes it; reading the page makes no model call.
+The Crew page and the per-thread Attention panel are gone: the bot surfaces are the bot's thread, this one lane, and phone pushes. The lane (`needsYouLane`, on by default) sits at the top of the list. It shows the bots' saved Needs items first, read from bb-plugin-saelmbot through the `crew_needs_list` RPC, then the threads waiting for an answer or approval. With no waiting thread the list carries its own "Needs you" heading; otherwise it sits under the lane's group header.
+
+Each item is a row with the bot's face, when it is due or how old it is, and its kind: **Decision**, **Urgent**, **Reminder**, **Deadline** or **Alert**. Decisions, reminders and deadlines offer Done (tick, or swipe right), Snooze (clock, or swipe left) and Open; Done gives six seconds of Undo. An **alert** is an important bot report that the bot plugin resolves on its own; it leads with an exclamation badge and offers **Seen** (the same update as Done, also a rightward swipe) and **Open**. When the bot sends a recommended reply (`recommend`), it is the first, primary action, labelled with the first two dozen characters of the text: pressing it opens the item's thread (or the bot's current coordinator) and, if that thread's composer is on screen and empty, puts the full text in the draft for Salem to send or edit. Nothing is sent on his behalf. Alerts about the same `subject` are deduplicated by the bot plugin, not here. Older bot servers that send no `recommend`, `subject` or alert kind still parse.
+
+A bot's open decision on the list is its ask everywhere in Radar until someone closes or snoozes it; reading the lane makes no model call. The list polls every 30 seconds, and refreshes on focus and after any action.

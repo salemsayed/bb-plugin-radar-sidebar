@@ -1,17 +1,31 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { CrewWorkspace } from "./CrewWorkspace";
-import { NeedsYouList } from "./NeedsYouList";
+import { NeedsYouList, recommendLabel } from "./NeedsYouList";
 import { useNeedsYou } from "./useCrewData";
+import { needsItemSchema, type NeedsItem } from "@/lib/needs";
 import { NEEDS_BOT, NEEDS_NOW, makeNeed } from "./needsFixtures";
 import { makeThread } from "./fixtures";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 
 const app = await loadPluginApp(() => import("../../app"));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-function mount(items = [makeNeed()]) {
+function mount(items = [makeNeed()], onReply?: (threadId: string, text: string) => void) {
   const update = vi.fn(async () => {}), open = vi.fn();
-  return { update, open, ...render(<NeedsYouList items={items} roster={[NEEDS_BOT]} now={NEEDS_NOW} onUpdate={update} onOpen={open} />) };
+  return { update, open, ...render(<NeedsYouList items={items} roster={[NEEDS_BOT]} now={NEEDS_NOW} onUpdate={update} onOpen={open} onReply={onReply} />) };
+}
+/** The sidebar list with its Needs-you lane: the one place saved asks and alerts show. */
+function renderLane(items: NeedsItem[], threads: PluginSidebarThread[] = [makeThread({ id: "coord" })], settings: Record<string, boolean> = {}) {
+  const sdk: Record<string, unknown> = {
+    threads: { defaultExecutionOptions: async () => null, context: async () => ({ usage: null }), output: async () => ({ output: null }) },
+    providers: { models: async () => ({ models: [] }) },
+    system: { uiPreferences: { list: async () => ({ preferences: {} }), set: async () => ({ revision: 1, value: [] }) } },
+    plugins: { callRpc: async () => ({ bots: [NEEDS_BOT] }) },
+  };
+  return renderSlot(app.threadLists[0]!, { activeThreadId: null, activeProjectId: "p", isCompactViewport: false, onNavigate: () => {}, searchQuery: "" }, {
+    sdk, settings, rpc: { crew_needs_list: () => ({ items }), crew_asks: () => ({ judgements: [] }) },
+    sidebarThreads: { status: "ready", threads, projects: [], sections: [], experimental_archived: null },
+  });
 }
 
 it("renders full asks in due order with bot labels and expandable snoozed reminders", async () => {
@@ -30,15 +44,105 @@ it("renders full asks in due order with bot labels and expandable snoozed remind
   }
 });
 
-it("shows an unavailable saved-decisions service honestly and recovers through Retry", async () => {
-  let available = false;
-  const sdk = { plugins: { callRpc: async <T,>({ pluginId }: { pluginId: string }) => (pluginId === "chatgpt-events" ? { connected: false } : { bots: [NEEDS_BOT] }) as T } };
-  renderSlot({ component: CrewWorkspace }, { subPath: "" }, { rpc: { crew_needs_list: () => ({ items: available ? [] : null }) }, sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: NEEDS_BOT.current })] } });
-  expect(await screen.findByText("Saved questions are unavailable.")).toBeTruthy();
-  expect(screen.queryByText("Nothing needs you.")).toBeNull();
-  available = true;
-  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Nothing needs you.")).toBeTruthy();
+describe("the sidebar's Needs-you lane", () => {
+  it("is the one place: no Attention panel, header action or Crew page is registered", () => {
+    expect(app.threadPanelActions.map(action => action.id)).toEqual(["remind-when"]);
+    expect(app.threadHeaderActions.some(action => action.id === "bot-attention")).toBe(false);
+    expect(app.navPanels.some(panel => panel.id === "crew")).toBe(false);
+  });
+  it("lists saved asks with their own heading when no thread is waiting, and opens the source", async () => {
+    const host = renderLane([makeNeed()]);
+    const region = await screen.findByRole("region", { name: "Needs you" });
+    expect(within(region).getByRole("heading", { name: "Needs you 1" })).toBeTruthy();
+    expect(region.classList.contains("radar-group-needs-you")).toBe(true);
+    fireEvent.click(within(region).getByRole("button", { name: /^Open:/ }));
+    expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
+  });
+  it("sits under the lane's group header, without a second heading, when a thread waits too", async () => {
+    renderLane([makeNeed()], [makeThread({ id: "coord" }), makeThread({ id: "asking", hasPendingInteraction: true })]);
+    const region = await screen.findByRole("region", { name: "Needs you" });
+    expect(within(region).queryByRole("heading", { name: /^Needs you/ })).toBeNull();
+    const lane = region.closest(".radar-group-needs-you")!;
+    expect(lane).toBeTruthy();
+    expect(lane.querySelector("[data-sidebar-thread-id='asking']")).toBeTruthy();
+    expect(lane.querySelector("[data-sidebar-thread-id='coord']")).toBeNull();
+  });
+  it("stays off with the lane setting, and hides while the Needs service is unavailable", async () => {
+    const off = renderLane([makeNeed()], undefined, { needsYouLane: false });
+    await waitFor(() => expect(off.inspection.rpcCalls.some(call => call.method === "crew_needs_list")).toBe(true));
+    expect(screen.queryByRole("region", { name: "Needs you" })).toBeNull();
+    cleanup();
+    renderLane(null as unknown as NeedsItem[]);
+    await act(async () => {});
+    expect(screen.queryByRole("region", { name: "Needs you" })).toBeNull();
+  });
+  it("opens the thread for a recommendation when no composer for it is on screen", async () => {
+    const host = renderLane([makeNeed({ kind: "alert", recommend: "Yes, go ahead" })]);
+    fireEvent.click(await screen.findByRole("button", { name: "Reply: Yes, go ahead" }));
+    expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
+  });
+});
+
+describe("alerts", () => {
+  it("parses items from a server without the alert fields", () => {
+    const { recommend, subject, ...legacy } = makeNeed();
+    void recommend; void subject;
+    expect(needsItemSchema.parse(legacy).kind).toBe("decision");
+    expect(needsItemSchema.parse({ ...legacy, kind: "alert", recommend: null, subject: "meter" })).toMatchObject({ kind: "alert", subject: "meter" });
+  });
+  it("shows an alert with its badge, and Seen closes it with the same update as Done", async () => {
+    const host = mount([makeNeed({ kind: "alert", text: "Meter balance is low" })]);
+    const row = screen.getByRole("listitem");
+    expect(row.classList.contains("radar-needs-alert")).toBe(true);
+    expect(within(row).getByText("Alert")).toBeTruthy();
+    expect(row.querySelector(".radar-needs-badge-alert svg")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Mark done:/ })).toBeNull();
+    expect(row.querySelector(".radar-needs-check")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open: Meter balance is low" }));
+    expect(host.open).toHaveBeenCalledWith("coord");
+    fireEvent.click(screen.getByRole("button", { name: "Seen: Meter balance is low" }));
+    await waitFor(() => expect(host.update).toHaveBeenCalledWith("need1", "done", undefined));
+    expect(await screen.findByText("Done: Meter balance is low")).toBeTruthy();
+  });
+  it("names a rightward swipe on an alert Seen and keeps Snooze on the left", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(300);
+    const host = mount([makeNeed({ kind: "alert" })]);
+    const row = host.container.querySelector(".radar-needs-row")!;
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 120, clientY: 100 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 160, clientY: 100 }] });
+    expect(within(row as HTMLElement).getByRole("button", { name: "Seen" })).toBeTruthy();
+    fireEvent.touchMove(row, { touches: [{ clientX: 250, clientY: 100 }] });
+    fireEvent.touchEnd(row, { touches: [] });
+    await waitFor(() => expect(host.update).toHaveBeenCalledWith("need1", "done", undefined));
+  });
+  it("offers the recommendation first as the primary action, truncated, and replies with the full text", () => {
+    const onReply = vi.fn();
+    const host = mount([makeNeed({ kind: "alert", recommend: "Approve the repair and tell Mum tonight" })], onReply);
+    const actions = Array.from(host.container.querySelectorAll(".radar-needs-actions button"));
+    expect(actions.map(button => button.textContent)).toEqual(["Approve the repair and…", "Seen", "Open"]);
+    expect(actions[0]!.classList.contains("radar-needs-action-primary")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Reply: Approve the repair and tell Mum tonight" }));
+    expect(onReply).toHaveBeenCalledWith("coord", "Approve the repair and tell Mum tonight");
+    expect(host.open).not.toHaveBeenCalled();
+    expect(recommendLabel("short")).toBe("short");
+    expect(recommendLabel("  two   lines\nhere  ")).toBe("two lines here");
+  });
+  it("shows a recommendation on any kind, falls back to opening the thread, and skips blank ones", () => {
+    const host = mount([makeNeed({ recommend: "Pay it" }), makeNeed({ id: "blank", kind: "alert", recommend: "   " }), makeNeed({ id: "none", recommend: null, text: "Plain" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Reply: Pay it" }));
+    expect(host.open).toHaveBeenCalledWith("coord");
+    expect(screen.getAllByRole("button", { name: /^Reply:/ })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Seen: Approve the repair" })).toBeTruthy();
+  });
+  it("replies in the bot's current coordinator when the item has no source thread", () => {
+    const onReply = vi.fn();
+    mount([makeNeed({ source: {}, kind: "alert", recommend: "Noted" })], onReply);
+    expect(screen.queryByRole("button", { name: /^Open:/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reply: Noted" }));
+    expect(onReply).toHaveBeenCalledWith("coord", "Noted");
+  });
 });
 it("offers Done, all Snooze times, native date/time, and Open without hover", async () => {
   const host = mount();
@@ -103,14 +207,6 @@ describe("needs hook/server bridge", () => {
     const calls = load.mock.calls.length;
     await act(async () => { vi.advanceTimersByTime(30_000); });
     expect(load.mock.calls.length).toBeGreaterThan(calls);
-  });
-  it("renders Needs you on the Crew page and opens the source thread", async () => {
-    const host = renderSlot({ component: CrewWorkspace }, { subPath: "" }, {
-      rpc: { crew_needs_list: () => ({ items: [makeNeed()] }) },
-    });
-    const region = await screen.findByRole("region", { name: "Needs you" });
-    fireEvent.click(await within(region).findByRole("button", { name: /^Open:/ }));
-    expect(host.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "coord" });
   });
 });
 

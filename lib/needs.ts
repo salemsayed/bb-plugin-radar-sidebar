@@ -3,9 +3,14 @@ import { cairoInstant } from "./reminderTimes";
 
 export const NEEDS_PLUGIN = "orchestrator-mode";
 export const needsItemSchema = z.object({
-  id: z.string(), bot: z.string(), kind: z.enum(["decision", "reminder", "deadline", "urgent"]),
+  id: z.string(), bot: z.string(), kind: z.enum(["decision", "reminder", "deadline", "urgent", "alert"]),
   text: z.string(), due: z.string().nullable(), state: z.enum(["open", "snoozed", "reminded", "done", "dropped"]),
   snoozeUntil: z.string().nullable(),
+  // Optional so a Radar built before bb-plugin-saelmbot added them still parses that server's items.
+  /** The bot's suggested answer, offered as the first quick action. */
+  recommend: z.string().nullable().optional(),
+  /** Dedupe key for alerts about the same thing. */
+  subject: z.string().nullable().optional(),
   source: z.object({ threadId: z.string().optional(), messageId: z.string().optional(), automationId: z.string().optional() }),
   key: z.string().nullable(), createdAt: z.string(), closedAt: z.string().nullable(), reminders: z.number(),
 });

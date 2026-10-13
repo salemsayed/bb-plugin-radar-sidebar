@@ -16,13 +16,11 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { preloadExtendedIcons } from "@/components/ui/icon";
-import { requestBotAttention } from "@/lib/botAttention";
 import { useRadarThreadActions } from "./threadActions";
 import { askPulse, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
 import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
-import { crewCard } from "./CrewWorkspace";
-import { publishCrewSignal } from "./crewSignal";
+import { useReplyPrefill } from "./useReplyPrefill";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
@@ -121,7 +119,8 @@ export function RadarThreadList({
   // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
   const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(allThreads));
-  const needs = useNeedsYou(settings.botsDeck || botRail);
+  // Saved asks and alerts are rows in the Needs-you lane, so the lane alone is reason to load them.
+  const needs = useNeedsYou(settings.botsDeck || botRail || settings.needsYouLane);
   const railScope = useValidatedRailScope(roster, botRail);
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
@@ -150,18 +149,6 @@ export function RadarThreadList({
   );
   // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
   const visible = useVisibleBots(roster, allThreads, asking);
-  // The Crew rail icon's count and dot: saved asks plus pending approvals, and whether any bot works or failed.
-  useEffect(() => {
-    // Without a roster (bot views off or the bot plugin absent) the icon shows nothing rather than a stale count.
-    if (!roster.length) { publishCrewSignal({ needs: 0, working: false, failed: false }); return; }
-    const now = Date.now();
-    const cards = roster.map(bot => crewCard(bot, allThreads, null, needs.items, null, now));
-    const blocked = cards.reduce((count, card) => count + (card.coordinator?.hasPendingInteraction || card.coordinator?.indicator === "waiting-for-input" ? 1 : 0)
-      + card.workers.filter(worker => worker.state === "needs-you").length, 0);
-    publishCrewSignal({ needs: (needs.items ?? []).filter(item => item.state !== "snoozed").length + blocked,
-      unread: roster.reduce((count, bot) => count + (bot.unseenAttention ?? 0), 0),
-      working: cards.some(card => card.state === "working"), failed: cards.some(card => card.state === "failed") });
-  }, [roster, allThreads, needs.items]);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   const scopeName = scopedBot?.name ?? "Bot";
   const threads = useMemo(() => {
@@ -409,10 +396,12 @@ export function RadarThreadList({
 
   const openScopedBot = () => {
     if (!scopedBot) return;
-    requestBotAttention(scopedBot.current, !!(scopedBot.unseenAttention || scopedBot.actionableNeeds));
     actions.open(scopedBot.current);
     onNavigate();
   };
+  // A Needs row opens its source thread; a recommendation also seeds that thread's reply.
+  const openNeed = useCallback((threadId: string) => { actions.open(threadId); onNavigate(); }, [actions, onNavigate]);
+  const replyToNeed = useReplyPrefill(openNeed);
 
   return (
     <div
@@ -492,6 +481,9 @@ export function RadarThreadList({
             roster={roster}
             attentionPulses={attentionPulses}
             needsItems={needs.items}
+            onUpdateNeed={needs.update}
+            onOpenNeed={openNeed}
+            onReplyToNeed={replyToNeed}
             visible={visible}
             settings={settings}
             now={now}

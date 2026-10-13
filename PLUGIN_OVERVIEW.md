@@ -2,7 +2,7 @@ A thread list you can read at a glance, for BB.
 
 ## What you get
 
-- **Native BB navigation, with bot shortcuts.** BB owns the rail, More and New thread. Enable `botRail` for bot faces, state and worker filtering above Radar's list; Crew opens the full overview.
+- **Native BB navigation, with bot shortcuts.** BB owns the rail, More and New thread. Enable `botRail` for bot faces, state and worker filtering above Radar's list. Saved bot asks and alerts are rows in the list's Needs-you lane.
 
 - A **Radar thread list** in the left sidebar. Threads group by Today,
   Yesterday, Previous 7 days, Previous 30 days or Older, keyed off real
