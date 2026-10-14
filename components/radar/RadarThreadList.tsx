@@ -25,6 +25,7 @@ import { useReplyPrefill } from "./useReplyPrefill";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
+import { mergeHiddenThreads, useHiddenThreads } from "./hiddenThreads";
 import { useArrivals } from "./useArrivals";
 import { useFrozenOrder, useOrderFreeze } from "./useFrozenOrder";
 import { useValidatedRailScope } from "./railScope";
@@ -114,7 +115,7 @@ export function RadarThreadList({
   );
   const {
     status,
-    threads: allThreads,
+    threads: feedThreads,
     projects,
     sections,
     experimental_archived,
@@ -122,15 +123,26 @@ export function RadarThreadList({
   const botRail = settings.botRail;
   // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
-  const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(allThreads));
+  const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(feedThreads));
+  // bb's feed omits hidden threads, so the option fetches them per project
+  // and they join the list before scoping, nesting under their owners.
+  const hiddenProjectIds = useMemo(
+    () => [...projects.map(project => project.id), ...roster.flatMap(bot => [bot.projectId, ...bot.projects])],
+    [projects, roster],
+  );
+  const hiddenRows = useHiddenThreads(showHidden, hiddenProjectIds, now);
+  const allThreads = useMemo(
+    () => showHidden ? mergeHiddenThreads(feedThreads, hiddenRows) : feedThreads,
+    [showHidden, feedThreads, hiddenRows],
+  );
   // Saved asks and alerts are rows in the Needs-you lane, so the lane alone is reason to load them.
   const needs = useNeedsYou(settings.botsDeck || botRail || settings.needsYouLane);
   const railScope = useValidatedRailScope(roster, botRail);
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
   const coordinatorRows = useMemo(
-    () => deck || botRail ? allThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
-    [allThreads, roster, deck, botRail, railScope],
+    () => deck || botRail ? feedThreads.filter((thread) => roster.some((bot) => bot.current === thread.id)) : [],
+    [feedThreads, roster, deck, botRail, railScope],
   );
   const pulses = useThreadPulses(coordinatorRows, deck || botRail);
   const judgements = useCrewJudgements(coordinatorRows, needsKeyOf(needs.items));
@@ -152,7 +164,8 @@ export function RadarThreadList({
     [deck, botRail, roster, coordinatorRows, pulses, judgements, needs.items, hiddenKeys],
   );
   // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
-  const visible = useVisibleBots(roster, allThreads, asking);
+  // Bot state reads the feed: the hidden-workers option changes rows, not how a bot looks.
+  const visible = useVisibleBots(roster, feedThreads, asking);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   const scopeName = scopedBot?.name ?? "Bot";
   const threads = useMemo(() => {
@@ -453,7 +466,7 @@ export function RadarThreadList({
         onToggleAllGroups={folds.toggleAllGroups}
         botRail={botRail}
         bots={visible.bots}
-        allThreads={allThreads}
+        allThreads={feedThreads}
         attentionPulses={attentionPulses}
         railScope={railScope}
         scopedBot={scopedBot}

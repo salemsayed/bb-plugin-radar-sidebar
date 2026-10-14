@@ -3,6 +3,7 @@ import type {
   PluginSidebarSection,
   PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import type { ListedThread } from "./hiddenThreads";
 
 /** Deterministic clock used across fixtures so grouping maths is stable. */
 export const NOW = 1_790_000_000_000;
@@ -92,5 +93,50 @@ export function makeSection(
     name: fixture.name,
     createdAt: fixture.createdAt ?? NOW - DAY,
     updatedAt: fixture.updatedAt ?? NOW,
+  };
+}
+
+/** A raw `sdk.threads.list` row, hidden unless told otherwise. */
+export function makeListedThread(fixture: Partial<ListedThread> & { id: string }): ListedThread {
+  return {
+    id: fixture.id,
+    projectId: fixture.projectId ?? "proj_a",
+    title: fixture.title === undefined ? `Thread ${fixture.id}` : fixture.title,
+    titleFallback: fixture.titleFallback ?? null,
+    parentThreadId: fixture.parentThreadId ?? null,
+    lifecycleOwnerThreadId: fixture.lifecycleOwnerThreadId ?? null,
+    sourceThreadId: fixture.sourceThreadId ?? null,
+    sectionId: fixture.sectionId ?? null,
+    originKind: fixture.originKind ?? null,
+    originPluginId: fixture.originPluginId ?? null,
+    providerId: fixture.providerId ?? "pi",
+    status: fixture.status ?? "idle",
+    runtime: fixture.runtime ?? { displayStatus: fixture.status ?? "idle" },
+    queuedWork: fixture.queuedWork ?? "none",
+    hasPendingInteraction: fixture.hasPendingInteraction ?? false,
+    activity: fixture.activity ?? {
+      activeBackgroundAgentCount: 0,
+      activeBackgroundCommandCount: 0,
+      activeGoalCount: 0,
+      activePlanModeCount: 0,
+      activeWorkflowCount: 0,
+    },
+    pinnedAt: fixture.pinnedAt ?? null,
+    pinSortKey: fixture.pinSortKey ?? null,
+    archivedAt: fixture.archivedAt ?? null,
+    deletedAt: fixture.deletedAt ?? null,
+    visibility: fixture.visibility ?? "hidden",
+    environmentId: fixture.environmentId === undefined ? `env_${fixture.id}` : fixture.environmentId,
+    environmentName: fixture.environmentName ?? null,
+    environmentBranchName: fixture.environmentBranchName ?? null,
+    environmentPath: fixture.environmentPath ?? null,
+    environmentIsWorktree: fixture.environmentIsWorktree ?? false,
+    environmentProviderId: fixture.environmentProviderId ?? null,
+    environmentWorkspaceDisplayKind: fixture.environmentWorkspaceDisplayKind ?? "other",
+    environmentHostId: fixture.environmentHostId === undefined ? "host_1" : fixture.environmentHostId,
+    createdAt: fixture.createdAt ?? NOW - DAY,
+    updatedAt: fixture.updatedAt ?? NOW,
+    lastReadAt: fixture.lastReadAt ?? null,
+    latestAttentionAt: fixture.latestAttentionAt ?? fixture.updatedAt ?? NOW,
   };
 }

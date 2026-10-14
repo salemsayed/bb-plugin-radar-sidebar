@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { loadPluginApp, renderSlot, type TestThreadActionsResolver } from "@get-bb/plugin-sdk/testing/app";
 import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
-import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
+import { DAY, HOUR, NOW, makeListedThread, makeProject, makeSection, makeThread } from "./fixtures";
 import { resetRailScope, setRailScope } from "./railScope";
 import { hideBot, resetHiddenBots } from "./botVisibility";
 import { makeNeed } from "./needsFixtures";
@@ -2622,28 +2622,76 @@ describe("Needs-you lane fold", () => {
 
 describe("hidden workers", () => {
   const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "host_1", providerId: "pi", model: "test", rollover: null };
+  // bb's feed leaves hidden threads out; Radar lists them per project itself.
   const threads = [
     makeThread({ id: "root", pinnedAt: NOW }),
     makeThread({ id: "worker", parentThreadId: "root", updatedAt: NOW - HOUR }),
-    // Fresher than its visible sibling, so only the hidden-last rule puts it after.
-    makeThread({ id: "relayed", parentThreadId: "root", isHidden: true, isUnread: true, updatedAt: NOW }),
     makeThread({ id: "other" }),
   ];
-  const sdkWith = (update = vi.fn(async (_args: unknown) => ({ ok: true }))) => {
+  // Fresher than its visible sibling, so only the hidden-last rule puts it after.
+  const hiddenRows = [makeListedThread({ id: "relayed", parentThreadId: "root", updatedAt: NOW })];
+  const sdkWith = (update = vi.fn(async (_args: unknown) => ({ ok: true })), rows = hiddenRows) => {
     const fakes = sdkFakes();
-    return { update, sdk: { ...fakes, threads: { ...(fakes.threads as object), update }, plugins: { callRpc: async () => ({ bots: [bot] }) } } };
+    const list = vi.fn(async ({ projectId }: { projectId: string }) => rows.filter(row => row.projectId === projectId));
+    return { update, list, sdk: { ...fakes, threads: { ...(fakes.threads as object), update, list }, plugins: { callRpc: async () => ({ bots: [bot] }) } } };
   };
   const rowOf = (container: HTMLElement, id: string) =>
     container.querySelector(`[data-sidebar-thread-id='${id}']`)?.closest(".radar-row") ?? null;
 
-  it("stays out of the list with the option off, in a bot view and in All", async () => {
+  it("stays out of the list with the option off, in a bot view and in All, and fetches nothing", async () => {
     setRailScope("personal");
-    const slot = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
+    const { sdk, list } = sdkWith();
+    const slot = renderThreads(threads, { sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
     expect(viewOptions().getByRole("button", { name: "Hidden workers" }).getAttribute("aria-pressed")).toBe("false");
     expect(slot.container.querySelector(".radar-hidden-chip")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
     expect(visibleRowIds(slot.container)).toEqual(["other"]);
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("fetches hidden threads for every feed and roster project when turned on", async () => {
+    setRailScope("personal");
+    const { sdk, list } = sdkWith();
+    const roster = { ...bot, projectId: "proj_bot", projects: ["proj_a", "proj_side"] };
+    const slot = renderThreads(threads, {
+      sdk: { ...sdk, plugins: { callRpc: async () => ({ bots: [roster] }) } },
+      settings: { botRail: true },
+    });
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]));
+    const projects = list.mock.calls.map(([args]) => args.projectId);
+    expect(new Set(projects)).toEqual(new Set(["proj_a", "proj_bot", "proj_side"]));
+    expect(projects.length).toBe(3);
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ includeHidden: true, archived: false, limit: 200 }));
+  });
+
+  it("nests an owner-only hidden worker under its bot in the bot view and in All, once even when the feed has it", async () => {
+    localStorage.setItem("radar-sidebar:show-hidden:v1", "on");
+    setRailScope("personal");
+    const rows = [
+      makeListedThread({ id: "memories", title: "Consolidate agent memories", lifecycleOwnerThreadId: "root" }),
+      // Already in the feed (shown since the last fetch): the feed's row wins.
+      makeListedThread({ id: "worker", parentThreadId: "root" }),
+      // A hidden root is not a worker.
+      makeListedThread({ id: "retired" }),
+    ];
+    const slot = renderThreads(threads, { sdk: sdkWith(undefined, rows).sdk, settings: { botRail: true, nestByOwner: true } });
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker", "memories"]));
+    expect(rowOf(slot.container, "worker")!.classList.contains("radar-row-hidden")).toBe(false);
+    expect(rowOf(slot.container, "memories")!.classList.contains("radar-row-hidden")).toBe(true);
+    // bb's ThreadTitle knows only feed rows, so the row draws a fetched title itself.
+    expect(rowOf(slot.container, "memories")!.textContent).toContain("Consolidate agent memories");
+    fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
+    expect(visibleRowIds(slot.container)).toEqual(["other"]);
+    cleanup();
+    resetRailScope();
+    const deck = renderThreads(threads, { sdk: sdkWith(undefined, rows).sdk, settings: { botsDeck: true, nestByOwner: true } });
+    await waitFor(() => expect(visibleRowIds(deck.container)).toContain("memories"));
+    expect(rowOf(deck.container, "memories")!.classList.contains("radar-row-child")).toBe(true);
+    expect(visibleRowIds(deck.container).filter(id => id === "worker")).toHaveLength(1);
+    expect(visibleRowIds(deck.container)).not.toContain("retired");
   });
 
   it("shows them dimmed with a chip, after their visible siblings under the right bot", async () => {
@@ -2651,7 +2699,7 @@ describe("hidden workers", () => {
     const slot = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
     fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
-    expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]);
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]));
     const row = rowOf(slot.container, "relayed")!;
     expect(row.classList.contains("radar-row-hidden")).toBe(true);
     expect(row.querySelector(".radar-hidden-chip")?.textContent).toBe("hidden");
@@ -2667,6 +2715,7 @@ describe("hidden workers", () => {
     localStorage.setItem("radar-sidebar:show-hidden:v1", "on");
     const slot = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botsDeck: true } });
     await waitFor(() => expect(slot.container.querySelector(".radar-bot-card[data-thread-id='root']")).toBeTruthy());
+    await waitFor(() => expect(visibleRowIds(slot.container)).toContain("relayed"));
     const ids = visibleRowIds(slot.container);
     expect(ids.indexOf("relayed")).toBeGreaterThan(ids.indexOf("worker"));
     expect(rowOf(slot.container, "relayed")!.classList.contains("radar-row-child")).toBe(true);
@@ -2678,6 +2727,7 @@ describe("hidden workers", () => {
     await waitFor(() => expect(visibleRowIds(first.container)).toEqual(["worker"]));
     fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
     expect(localStorage.getItem("radar-sidebar:show-hidden:v1")).toBe("on");
+    await waitFor(() => expect(visibleRowIds(first.container)).toEqual(["worker", "relayed"]));
     cleanup();
     const second = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(second.container)).toEqual(["worker", "relayed"]));
@@ -2690,13 +2740,16 @@ describe("hidden workers", () => {
   it("shows a hidden thread and hides a visible worker from the row menu", async () => {
     localStorage.setItem("radar-sidebar:show-hidden:v1", "on");
     setRailScope("personal");
-    const { sdk, update } = sdkWith();
+    const { sdk, update, list } = sdkWith();
     const slot = renderThreads(threads, { sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]));
+    const fetches = list.mock.calls.length;
     fireEvent.contextMenu(slot.container.querySelector("[data-sidebar-thread-id='relayed']")!);
     expect(screen.queryByRole("menuitem", { name: "Hide" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Show thread" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith({ threadId: "relayed", visibility: "visible" }));
+    // The row moves without waiting for the next tick.
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(fetches));
     fireEvent.contextMenu(slot.container.querySelector("[data-sidebar-thread-id='worker']")!);
     expect(screen.queryByRole("menuitem", { name: "Show thread" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Hide" }));

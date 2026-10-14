@@ -10,6 +10,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 - **Hidden workers** in the view-options panel (off by default, remembered per client as `radar-sidebar:show-hidden:v1`) lists the worker threads the bot plugin hides after relaying their result, dimmed with a "hidden" chip after their visible siblings, under their bot or in their family. A hidden row's menu offers **Show thread** and a visible worker's offers **Hide**; hidden rows never enter Pinned, Needs you, status filters or counts.
 
+### Fixed
+
+- **Hidden workers** showed nothing: bb's sidebar feed leaves hidden threads out. With the option on, Radar now lists each feed and roster project's hidden threads itself (`sdk.threads.list` with `includeHidden`), keeps the hidden workers the feed lacks, and refetches every minute, on window focus and right after Show thread or Hide. Off, it fetches nothing.
+
 - A `grouping` plugin setting (**Group threads by**: `time`, `project` or `section`, default `time`).
 
 ### Changed

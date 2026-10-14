@@ -34,6 +34,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { isHeldThread, isLiveThread } from "./time";
+import { hiddenChanged } from "./hiddenThreads";
 import {
   formatReasoningLevel,
   useModelDisplayName,
@@ -464,10 +465,10 @@ function RadarThreadRowImpl({
   const inlineActions = useMemo<PluginThreadActionsInlineItem[]>(() => [
     ...(thread.isHidden ? [{
       key: "radar-sidebar/show", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Show thread", icon: "Eye", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "visible" }); } },
+      action: { label: "Show thread", icon: "Eye", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "visible" }); hiddenChanged(); } },
     } satisfies PluginThreadActionsInlineItem] : isWorker ? [{
       key: "radar-sidebar/hide", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Hide", icon: "EyeOff", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "hidden" }); } },
+      action: { label: "Hide", icon: "EyeOff", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "hidden" }); hiddenChanged(); } },
     } satisfies PluginThreadActionsInlineItem] : []),
     ...(hasChildren || thread.parentThreadId ? [{
       key: "radar-sidebar/family-read", group: experimental_THREAD_ACTION_GROUPS.organize,
@@ -715,9 +716,10 @@ function RadarThreadRowImpl({
   const statusWord = held ? HELD_WORD : statusWordFor(thread.indicator);
   // Drawn by the row only when it drops a leading emoji from a title without
   // mentions; otherwise bb's ThreadTitle. Tooltips and labels keep it all.
+  // Hidden rows are fetched by Radar, not in bb's feed, so ThreadTitle would draw nothing.
   const strippedTitle = stripLeadingEmoji(thread.displayTitle);
-  const shownTitle =
-    strippedTitle !== thread.displayTitle && !MENTION.test(thread.title ?? thread.titleFallback ?? "") ? strippedTitle : null;
+  const shownTitle = thread.isHidden ||
+    (strippedTitle !== thread.displayTitle && !MENTION.test(thread.title ?? thread.titleFallback ?? "")) ? strippedTitle : null;
 
   // Model + thinking only while the thread is in flight. The options
   // endpoint resolves *defaults*, so it reports a model for any thread at

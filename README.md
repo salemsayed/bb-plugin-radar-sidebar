@@ -196,7 +196,7 @@ bb plugin install path:$PWD --yes
 | **Needs-you lane** | The one place for what waits on you: the bots’ saved asks, reminders and alerts (Done or Seen, Snooze, Undo, the bot’s recommended reply) above the threads waiting for an answer or approval. |
 | **Native navigation rail** | BB destinations only. Bot shortcuts sit in Radar’s list header. |
 | **Row hover** | A single ⋯ menu (pin, rename, archive and more); a peek card after a short pause. |
-| **View options → Hidden workers** | Lists the worker threads a bot hid after relaying their result, dimmed with a “hidden” chip under their bot; their menu has **Show thread**, and a visible worker’s has **Hide**. Off by default and remembered per client. |
+| **View options → Hidden workers** | Lists the worker threads a bot hid after relaying their result, dimmed with a “hidden” chip under their bot; their menu has **Show thread**, and a visible worker’s has **Hide**. bb’s sidebar feed leaves hidden threads out, so with this on Radar fetches them itself (`threads.list` with hidden threads included, per project in the feed and the bot roster) every minute, on window focus and right after Show thread or Hide; off, it fetches nothing. Hidden threads with no parent or owner are not workers and stay out. Off by default and remembered per client. |
 | **Settings → Appearance** | Choose Radar for the thread list. |
 
 ## Navigation and bot shortcuts
