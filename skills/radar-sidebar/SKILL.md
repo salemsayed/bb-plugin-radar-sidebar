@@ -259,6 +259,8 @@ rows paint at their final height.
 | `swipeRight` | `Mark read / unread` | Rightward swipe action: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` or `Nothing`. |
 | `swipeLeft` | `Archive / unarchive` | Leftward swipe action, same options. |
 
+**Show hidden workers** (view-options panel, per client, `radar-sidebar:show-hidden:v1`, off by default) keeps `isHidden` threads as dimmed rows with a "hidden" chip after their visible siblings, under their bot or in their family; the host's thread array already includes them, so nothing is refetched. Their row menu has **Show thread** (`sdk.threads.update({ visibility: "visible" })`) and a visible worker's has **Hide**; hidden rows stay out of Pinned, Needs you, status filters and counts.
+
 ## Bot selection storage
 
 - `radar-sidebar:rail-bot-scope:v1`: selected bot key; absence means all threads. The retired `rail-scope:v1` project filter is ignored.

@@ -43,6 +43,7 @@ const LAST_DEFAULT_DENSITY_KEY = "radar-sidebar:last-default-density:v1";
 const LAST_TWO_LINE_TITLES_KEY = "radar-sidebar:last-two-line-titles:v1";
 const WORKING_OPEN_KEY = "radar-sidebar:working-open:v1";
 export const NEEDS_LANE_OPEN_KEY = "radar-sidebar:needs-lane-open:v1";
+export const SHOW_HIDDEN_KEY = "radar-sidebar:show-hidden:v1";
 
 export function readStored<T extends string>(
   key: string,
@@ -187,6 +188,18 @@ export function useNeedsLaneOpen(): [boolean, Dispatch<SetStateAction<boolean>>]
     writeStored(NEEDS_LANE_OPEN_KEY, open ? "open" : "closed");
   }, [open]);
   return [open, setOpen];
+}
+
+/** Hidden workers stay out of the list unless this client asked to see them.
+ * The host's thread array already carries them, so the switch never refetches. */
+export function useShowHidden(): [boolean, Dispatch<SetStateAction<boolean>>] {
+  const [showHidden, setShowHidden] = useState(
+    () => readStored(SHOW_HIDDEN_KEY, "off", ["off", "on"]) === "on",
+  );
+  useEffect(() => {
+    writeStored(SHOW_HIDDEN_KEY, showHidden ? "on" : "off");
+  }, [showHidden]);
+  return [showHidden, setShowHidden];
 }
 
 export interface SavedView {

@@ -44,6 +44,8 @@ export function RadarListHeader({
   motion,
   actions,
   onNavigate,
+  showHidden,
+  onToggleShowHidden,
 }: {
   view: ListView;
   searchInputRef: RefObject<HTMLInputElement | null>;
@@ -65,6 +67,8 @@ export function RadarListHeader({
   motion: boolean;
   actions: RadarThreadActions;
   onNavigate: () => void;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
 }) {
   const {
     query,
@@ -293,6 +297,16 @@ export function RadarListHeader({
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              aria-pressed={showHidden}
+              title="Show worker threads hidden after their result was relayed"
+              className={cn("radar-view-action", showHidden && "radar-view-action-active")}
+              onClick={onToggleShowHidden}
+            >
+              <Icon name={showHidden ? "Eye" : "EyeOff"} aria-hidden="true" />
+              <span>Show hidden workers</span>
+            </button>
           </RadarViewSection>
           <RadarViewSection label="Group by">
             <div role="group" aria-label="Grouping" className="radar-segmented">

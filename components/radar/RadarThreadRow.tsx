@@ -458,7 +458,17 @@ function RadarThreadRowImpl({
     keys: viewport.renderContents ? undefined : ["bb--core/archive", "bb--core/delete"],
   });
   useLayoutEffect(() => actions.register(thread.id, registeredActions), [actions, thread.id, registeredActions]);
+  // Hidden workers (relayed results, routine runs) only show with the view
+  // option on; any worker can be tucked away or brought back from its menu.
+  const isWorker = !!(thread.parentThreadId || thread.lifecycleOwnerThreadId);
   const inlineActions = useMemo<PluginThreadActionsInlineItem[]>(() => [
+    ...(thread.isHidden ? [{
+      key: "radar-sidebar/show", group: experimental_THREAD_ACTION_GROUPS.organize,
+      action: { label: "Show thread", icon: "Eye", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "visible" }); } },
+    } satisfies PluginThreadActionsInlineItem] : isWorker ? [{
+      key: "radar-sidebar/hide", group: experimental_THREAD_ACTION_GROUPS.organize,
+      action: { label: "Hide", icon: "EyeOff", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "hidden" }); } },
+    } satisfies PluginThreadActionsInlineItem] : []),
     ...(hasChildren || thread.parentThreadId ? [{
       key: "radar-sidebar/family-read", group: experimental_THREAD_ACTION_GROUPS.organize,
       action: { label: "Mark family read", icon: "MailOpen", run: () => onMarkFamilyRead(thread) },
@@ -470,7 +480,7 @@ function RadarThreadRowImpl({
         { id: "none", label: "No section", selected: thread.sectionId === null },
       ] }, run: async ({ value }) => { if (value) await sdk.threads.update({ threadId: thread.id, sectionId: value === "none" ? null : value }); } },
     } satisfies PluginThreadActionsInlineItem]),
-  ], [hasChildren, thread, sections, sdk, registeredActions, onMarkFamilyRead]);
+  ], [hasChildren, isWorker, thread, sections, sdk, registeredActions, onMarkFamilyRead]);
 
   useLayoutEffect(() => {
     if (!moreEnabled || !requestedMore.current) return;
@@ -754,7 +764,8 @@ function RadarThreadRowImpl({
     return <div ref={viewport.ref}
       className={cn("radar-row radar-row-placeholder", density === "compact" && "radar-row-compact",
         depth === 0 && "radar-row-root", depth === 1 && "radar-row-child", depth > 1 && "radar-row-deep",
-        depth > 0 && isLastChild && "radar-row-last", isActive && "radar-row-active", isSelected && "radar-row-selected")}
+        depth > 0 && isLastChild && "radar-row-last", isActive && "radar-row-active", isSelected && "radar-row-selected",
+        thread.isHidden && "radar-row-hidden")}
       data-has-branch={depth === 0 && !!thread.environment?.branchName || undefined}
       style={viewport.height === undefined ? undefined : { height: viewport.height }}
       onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}>
@@ -1120,6 +1131,7 @@ function RadarThreadRowImpl({
         thread.isUnread && !needsUser && !failed && "radar-row-unread",
         needsUser && "radar-row-needs-user",
         failed && "radar-row-failed",
+        thread.isHidden && "radar-row-hidden",
         actionPulseClass,
       )}
       ref={viewport.ref}
@@ -1213,6 +1225,9 @@ function RadarThreadRowImpl({
               <span className="radar-thread-title">
                 {shownTitle !== null ? <span>{shownTitle}</span> : <ThreadTitle threadId={thread.id} />}
               </span>
+              {thread.isHidden ? (
+                <span className="radar-hidden-chip" title="Hidden from bb's list">hidden</span>
+              ) : null}
             </span>
             {(() => {
               if (!collapse?.collapsed || collapse.hiddenTotal === 0) {

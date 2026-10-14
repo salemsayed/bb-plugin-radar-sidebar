@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Added
+
+- **Show hidden workers** in the view-options panel (off by default, remembered per client as `radar-sidebar:show-hidden:v1`) lists the worker threads the bot plugin hides after relaying their result, dimmed with a "hidden" chip after their visible siblings, under their bot or in their family. A hidden row's menu offers **Show thread** and a visible worker's offers **Hide**; hidden rows never enter Pinned, Needs you, status filters or counts.
+
 ### Changed
 
 - The Needs-you lane is the one bot surface in Radar. The bots' saved Needs items (decisions, reminders, deadlines and the new **alerts**) now render at the top of the sidebar list, above the threads waiting for an answer or approval, instead of on the Crew page.

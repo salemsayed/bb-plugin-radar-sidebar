@@ -62,6 +62,11 @@ function isWaitingOnUser(thread: PluginSidebarThread): boolean {
   return thread.indicator === "waiting-for-input" || thread.hasPendingInteraction;
 }
 
+/** Hidden workers sort after their visible siblings. */
+function hiddenLast(a: PluginSidebarThread, b: PluginSidebarThread): number {
+  return Number(a.isHidden) - Number(b.isHidden);
+}
+
 export const UNFILED_GROUP_ID = "section:__unfiled__";
 export const NEEDS_YOU_GROUP_ID = "needs-you";
 export const WORKING_GROUP_ID = "working";
@@ -93,6 +98,9 @@ export function useThreadGroups(args: {
   hideWorking?: boolean;
   /** The open thread: its family stays where it is rather than vanishing on send. */
   activeThreadId?: string | null;
+  /** Keep hidden workers as rows (dimmed, last among siblings); they never
+   * enter the pinned block, the Needs-you lane, status filters or counts. */
+  showHidden?: boolean;
 }) {
   const {
     threads,
@@ -109,6 +117,7 @@ export function useThreadGroups(args: {
     needsYouLane = true,
     hideWorking = false,
     activeThreadId = null,
+    showHidden = false,
   } = args;
 
   const projectById = useMemo(
@@ -125,10 +134,10 @@ export function useThreadGroups(args: {
     [projectById],
   );
 
-  // Candidate rows: the host's lifecycle set minus hidden helpers.
+  // Candidate rows: the host's lifecycle set minus hidden helpers, unless asked for.
   const allRows = useMemo(
-    () => threads.filter((thread) => !thread.isHidden),
-    [threads],
+    () => showHidden ? [...threads] : threads.filter((thread) => !thread.isHidden),
+    [threads, showHidden],
   );
   const rowById = useMemo(
     () => new Map(allRows.map((thread) => [thread.id, thread])),
@@ -177,6 +186,7 @@ export function useThreadGroups(args: {
     let waiting = 0;
     let unread = 0;
     for (const thread of allRows) {
+      if (thread.isHidden) continue;
       if (isLiveThread(thread)) live += 1;
       if (isWaitingOnUser(thread)) waiting += 1;
       if (thread.isUnread) unread += 1;
@@ -190,6 +200,7 @@ export function useThreadGroups(args: {
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const matchesStatus = (thread: PluginSidebarThread) => {
       if (statusFilter === "all") return true;
+      if (thread.isHidden) return false;
       if (statusFilter === "live") return isLiveThread(thread);
       if (statusFilter === "waiting") return isWaitingOnUser(thread);
       if (statusFilter === "unread") return thread.isUnread;
@@ -252,7 +263,7 @@ export function useThreadGroups(args: {
     for (const [parentId, kids] of childrenOf) {
       const shown = kids
         .filter((kid) => shownIds.has(kid.id))
-        .sort((a, b) => activityTime(b, now) - activityTime(a, now));
+        .sort((a, b) => hiddenLast(a, b) || activityTime(b, now) - activityTime(a, now));
       if (shown.length > 0) map.set(parentId, shown);
     }
     return map;
@@ -286,27 +297,30 @@ export function useThreadGroups(args: {
     return (root: PluginSidebarThread): SubtreeCounts => {
       const cached = cache.get(root.id);
       if (cached) return cached;
+      // Hidden workers count as rows and as work, never as asks for attention.
+      const quiet = root.isHidden;
       let total = 1;
-      let unread = root.isUnread ? 1 : 0;
+      let unread = !quiet && root.isUnread ? 1 : 0;
       let live = Number(isRunningThread(root));
-      let needsUser = Number(root.indicator === "waiting-for-input");
+      let needsUser = Number(!quiet && root.indicator === "waiting-for-input");
       let failed = Number(
-        root.indicator === "unread-error" ||
-        root.indicator === "queued-failed",
+        !quiet && (root.indicator === "unread-error" ||
+        root.indicator === "queued-failed"),
       );
       const kids: { id: string; title: string; dot: string | null }[] = [];
       const walk = (id: string, depth: number) => {
         if (depth > 25) return;
         for (const child of shownChildren.get(id) ?? []) {
           total += 1;
-          if (child.isUnread) unread += 1;
+          const loud = !child.isHidden;
+          if (loud && child.isUnread) unread += 1;
           const childLive = isRunningThread(child);
           if (childLive) live += 1;
-          const childNeeds = child.indicator === "waiting-for-input";
+          const childNeeds = loud && child.indicator === "waiting-for-input";
           if (childNeeds) needsUser += 1;
-          const childFailed =
+          const childFailed = loud && (
             child.indicator === "unread-error" ||
-            child.indicator === "queued-failed";
+            child.indicator === "queued-failed");
           if (childFailed) failed += 1;
           if (kids.length < 5) {
             kids.push({
@@ -318,7 +332,7 @@ export function useThreadGroups(args: {
                   ? "radar-dot-attention"
                   : childLive
                     ? "radar-dot-running radar-dot-pulse"
-                    : child.isUnread
+                    : loud && child.isUnread
                       ? "radar-unread"
                       : null,
             });
@@ -393,7 +407,7 @@ export function useThreadGroups(args: {
     if (!needsYouLane) return null;
     const bots = new Set(botThreadIds);
     const list = roots
-      .filter((root) => !bots.has(root.id) && needsYou(root))
+      .filter((root) => !bots.has(root.id) && !root.isHidden && needsYou(root))
       .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
     return list.length === 0 ? null : assembleGroup(NEEDS_YOU_GROUP_ID, "Needs you", "AlertCircle", list);
   }, [needsYouLane, roots, botThreadIds, subtreeActivity, assembleGroup]);
@@ -456,15 +470,15 @@ export function useThreadGroups(args: {
   }, [takenIds, workingGroup]);
 
   const pinnedGroup = useMemo<ThreadGroup | null>(() => {
-    const pinnedRoots = roots.filter((root) => root.isPinned && !takenIds.has(root.id)).sort(comparePinned);
+    const pinnedRoots = roots.filter((root) => root.isPinned && !root.isHidden && !takenIds.has(root.id)).sort(comparePinned);
     if (pinnedRoots.length === 0) return null;
     return assembleGroup("pinned", "Pinned", "Pin", pinnedRoots);
   }, [roots, assembleGroup, takenIds]);
 
   const groups = useMemo<ThreadGroup[]>(() => {
     const rest = roots
-      .filter((root) => !root.isPinned && !listedIds.has(root.id))
-      .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
+      .filter((root) => (!root.isPinned || root.isHidden) && !listedIds.has(root.id))
+      .sort((a, b) => hiddenLast(a, b) || subtreeActivity(b) - subtreeActivity(a));
     if (grouping === "project") {
       const byProject = new Map<string, PluginSidebarThread[]>();
       for (const root of rest) {

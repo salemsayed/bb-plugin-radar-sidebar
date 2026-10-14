@@ -116,6 +116,7 @@
 .radar-view-action:hover { background: var(--muted); }
 .radar-view-action:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .radar-view-action [data-icon-root] { width: 14px; height: 14px; }
+.radar-view-action-active { background: var(--muted); border-color: var(--ring); }
 
 /* Only while something narrows the list: one removable pill per filter. */
 .radar-active-filters {

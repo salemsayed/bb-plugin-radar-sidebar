@@ -198,6 +198,7 @@ bb plugin install path:$PWD --yes
 | **Needs-you lane** | The one place for what waits on you: the bots’ saved asks, reminders and alerts (Done or Seen, Snooze, Undo, the bot’s recommended reply) above the threads waiting for an answer or approval. |
 | **Native navigation rail** | BB destinations only. Bot shortcuts sit in Radar’s list header. |
 | **Row hover** | A single ⋯ menu (pin, rename, archive and more); a peek card after a short pause. |
+| **View options → Show hidden workers** | Lists the worker threads a bot hid after relaying their result, dimmed with a “hidden” chip under their bot; their menu has **Show thread**, and a visible worker’s has **Hide**. Off by default and remembered per client. |
 | **Settings → Appearance** | Choose Radar for the thread list. |
 
 ## Navigation and bot shortcuts
@@ -270,6 +271,9 @@ flowchart LR
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A swipe starts only once sideways travel passes 12px and 1.5× the vertical travel, and arms at 40% of the row (at least 64px); a quick flick commits only after the gesture has armed once. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |
 | `swipeLeft` | `"Archive / unarchive"` | Action for a leftward swipe, from the same list. |
+
+**Show hidden workers** is a per-client view option rather than a plugin
+setting: it lives in the view-options panel and is stored in this browser.
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last

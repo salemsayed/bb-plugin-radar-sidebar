@@ -36,6 +36,7 @@ import {
   useListSettings,
   useListView,
   useNeedsLaneOpen,
+  useShowHidden,
   useWorkingOpen,
 } from "./useListSettings";
 import { useListKeyboard } from "./useListKeyboard";
@@ -81,6 +82,7 @@ export function RadarThreadList({
   const [groupMenu, setGroupMenu] = useState<GroupMenuAnchor | null>(null);
   const [workingOpen, setWorkingOpen] = useWorkingOpen();
   const [needsLaneOpen, setNeedsLaneOpen] = useNeedsLaneOpen();
+  const [showHidden, setShowHidden] = useShowHidden();
   // Typing stays responsive: the heavy list derivation trails the input.
   const deferredQuery = useDeferredValue(query);
   // Filtering forces everything open so matches never hide inside folds.
@@ -235,6 +237,7 @@ export function RadarThreadList({
     // A bot's view is for watching its workers, so they stay in the list.
     hideWorking: settings.hideWorking && !scopedBot,
     activeThreadId,
+    showHidden,
   });
 
   // Rows never move under the pointer or a finger: while the list is hovered,
@@ -254,6 +257,7 @@ export function RadarThreadList({
   const shownLayout = useFrozenOrder(latestLayout, orderFreeze.frozen, regroup, JSON.stringify([
     grouping, deferredQuery, statusFilter, lifecycle, railScope, projectOrder,
     settings.needsYouLane, settings.hideWorking, settings.nestByOwner, settings.hideEmptySections,
+    showHidden,
   ]));
   const [needsYouRegion, botGroups, pinnedRegion, groups, workingRegion] = shownLayout.regions as [
     ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[],
@@ -443,7 +447,7 @@ export function RadarThreadList({
         view={view}
         searchInputRef={searchInputRef}
         statusCounts={statusCounts}
-        pinnedCount={allRows.filter((thread) => thread.isPinned).length}
+        pinnedCount={allRows.filter((thread) => thread.isPinned && !thread.isHidden).length}
         isCompactViewport={isCompactViewport}
         density={density}
         onSelectDensity={selectDensity}
@@ -460,6 +464,8 @@ export function RadarThreadList({
         motion={settings.motion}
         actions={actions}
         onNavigate={onNavigate}
+        showHidden={showHidden}
+        onToggleShowHidden={() => setShowHidden((value) => !value)}
       />
 
       <div

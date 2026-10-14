@@ -787,6 +787,30 @@ a.radar-row-main:hover {
   text-overflow: ellipsis;
 }
 
+/* Hidden workers, shown by the "Show hidden workers" view option. */
+.radar-row-hidden > .radar-row-main,
+.radar-row-hidden > .radar-row-actions {
+  opacity: 0.55;
+}
+
+.radar-row-hidden:hover > .radar-row-main,
+.radar-row-hidden:focus-within > .radar-row-main,
+.radar-row-hidden.radar-row-active > .radar-row-main {
+  opacity: 0.8;
+}
+
+.radar-hidden-chip {
+  flex: none;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
 .radar-thinking-chip {
   text-transform: uppercase;
   letter-spacing: 0.04em;
