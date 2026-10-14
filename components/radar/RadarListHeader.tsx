@@ -7,21 +7,21 @@ import { RadarBotSwitcher } from "./RadarBotSwitcher";
 import { BotFace } from "./BotFace";
 import { shortBotName, type Pulse, type RosterBot } from "./bots";
 import { setRailScope } from "./railScope";
-import { RadarSmartViews } from "./RadarSmartViews";
-import { RadarViewOptions, RadarViewSection } from "./RadarViewOptions";
+import { RadarViewOptions } from "./RadarViewOptions";
 import { RadarNewSection } from "./RadarNewSection";
 import type { RadarThreadActions } from "./threadActions";
 import {
   LIFECYCLE_LABELS,
   STATUS_LABELS,
-  type DensityMode,
+  type Grouping,
   type ListView,
 } from "./useListSettings";
 
 /**
  * The sticky header: bot shortcuts (when on), the filter field, the view
- * options panel (status chips, smart views, lifecycle, grouping, density,
- * collapse all) and a removable pill per active filter.
+ * options panel (status chips, the Archived and Hidden workers toggles,
+ * collapse all) and a removable pill per active filter. Grouping and row
+ * density are plugin settings, not panel controls.
  */
 export function RadarListHeader({
   view,
@@ -29,8 +29,7 @@ export function RadarListHeader({
   statusCounts,
   pinnedCount,
   isCompactViewport,
-  density,
-  onSelectDensity,
+  grouping,
   areAllGroupsCollapsed,
   onToggleAllGroups,
   botRail,
@@ -52,8 +51,7 @@ export function RadarListHeader({
   statusCounts: { live: number; waiting: number; unread: number };
   pinnedCount: number;
   isCompactViewport: boolean;
-  density: DensityMode;
-  onSelectDensity: (density: DensityMode) => void;
+  grouping: Grouping;
   areAllGroupsCollapsed: boolean;
   onToggleAllGroups: () => void;
   botRail: boolean;
@@ -74,15 +72,10 @@ export function RadarListHeader({
     query,
     setQuery,
     lifecycle,
-    grouping,
     statusFilter,
-    activeView,
     selectLifecycle,
-    selectGrouping,
     selectStatus,
     toggleStatus,
-    selectView,
-    clearView,
   } = view;
 
   // A bot's pill has two halves: its name opens the coordinator (the list
@@ -167,136 +160,125 @@ export function RadarListHeader({
           )}
         </div>
         <RadarViewOptions>
-          <RadarViewSection label="Status">
-            <div
-              role="radiogroup"
-              aria-label="Status filter"
-              className="radar-status-chips"
+          <div
+            role="radiogroup"
+            aria-label="Status filter"
+            className="radar-status-chips"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "all"}
+              className={cn(
+                "radar-chip",
+                statusFilter === "all" && "radar-chip-active",
+              )}
+              onClick={() => selectStatus("all")}
             >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={statusFilter === "all"}
-                className={cn(
-                  "radar-chip",
-                  statusFilter === "all" && "radar-chip-active",
-                )}
-                onClick={() => selectStatus("all")}
-              >
-                Any
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={statusFilter === "live"}
-                className={cn(
-                  "radar-chip",
-                  "radar-chip-iconic",
-                  statusFilter === "live" && "radar-chip-active",
-                )}
-                aria-label="Live"
-                onClick={() => toggleStatus("live")}
-                title="Filter live / active threads"
-              >
-                <span
-                  className={cn(
-                    "radar-chip-indicator radar-tone-running",
-                    statusCounts.live > 0 && "radar-icon-pulse",
-                  )}
-                >
-                  <Icon name="Zap" aria-hidden="true" />
-                </span>
-                <span className="radar-chip-label">Live</span>
-                {statusCounts.live > 0 ? (
-                  <span className="radar-chip-count">{statusCounts.live}</span>
-                ) : null}
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={statusFilter === "waiting"}
-                className={cn(
-                  "radar-chip",
-                  "radar-chip-iconic",
-                  statusFilter === "waiting" && "radar-chip-active",
-                )}
-                aria-label="Waiting"
-                onClick={() => toggleStatus("waiting")}
-                title="Filter threads waiting for input or confirmation"
-              >
-                <span
-                  className={cn(
-                    "radar-dot radar-dot-attention",
-                    statusCounts.waiting > 0 && "radar-dot-pulse",
-                  )}
-                />
-                <span className="radar-chip-label">Waiting</span>
-                {statusCounts.waiting > 0 ? (
-                  <span className="radar-chip-count">{statusCounts.waiting}</span>
-                ) : null}
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={statusFilter === "unread"}
-                className={cn(
-                  "radar-chip",
-                  "radar-chip-iconic",
-                  statusFilter === "unread" && "radar-chip-active",
-                )}
-                aria-label="Unread"
-                onClick={() => toggleStatus("unread")}
-                title="Filter unread threads"
-              >
-                <span className="radar-unread" />
-                <span className="radar-chip-label">Unread</span>
-                {statusCounts.unread > 0 ? (
-                  <span className="radar-chip-count">{statusCounts.unread}</span>
-                ) : null}
-              </button>
-            </div>
-            <RadarSmartViews
-              activeViewId={activeView?.id ?? null}
-              currentQuery={query}
-              currentStatusFilter={statusFilter}
-              currentLifecycle={lifecycle}
-              counts={{
-                pinned: pinnedCount,
-                live: statusCounts.live,
-                waiting: statusCounts.waiting,
-                unread: statusCounts.unread,
-              }}
-              onSelectView={selectView}
-              onClearView={clearView}
-            />
-          </RadarViewSection>
-          <RadarViewSection label="Threads">
-            <div
-              role="group"
-              aria-label="Thread lifecycle"
-              className="radar-segmented"
+              Any
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "live"}
+              className={cn(
+                "radar-chip",
+                "radar-chip-iconic",
+                statusFilter === "live" && "radar-chip-active",
+              )}
+              aria-label="Live"
+              onClick={() => toggleStatus("live")}
+              title="Filter live / active threads"
             >
-              {(
-                [
-                  ["active", "Active"],
-                  ["archived", "Archived"],
-                  ["all", "All"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={lifecycle === value}
-                  className={cn(
-                    "radar-segmented-button",
-                    lifecycle === value && "radar-segmented-button-active",
-                  )}
-                  onClick={() => selectLifecycle(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+              <span
+                className={cn(
+                  "radar-chip-indicator radar-tone-running",
+                  statusCounts.live > 0 && "radar-icon-pulse",
+                )}
+              >
+                <Icon name="Zap" aria-hidden="true" />
+              </span>
+              <span className="radar-chip-label">Live</span>
+              {statusCounts.live > 0 ? (
+                <span className="radar-chip-count">{statusCounts.live}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "waiting"}
+              className={cn(
+                "radar-chip",
+                "radar-chip-iconic",
+                statusFilter === "waiting" && "radar-chip-active",
+              )}
+              aria-label="Waiting"
+              onClick={() => toggleStatus("waiting")}
+              title="Filter threads waiting for input or confirmation"
+            >
+              <span
+                className={cn(
+                  "radar-dot radar-dot-attention",
+                  statusCounts.waiting > 0 && "radar-dot-pulse",
+                )}
+              />
+              <span className="radar-chip-label">Waiting</span>
+              {statusCounts.waiting > 0 ? (
+                <span className="radar-chip-count">{statusCounts.waiting}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "unread"}
+              className={cn(
+                "radar-chip",
+                "radar-chip-iconic",
+                statusFilter === "unread" && "radar-chip-active",
+              )}
+              aria-label="Unread"
+              onClick={() => toggleStatus("unread")}
+              title="Filter unread threads"
+            >
+              <span className="radar-unread" />
+              <span className="radar-chip-label">Unread</span>
+              {statusCounts.unread > 0 ? (
+                <span className="radar-chip-count">{statusCounts.unread}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "pinned"}
+              className={cn(
+                "radar-chip",
+                "radar-chip-iconic",
+                statusFilter === "pinned" && "radar-chip-active",
+              )}
+              aria-label="Pinned"
+              onClick={() => toggleStatus("pinned")}
+              title="Filter pinned threads"
+            >
+              <span className="radar-chip-indicator">
+                <Icon name="Pin" aria-hidden="true" />
+              </span>
+              <span className="radar-chip-label">Pinned</span>
+              {pinnedCount > 0 ? (
+                <span className="radar-chip-count">{pinnedCount}</span>
+              ) : null}
+            </button>
+          </div>
+          <div className="radar-view-row">
+            <button
+              type="button"
+              aria-pressed={lifecycle === "all"}
+              title="Include archived threads"
+              className={cn("radar-view-action", lifecycle === "all" && "radar-view-action-active")}
+              onClick={() => selectLifecycle(lifecycle === "all" ? "active" : "all")}
+            >
+              <Icon name="Archive" aria-hidden="true" />
+              <span>Archived</span>
+            </button>
             <button
               type="button"
               aria-pressed={showHidden}
@@ -305,66 +287,10 @@ export function RadarListHeader({
               onClick={onToggleShowHidden}
             >
               <Icon name={showHidden ? "Eye" : "EyeOff"} aria-hidden="true" />
-              <span>Show hidden workers</span>
+              <span>Hidden workers</span>
             </button>
-          </RadarViewSection>
-          <RadarViewSection label="Group by">
-            <div role="group" aria-label="Grouping" className="radar-segmented">
-              {(
-                [
-                  ["time", "Time", "Group by time", "Group by time"],
-                  ["project", "Project", "Group by project", "Group by project"],
-                  [
-                    "section",
-                    "Section",
-                    "Group by section (drag threads between them)",
-                    "Group by section — drag a thread onto a header to file it",
-                  ],
-                ] as const
-              ).map(([value, label, ariaLabel, title]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={grouping === value}
-                  aria-label={ariaLabel}
-                  title={title}
-                  className={cn(
-                    "radar-segmented-button",
-                    grouping === value && "radar-segmented-button-active",
-                  )}
-                  onClick={() => selectGrouping(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </RadarViewSection>
-          <RadarViewSection label="Layout">
-            {/* Touch viewports are always compact, so density has no say there. */}
-            {isCompactViewport ? null : (
-              <div role="group" aria-label="Row density" className="radar-segmented">
-                {(
-                  [
-                    ["comfortable", "Comfortable", "Comfortable view"],
-                    ["compact", "Compact", "Compact view"],
-                  ] as const
-                ).map(([value, label, ariaLabel]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={density === value}
-                    aria-label={ariaLabel}
-                    className={cn(
-                      "radar-segmented-button",
-                      density === value && "radar-segmented-button-active",
-                    )}
-                    onClick={() => onSelectDensity(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+          </div>
+          <div className="radar-view-row">
             <button
               type="button"
               aria-label={
@@ -381,22 +307,22 @@ export function RadarListHeader({
               />
               <span>{areAllGroupsCollapsed ? "Expand all" : "Collapse all"}</span>
             </button>
-          </RadarViewSection>
+          </div>
         </RadarViewOptions>
       </div>
 
-      {scopePill || activeView !== null || statusFilter !== "all" || lifecycle !== "active" ? (
+      {scopePill || statusFilter !== "all" || lifecycle !== "active" ? (
         <div role="group" aria-label="Active filters" className="radar-active-filters">
           {scopePill}
-          {activeView !== null || statusFilter !== "all" ? (
+          {statusFilter !== "all" ? (
             <button
               type="button"
               className="radar-active-filter"
-              aria-label={`Clear ${activeView?.name ?? STATUS_LABELS[statusFilter]} filter`}
+              aria-label={`Clear ${STATUS_LABELS[statusFilter]} filter`}
               title="Clear this filter"
-              onClick={() => (activeView ? clearView() : selectStatus("all"))}
+              onClick={() => selectStatus("all")}
             >
-              <span>{activeView?.name ?? STATUS_LABELS[statusFilter]}</span>
+              <span>{STATUS_LABELS[statusFilter]}</span>
               <Icon name="X" aria-hidden="true" />
             </button>
           ) : null}

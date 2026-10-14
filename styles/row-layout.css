@@ -787,7 +787,7 @@ a.radar-row-main:hover {
   text-overflow: ellipsis;
 }
 
-/* Hidden workers, shown by the "Show hidden workers" view option. */
+/* Hidden workers, shown by the "Hidden workers" view option. */
 .radar-row-hidden > .radar-row-main,
 .radar-row-hidden > .radar-row-actions {
   opacity: 0.55;
@@ -1031,8 +1031,7 @@ a.radar-row-main:hover {
   .radar-row,
   .radar-row-actions,
   .radar-fold,
-  .radar-list-switching,
-  .radar-segmented-button:active {
+  .radar-list-switching {
     transition: none;
     transform: none;
   }

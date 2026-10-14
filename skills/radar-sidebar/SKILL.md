@@ -13,11 +13,11 @@ through BB's own flows (pins, reads, renames, archives, deletes).
 
 - **Thread list** (`experimental_threadList`, id `radar`): pinned threads,
   then Today / Yesterday / Previous 7 days / Previous 30 days / Older — or
-  group by project, or by **section** for drag-to-organise. The header is
-  one row: a text filter and a view-options button (`RadarViewOptions.tsx`)
-  whose panel holds status chips + smart views, Active / Archived / All,
-  grouping, density (hidden on touch, which is always compact) and
-  expand/collapse all. Active filters show as removable pills under the
+  group by project, or by **section** for drag-to-organise (the `grouping`
+  setting). The header is one row: a text filter and a view-options button
+  (`RadarViewOptions.tsx`) whose panel has three rows: status chips (Any,
+  Live, Waiting, Unread, Pinned), **Archived** and **Hidden workers**
+  toggles, and Collapse all / Expand all. Active filters show as removable pills under the
   search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
 - **Needs-you lane** (setting `needsYouLane`, default on): the one place for what waits on Salem. The bots' saved Needs items (decisions, reminders, deadlines, alerts, with the bot's recommended reply as the first action) sit above the threads waiting for an answer or approval. There is no Attention panel, no "Bot attention" header action and no Crew page; alerts are plain Needs rows that the bot plugin resolves itself.
@@ -36,7 +36,7 @@ States and unread badges retain the same meaning as the bot deck. Saved bot scop
   project, or section. Project groups are drag-reorderable by their header
   (order persisted in `radar-sidebar:project-order:v1`; right-click a header
   to reset). Each project header also carries a New-thread-in-project button.
-- **Create a section**: switch to section grouping, choose **New section**,
+- **Create a section**: set `grouping` to `section`, choose **New section**,
   enter its name and submit with **Create section** or Enter. Cancel or Escape
   closes the form without creating anything. Names are trimmed; blank names
   are rejected. Creation uses `sdk.threadSections.create({ name })`, with
@@ -52,14 +52,12 @@ States and unread badges retain the same meaning as the bot deck. Saved bot scop
   or Escape to cancel.
   Threads cannot be moved between *projects*: BB's update API has no
   `projectId` field, so project grouping is view-only.
-- **Smart views** (`RadarSmartViews.tsx`): the view-options panel offers a
-  Pinned preset plus any saved view. Status chips: Live (running work or a
-  pending question), Waiting (Needs you only: `waiting-for-input` or a
-  pending interaction; held and queued messages excluded), Unread, Pinned.
-  Configure query + status chip +
-  lifecycle, hit **Save view**, name it — stored in
-  `radar-sidebar:smart-views:v1`. Click a pill to apply (click again to
-  clear).
+- **Status chips**: Live (running work or a pending question), Waiting
+  (Needs you only: `waiting-for-input` or a pending interaction; held and
+  queued messages excluded), Unread, Pinned. Tapping the active chip goes
+  back to Any; the choice persists in `radar-sidebar:status-filter:v1`.
+  **Archived** adds archived threads to the active ones
+  (`radar-sidebar:lifecycles:v1` = `all`).
 - **Hover preview** (`RadarHoverCard.tsx`): pausing on a row opens a portal'd
   card (portaled because row `content-visibility` containment would clip a
   fixed-position child) with an arrow pointing at the row. Sections: title +
@@ -243,8 +241,8 @@ back to BB's list automatically.
 `bb plugin config radar-sidebar`, or Settings → Installed plugins → Radar
 Sidebar. The frontend reads them through `useSettings()`, and every value
 has a default, so the list never waits on them. Until they load,
-`defaultDensity` and `twoLineTitles` use the value this client last saw, so
-rows paint at their final height.
+`defaultDensity`, `twoLineTitles` and `grouping` use the value this client
+last saw, so the list paints at its final layout.
 
 | Key | Default | Effect |
 | --- | --- | --- |
@@ -253,13 +251,14 @@ rows paint at their final height.
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
-| `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
+| `defaultDensity` | `comfortable` | Row density, `comfortable` or `compact`, on desktop; touch is always compact. |
+| `grouping` | `time` | Group threads by `time`, `project` or `section`. |
 | `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. Starts only when sideways travel passes 12px and 1.5× vertical travel (`swipeIntent`); arms at max(64px, 40% of the row) for touch; a flick commits short of that only after arming once. |
 | `swipeRight` | `Mark read / unread` | Rightward swipe action: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` or `Nothing`. |
 | `swipeLeft` | `Archive / unarchive` | Leftward swipe action, same options. |
 
-**Show hidden workers** (view-options panel, per client, `radar-sidebar:show-hidden:v1`, off by default) keeps `isHidden` threads as dimmed rows with a "hidden" chip after their visible siblings, under their bot or in their family; the host's thread array already includes them, so nothing is refetched. Their row menu has **Show thread** (`sdk.threads.update({ visibility: "visible" })`) and a visible worker's has **Hide**; hidden rows stay out of Pinned, Needs you, status filters and counts.
+**Hidden workers** (view-options panel, per client, `radar-sidebar:show-hidden:v1`, off by default) keeps `isHidden` threads as dimmed rows with a "hidden" chip after their visible siblings, under their bot or in their family; the host's thread array already includes them, so nothing is refetched. Their row menu has **Show thread** (`sdk.threads.update({ visibility: "visible" })`) and a visible worker's has **Hide**; hidden rows stay out of Pinned, Needs you, status filters and counts.
 
 ## Bot selection storage
 
@@ -267,7 +266,7 @@ rows paint at their final height.
 - The retired `radar-sidebar:rail-wide:v1` value is ignored.
 
 These are client preferences inside the same plugin, alongside the existing
-filter, density, smart-view, project-order and collapse keys.
+filter, lifecycle, project-order and collapse keys.
 
 ## Rules
 

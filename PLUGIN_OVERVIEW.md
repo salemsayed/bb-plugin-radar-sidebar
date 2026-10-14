@@ -8,7 +8,7 @@ A thread list you can read at a glance, for BB.
   Yesterday, Previous 7 days, Previous 30 days or Older, keyed off real
   activity rather than when you last opened them, so merely reading a thread
   never floats it to the top. Group by project or by section instead with one
-  toggle, and reorder projects by dragging them.
+  setting, and reorder projects by dragging them.
 - **One colour per meaning.** Blue is running, green done, amber needs you,
   red failed, muted queued. Only rows needing a decision are tinted (amber or
   red, with a slow glow), so a tinted row always means act on it. Rows keep
@@ -21,8 +21,8 @@ A thread list you can read at a glance, for BB.
   while a thread is in flight, plus a branch line you can copy and a
   pull-request badge that opens in your browser. Pause on a row for a peek
   card with the original goal and a stacked context-window meter.
-- **For working fast.** Status filter chips, saved smart views, a text
-  filter, comfortable or compact density, keyboard traversal with quick
+- **For working fast.** Status filter chips (Pinned among them), a text
+  filter, keyboard traversal with quick
   archive and pin, multi-select bulk actions, and drag a thread onto a section
   header to file it.
 

@@ -69,19 +69,7 @@
     0 8px 24px rgb(0 0 0 / 0.16),
     0 2px 6px rgb(0 0 0 / 0.08);
 }
-.radar-view-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.radar-view-label {
-  color: var(--muted-foreground);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.radar-view-controls {
+.radar-view-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -95,10 +83,6 @@
   overflow: visible;
   padding: 0;
 }
-.radar-view-panel .radar-smart-views-bar { padding: 0; }
-.radar-view-panel .radar-smart-views-scroll { flex-wrap: wrap; overflow: visible; }
-.radar-view-panel .radar-segmented { display: flex; width: 100%; }
-.radar-view-panel .radar-segmented-button { flex: 1; min-height: 28px; }
 .radar-view-action {
   display: inline-flex;
   align-items: center;
@@ -187,16 +171,12 @@
   .radar-search .radar-search-input { height: 36px; }
   .radar-search .radar-search-shortcut { display: none; }
   .radar-view-button { width: 36px; height: 36px; }
-  .radar-view-panel .radar-segmented-button,
   .radar-view-action { min-height: 36px; }
-  .radar-view-panel .radar-chip,
-  .radar-view-panel .radar-smart-view-pill,
-  .radar-view-panel .radar-smart-view-add {
+  .radar-view-panel .radar-chip {
     height: 32px;
     padding: 0 12px;
     font-size: 13px;
   }
-  .radar-view-panel .radar-smart-view-del { width: 28px; height: 28px; opacity: 0.7; }
   .radar-active-filter { height: 32px; padding: 0 10px 0 12px; font-size: 13px; }
   .radar-scope-pill { height: 32px; }
   .radar-scope-open { padding: 0 10px 0 12px; font-size: 13px; }
@@ -408,56 +388,8 @@
   pointer-events: auto;
 }
 
-.radar-segmented {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--muted);
-}
-
-.radar-segmented-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 24px;
-  padding: 2px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.radar-segmented-button:hover {
-  color: var(--foreground);
-}
-
-.radar-segmented-button:active {
-  transform: scale(0.94);
-  transition: transform 80ms ease;
-}
-
 .radar-list-switching {
   opacity: 0.65;
   transition: opacity 120ms ease;
 }
 
-.radar-segmented-button-active {
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-}
-
-.radar-segmented-icon {
-  padding: 2px 6px;
-}
-
-.radar-segmented-icon [data-icon-root] {
-  width: 14px;
-  height: 14px;
-}

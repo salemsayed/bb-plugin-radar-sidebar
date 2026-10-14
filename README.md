@@ -62,7 +62,7 @@ quiet get out of the way.
 Threads group by Today, Yesterday, Previous 7 days, Previous 30 days or Older,
 keyed off last *activity* — not last read. A thread you merely opened stays
 where it belongs, and anything running or waiting surfaces to Today. Group by
-project or section instead with one toggle. In section view, choose **New
+project or section instead with the `grouping` setting. In section view, choose **New
 section**, enter a name, then **Create section**. Drag threads onto its header
 or use **Move to section** in a thread's right-click menu.
 
@@ -126,8 +126,7 @@ Arrow keys walk the list, <kbd>Enter</kbd> opens, <kbd>Space</kbd> folds,
 <kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. Shortcuts
 stay out of text fields, open dialogs and menus, and buttons or links outside the
 list, so they never steal keys from the rest of BB. <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click also selects several,
-to act on them together from a floating dock. Save a query plus filters as a
-named smart view. Swipe a row, by touch or with two fingers on a trackpad,
+to act on them together from a floating dock. Swipe a row, by touch or with two fingers on a trackpad,
 to mark it read or archive it; each direction's action is a setting. A swipe
 starts only when the movement is clearly sideways, so a diagonal scroll stays
 a scroll, and a finger must pull the row 40% of its width (at least 64px)
@@ -149,7 +148,7 @@ before the action arms. The **Waiting** filter shows threads that need you
 <td align="center"><img src="docs/screenshots/group-by-section.png" alt="Threads grouped under Bugs and Research section headers" width="440"><br><sub><b>Grouped by section</b></sub></td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/filters-smart-views.png" alt="Waiting status chip active beside a saved smart view named Needs me, showing 2 of 15 threads" width="440"><br><sub><b>Status chips and a saved smart view</b></sub></td>
+<td align="center"><img src="docs/screenshots/filters-smart-views.png" alt="Waiting status chip active, showing 2 of 15 threads" width="440"><br><sub><b>Status chips</b></sub></td>
 <td align="center"><img src="docs/screenshots/bulk-select.png" alt="Three selected threads and the bulk bar with Archive, Pin and Read" width="440"><br><sub><b>Multi-select and bulk actions</b></sub></td>
 </tr>
 <tr>
@@ -193,12 +192,11 @@ bb plugin install path:$PWD --yes
 
 | Where | What |
 | --- | --- |
-| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one view-options panel for status, lifecycle, grouping, density and expand/collapse all. |
-| **Smart views** | Saved query-plus-filter presets in the view-options panel, and a shortcut to save the current one. |
+| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, and one short view-options panel: status chips (Any, Live, Waiting, Unread, Pinned), **Archived** and **Hidden workers** toggles, and Collapse all / Expand all. |
 | **Needs-you lane** | The one place for what waits on you: the bots’ saved asks, reminders and alerts (Done or Seen, Snooze, Undo, the bot’s recommended reply) above the threads waiting for an answer or approval. |
 | **Native navigation rail** | BB destinations only. Bot shortcuts sit in Radar’s list header. |
 | **Row hover** | A single ⋯ menu (pin, rename, archive and more); a peek card after a short pause. |
-| **View options → Show hidden workers** | Lists the worker threads a bot hid after relaying their result, dimmed with a “hidden” chip under their bot; their menu has **Show thread**, and a visible worker’s has **Hide**. Off by default and remembered per client. |
+| **View options → Hidden workers** | Lists the worker threads a bot hid after relaying their result, dimmed with a “hidden” chip under their bot; their menu has **Show thread**, and a visible worker’s has **Hide**. Off by default and remembered per client. |
 | **Settings → Appearance** | Choose Radar for the thread list. |
 
 ## Navigation and bot shortcuts
@@ -266,18 +264,20 @@ flowchart LR
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
-| `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in view options, which is remembered per client. |
+| `defaultDensity` | `"comfortable"` | **Row density**: `comfortable` or `compact` rows on a desktop. Touch screens always use compact rows. |
+| `grouping` | `"time"` | **Group threads by**: `time` (last activity), `project`, or `section` (your own sections, with **New section** and drag to file). |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A swipe starts only once sideways travel passes 12px and 1.5× the vertical travel, and arms at 40% of the row (at least 64px); a quick flick commits only after the gesture has armed once. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |
 | `swipeLeft` | `"Archive / unarchive"` | Action for a leftward swipe, from the same list. |
 
-**Show hidden workers** is a per-client view option rather than a plugin
-setting: it lives in the view-options panel and is stored in this browser.
+**Archived** and **Hidden workers** are per-client view options rather than
+plugin settings: they live in the view-options panel and are stored in this
+browser, as is the status filter.
 
 The list never waits on settings: until they load it uses the defaults above,
-except that `defaultDensity` and `twoLineTitles` use the value this client last
-saw, so rows paint at their final height. In two-line mode, the hover ⋯ sits
+except that `defaultDensity`, `twoLineTitles` and `grouping` use the value this
+client last saw, so the list paints at its final layout. In two-line mode, the hover ⋯ sits
 on the row's last line of plain text (the subtitle, or the project chip and
 time on a row without one), so it stays off a wrapped title and
 off the PR badge. A row that is only one line tall still has it over the end
@@ -315,16 +315,16 @@ app.tsx                 registers the thread-list and reminder slots
 app.css                 the one stylesheet entry: @imports styles/*.css in cascade order
 styles/                 per-area CSS on BB theme tokens, behind the radar- prefix:
                         base, header, hover-card, groups, row, swipe, row-layout,
-                        context-menu, states, dock, smart-views, drag, gates, bots,
+                        context-menu, states, dock, drag, gates, bots,
                         drawer, needs (+ styles.test.ts, the guards)
-components/radar/       the list, bot shortcuts, menus, peek card and smart views
+components/radar/       the list, bot shortcuts, menus and peek card
   RadarThreadList.tsx   composition root: thread data, bots, groups, order freeze
   RadarListHeader.tsx   search, view options, status chips, active filter pills
   RadarGroupList.tsx    groups, rows, folds, drag to sections/projects, group menu
   RadarWorkingDrawer.tsx  the Working drawer and its hover peek
   RadarListStates.tsx   loading, error and empty states, archived pager
   RadarBulkBar.tsx      the multi-select dock
-  useListSettings.ts    plugin settings, view state, density and persisted prefs
+  useListSettings.ts    plugin settings, view state and persisted prefs
   useListKeyboard.ts    keyboard focus and navigation, selection, bulk actions
   RadarThreadRow.tsx    one row: states, badges, swipe, menus, hover card
 components/radar/*.ts   grouping hook, time bucketing, bot scope and model cache

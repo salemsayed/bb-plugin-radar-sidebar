@@ -8,10 +8,14 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Added
 
-- **Show hidden workers** in the view-options panel (off by default, remembered per client as `radar-sidebar:show-hidden:v1`) lists the worker threads the bot plugin hides after relaying their result, dimmed with a "hidden" chip after their visible siblings, under their bot or in their family. A hidden row's menu offers **Show thread** and a visible worker's offers **Hide**; hidden rows never enter Pinned, Needs you, status filters or counts.
+- **Hidden workers** in the view-options panel (off by default, remembered per client as `radar-sidebar:show-hidden:v1`) lists the worker threads the bot plugin hides after relaying their result, dimmed with a "hidden" chip after their visible siblings, under their bot or in their family. A hidden row's menu offers **Show thread** and a visible worker's offers **Hide**; hidden rows never enter Pinned, Needs you, status filters or counts.
+
+- A `grouping` plugin setting (**Group threads by**: `time`, `project` or `section`, default `time`).
 
 ### Changed
 
+- The view-options panel is three short rows with no headings: status chips (Any, Live, Waiting, Unread, Pinned), **Archived** and **Hidden workers** toggles, and Collapse all / Expand all. **Pinned** is an ordinary status chip, remembered like the others. **Archived** adds archived threads to the active ones; an older stored archived-only choice reads as Archived on, and its filter pill is now "Archived".
+- Grouping moved from the panel to the `grouping` setting, and row density comes straight from `defaultDensity` (now labelled **Row density**); touch screens stay compact. Choices a client stored for either (`radar-sidebar:grouping:v1`, `radar-sidebar:density:v1`) are no longer read.
 - The Needs-you lane is the one bot surface in Radar. The bots' saved Needs items (decisions, reminders, deadlines and the new **alerts**) now render at the top of the sidebar list, above the threads waiting for an answer or approval, instead of on the Crew page.
 - A Needs item may carry the bot's recommended reply (`recommend`): it is the first, primary action, opens the item's thread and seeds an empty composer draft with the full text. `subject` (the bot plugin's dedupe key) and the `alert` kind are optional, so older bot servers still parse.
 - An alert leads with an exclamation badge and offers Seen (the same update as Done, also a rightward swipe) and Open.
@@ -19,6 +23,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Removed
 
+- Smart views (the Pinned preset, saved custom views and **Save view**), the Active/Archived/All control, the archived-only view, the Group by control and the per-client density override.
 - The per-thread "Attention" panel, the "Bot attention" header action, the Crew page's "Important alerts" list, the Crew page itself and its rail signal, and the ChatGPT and automation-health status readers. Alerts are plain Needs rows now and resolve themselves server-side.
 - The `bot_attention`, `crew_attention_list` and `crew_attention_seen` RPCs and the `crew` branding icon.
 

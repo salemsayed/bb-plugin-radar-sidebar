@@ -67,7 +67,7 @@ const sdk: Record<string, unknown> = {
   },
   providers: { models: async () => ({ models: [] }) },
 };
-function mount(threads: PluginSidebarThread[], settings: Record<string, boolean> = {}) {
+function mount(threads: PluginSidebarThread[], settings: Record<string, string | boolean> = {}) {
   const actions = threadActionsFixture();
   return actions.capture(renderSlot(list, props, {
     sdk, settings, threadActions: actions.threadActions, sidebarThreads: { status: "ready", threads,
@@ -225,8 +225,8 @@ describe("sidebar behavior regressions", () => {
   });
 
   it("moves the whole selection when its grip is dropped onto a section", async () => {
-    localStorage.setItem("radar-sidebar:grouping:v1", "section");
     const slot = renderSlot(list, props, {
+      settings: { grouping: "section" },
       sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "a" }), makeThread({ id: "b" })],
         projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
     });
@@ -243,10 +243,10 @@ describe("sidebar behavior regressions", () => {
   });
 
   it("reports partial section move failures after every selected update settles", async () => {
-    localStorage.setItem("radar-sidebar:grouping:v1", "section");
     const success = vi.spyOn(toast, "success");
     const error = vi.spyOn(toast, "error");
     const slot = renderSlot(list, props, {
+      settings: { grouping: "section" },
       sdk: { ...sdk, threads: { ...(sdk.threads as object), update: async ({ threadId }: { threadId: string }) => {
         if (threadId === "b") throw new Error("Host refused the update");
         return makeThreadResponse({ id: threadId });
@@ -264,8 +264,8 @@ describe("sidebar behavior regressions", () => {
   });
 
   it("moves only the dragged thread when its grip is outside the selection", async () => {
-    localStorage.setItem("radar-sidebar:grouping:v1", "section");
     const slot = renderSlot(list, props, {
+      settings: { grouping: "section" },
       sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "a" }), makeThread({ id: "b" })],
         projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
     });
@@ -314,8 +314,7 @@ describe("sidebar behavior regressions", () => {
     const target = { id: "section:s", disabled: false, node: { current: node },
       data: { current: { sectionId: "s" } }, rect: { current: rect } };
     // useDraggable does not register the active thread as a droppable container.
-    localStorage.setItem("radar-sidebar:grouping:v1", "section");
-    mount([makeThread({ id: "t" })]);
+    mount([makeThread({ id: "t" })], { grouping: "section" });
     expect(probes.keyboardCoordinates).not.toBeNull();
     const coordinates = probes.keyboardCoordinates!(new KeyboardEvent("keydown", { code: "ArrowDown" }), {
       currentCoordinates: { x: 0, y: 0 },
@@ -331,12 +330,12 @@ describe("sidebar behavior regressions", () => {
   });
 
   it("files a thread through the real keyboard sensor and section collision detection", async () => {
-    localStorage.setItem("radar-sidebar:grouping:v1", "section");
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const destination = this.querySelector(".radar-group-label")?.textContent === "Destination";
       return new DOMRect(0, destination ? 100 : 300, 200, this.classList.contains("radar-row-draggable") ? 40 : 100);
     });
     const slot = renderSlot(list, props, {
+      settings: { grouping: "section" },
       sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "keyboard" })],
         projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
     });

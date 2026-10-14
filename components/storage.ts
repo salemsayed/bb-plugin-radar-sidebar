@@ -2,9 +2,9 @@
  * One-time preference migration from the `codex-sidebar:` era.
  *
  * The plugin was renamed to Radar Sidebar, and its per-client preferences
- * (grouping, density, collapsed groups and families, project order, status
- * filter, saved smart views) live under a namespaced localStorage key. Without
- * this pass those would silently reset on first launch.
+ * (collapsed groups and families, project order, filters) live under a
+ * namespaced localStorage key. Without this pass those would silently reset
+ * on first launch.
  */
 
 const LEGACY_PREFIX = "codex-sidebar:";

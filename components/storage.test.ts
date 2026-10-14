@@ -13,13 +13,13 @@ describe("migrateLegacyPreferences", () => {
   it("carries legacy preferences forward under the new prefix", () => {
     localStorage.setItem(`${LEGACY}grouping:v1`, "project");
     localStorage.setItem(`${LEGACY}density:v1`, "compact");
-    localStorage.setItem(`${LEGACY}smart-views:v1`, "[]");
+    localStorage.setItem(`${LEGACY}status-filter:v1`, "waiting");
 
     migrateLegacyPreferences();
 
     expect(localStorage.getItem(`${CURRENT}grouping:v1`)).toBe("project");
     expect(localStorage.getItem(`${CURRENT}density:v1`)).toBe("compact");
-    expect(localStorage.getItem(`${CURRENT}smart-views:v1`)).toBe("[]");
+    expect(localStorage.getItem(`${CURRENT}status-filter:v1`)).toBe("waiting");
     expect(localStorage.getItem(`${LEGACY}grouping:v1`)).toBeNull();
   });
 

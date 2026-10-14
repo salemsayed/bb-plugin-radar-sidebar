@@ -32,7 +32,6 @@ import { useThreadGroups, type ThreadGroup } from "./useThreadGroups";
 import {
   PROJECT_ORDER_KEY,
   readStringArray,
-  useDensity,
   useListSettings,
   useListView,
   useNeedsLaneOpen,
@@ -73,9 +72,9 @@ export function RadarThreadList({
   onNavigate,
 }: PluginThreadListProps) {
   const view = useListView();
-  const { query, setQuery, lifecycle, grouping, statusFilter, switchPending } = view;
+  const { query, setQuery, lifecycle, statusFilter, switchPending } = view;
   const settings = useListSettings();
-  const { density, selectDensity } = useDensity(settings.defaultDensity);
+  const { density, grouping } = settings;
   const [projectOrder, setProjectOrder] = useState<string[]>(() =>
     readStringArray(PROJECT_ORDER_KEY),
   );
@@ -109,7 +108,7 @@ export function RadarThreadList({
       experimental_lifecycles:
         lifecycle === "all"
           ? (["active", "archived"] as const)
-          : ([lifecycle] as const),
+          : (["active"] as const),
     }),
     [lifecycle],
   );
@@ -449,8 +448,7 @@ export function RadarThreadList({
         statusCounts={statusCounts}
         pinnedCount={allRows.filter((thread) => thread.isPinned && !thread.isHidden).length}
         isCompactViewport={isCompactViewport}
-        density={density}
-        onSelectDensity={selectDensity}
+        grouping={grouping}
         areAllGroupsCollapsed={folds.areAllGroupsCollapsed}
         onToggleAllGroups={folds.toggleAllGroups}
         botRail={botRail}

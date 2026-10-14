@@ -1343,7 +1343,8 @@ describe("swipe actions", () => {
     }
   });
 
-  it("restores an archived thread from the Archived view", () => {
+  it("restores an archived thread with Archived on", () => {
+    // An older client's archived-only view now means active plus archived.
     localStorage.setItem("radar-sidebar:lifecycles:v1", "archived");
     vi.useFakeTimers();
     try {
@@ -1360,7 +1361,7 @@ describe("swipe actions", () => {
     }
   });
 
-  it("springs back instead of folding on the All view", () => {
+  it("springs back instead of folding with Archived on", () => {
     localStorage.setItem("radar-sidebar:lifecycles:v1", "all");
     const slot = renderSwipe([makeThread({ id: "t" })]);
     swipe(slot.container, -160);
@@ -1401,32 +1402,23 @@ describe("density", () => {
     expect(root(slot).classList.contains("radar-density-compact")).toBe(true);
   });
 
-  it("toggles compact on and back off", () => {
+  it("ignores a density an older version stored per client", () => {
+    localStorage.setItem("radar-sidebar:density:v1", "compact");
     const slot = renderThreads([makeThread({ id: "t", title: "One" })]);
-    expect(root(slot).classList.contains("radar-density-compact")).toBe(false);
-
-    fireEvent.click(viewOptions().getByRole("button", { name: "Compact view" }));
-    expect(root(slot).classList.contains("radar-density-compact")).toBe(true);
-
-    fireEvent.click(viewOptions().getByRole("button", { name: "Comfortable view" }));
     expect(root(slot).classList.contains("radar-density-compact")).toBe(false);
   });
 
-  it("releases the local override when toggled back onto the server default", () => {
-    // Regression: a stored "compact" used to lock out the server setting
-    // permanently, so the list could be stuck compact with no way back.
+  it("keeps touch viewports compact whatever the setting says", () => {
     const slot = renderThreads([makeThread({ id: "t", title: "One" })], {
-      settings: { defaultDensity: "compact" },
+      settings: { defaultDensity: "comfortable" },
+      isCompactViewport: true,
     });
-    // Server says compact, so the button offers the comfortable option.
-    fireEvent.click(viewOptions().getByRole("button", { name: "Comfortable view" }));
-    expect(localStorage.getItem("radar-sidebar:density:v1")).toBe(
-      "comfortable",
-    );
+    expect(root(slot).classList.contains("radar-density-compact")).toBe(true);
+  });
 
-    // Toggling back onto the server default stores "auto", not an override.
-    fireEvent.click(viewOptions().getByRole("button", { name: "Compact view" }));
-    expect(localStorage.getItem("radar-sidebar:density:v1")).toBe("auto");
+  it("has no density control in the view options", () => {
+    renderThreads([makeThread({ id: "t", title: "One" })]);
+    expect(viewOptions().queryByRole("button", { name: /compact|comfortable/i })).toBeNull();
   });
 });
 
@@ -1895,22 +1887,41 @@ describe("cyclic parents", () => {
   });
 });
 
-describe("Pinned smart view", () => {
-  it("filters the list to pinned threads", async () => {
+describe("Pinned status chip", () => {
+  it("filters the list to pinned threads and counts them", async () => {
     const pinned = makeThread({ id: "pin", isPinned: true, pinnedAt: NOW });
     const other = makeThread({ id: "other" });
     const slot = renderThreads([pinned, other]);
     expect(visibleRowIds(slot.container)).toContain("other");
 
-    fireEvent.click(viewOptions().getByTitle("Pinned threads"));
+    const chip = viewOptions().getByRole("radio", { name: "Pinned" });
+    expect(chip.textContent).toContain("1");
+    fireEvent.click(chip);
     await waitFor(() =>
       expect(visibleRowIds(slot.container)).toEqual(["pin"]),
     );
+    expect(chip.getAttribute("aria-checked")).toBe("true");
+    expect(localStorage.getItem("radar-sidebar:status-filter:v1")).toBe("pinned");
+    expect(screen.getByRole("button", { name: "Clear Pinned filter" })).toBeTruthy();
+
+    // Tapping the active chip goes back to Any.
+    fireEvent.click(chip);
+    await waitFor(() => expect(visibleRowIds(slot.container)).toContain("other"));
+    expect(viewOptions().getByRole("radio", { name: "Any" }).getAttribute("aria-checked")).toBe("true");
   });
 
-  it("hands over to a status filter instead of staying selected", async () => {
+  it("is remembered like the other status filters", async () => {
+    localStorage.setItem("radar-sidebar:status-filter:v1", "pinned");
+    const slot = renderThreads([
+      makeThread({ id: "pin", isPinned: true, pinnedAt: NOW }),
+      makeThread({ id: "other" }),
+    ]);
+    await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["pin"]));
+  });
+
+  it("hands over to another status chip", async () => {
     renderThreads([makeThread({ id: "pin", isPinned: true, pinnedAt: NOW })]);
-    fireEvent.click(viewOptions().getByTitle("Pinned threads"));
+    fireEvent.click(viewOptions().getByRole("radio", { name: "Pinned" }));
     fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Clear Unread filter" })).toBeTruthy(),
@@ -1927,25 +1938,56 @@ describe("view options", () => {
     renderThreads([makeThread({ id: "t" })]);
     expect(dialog()).toBeNull();
     expect(screen.queryByRole("radiogroup", { name: "Status filter" })).toBeNull();
-    expect(screen.queryByRole("group", { name: "Thread lifecycle" })).toBeNull();
 
     fireEvent.click(button());
     expect(button().getAttribute("aria-expanded")).toBe("true");
-    for (const name of ["Status filter", "Thread lifecycle", "Grouping", "Row density"]) {
-      expect(viewOptions().getByRole(name === "Status filter" ? "radiogroup" : "group", { name })).toBeTruthy();
-    }
+    const panel = viewOptions();
+    expect(
+      panel.getAllByRole("radio").map((chip) => chip.getAttribute("aria-label") ?? chip.textContent),
+    ).toEqual(["Any", "Live", "Waiting", "Unread", "Pinned"]);
+    expect(panel.getAllByRole("button").map((control) => control.getAttribute("aria-label") ?? control.textContent)).toEqual([
+      "Archived",
+      "Hidden workers",
+      "Collapse all folders",
+    ]);
+    // Grouping, density and saved views are not panel controls any more.
+    expect(panel.queryAllByRole("group")).toEqual([]);
+    expect(panel.queryByRole("toolbar")).toBeNull();
   });
 
-  it("drops density on touch viewports, which are always compact", () => {
+  it("offers the same controls on touch viewports", () => {
     renderThreads([makeThread({ id: "t" })], { isCompactViewport: true });
-    expect(viewOptions().queryByRole("group", { name: "Row density" })).toBeNull();
+    expect(viewOptions().getByRole("button", { name: "Archived" })).toBeTruthy();
     expect(viewOptions().getByRole("button", { name: "Collapse all folders" })).toBeTruthy();
+  });
+
+  it("switches between active and active plus archived with the Archived toggle", () => {
+    // The harness hands rows over unfiltered, so this checks the switch itself.
+    renderThreads([makeThread({ id: "t" })]);
+    const archived = viewOptions().getByRole("button", { name: "Archived" });
+    expect(archived.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(archived);
+    expect(archived.getAttribute("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("radar-sidebar:lifecycles:v1")).toBe("all");
+    expect(screen.getByRole("button", { name: "Clear Archived filter" })).toBeTruthy();
+
+    fireEvent.click(archived);
+    expect(archived.getAttribute("aria-pressed")).toBe("false");
+    expect(localStorage.getItem("radar-sidebar:lifecycles:v1")).toBe("active");
+    expect(screen.queryByRole("group", { name: "Active filters" })).toBeNull();
+  });
+
+  it("reads an older archived-only choice as Archived on", () => {
+    localStorage.setItem("radar-sidebar:lifecycles:v1", "archived");
+    renderThreads([makeThread({ id: "t" })]);
+    expect(viewOptions().getByRole("button", { name: "Archived" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("stays open across changes and closes on Escape or an outside tap", () => {
     renderThreads([makeThread({ id: "t" })]);
     fireEvent.click(viewOptions().getByRole("button", { name: "Archived" }));
-    fireEvent.click(viewOptions().getByRole("button", { name: "Group by project" }));
+    fireEvent.click(viewOptions().getByRole("radio", { name: "Pinned" }));
     expect(dialog()).not.toBeNull();
 
     fireEvent.keyDown(viewOptions().getByRole("button", { name: "Archived" }), { key: "Escape" });
@@ -1965,15 +2007,15 @@ describe("view options", () => {
     expect(screen.queryByRole("group", { name: "Active filters" })).toBeNull();
 
     fireEvent.click(viewOptions().getByTitle("Filter unread threads"));
-    fireEvent.click(viewOptions().getByRole("button", { name: "All" }));
-    fireEvent.keyDown(viewOptions().getByRole("button", { name: "All" }), { key: "Escape" });
+    fireEvent.click(viewOptions().getByRole("button", { name: "Archived" }));
+    fireEvent.keyDown(viewOptions().getByRole("button", { name: "Archived" }), { key: "Escape" });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["unread"]));
 
     fireEvent.click(screen.getByRole("button", { name: "Clear Unread filter" }));
     await waitFor(() => expect(visibleRowIds(slot.container)).toContain("read"));
     expect(localStorage.getItem("radar-sidebar:status-filter:v1")).toBe("all");
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear Archived too filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear Archived filter" }));
     expect(localStorage.getItem("radar-sidebar:lifecycles:v1")).toBe("active");
     expect(screen.queryByRole("group", { name: "Active filters" })).toBeNull();
   });
@@ -2129,10 +2171,9 @@ describe("review regressions", () => {
   it.each(["time", "project", "section", "pinned"])(
     "temporarily reveals filtered matches in collapsed %s groups",
     (grouping) => {
-      localStorage.setItem("radar-sidebar:grouping:v1", grouping === "pinned" ? "time" : grouping);
       const slot = renderThreads([
         makeThread({ id: "needle", title: "Needle", isPinned: grouping === "pinned" }),
-      ]);
+      ], { settings: { grouping: grouping === "pinned" ? "time" : grouping } });
       fireEvent.click(viewOptions().getByRole("button", { name: "Collapse all folders" }));
       const stored = localStorage.getItem("radar-sidebar:collapsed:v1");
       const row = () => slot.container.querySelector('[data-sidebar-thread-id="needle"]')!;
@@ -2165,16 +2206,14 @@ describe("review regressions", () => {
   it("keeps empty sections available as drop targets", () => {
     renderThreads([makeThread({ id: "unfiled" })], {
       sections: [makeSection({ id: "empty", name: "Empty bucket" })],
+      settings: { grouping: "section" },
     });
-    fireEvent.click(viewOptions().getByRole("button", {
-      name: "Group by section (drag threads between them)",
-    }));
     expect(screen.getByRole("region", { name: "Empty bucket" })).toBeTruthy();
     expect(screen.getByText("Drop a thread here to file it.")).toBeTruthy();
   });
 
   it("keeps archived pagination available when loaded rows do not match", () => {
-    localStorage.setItem("radar-sidebar:lifecycles:v1", "archived");
+    localStorage.setItem("radar-sidebar:lifecycles:v1", "all");
     const fetchNextPage = vi.fn(async () => {});
     renderThreads([makeThread({ id: "one", title: "Unrelated", isArchived: true })], {
       archived: {
@@ -2193,11 +2232,8 @@ describe("review regressions", () => {
 });
 
 describe("section creation", () => {
-  const sectionMode = () => fireEvent.click(viewOptions().getByRole("button", {
-    name: "Group by section (drag threads between them)",
-  }));
+  const sectionMode = { grouping: "section" };
   const openForm = () => {
-    sectionMode();
     fireEvent.click(screen.getByRole("button", { name: "New section" }));
     return screen.getByRole("textbox", { name: "Section name" }) as HTMLInputElement;
   };
@@ -2206,10 +2242,17 @@ describe("section creation", () => {
     threadSections: { create },
   });
 
+  it("offers New section only when the grouping setting is section", () => {
+    renderThreads([makeThread({ id: "one" })]);
+    expect(screen.queryByRole("button", { name: "New section" })).toBeNull();
+    cleanup();
+    renderThreads([makeThread({ id: "one" })], { settings: sectionMode });
+    expect(screen.getByRole("button", { name: "New section" })).toBeTruthy();
+  });
+
   it("creates a trimmed section through the SDK, even before there are threads", async () => {
     const create = vi.fn(async ({ name }: { name: string }) => makeSection({ id: "new", name }));
-    const slot = renderThreads([], { sdk: createSdk(create) });
-    expect(screen.queryByRole("button", { name: "New section" })).toBeNull();
+    const slot = renderThreads([], { sdk: createSdk(create), settings: sectionMode });
     const input = openForm();
     expect(document.activeElement).toBe(input);
     fireEvent.change(input, { target: { value: "  Research  " } });
@@ -2223,7 +2266,7 @@ describe("section creation", () => {
 
   it("rejects blank names and cancels without creating or firing row shortcuts", () => {
     const create = vi.fn();
-    const slot = renderThreads([makeThread({ id: "one" })], { sdk: createSdk(create) });
+    const slot = renderThreads([makeThread({ id: "one" })], { sdk: createSdk(create), settings: sectionMode });
     fireEvent.keyDown(document.body, { key: "ArrowDown" });
     const input = openForm();
     fireEvent.change(input, { target: { value: "   " } });
@@ -2246,7 +2289,7 @@ describe("section creation", () => {
     const create = vi.fn()
       .mockRejectedValueOnce(new Error("Could not create section"))
       .mockResolvedValueOnce(makeSection({ id: "new", name: "Research" }));
-    renderThreads([], { sdk: createSdk(create) });
+    renderThreads([], { sdk: createSdk(create), settings: sectionMode });
     const input = openForm();
     fireEvent.change(input, { target: { value: "Research" } });
     fireEvent.click(screen.getByRole("button", { name: "Create section" }));
@@ -2261,7 +2304,7 @@ describe("section creation", () => {
   it("prevents duplicate submissions while creation is pending", async () => {
     let resolve!: (section: ReturnType<typeof makeSection>) => void;
     const create = vi.fn(() => new Promise<ReturnType<typeof makeSection>>((done) => { resolve = done; }));
-    renderThreads([], { sdk: createSdk(create) });
+    renderThreads([], { sdk: createSdk(create), settings: sectionMode });
     const input = openForm();
     fireEvent.change(input, { target: { value: "Research" } });
     const form = screen.getByRole("form", { name: "New section" });
@@ -2281,8 +2324,8 @@ describe("section creation", () => {
   it.each([false, true])("shows empty sections from the host with no matching threads (filter=%s)", (filtered) => {
     renderThreads(filtered ? [makeThread({ id: "one" })] : [], {
       sections: [makeSection({ id: "new", name: "Research" })],
+      settings: sectionMode,
     });
-    sectionMode();
     if (filtered) fireEvent.change(screen.getByRole("searchbox"), { target: { value: "no match" } });
     expect(screen.getByRole("region", { name: "Research" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "New section" })).toBeTruthy();
@@ -2597,7 +2640,7 @@ describe("hidden workers", () => {
     setRailScope("personal");
     const slot = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
-    expect(viewOptions().getByRole("button", { name: "Show hidden workers" }).getAttribute("aria-pressed")).toBe("false");
+    expect(viewOptions().getByRole("button", { name: "Hidden workers" }).getAttribute("aria-pressed")).toBe("false");
     expect(slot.container.querySelector(".radar-hidden-chip")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
     expect(visibleRowIds(slot.container)).toEqual(["other"]);
@@ -2607,7 +2650,7 @@ describe("hidden workers", () => {
     setRailScope("personal");
     const slot = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker"]));
-    fireEvent.click(viewOptions().getByRole("button", { name: "Show hidden workers" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
     expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]);
     const row = rowOf(slot.container, "relayed")!;
     expect(row.classList.contains("radar-row-hidden")).toBe(true);
@@ -2633,13 +2676,13 @@ describe("hidden workers", () => {
     setRailScope("personal");
     const first = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(first.container)).toEqual(["worker"]));
-    fireEvent.click(viewOptions().getByRole("button", { name: "Show hidden workers" }));
+    fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
     expect(localStorage.getItem("radar-sidebar:show-hidden:v1")).toBe("on");
     cleanup();
     const second = renderThreads(threads, { sdk: sdkWith().sdk, settings: { botRail: true } });
     await waitFor(() => expect(visibleRowIds(second.container)).toEqual(["worker", "relayed"]));
-    expect(viewOptions().getByRole("button", { name: "Show hidden workers" }).getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(viewOptions().getByRole("button", { name: "Show hidden workers" }));
+    expect(viewOptions().getByRole("button", { name: "Hidden workers" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
     expect(localStorage.getItem("radar-sidebar:show-hidden:v1")).toBe("off");
     expect(visibleRowIds(second.container)).toEqual(["worker"]);
   });

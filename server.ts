@@ -78,11 +78,19 @@ export default async function plugin(bb: BbPluginApi) {
     },
     defaultDensity: {
       type: "select",
-      label: "Default row density",
+      label: "Row density",
       description:
-        "Used until you change density with the header toggle, which is remembered per client.",
+        "How tall thread rows are on a desktop. Touch screens always use compact rows.",
       options: ["comfortable", "compact"],
       default: "comfortable",
+    },
+    grouping: {
+      type: "select",
+      label: "Group threads by",
+      description:
+        "Fold threads by last activity, by project, or into your own sections that you drag threads between.",
+      options: ["time", "project", "section"],
+      default: "time",
     },
     twoLineTitles: {
       type: "boolean",
