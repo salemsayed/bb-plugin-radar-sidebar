@@ -28,6 +28,8 @@ through BB's own flows (pins, reads, renames, archives, deletes).
 
 Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A badged bot has unseen alerts or open asks; they are rows in the Needs-you lane, and the face opens its coordinator. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
+A blocked handover shows Failed without a spinning ring. Its recovery journal stays intact; only an active or automatically recoverable handover shows Handover.
+
 States and unread badges retain the same meaning as the bot deck. Saved bot scopes and hidden preferences persist. Open asks, pending input and unread failures keep a hidden bot accessible. Turning shortcuts off restores the deck. Retired `railNav` and `wideRail` values have no effect. Navigation, arrangement, More and the footer belong to BB, without shell CSS overrides or removed SDK calls.
 
 ## Organisation tools

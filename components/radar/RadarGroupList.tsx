@@ -1,3 +1,4 @@
+import type { ActivityCoverage } from "./botScope";
 import {
   Fragment,
   useCallback,
@@ -39,7 +40,8 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { RadarThreadRow } from "./RadarThreadRow";
 import type { RadarThreadActions } from "./threadActions";
-import { RadarBotCard } from "./RadarBotCard";
+import { botActivity, botActivityText, botRailState } from "./botScope";
+import { RadarBotCard, RadarMissingBotCard } from "./RadarBotCard";
 import { botState, botStyle, crewDigest, shortBotName, type Pulse, type RosterBot } from "./bots";
 import type { NeedsItem } from "@/lib/needs";
 import { NeedsYouLane } from "./NeedsYouList";
@@ -548,6 +550,9 @@ export function RadarGroupList({
   setCollapsed,
   renderRow,
   roster,
+  botThreads,
+  activityCoverage,
+  missingBots = [],
   attentionPulses,
   needsItems,
   laneItems,
@@ -586,6 +591,9 @@ export function RadarGroupList({
   setCollapsed: (update: (previous: Set<string>) => Set<string>) => void;
   renderRow: RenderRow;
   roster: readonly RosterBot[];
+  botThreads: readonly PluginSidebarThread[];
+  activityCoverage?: ActivityCoverage;
+  missingBots?: readonly RosterBot[];
   attentionPulses: ReadonlyMap<string, Pulse>;
   /** Every bot's items for the Crew digest. */
   needsItems: readonly NeedsItem[] | null;
@@ -844,6 +852,18 @@ export function RadarGroupList({
       </div> : null} />
     : null;
 
+  // Crew describes the full roster, independently of saved row preferences,
+  // search/status filters and missing coordinator rows.
+  const crewBots = settings.botsDeck && !settings.botRail ? roster : [];
+  const crewActivity = crewBots.map(bot => botActivity(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage));
+  const crewSummary = crewActivity.length ? crewActivity.reduce((sum, next) => ({
+    workers: sum.workers + next.workers, hiddenWorkers: sum.hiddenWorkers + next.hiddenWorkers,
+    active: sum.active + next.active, questions: sum.questions + next.questions, decisions: sum.decisions + next.decisions,
+    lastKnownWorkers: (sum.lastKnownWorkers ?? 0) + (next.lastKnownWorkers ?? 0),
+    lastKnownActive: (sum.lastKnownActive ?? 0) + (next.lastKnownActive ?? 0),
+    lastKnownQuestions: (sum.lastKnownQuestions ?? 0) + (next.lastKnownQuestions ?? 0),
+    complete: sum.complete !== false && next.complete !== false,
+  })) : null;
   return (
     <>
       {deferredQuery.trim() !== "" || statusFilter !== "all" ? (
@@ -852,15 +872,12 @@ export function RadarGroupList({
         </p>
       ) : null}
       {lane}
-      {botGroups.length > 0 || visible.hiddenBots.length > 0 ? (
+      {crewBots.length > 0 ? (
         <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY }); }}>
           <span className="radar-crew-label">Crew</span>
           <span className="radar-crew-digest">
-            {crewDigest(botGroups.map((group) => {
-              const root = group.roots[0]!;
-              const bot = roster.find((entry) => entry.current === root.id);
-              return botState(root, attentionPulses.get(root.id) ?? null, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed });
-            }), needsItems)}
+            {crewDigest(crewBots.map(bot => botRailState(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage)), needsItems)}
+            {crewSummary ? ` · ${botActivityText(crewSummary)}` : null}
           </span>
           {visible.hiddenBots.map((bot) => (
             <button key={bot.key} type="button" className="radar-crew-action" onClick={() => visible.unhide(bot.key)} aria-label={`Show ${bot.name} again`}>
@@ -869,6 +886,8 @@ export function RadarGroupList({
           ))}
         </div>
       ) : null}
+      {missingBots.map(bot => <RadarMissingBotCard key={bot.key} bot={bot}
+        activity={botActivity(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage)} onNavigate={onNavigate} />)}
       {botGroups.map((group) => {
         const root = group.roots[0]!;
         const style = botStyle(roster.find((entry) => entry.current === root.id)?.key ?? root.id, root.displayTitle);
@@ -889,7 +908,9 @@ export function RadarGroupList({
               botKey={bot?.key ?? root.id}
               hue={style.hue}
               motion={settings.motion}
-              state={botState(root, pulse, bot?.rollover ?? null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}
+              activity={bot ? botActivity(botThreads, bot, pulse, activityCoverage) : undefined}
+              rolloverBlocked={bot?.rolloverBlocked}
+              state={bot ? botRailState(botThreads, bot, pulse, activityCoverage) : botState(root, pulse, null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}
               pulse={pulse}
               group={group}
               isCollapsed={isCollapsed}

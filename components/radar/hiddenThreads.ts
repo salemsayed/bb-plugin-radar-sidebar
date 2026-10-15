@@ -89,14 +89,14 @@ export function mergeHiddenThreads(
   return extra.length === 0 ? feed : [...feed, ...extra];
 }
 
-/**
- * bb's sidebar feed leaves hidden threads out, so with the option on Radar
- * lists each project itself, including hidden threads. Refetches on `tick`,
- * window focus and {@link hiddenChanged}; off, it fetches and keeps nothing.
- */
-export function useHiddenThreads(enabled: boolean, projectIds: readonly string[], tick: unknown): readonly ListedThread[] {
+/** A bounded, independent census. Display preferences never invalidate it.
+ * A failed, expired or truncated read is not evidence of zero activity. */
+export const ACTIVITY_MAX_AGE = 120_000;
+const MAX_PAGES = 10;
+interface ProjectCensus { rows: readonly ListedThread[]; staleRows?: readonly ListedThread[]; checkedAt: number; complete: boolean }
+export function useThreadCensus(enabled: boolean, projectIds: readonly string[], tick: unknown) {
   const sdk = useSdk();
-  const [rows, setRows] = useState<readonly ListedThread[]>([]);
+  const [state, setState] = useState<{ key: string; snapshots: Record<string, ProjectCensus> }>({ key: "", snapshots: {} });
   const [nudge, setNudge] = useState(0);
   const projectKey = useMemo(() => [...new Set(projectIds)].sort().join("\u0000"), [projectIds]);
   useEffect(() => {
@@ -104,33 +104,85 @@ export function useHiddenThreads(enabled: boolean, projectIds: readonly string[]
     const bump = () => setNudge(value => value + 1);
     window.addEventListener("focus", bump);
     window.addEventListener(HIDDEN_CHANGED, bump);
-    return () => {
-      window.removeEventListener("focus", bump);
-      window.removeEventListener(HIDDEN_CHANGED, bump);
-    };
+    return () => { window.removeEventListener("focus", bump); window.removeEventListener(HIDDEN_CHANGED, bump); };
   }, [enabled]);
   useEffect(() => {
-    if (!enabled || projectKey === "") {
-      setRows([]);
-      return;
-    }
+    if (!enabled || !projectKey) return;
     const controller = new AbortController();
     const projects = projectKey.split("\u0000");
-    void Promise.all(projects.map(async projectId => {
-      try {
-        const listed = await sdk.threads.list({ projectId, includeHidden: true, archived: false, limit: LIST_LIMIT, signal: controller.signal });
-        return listed.filter(thread => thread.visibility === "hidden");
-      } catch (error) {
-        if (!controller.signal.aborted) console.warn(`radar: hidden threads for ${projectId} failed`, error);
-        return null;
-      }
-    })).then(lists => {
+    // A refresh has no current observations until its pages arrive. Keep old
+    // observations only as explicitly stale, and never carry them across scopes.
+    setState(previous => ({ key: projectKey, snapshots: Object.fromEntries(projects.map(id => {
+      const old = previous.key === projectKey ? previous.snapshots[id] : undefined;
+      const cached = [...new Map([...(old?.rows ?? []), ...(old?.staleRows ?? [])].map(row => [row.id, row])).values()];
+      return [id, { rows: [], staleRows: cached, checkedAt: 0, complete: false }];
+    })) }));
+    const publish = (id: string, rows: Map<string, ListedThread>, complete: boolean) => {
       if (controller.signal.aborted) return;
-      // A project whose request failed keeps the rows it had.
-      setRows(previous => projects.flatMap((projectId, index) =>
-        lists[index] ?? previous.filter(thread => thread.projectId === projectId)));
-    });
+      const current = [...rows.values()];
+      setState(previous => {
+        if (controller.signal.aborted || previous.key !== projectKey) return previous;
+        const old = previous.snapshots[id];
+        const cached = new Map([...(old?.rows ?? []), ...(old?.staleRows ?? [])].map(row => [row.id, row]));
+        const staleRows = complete ? [] : [...cached.values()].filter(row => !rows.has(row.id));
+        return { key: projectKey, snapshots: { ...previous.snapshots,
+          [id]: { rows: current, staleRows, checkedAt: Date.now(), complete } } };
+      });
+    };
+    const load = async (projectId: string) => {
+      const rows = new Map<string, ListedThread>();
+      try {
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const listed = await sdk.threads.list({ projectId, includeHidden: true, archived: false,
+            limit: LIST_LIMIT, offset: page * LIST_LIMIT, signal: controller.signal });
+          if (controller.signal.aborted) return;
+          const previousSize = rows.size;
+          for (const row of listed) rows.set(row.id, row);
+          const complete = listed.length < LIST_LIMIT;
+          // Publish each successful page BEFORE waiting for more. Pending,
+          // failed or bounded pagination can only establish a lower bound.
+          publish(projectId, rows, complete);
+          if (complete || rows.size === previousSize) return;
+        }
+      } catch {
+        // Successful pages remain current; the missing remainder stays unknown.
+        // If no page arrived, the refresh-start snapshot is stale-only.
+      }
+    };
+    for (const id of projects) void load(id);
     return () => controller.abort();
   }, [enabled, projectKey, tick, nudge, sdk]);
-  return enabled ? rows : [];
+  return useMemo(() => {
+    const rows: ListedThread[] = [], staleRows: ListedThread[] = [];
+    let complete = enabled && projectKey !== "";
+    for (const id of projectKey ? projectKey.split("\u0000") : []) {
+      const snapshot = enabled && state.key === projectKey ? state.snapshots[id] : undefined;
+      if (!snapshot) { complete = false; continue; }
+      const fresh = Date.now() - snapshot.checkedAt < ACTIVITY_MAX_AGE;
+      (fresh ? rows : staleRows).push(...snapshot.rows);
+      staleRows.push(...(snapshot.staleRows ?? []));
+      if (!fresh || !snapshot.complete) complete = false;
+    }
+    return { rows, staleRows, complete };
+  }, [enabled, projectKey, state, tick, nudge]);
+}
+
+/** Compatibility wrapper for row-only consumers. */
+export function useHiddenThreads(enabled: boolean, projectIds: readonly string[], tick: unknown): readonly ListedThread[] {
+  const census = useThreadCensus(enabled, projectIds, tick);
+  return enabled ? [...census.rows, ...census.staleRows].filter(row => row.visibility === "hidden") : [];
+}
+
+/** Activity uses raw runtime and question facts, independently of quiet hidden-row styling.
+ * The subscribed sidebar takes precedence over polled rows with the same ID. */
+export function mergeActivityThreads(feed: readonly PluginSidebarThread[], listed: readonly ListedThread[]): readonly PluginSidebarThread[] {
+  const known = new Set(feed.map(thread => thread.id));
+  const extra: PluginSidebarThread[] = [];
+  for (const raw of listed) {
+    if (known.has(raw.id)) continue;
+    known.add(raw.id);
+    extra.push({ ...toSidebarThread(raw, feed), isHidden: raw.visibility === "hidden",
+      queuedWork: raw.queuedWork, hasPendingInteraction: raw.hasPendingInteraction });
+  }
+  return extra.length ? [...feed, ...extra] : feed;
 }

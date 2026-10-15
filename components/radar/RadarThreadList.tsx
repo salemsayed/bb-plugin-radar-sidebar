@@ -1,3 +1,4 @@
+import { hasUnresolvedActivity } from "./botScope";
 import {
   useCallback,
   useDeferredValue,
@@ -25,7 +26,7 @@ import { useReplyPrefill } from "./useReplyPrefill";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
 import { useThreadPulses } from "./useThreadPulses";
-import { mergeHiddenThreads, useHiddenThreads } from "./hiddenThreads";
+import { mergeHiddenThreads, mergeActivityThreads, useThreadCensus } from "./hiddenThreads";
 import { useArrivals } from "./useArrivals";
 import { useFrozenOrder, useOrderFreeze } from "./useFrozenOrder";
 import { useValidatedRailScope } from "./railScope";
@@ -124,13 +125,21 @@ export function RadarThreadList({
   // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
   const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(feedThreads));
-  // bb's feed omits hidden threads, so the option fetches them per project
-  // and they join the list before scoping, nesting under their owners.
+  // Activity discovery is independent of row visibility. Hidden rows join the
+  // displayed list only when requested; bot summaries always use the census.
   const hiddenProjectIds = useMemo(
     () => [...projects.map(project => project.id), ...roster.flatMap(bot => [bot.projectId, ...bot.projects])],
     [projects, roster],
   );
-  const hiddenRows = useHiddenThreads(showHidden, hiddenProjectIds, now);
+  const census = useThreadCensus(showHidden || roster.length > 0, hiddenProjectIds, now);
+  const hiddenRows = useMemo(() => [...census.rows, ...census.staleRows], [census.rows, census.staleRows]);
+  const activityThreads = useMemo(() => mergeActivityThreads(feedThreads, census.rows), [feedThreads, census.rows]);
+  const activityCoverage = useMemo(() => {
+    const staleThreads = mergeActivityThreads([], census.staleRows);
+    const known = new Set(activityThreads.map(thread => thread.id));
+    const topology = [...activityThreads, ...staleThreads.filter(thread => !known.has(thread.id))];
+    return { complete: census.complete && !hasUnresolvedActivity(topology, roster), staleThreads };
+  }, [census.complete, census.staleRows, activityThreads, roster]);
   const allThreads = useMemo(
     () => showHidden ? mergeHiddenThreads(feedThreads, hiddenRows) : feedThreads,
     [showHidden, feedThreads, hiddenRows],
@@ -165,9 +174,10 @@ export function RadarThreadList({
   );
   // Hidden bots keep their families tucked away and keep their Needs items; only the deck tile goes.
   // Bot state reads the feed: the hidden-workers option changes rows, not how a bot looks.
-  const visible = useVisibleBots(roster, feedThreads, asking);
+  const visible = useVisibleBots(roster, activityThreads, asking);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
   const scopeName = scopedBot?.name ?? "Bot";
+  const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
     if (!botRail) {
@@ -466,7 +476,8 @@ export function RadarThreadList({
         onToggleAllGroups={folds.toggleAllGroups}
         botRail={botRail}
         bots={visible.bots}
-        allThreads={feedThreads}
+        allThreads={activityThreads}
+        activityCoverage={activityCoverage}
         attentionPulses={attentionPulses}
         railScope={railScope}
         scopedBot={scopedBot}
@@ -491,7 +502,7 @@ export function RadarThreadList({
           <RadarListLoading />
         ) : status === "error" ? (
           <RadarListError />
-        ) : shownTotal === 0 && (grouping !== "section" || sections.length === 0) ? (
+        ) : shownTotal === 0 && !(deck && roster.length > 0) && missingBots.length === 0 && (grouping !== "section" || sections.length === 0) ? (
           <>
             {/* A bot with no worker threads can still have asks waiting on Salem. */}
             {settings.needsYouLane ? (
@@ -532,6 +543,9 @@ export function RadarThreadList({
             setCollapsed={folds.setCollapsed}
             renderRow={renderRow}
             roster={roster}
+            botThreads={activityThreads}
+            activityCoverage={activityCoverage}
+            missingBots={missingBots}
             attentionPulses={attentionPulses}
             needsItems={needs.items}
             laneItems={laneItems}

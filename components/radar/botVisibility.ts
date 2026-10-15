@@ -75,7 +75,7 @@ export function useHiddenBotKeys(): ReadonlySet<string> {
  * failed worker could never be hidden.
  */
 export function botDemandsAttention(threads: readonly PluginSidebarThread[], bot: RosterBot): boolean {
-  return botFamily(threads, bot).some(t =>
+  return bot.rolloverBlocked === true || botFamily(threads, bot).some(t =>
     t.hasPendingInteraction || t.indicator === "waiting-for-input" ||
     (t.isUnread && (t.status === "error" || t.queuedWork === "failed" ||
       t.indicator === "unread-error" || t.indicator === "queued-failed")));

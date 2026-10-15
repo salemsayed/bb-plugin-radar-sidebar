@@ -185,3 +185,27 @@
 .radar-list-compact .radar-bot-shortcut .radar-bot-avatar { width: 38px; height: 38px; }
 .radar-list-compact .radar-bot-attention-badge { font-size: 11px; }
 
+
+/* Real execution remains visible beside a static blocked-handover failure. */
+.radar-bot-active-count {
+  position: absolute;
+  z-index: 3;
+  bottom: 0;
+  left: 0;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+}
+.radar-bot-facts {
+  display: block;
+  margin: 4px 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  white-space: normal;
+}

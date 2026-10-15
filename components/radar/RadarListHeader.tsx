@@ -1,3 +1,4 @@
+import type { ActivityCoverage } from "./botScope";
 import type { RefObject } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -35,6 +36,7 @@ export function RadarListHeader({
   botRail,
   bots,
   allThreads,
+  activityCoverage,
   attentionPulses,
   railScope,
   scopedBot,
@@ -57,6 +59,7 @@ export function RadarListHeader({
   botRail: boolean;
   bots: RosterBot[];
   allThreads: readonly PluginSidebarThread[];
+  activityCoverage?: ActivityCoverage;
   attentionPulses: ReadonlyMap<string, Pulse>;
   railScope: string | null;
   scopedBot: RosterBot | null;
@@ -121,7 +124,7 @@ export function RadarListHeader({
 
   return (
     <div className="radar-list-header">
-      {botRail ? <RadarBotSwitcher bots={bots} threads={allThreads} pulses={attentionPulses}
+      {botRail ? <RadarBotSwitcher bots={bots} threads={allThreads} activityCoverage={activityCoverage} pulses={attentionPulses}
         scope={railScope} activeThreadId={activeThreadId} compact={isCompactViewport}
         motion={motion}
         onClear={() => setRailScope(null)}

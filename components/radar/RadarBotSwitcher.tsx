@@ -1,17 +1,19 @@
+import type { ActivityCoverage } from "./botScope";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
 import { BotAvatar } from "./BotAvatar";
 import { RadarBotHoverCard } from "./RadarBotHoverCard";
-import { botFamily, botRailState, botWorkers } from "./botScope";
+import { botActivity, botActivityText, botFamily, botRailState, botWorkers } from "./botScope";
 import { botStyle, STATE_LABELS, type Pulse, type RosterBot } from "./bots";
 import { moveRailFocus, type RailTip } from "./railTooltip";
 
 /** Bot shortcuts belong to our thread list; BB owns the navigation rail. */
-export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId, compact, motion, onSelect, onClear, onNavigate }: {
+export function RadarBotSwitcher({ bots, threads, activityCoverage, pulses, scope, activeThreadId, compact, motion, onSelect, onClear, onNavigate }: {
   bots: readonly RosterBot[];
   threads: readonly PluginSidebarThread[];
+  activityCoverage?: ActivityCoverage;
   pulses: ReadonlyMap<string, Pulse>;
   scope: string | null;
   activeThreadId: string | null;
@@ -83,12 +85,12 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
         aria-label="All threads" aria-pressed={scope === null} title="All threads: clear the bot filter"
         onClick={() => { close(); onClear(); }}>All</button>
       {bots.map(bot => {
-        const state = botRailState(threads, bot, pulses.get(bot.current) ?? null);
+        const state = botRailState(threads, bot, pulses.get(bot.current) ?? null, activityCoverage);
         const label = STATE_LABELS[state];
         const unread = (bot.unseenAttention ?? 0) > 0 || botFamily(threads, bot).some(thread => thread.isUnread);
-        const workers = botWorkers(threads, bot);
+        const activity = botActivity(threads, bot, pulses.get(bot.current) ?? null, activityCoverage);
         const releases = scope === bot.key && activeThreadId === bot.current;
-        const details = `${label.text}${unread ? " · Unread reply" : ""} · ${workers.length} worker${workers.length === 1 ? "" : "s"}`;
+        const details = `${label.text}${unread ? " · Unread reply" : ""} · ${botActivityText(activity)}${bot.rolloverBlocked ? " · Handover blocked" : ""}`;
         return <button key={bot.key} type="button"
           className={cn("radar-bot-shortcut", scope === bot.key && "radar-bot-shortcut-selected", unread && "radar-bot-shortcut-unread")}
           style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties}
@@ -104,13 +106,15 @@ export function RadarBotSwitcher({ bots, threads, pulses, scope, activeThreadId,
           onFocus={event => reveal(event.currentTarget, bot)}
           onBlur={event => { if (!(event.relatedTarget instanceof Node) || !document.querySelector("[data-radar-bot-hover]")?.contains(event.relatedTarget)) leave(); }}>
           <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={unread} motion={motion} />
+          {bot.rolloverBlocked && activity.active > 0 ? <span className="radar-bot-active-count" aria-hidden="true" title={`${activity.active} active threads`}>{activity.active}</span> : null}
         </button>;
       })}
     </div>
     {tip && hovered ? createPortal(<div>
       <RadarBotHoverCard bot={hovered} coordinator={threads.find(thread => thread.id === hovered.current)}
         pulse={pulses.get(hovered.current) ?? null} workers={botWorkers(threads, hovered)}
-        state={botRailState(threads, hovered, pulses.get(hovered.current) ?? null)} tip={tip}
+        activity={botActivity(threads, hovered, pulses.get(hovered.current) ?? null, activityCoverage)}
+        state={botRailState(threads, hovered, pulses.get(hovered.current) ?? null, activityCoverage)} tip={tip}
         onKeepOpen={cancel} onLeave={leave} onClose={() => { close(); suppressFocus.current = true; trigger.current?.focus(); }}
         onNavigate={() => { close(); onNavigate(); }}
         onViewWorkers={() => { close(); onSelect(hovered); }} motion={motion} />

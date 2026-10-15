@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botRailState, botScopeIds, botWorkers, rosterRefreshKey } from "./botScope";
+import { hasUnresolvedActivity, botActivity, botActivityText, botRailState, botScopeIds, botWorkers, rosterRefreshKey } from "./botScope";
 import { makeThread } from "./fixtures";
 import type { RosterBot } from "./bots";
 
@@ -37,6 +37,15 @@ describe("bot scope", () => {
     expect(botRailState([root, worker], bot, null)).toBe("needs-you");
     expect(botRailState([root, { ...worker, status: "error" }], bot, null)).toBe("failed");
     expect(botRailState([root, { ...worker, isHidden: true }], bot, null)).toBe("needs-you");
+  });
+  it("preserves a blocked handover failure even with a live lifecycle-owned worker", () => {
+    const root = makeThread({ id: "root" });
+    const worker = makeThread({ id: "worker", lifecycleOwnerThreadId: "root", projectId: "elsewhere", isHidden: true, status: "active" });
+    const blocked = { ...bot, rollover: null, rolloverBlocked: true };
+    expect(botRailState([root], blocked, null)).toBe("failed");
+    expect(botRailState([root, worker], blocked, null)).toBe("failed");
+    expect(botRailState([root, worker], bot, null)).toBe("working");
+    expect(botRailState([root, { ...worker, status: "idle" }], bot, null)).toBe("idle");
   });
   it("reads held work as idle, keeping failures, handovers and running work", () => {
     const root = makeThread({ id: "root" });
@@ -83,5 +92,70 @@ describe("roster refresh key", () => {
     expect(rosterRefreshKey([a, makeThread({ id: "d" })])).not.toBe(base);
     const same = [a, b];
     expect(rosterRefreshKey(same)).toBe(rosterRefreshKey(same));
+  });
+});
+
+
+describe("blocked handover independent signals", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", coordinatorIds: ["old", "root"], projectId: "proj_a", projects: [], hostId: "h", providerId: "codex", model: "m", rollover: null, rolloverBlocked: true };
+  it("counts hidden lifecycle work once across previous coordinators without counting archived or unrelated work", () => {
+    const rows = [makeThread({ id: "root" }), makeThread({ id: "old" }),
+      makeThread({ id: "hidden", parentThreadId: "old", lifecycleOwnerThreadId: "root", projectId: "other", isHidden: true, status: "active" }),
+      makeThread({ id: "archived", lifecycleOwnerThreadId: "root", isArchived: true, status: "active" }),
+      makeThread({ id: "unrelated", projectId: "proj_a", status: "active" })];
+    expect(botRailState(rows, bot, null)).toBe("failed");
+    expect(botActivity(rows, bot, null)).toEqual({ workers: 1, hiddenWorkers: 1, active: 1, questions: 0, decisions: 0 });
+    expect(botActivityText(botActivity(rows, bot, null))).toBe("1 worker · 1 active");
+    expect(botWorkers(rows, bot)).toEqual([]);
+  });
+  it("keeps blocked failure and background work even if a phase is also present", () => {
+    const rows = [makeThread({ id: "root", activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 1, planMode: 0, goals: 0 }, hasPendingInteraction: true })];
+    const entry = { ...bot, rollover: "summary", actionableNeeds: 1 };
+    expect(botRailState(rows, entry, null)).toBe("failed");
+    expect(botActivity(rows, entry, null)).toMatchObject({ active: 1, questions: 1, decisions: 1 });
+  });
+  it.each(["question", "saved decision", "pulse decision", "missing coordinator"])("keeps failure with %s and preserves independent attention", kind => {
+    const rows = kind === "missing coordinator" ? [] : [makeThread({ id: "root", hasPendingInteraction: kind === "question" })];
+    const entry = { ...bot, actionableNeeds: kind === "saved decision" ? 2 : 0 };
+    const pulse = kind === "pulse decision" ? { subject: "Choose", decision: "Choose option", quiet: false } : null;
+    expect(botRailState(rows, entry, pulse)).toBe("failed");
+    expect(botActivity(rows, entry, pulse)).toMatchObject({ active: 0, questions: kind === "question" ? 1 : 0, decisions: kind === "saved decision" ? 2 : kind === "pulse decision" ? 1 : 0 });
+  });
+});
+
+describe("activity coverage and last known topology", () => {
+  it("keeps fresh work linked through a stale archived bridge without counting that bridge as working", () => {
+    const threads = [makeThread({ id: "root" }), makeThread({ id: "live", parentThreadId: "bridge", status: "active" })];
+    const coverage = { complete: false, staleThreads: [makeThread({ id: "bridge", parentThreadId: "root", isArchived: true, status: "active" })] };
+    expect(botActivity(threads, bot, null, coverage)).toMatchObject({ workers: 1, active: 1, lastKnownActive: 0, complete: false });
+    expect(botRailState(threads, bot, null, coverage)).toBe("working");
+  });
+  it("lets a fresh idle or archived row supersede stale active facts with the same id", () => {
+    const staleThreads = [makeThread({ id: "worker", parentThreadId: "root", status: "active", hasPendingInteraction: true })];
+    for (const isArchived of [false, true]) {
+      const threads = [makeThread({ id: "root" }), makeThread({ id: "worker", parentThreadId: "root", isArchived })];
+      expect(botActivity(threads, bot, null, { complete: false, staleThreads })).toMatchObject({ workers: isArchived ? 0 : 1, active: 0, questions: 0, lastKnownActive: 0, lastKnownQuestions: 0 });
+    }
+  });
+  it("distinguishes a complete zero from unavailable and stale counts", () => {
+    const rows = [makeThread({ id: "root" })];
+    expect(botActivityText(botActivity(rows, bot, null, { complete: true, staleThreads: [] }))).toBe("0 workers");
+    expect(botActivityText(botActivity(rows, bot, null, { complete: false, staleThreads: [] }))).toBe("Worker count unavailable · Activity incomplete");
+    const staleThreads = [makeThread({ id: "worker", parentThreadId: "root", status: "active", hasPendingInteraction: true })];
+    const text = botActivityText(botActivity(rows, bot, null, { complete: false, staleThreads }));
+    expect(text).toContain("1 last known active");
+    expect(text).toContain("1 last known waiting on you");
+    expect(botRailState(rows, bot, null, { complete: false, staleThreads })).toBe("unavailable");
+  });
+});
+
+
+describe("missing ancestry coverage", () => {
+  it("marks unresolved ownership incomplete while preserving known family work", () => {
+    const orphan = makeThread({ id: "worker", parentThreadId: "missing-archived-bridge", status: "active" });
+    expect(hasUnresolvedActivity([orphan], [bot])).toBe(true);
+    expect(hasUnresolvedActivity([{ ...orphan, lifecycleOwnerThreadId: "root" }], [bot])).toBe(false);
+    expect(hasUnresolvedActivity([orphan, makeThread({ id: "missing-archived-bridge", parentThreadId: "root", isArchived: true })], [bot])).toBe(false);
+    expect(hasUnresolvedActivity([makeThread({ id: "unrelated-root", sourceThreadId: "absent" })], [bot])).toBe(false);
   });
 });

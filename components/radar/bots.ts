@@ -18,6 +18,8 @@ export const rosterSchema = z.object({
       providerId: z.string(),
       model: z.string(),
       rollover: z.string().nullable(),
+      // Optional while older bot-plugin servers still publish only a phase.
+      rolloverBlocked: z.boolean().optional(),
       unseenAttention: z.number().int().nonnegative().optional(),
       actionableNeeds: z.number().int().nonnegative().optional(),
     }),
@@ -121,14 +123,14 @@ export function askPulse(thread: PluginSidebarThread, pulse: Pulse | null, judge
 export type BotState = "failed" | "needs-you" | "working" | "rollover" | "decision" | "unread" | "idle" | "unavailable";
 
 export const STATE_LABELS: Record<BotState, { text: string; tone: string; icon: string; action: string; description: string }> = {
-  failed: { text: "Failed", tone: "radar-tone-error", icon: "AlertCircle", action: "Check failure", description: "A coordinator or worker failed. Open the affected thread to inspect it." },
+  failed: { text: "Failed", tone: "radar-tone-error", icon: "AlertCircle", action: "Check failure", description: "A coordinator, worker or handover failed. Open the coordinator or affected thread to inspect it." },
   "needs-you": { text: "Needs you", tone: "radar-tone-warning", icon: "CircleQuestion", action: "Reply to question", description: "A question or approval is waiting for you, even if you have already read it." },
   working: { text: "Working", tone: "radar-tone-running", icon: "Loading", action: "View live work", description: "The coordinator or a worker has work in progress." },
   rollover: { text: "Handover", tone: "radar-tone-info", icon: "RotateCcw", action: "View handover", description: "The bot is moving to a replacement coordinator." },
   decision: { text: "Decision", tone: "radar-tone-warning", icon: "ListTodo", action: "Review decision", description: "The latest coordinator reply asks for a decision. Reading it does not resolve it." },
   unread: { text: "New reply", tone: "radar-tone-info", icon: "MessageSquare", action: "Read reply", description: "A reply in this bot's family is unread. Open the thread to read it." },
   idle: { text: "Idle", tone: "radar-tone-muted", icon: "CircleCheck", action: "Open coordinator", description: "No visible work or pending input. The bot is ready for a request." },
-  unavailable: { text: "Unavailable", tone: "radar-tone-muted", icon: "Unavailable", action: "Open coordinator", description: "The coordinator's state is not available yet. Open it to inspect its status." },
+  unavailable: { text: "Unavailable", tone: "radar-tone-muted", icon: "Unavailable", action: "Open coordinator", description: "Activity information is incomplete. Open the coordinator to inspect its status." },
 };
 
 /** Attention first, then execution, then what the last reply asked for. */
@@ -137,9 +139,11 @@ export function botState(
   pulse: Pulse | null,
   rollover: string | null,
   family: { live: number; needsUser: number; failed: number } = { live: 0, needsUser: 0, failed: 0 },
+  rolloverBlocked = false,
 ): BotState {
+  if (rolloverBlocked) return "failed";
   if (!thread) return "unavailable";
-  if (thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error" || thread.queuedWork === "failed" || family.failed > 0) return "failed";
+  if ( thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error" || thread.queuedWork === "failed" || family.failed > 0) return "failed";
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input" || family.needsUser > 0) return "needs-you";
   // A decision stays actionable until a new reply, unless the coordinator is already answering it.
   if (pulse?.decision && !isRunningThread(thread)) return "decision";

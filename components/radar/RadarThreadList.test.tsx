@@ -28,6 +28,7 @@ function sdkFakes(
 ): Record<string, unknown> {
   return {
     threads: {
+      list: async () => [],
       defaultExecutionOptions: async () => execution,
       update: async () => ({ ok: true }),
       pin: async () => ({ ok: true }),
@@ -173,6 +174,22 @@ describe("bot scope and experiment fallback", () => {
     makeThread({ id: "other", projectId: "other" }),
   ];
   const sdk = { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [bot] }) } };
+  it.each([true, false])("shows a blocked handover without a spinning ring (botRail=%s)", async (botRail) => {
+    const slot = renderThreads(threads, { projects,
+      sdk: { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [{ ...bot, rollover: null, rolloverBlocked: true }] }) } },
+      settings: { botRail, hoverCard: false } });
+    if (botRail) {
+      const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });
+      const button = await within(shortcuts).findByRole("button", { name: /Personal Bot, Failed/ });
+      expect(button.querySelector('[data-bot-state="failed"]')).toBeTruthy();
+      expect(button.querySelector(".radar-bot-state-spin")).toBeNull();
+      expect(button.querySelector(".radar-bot-badge-error")).toBeTruthy();
+    } else {
+      await waitFor(() => expect(slot.container.querySelector(".radar-bot-card.radar-bot-failed")).toBeTruthy());
+      expect(slot.container.querySelector(".radar-bot-card .radar-bot-state-spin")).toBeNull();
+      expect(screen.getByText(/^1 failed/)).toBeTruthy();
+    }
+  });
   it("keeps bot shortcuts usable without the retired navigation setting", async () => {
     const navigated = vi.fn();
     const slot = renderThreads(threads, { projects, sdk, settings: { railNav: false, botRail: true }, isCompactViewport: true, onNavigate: navigated });
@@ -2638,7 +2655,7 @@ describe("hidden workers", () => {
   const rowOf = (container: HTMLElement, id: string) =>
     container.querySelector(`[data-sidebar-thread-id='${id}']`)?.closest(".radar-row") ?? null;
 
-  it("stays out of the list with the option off, in a bot view and in All, and fetches nothing", async () => {
+  it("stays out of the list with the option off, in a bot view and in All, while fetching independent activity", async () => {
     setRailScope("personal");
     const { sdk, list } = sdkWith();
     const slot = renderThreads(threads, { sdk, settings: { botRail: true } });
@@ -2647,7 +2664,7 @@ describe("hidden workers", () => {
     expect(slot.container.querySelector(".radar-hidden-chip")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear bot filter: Personal Bot" }));
     expect(visibleRowIds(slot.container)).toEqual(["other"]);
-    expect(list).not.toHaveBeenCalled();
+    expect(list).toHaveBeenCalled();
   });
 
   it("fetches hidden threads for every feed and roster project when turned on", async () => {
@@ -2663,7 +2680,6 @@ describe("hidden workers", () => {
     await waitFor(() => expect(visibleRowIds(slot.container)).toEqual(["worker", "relayed"]));
     const projects = list.mock.calls.map(([args]) => args.projectId);
     expect(new Set(projects)).toEqual(new Set(["proj_a", "proj_bot", "proj_side"]));
-    expect(projects.length).toBe(3);
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ includeHidden: true, archived: false, limit: 200 }));
   });
 
@@ -2754,5 +2770,277 @@ describe("hidden workers", () => {
     expect(screen.queryByRole("menuitem", { name: "Show thread" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Hide" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith({ threadId: "worker", visibility: "hidden" }));
+  });
+});
+
+
+describe("blocked handover display matrix", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", projectId: "proj_a", projects: [], hostId: "h", providerId: "codex", model: "test", rollover: null, rolloverBlocked: true };
+  const scenarios = ["idle", "working", "question", "decision", "missing coordinator"] as const;
+  for (const botRail of [true, false]) {
+    it.each(scenarios)(`keeps failure and independent details in ${botRail ? "shortcut and hover" : "deck"}: %s`, async kind => {
+      const root = makeThread({ id: "root", pinnedAt: NOW, hasPendingInteraction: kind === "question" });
+      const threads = kind === "missing coordinator" ? [] : [root];
+      if (kind === "working") threads.push(makeThread({ id: "hidden-live", title: "Hidden helper", isHidden: true, lifecycleOwnerThreadId: "root", projectId: "elsewhere", status: "active" }));
+      const entry = { ...bot, actionableNeeds: kind === "decision" ? 1 : 0 };
+      const slot = renderThreads(threads, { projects: [makeProject({ id: "proj_a" }), makeProject({ id: "elsewhere" })], settings: { botRail, hoverCard: false }, sdk: { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [entry] }) } } });
+      const target = await screen.findByRole(botRail ? "button" : "link", { name: /Personal Bot, Failed/ });
+      await waitFor(() => expect(target.getAttribute("aria-label")).not.toContain("Activity incomplete"));
+      const label = target.getAttribute("aria-label")!;
+      expect(label).toContain("Handover blocked");
+      expect(label).toContain(kind === "working" ? "1 worker · 1 active" : "0 workers");
+      if (kind === "question") expect(label).toContain("1 waiting on you");
+      if (kind === "decision") expect(label).toContain("1 decision");
+      expect(target.querySelector(".radar-bot-state-spin")).toBeNull();
+      expect(target.querySelector('[data-bot-state="failed"]')).toBeTruthy();
+      expect(slot.container.querySelector('[data-sidebar-thread-id="hidden-live"]')).toBeNull();
+      if (botRail) {
+        if (kind === "working") expect(target.querySelector(".radar-bot-active-count")?.textContent).toBe("1");
+        act(() => target.focus());
+        const hover = await screen.findByRole("dialog", { name: "Personal Bot details" });
+        expect(hover.querySelector('[data-bot-state="failed"]')).toBeTruthy();
+        expect(hover.querySelector(".radar-bot-state-spin")).toBeNull();
+        expect(hover.textContent).toContain("Handover blocked");
+        if (kind === "working") expect(hover.textContent).toContain("1 worker · 1 active");
+        if (kind === "question") expect(hover.textContent).toContain("1 waiting on you");
+        if (kind === "decision") expect(hover.textContent).toContain("1 decision");
+      }
+    });
+  }
+});
+
+describe("independent bot activity census", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", coordinatorIds: ["old", "root"], projectId: "proj_a", projects: [], hostId: "h", providerId: "codex", model: "test", rollover: null, rolloverBlocked: true };
+  const root = makeThread({ id: "root", pinnedAt: NOW });
+  const worker = makeListedThread({ id: "hidden-live", projectId: "other", lifecycleOwnerThreadId: "old", status: "active", visibility: "hidden" });
+  function mount(botRail: boolean, list: unknown, rows = [root], entry: import("./bots").RosterBot = bot) {
+    const fake = sdkFakes();
+    return renderThreads(rows, { settings: { botRail, hoverCard: false },
+      projects: [makeProject({ id: "proj_a" }), makeProject({ id: "other" })],
+      rpc: { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }) },
+      sdk: { ...fake, threads: { ...(fake.threads as object), list }, plugins: { callRpc: async () => ({ bots: [entry] }) } },
+    });
+  }
+  const control = (rail: boolean) => screen.findByRole(rail ? "button" : "link", { name: /Personal Bot, Failed/ });
+  for (const rail of [true, false]) {
+    it(`retains fetched cross-project work when row visibility changes (${rail})`, async () => {
+      const list = vi.fn(async ({ projectId }: { projectId: string }) => projectId === "other" ? [worker] : []);
+      const slot = mount(rail, list);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      expect(slot.container.querySelector('[data-sidebar-thread-id="hidden-live"]')).toBeNull();
+      const calls = list.mock.calls.length;
+      fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
+      fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
+      await act(async () => {});
+      expect(list).toHaveBeenCalledTimes(calls);
+      expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active");
+      expect(target.querySelector(".radar-bot-state-spin")).toBeNull();
+      if (rail) {
+        expect(target.querySelector(".radar-bot-active-count")?.textContent).toBe("1");
+        act(() => target.focus());
+        const hover = await screen.findByRole("dialog", { name: "Personal Bot details" });
+        expect(hover.textContent).toContain("1 worker · 1 active");
+      } else expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed");
+    });
+    it(`renders a missing coordinator failure even with no other rows (${rail})`, async () => {
+      const slot = mount(rail, async () => [], []);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("0 workers"));
+      if (!rail) {
+        expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed");
+        expect(slot.container.textContent).not.toContain("All quiet");
+        expect(slot.container.textContent).toContain("Coordinator status unavailable");
+      }
+    });
+    it.each(["missing API", "failed API", "pending API"])(`shows unknown instead of zero for %s (${rail})`, async kind => {
+      const list = kind === "missing API" ? undefined : kind === "failed API" ? async () => { throw new Error("offline"); } : () => new Promise(() => {});
+      const slot = mount(rail, list);
+      const target = await control(rail);
+      await act(async () => {});
+      expect(target.getAttribute("aria-label")).toContain("Worker count unavailable");
+      expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+      expect(target.getAttribute("aria-label")).not.toContain("0 workers");
+      expect(target.querySelector(".radar-bot-active-count, .radar-bot-state-spin")).toBeNull();
+      if (!rail) expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed");
+    });
+    it(`keeps last known work on failure and clears it only after a successful empty census (${rail})`, async () => {
+      let phase = "active";
+      const list = vi.fn(async ({ projectId }: { projectId: string }) => {
+        if (phase === "failed") throw new Error("offline");
+        return phase === "active" && projectId === "other" ? [worker] : [];
+      });
+      mount(rail, list);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      phase = "failed";
+      fireEvent(window, new Event("focus"));
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 last known active"));
+      expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+      expect(target.querySelector(".radar-bot-active-count, .radar-bot-state-spin")).toBeNull();
+      fireEvent.click(viewOptions().getByRole("button", { name: "Hidden workers" }));
+      expect(target.getAttribute("aria-label")).toContain("1 last known active");
+      expect(target.getAttribute("aria-label")).toContain("includes last known workers");
+      phase = "empty";
+      fireEvent(window, new Event("focus"));
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("0 workers"));
+      expect(target.getAttribute("aria-label")).not.toContain("active");
+      expect(target.getAttribute("aria-label")).not.toContain("Activity incomplete");
+    });
+    it(`expires a census while refresh hangs without claiming cached execution is current (${rail})`, async () => {
+      let hanging = false;
+      const list = ({ projectId }: { projectId: string }) => hanging ? new Promise(() => {}) : Promise.resolve(projectId === "other" ? [worker] : []);
+      mount(rail, list);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      const later = Date.now() + 120_001;
+      vi.spyOn(Date, "now").mockReturnValue(later);
+      hanging = true;
+      fireEvent(window, new Event("focus"));
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 last known active"));
+      expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+      expect(target.querySelector(".radar-bot-active-count, .radar-bot-state-spin")).toBeNull();
+    });
+    it(`paginates activity beyond the visible row window (${rail})`, async () => {
+      const first = Array.from({ length: 200 }, (_, i) => makeListedThread({ id: `unrelated-${i}`, projectId: "other" }));
+      const list = vi.fn(async ({ projectId, offset }: { projectId: string; offset: number }) => projectId !== "other" ? [] : offset === 0 ? first : [worker]);
+      mount(rail, list);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      expect(list).toHaveBeenCalledWith(expect.objectContaining({ projectId: "other", offset: 200 }));
+      expect(target.getAttribute("aria-label")).not.toContain("Activity incomplete");
+    });
+    it(`bounds older servers ignoring pagination and labels incomplete counts (${rail})`, async () => {
+      const repeated = [worker, ...Array.from({ length: 199 }, (_, i) => makeListedThread({ id: `unrelated-${i}`, projectId: "other" }))];
+      const list = vi.fn(async ({ projectId }: { projectId: string }) => projectId === "other" ? repeated : []);
+      mount(rail, list);
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+      expect(list.mock.calls.length).toBeLessThanOrEqual(4);
+    });
+    it(`preserves hidden questions, decisions and failure ahead of a stale handover phase (${rail})`, async () => {
+      const question = { ...worker, status: "idle" as const, hasPendingInteraction: true, queuedWork: "waiting" as const };
+      mount(rail, async ({ projectId }: { projectId: string }) => projectId === "other" ? [question] : [], [root], { ...bot, rollover: "summary", actionableNeeds: 2 });
+      const target = await control(rail);
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 waiting on you · 2 decisions"));
+      expect(target.getAttribute("aria-label")).not.toContain("1 active");
+      expect(target.querySelector(".radar-bot-state-spin")).toBeNull();
+      if (rail) {
+        act(() => target.focus());
+        const hover = await screen.findByRole("dialog", { name: "Personal Bot details" });
+        expect(hover.textContent).toContain("1 waiting on you · 2 decisions");
+        expect(hover.textContent).not.toContain("handover in progress");
+      }
+    });
+  }
+  it("publishes known running work while another project's aggregate is pending", async () => {
+    mount(true, ({ projectId }: { projectId: string }) => projectId === "other" ? Promise.resolve([worker]) : new Promise(() => {}));
+    const target = await control(true);
+    await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+    expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+    expect(target.querySelector(".radar-bot-active-count")?.textContent).toBe("1");
+  });
+  it("retains previously known work when a later page fails, without inventing a current count", async () => {
+    let partial = false;
+    const first = Array.from({ length: 200 }, (_, i) => makeListedThread({ id: `unrelated-${i}`, projectId: "other" }));
+    mount(true, async ({ projectId, offset }: { projectId: string; offset: number }) => {
+      if (projectId !== "other") return [];
+      if (!partial) return [worker];
+      if (offset === 0) return first;
+      throw new Error("page unavailable");
+    });
+    const target = await control(true);
+    await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+    partial = true;
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 last known active"));
+    expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+    expect(target.querySelector(".radar-bot-active-count")).toBeNull();
+  });
+  it("does not claim zero when an active row has an unavailable ancestor", async () => {
+    mount(true, async ({ projectId }: { projectId: string }) => projectId === "other" ? [{ ...worker, lifecycleOwnerThreadId: "missing-bridge" }] : []);
+    const target = await control(true);
+    await act(async () => {});
+    expect(target.getAttribute("aria-label")).toContain("Worker count unavailable");
+    expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+    expect(target.querySelector(".radar-bot-active-count")).toBeNull();
+  });
+  it("preserves the genuine working ring with an older roster and unavailable census", async () => {
+    const old = { ...bot, rolloverBlocked: undefined };
+    mount(true, undefined, [root, makeThread({ id: "live", parentThreadId: "root", status: "active" })], old);
+    const target = await screen.findByRole("button", { name: /Personal Bot, Working/ });
+    expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active");
+    expect(target.getAttribute("aria-label")).toContain("Activity incomplete");
+    expect(target.querySelector(".radar-bot-state-spin")).toBeTruthy();
+  });
+  it("never reports all quiet with an unknown census on an older roster", async () => {
+    mount(false, undefined, [root], { ...bot, rolloverBlocked: undefined });
+    const target = await screen.findByRole("link", { name: /Personal Bot, Unavailable/ });
+    expect(target.getAttribute("aria-label")).toContain("Worker count unavailable");
+    expect(screen.queryByText("All quiet")).toBeNull();
+  });
+});
+
+describe("review regression: hidden preferences and delayed pages", () => {
+  const bot = { key: "personal", name: "Personal Bot", current: "root", coordinatorIds: ["root"], projectId: "proj_a", projects: [], hostId: "h", providerId: "codex", model: "test", rollover: null, rolloverBlocked: true };
+  const root = makeThread({ id: "root", pinnedAt: NOW });
+  const worker = makeListedThread({ id: "hidden-live", projectId: "other", lifecycleOwnerThreadId: "root", status: "active", visibility: "hidden" });
+  const home = { ...bot, key: "home", name: "Home Bot", current: "home", coordinatorIds: ["home"], rolloverBlocked: false };
+  function mount(rail: boolean, rows: PluginSidebarThread[], bots: import("./bots").RosterBot[], list: unknown) {
+    const fake = sdkFakes();
+    return renderThreads(rows, { settings: { botRail: rail, hoverCard: false }, projects: [makeProject({ id: "proj_a" }), makeProject({ id: "other" })],
+      rpc: { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }) },
+      sdk: { ...fake, threads: { ...(fake.threads as object), list }, plugins: { callRpc: async () => ({ bots }) } } });
+  }
+  for (const rail of [true, false]) for (const missing of [true, false]) {
+    it(`surfaces blocked hidden bots with a ${missing ? "missing" : "present"} coordinator (${rail}) and restores preference on recovery`, async () => {
+      hideBot("personal"); const entry = { ...bot };
+      const slot = mount(rail, [...(missing ? [] : [root]), makeThread({ id: "home", pinnedAt: NOW })], [entry, home], async () => []);
+      const target = await screen.findByRole(rail ? "button" : "link", { name: /Personal Bot, Failed/ });
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("0 workers"));
+      expect(target.querySelector(".radar-bot-state-spin")).toBeNull();
+      if (!rail) expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed");
+      entry.rolloverBlocked = false; fireEvent(window, new Event("focus"));
+      await waitFor(() => expect(screen.queryByRole(rail ? "button" : "link", { name: /Personal Bot,/ })).toBeNull());
+    });
+  }
+  for (const rail of [true, false]) for (const outcome of ["complete", "error", "duplicate"] as const) {
+    it(`shows a page-one lower bound while pending, then ${outcome} (${rail})`, async () => {
+      let resolve!: (rows: ReturnType<typeof makeListedThread>[]) => void;
+      let reject!: (error: Error) => void;
+      const next = new Promise<ReturnType<typeof makeListedThread>[]>((yes, no) => { resolve = yes; reject = no; });
+      const list = vi.fn(({ projectId, offset }: { projectId: string; offset: number }) => projectId !== "other" ? Promise.resolve([]) : offset === 0 ? Promise.resolve([worker, ...Array.from({ length: 199 }, (_, i) => makeListedThread({ id: `filler-${i}`, projectId: "other" }))]) : next);
+      const slot = mount(rail, [root], [bot], list);
+      const target = await screen.findByRole(rail ? "button" : "link", { name: /Personal Bot, Failed/ });
+      await waitFor(() => expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active"));
+      expect(target.getAttribute("aria-label")).toContain("counts are lower bounds");
+      expect(slot.container.querySelector('[data-sidebar-thread-id="hidden-live"]')).toBeNull();
+      if (rail) expect(target.querySelector(".radar-bot-active-count")?.textContent).toBe("1");
+      else expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed · 1 worker · 1 active");
+      await act(async () => outcome === "error" ? reject(new Error("page two unavailable")) : resolve(outcome === "duplicate" ? [worker] : []));
+      expect(target.getAttribute("aria-label")).toContain("1 worker · 1 active");
+      expect(target.getAttribute("aria-label")?.includes("Activity incomplete")).toBe(outcome === "error");
+    });
+  }
+  it("counts hidden working bots in Crew while keeping their rows hidden, even through search filters", async () => {
+    hideBot("personal");
+    const slot = mount(false, [root, makeThread({ id: "home", pinnedAt: NOW })], [{ ...bot, rolloverBlocked: false }, home], async ({ projectId }: { projectId: string }) => projectId === "other" ? [worker, worker] : []);
+    await waitFor(() => expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 working"));
+    expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 worker · 1 active");
+    expect(screen.queryByRole("link", { name: /Personal Bot,/ })).toBeNull();
+    expect(slot.container.querySelector('[data-sidebar-thread-id="hidden-live"]')).toBeNull();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "no matching rows" } });
+    await waitFor(() => expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 working"));
+    expect(slot.container.querySelector(".radar-crew-digest")?.textContent).not.toContain("All quiet");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
+    expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 worker · 1 active");
+  });
+  it("retains the global failure with every displayed row filtered away", async () => {
+    hideBot("personal");
+    const slot = mount(false, [root], [bot], async () => []);
+    await screen.findByRole("link", { name: /Personal Bot, Failed/ });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "no matching rows" } });
+    await waitFor(() => expect(slot.container.querySelector(".radar-crew-digest")?.textContent).toContain("1 failed"));
   });
 });

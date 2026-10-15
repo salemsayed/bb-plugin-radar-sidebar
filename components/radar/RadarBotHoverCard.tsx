@@ -4,6 +4,7 @@ import { useModelDisplayName } from "./useThreadExecution";
 import { cn } from "@/lib/utils";
 import { BotAvatar } from "./BotAvatar";
 import { botState, botStyle, STATE_LABELS, type BotState, type Pulse, type RosterBot } from "./bots";
+import { botActivityText, type BotActivity } from "./botScope";
 import { timeAgo } from "./time";
 import type { RailTip } from "./railTooltip";
 
@@ -13,12 +14,13 @@ function tokenCount(n: number): string {
 }
 
 /** Live facts from the roster and sidebar; hover never creates a coordinator turn. */
-export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip, onKeepOpen, onLeave, onClose, onNavigate, onViewWorkers, motion = true }: {
+export function RadarBotHoverCard({ bot, coordinator, pulse, workers, activity: familyActivity, state, tip, onKeepOpen, onLeave, onClose, onNavigate, onViewWorkers, motion = true }: {
   bot: RosterBot;
   coordinator: PluginSidebarThread | undefined;
   pulse: Pulse | null;
   workers: readonly PluginSidebarThread[];
   state: BotState;
+  activity?: BotActivity;
   tip: RailTip;
   onKeepOpen: () => void;
   onLeave: () => void;
@@ -43,7 +45,7 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip
   const context = pulse?.context ?? null;
   const reply = pulse?.preview ?? pulse?.subject;
   const ordered = workers.map(thread => ({ thread, state: botState(thread, null, null) })).sort((a, b) => PRIORITY[a.state] - PRIORITY[b.state] || b.thread.latestAttentionAt - a.thread.latestAttentionAt);
-  const coordinatorState = botState(coordinator, pulse, bot.rollover);
+  const coordinatorState = botState(coordinator, pulse, bot.rollover, undefined, bot.rolloverBlocked);
   const target = coordinatorState === state || state === "decision" || state === "rollover"
     ? coordinator : ordered.find(worker => worker.state === state)?.thread ?? coordinator;
   const counts = (wanted: string) => ordered.filter(worker => worker.state === wanted).length;
@@ -69,14 +71,16 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip
         </div>
         <span className={cn("radar-bot-hover-state", label.tone)} title={label.description} aria-label={`${label.text}: ${label.description}`}>{label.text}</span>
       </div>
+      {familyActivity ? <p className="radar-bot-facts">{botActivityText(familyActivity)}{bot.rolloverBlocked ? " · Handover blocked" : ""}</p> : null}
       <section className="radar-bot-hover-section radar-bot-hover-latest" aria-label="Latest reply">
         {pulse?.decision ? <div className="radar-bot-hover-decision"><strong>{coordinatorState === "decision" ? "Needs your decision" : "Last decision request"}</strong><p>{pulse.decision}</p></div> : null}
         {coordinator?.hasPendingInteraction && !pulse?.decision ? <p className="radar-bot-hover-decision">The coordinator is waiting for your input.</p> : null}
         {reply && !/^decision needed:/i.test(reply) ? <p className="radar-bot-hover-reply">{reply}</p> : !pulse?.decision ? <p className="radar-bot-hover-muted">No reply available yet.</p> : null}
       </section>
       <section className="radar-bot-hover-section" aria-label="Workers">
-        <div className="radar-bot-hover-section-head"><span>Workers</span><span>{workers.length}</span></div>
-        {workers.length === 0 ? <p className="radar-bot-hover-muted">No active worker threads.</p> : <>
+        <div className="radar-bot-hover-section-head"><span>Workers</span><span>{familyActivity?.complete === false ? (familyActivity.workers ? `${familyActivity.workers}+ known` : "Unavailable") : familyActivity?.workers ?? workers.length}</span></div>
+        {familyActivity && familyActivity.hiddenWorkers > 0 ? <p className="radar-bot-hover-muted">{familyActivity.hiddenWorkers} hidden worker{familyActivity.hiddenWorkers === 1 ? "" : "s"} included in counts.</p> : null}
+        {workers.length === 0 ? <p className="radar-bot-hover-muted">No visible worker threads.</p> : <>
           <p className="radar-bot-hover-muted">{activity}</p>
           <div className="radar-bot-hover-workers">
             {ordered.slice(0, 3).map(({ thread, state: worker }) => {
@@ -97,7 +101,7 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, state, tip
           </div>
           {pulse?.contextUsedTokens != null && pulse.contextWindowTokens != null ? <p className="radar-bot-hover-muted">{tokenCount(pulse.contextUsedTokens)} / {tokenCount(pulse.contextWindowTokens)} tokens{pulse.contextEstimated ? " · estimated" : ""}</p> : null}
         </>}
-        {bot.rollover ? <p className="radar-tone-info">Coordinator handover in progress.</p> : null}
+        {bot.rollover && !bot.rolloverBlocked ? <p className="radar-tone-info">Coordinator handover in progress.</p> : null}
       </section>
       <div className="radar-bot-hover-meta"><span>Runs on</span><span>{coordinator?.host?.name ? `${coordinator.host.name} · ` : ""}{modelName}</span></div>
       <div className="radar-bot-hover-actions">
