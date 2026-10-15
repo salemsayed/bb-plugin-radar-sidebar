@@ -20,8 +20,9 @@ import { preloadExtendedIcons } from "@/components/ui/icon";
 import { useRadarThreadActions } from "./threadActions";
 import { askPulse, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
-import { needsKeyOf, useCrewJudgements, useNeedsYou } from "./useCrewData";
+import { needsKeyOf, useCrewJudgements, useNeedsYou, usePlate } from "./useCrewData";
 import { NeedsYouLane } from "./NeedsYouList";
+import { PlateLane } from "./PlateLane";
 import { useReplyPrefill } from "./useReplyPrefill";
 import { useBotRoster } from "./useBotRoster";
 import { askingBotKeys, useHiddenBotKeys, useVisibleBots } from "./botVisibility";
@@ -37,6 +38,7 @@ import {
   useListSettings,
   useListView,
   useNeedsLaneOpen,
+  usePlateLaneOpen,
   useShowHidden,
   useWorkingOpen,
 } from "./useListSettings";
@@ -83,6 +85,7 @@ export function RadarThreadList({
   const [groupMenu, setGroupMenu] = useState<GroupMenuAnchor | null>(null);
   const [workingOpen, setWorkingOpen] = useWorkingOpen();
   const [needsLaneOpen, setNeedsLaneOpen] = useNeedsLaneOpen();
+  const [plateLaneOpen, setPlateLaneOpen] = usePlateLaneOpen();
   const [showHidden, setShowHidden] = useShowHidden();
   // Typing stays responsive: the heavy list derivation trails the input.
   const deferredQuery = useDeferredValue(query);
@@ -146,6 +149,7 @@ export function RadarThreadList({
   );
   // Saved asks and alerts are rows in the Needs-you lane, so the lane alone is reason to load them.
   const needs = useNeedsYou(settings.botsDeck || botRail || settings.needsYouLane);
+  const plate = usePlate(settings.plateLane);
   const railScope = useValidatedRailScope(roster, botRail);
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
@@ -447,6 +451,21 @@ export function RadarThreadList({
   // A Needs row opens its source thread; a recommendation also seeds that thread's reply.
   const openNeed = useCallback((threadId: string) => { actions.open(threadId); onNavigate(); }, [actions, onNavigate]);
   const replyToNeed = useReplyPrefill(openNeed);
+  // The plate stays put under search and status filters, like Needs you; a bot's view shows its own section.
+  // Opening navigates by id, so a hidden worker opens too.
+  const plateLane = settings.plateLane ? (
+    <PlateLane
+      items={plate.items}
+      modes={plate.modes}
+      roster={roster}
+      now={now}
+      bot={scopedBot?.key ?? null}
+      open={plateLaneOpen}
+      onToggle={() => setPlateLaneOpen(value => !value)}
+      onUpdate={plate.update}
+      onOpen={openNeed}
+    />
+  ) : null;
 
   return (
     <div
@@ -518,6 +537,7 @@ export function RadarThreadList({
                 onReply={replyToNeed}
               />
             ) : null}
+            {plateLane}
             <RadarListEmpty
               query={deferredQuery}
               statusFilter={statusFilter}
@@ -534,6 +554,7 @@ export function RadarThreadList({
             grouping={grouping}
             needsYouGroup={needsYouGroup}
             needsLane={needsLane}
+            plateLane={plateLane}
             botGroups={botGroups}
             pinnedGroup={pinnedGroup}
             groups={groups}

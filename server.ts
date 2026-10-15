@@ -10,6 +10,8 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
 import { needsItemSchema, needsRpcContract } from "./lib/needs";
+import { createPlateServer } from "./lib/plateServer";
+import { plateRpcContract } from "./lib/plate";
 import { z } from "zod";
 import { rosterSchema } from "./components/radar/bots";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
@@ -36,6 +38,12 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "Needs-you lane",
       description: "One group above everything else for threads waiting on you: questions, approvals and unseen failures.",
+      default: true,
+    },
+    plateLane: {
+      type: "boolean",
+      label: "Plate lane",
+      description: "A folded lane next to Needs you with what you asked each bot for that has not come back finished, for bots whose plate is on.",
       default: true,
     },
     nestByOwner: {
@@ -130,6 +138,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
+  bb.rpc.register(plateRpcContract, createPlateServer(bb).handlers);
   // The bot's open questions, for the "@" mention in a coordinator reply. Only
   // the saved items are read; the board's events and work are not shown anywhere.
   const boardItemsSchema = z.object({ items: z.array(needsItemSchema) });
