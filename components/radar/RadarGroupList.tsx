@@ -541,7 +541,6 @@ export function RadarGroupList({
   grouping,
   needsYouGroup,
   needsLane,
-  plateLane = null,
   botGroups,
   pinnedGroup,
   groups,
@@ -583,8 +582,6 @@ export function RadarGroupList({
   needsYouGroup: ThreadGroup | null;
   /** The folded lane's remembered open state and its toggle. */
   needsLane: { open: boolean; toggle: () => void };
-  /** The Plate lane, rendered right under Needs you. */
-  plateLane?: ReactNode;
   botGroups: ThreadGroup[];
   pinnedGroup: ThreadGroup | null;
   groups: ThreadGroup[];
@@ -875,7 +872,6 @@ export function RadarGroupList({
         </p>
       ) : null}
       {lane}
-      {plateLane}
       {crewBots.length > 0 ? (
         <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY }); }}>
           <span className="radar-crew-label">Crew</span>

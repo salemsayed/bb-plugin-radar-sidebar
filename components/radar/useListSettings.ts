@@ -42,7 +42,6 @@ const LAST_TWO_LINE_TITLES_KEY = "radar-sidebar:last-two-line-titles:v1";
 const LAST_GROUPING_KEY = "radar-sidebar:last-grouping:v1";
 const WORKING_OPEN_KEY = "radar-sidebar:working-open:v1";
 export const NEEDS_LANE_OPEN_KEY = "radar-sidebar:needs-lane-open:v1";
-export const PLATE_LANE_OPEN_KEY = "radar-sidebar:plate-lane-open:v1";
 export const SHOW_HIDDEN_KEY = "radar-sidebar:show-hidden:v1";
 
 export function readStored<T extends string>(
@@ -120,7 +119,6 @@ export function useListSettings() {
     botRail: flag("botRail", false),
     botsDeck: flag("botsDeck", true),
     needsYouLane: flag("needsYouLane", true),
-    plateLane: flag("plateLane", true),
     nestByOwner: flag("nestByOwner", true),
     hideEmptySections: flag("hideEmptySections", false),
     hideWorking: flag("hideWorking", false),
@@ -174,17 +172,6 @@ export function useNeedsLaneOpen(): [boolean, Dispatch<SetStateAction<boolean>>]
   );
   useEffect(() => {
     writeStored(NEEDS_LANE_OPEN_KEY, open ? "open" : "closed");
-  }, [open]);
-  return [open, setOpen];
-}
-
-/** The Plate lane starts folded like Needs you; the choice is remembered per client. */
-export function usePlateLaneOpen(): [boolean, Dispatch<SetStateAction<boolean>>] {
-  const [open, setOpen] = useState(
-    () => readStored(PLATE_LANE_OPEN_KEY, "closed", ["closed", "open"]) === "open",
-  );
-  useEffect(() => {
-    writeStored(PLATE_LANE_OPEN_KEY, open ? "open" : "closed");
   }, [open]);
   return [open, setOpen];
 }

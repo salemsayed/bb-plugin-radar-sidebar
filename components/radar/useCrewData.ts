@@ -61,4 +61,3 @@ export function useCrewJudgements(coordinators: readonly PluginSidebarThread[], 
 }
 
 export { useNeedsYou } from "@/lib/needsClient";
-export { usePlate } from "@/lib/plateClient";
