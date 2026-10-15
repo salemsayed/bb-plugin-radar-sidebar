@@ -9,6 +9,7 @@ import {
   TIME_GROUP_LABELS,
   TIME_GROUP_ORDER,
   activityTime,
+  effectiveIndicator,
   isLiveThread,
   isRunningThread,
   timeGroupFor,
@@ -304,7 +305,7 @@ export function useThreadGroups(args: {
       let live = Number(isRunningThread(root));
       let needsUser = Number(!quiet && root.indicator === "waiting-for-input");
       let failed = Number(
-        !quiet && (root.indicator === "unread-error" ||
+        !quiet && (effectiveIndicator(root) === "unread-error" ||
         root.indicator === "queued-failed"),
       );
       const kids: { id: string; title: string; dot: string | null }[] = [];
@@ -319,7 +320,7 @@ export function useThreadGroups(args: {
           const childNeeds = loud && child.indicator === "waiting-for-input";
           if (childNeeds) needsUser += 1;
           const childFailed = loud && (
-            child.indicator === "unread-error" ||
+            effectiveIndicator(child) === "unread-error" ||
             child.indicator === "queued-failed");
           if (childFailed) failed += 1;
           if (kids.length < 5) {

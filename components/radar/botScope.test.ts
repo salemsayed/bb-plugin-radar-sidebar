@@ -29,6 +29,19 @@ describe("bot scope", () => {
     expect([...botScopeIds(threads, next)].sort()).toEqual(["archive", "helper", "new-worker", "old-worker", "replacement", "root"]);
     expect(botWorkers(threads, next).map(t => t.id)).toEqual(["old-worker", "new-worker"]);
   });
+  it("shows a worker that a retry is running again as working, not failed (Home outage test, 2026-10-15)", () => {
+    const root = makeThread({ id: "root", projectId: "primary" });
+    const retried = makeThread({ id: "worker", lifecycleOwnerThreadId: "root", status: "active", isUnread: true, indicator: "unread-error" });
+    expect(botRailState([root, retried], bot, null)).toBe("working");
+    // Until it runs again, the unread failure still stands.
+    expect(botRailState([root, { ...retried, status: "idle" }], bot, null)).toBe("failed");
+    // Background work left over after the failure does not hide it.
+    const leftover = { workflows: 0, backgroundAgents: 0, backgroundCommands: 1, planMode: 0, goals: 0 };
+    expect(botRailState([root, { ...retried, status: "idle", activity: leftover }], bot, null)).toBe("failed");
+    expect(botRailState([root, { ...retried, status: "error", activity: leftover }], bot, null)).toBe("failed");
+    // A failed send is a failure even while the thread runs.
+    expect(botRailState([root, { ...retried, indicator: "queued-failed" }], bot, null)).toBe("failed");
+  });
   it("shows family failures and input waits without borrowing unrelated project activity", () => {
     const root = makeThread({ id: "root", projectId: "primary" });
     const unrelated = makeThread({ id: "unrelated", projectId: "owned", status: "error" });

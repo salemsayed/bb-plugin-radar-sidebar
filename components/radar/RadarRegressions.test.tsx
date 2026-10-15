@@ -152,6 +152,16 @@ describe("sidebar behavior regressions", () => {
     expect(slot.container.querySelector(".radar-group-status")?.getAttribute("aria-label")).toBe(expected);
   });
 
+  it("labels a failed thread that a retry is running again as working, with an accessible status", () => {
+    const slot = mount([makeThread({ id: "retried", title: "Retried worker", status: "active", isUnread: true, indicator: "unread-error", indicatorLabel: "Thread failed" })], { needsYouLane: false });
+    const row = slot.container.querySelector('[data-sidebar-thread-id="retried"]')!;
+    const labelled = [row, ...Array.from(row.querySelectorAll("[aria-label]"))].map(el => el.getAttribute("aria-label") ?? "");
+    expect(labelled.some(l => l.includes("Working again after a failure"))).toBe(true);
+    expect(labelled.some(l => l.includes("Thread failed"))).toBe(false);
+    expect(row.querySelector(".radar-row-pulse-red")).toBeNull();
+    expect(slot.container.querySelector(".radar-group-status")?.getAttribute("aria-label")).not.toBe("1 failed");
+  });
+
   it("prioritizes failed work over input waits and counts each descendant", () => {
     const threads = [makeThread({ id: "parent" }), ...["a", "b", "c"].flatMap((id) => [
       makeThread({ id: `wait-${id}`, parentThreadId: "parent", indicator: "waiting-for-input", hasPendingInteraction: true }),

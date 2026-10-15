@@ -33,7 +33,7 @@ import { runThreadAction, threadActionTarget, type RadarThreadActions } from "./
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { isHeldThread, isLiveThread } from "./time";
+import { effectiveIndicator, isHeldThread, isLiveThread } from "./time";
 import { hiddenChanged } from "./hiddenThreads";
 import {
   formatReasoningLevel,
@@ -155,6 +155,8 @@ function statusVisualFor(indicator: string): StatusVisual {
 }
 
 const HELD_LABEL = "Message held until you send it";
+/** A failed thread that a retry is running again: bb still says "unread-error" until it is read. */
+const RETRIED_LABEL = "Working again after a failure";
 const HELD_VISUAL: StatusVisual = { kind: "icon", name: "Pause", className: "radar-tone-muted" };
 const HELD_WORD = { text: "Held", tone: "radar-tone-muted" };
 
@@ -685,20 +687,22 @@ function RadarThreadRowImpl({
   // BB marks a message parked on an idle thread `queued-waiting` too; it
   // will not run until the user sends it, so it reads as held, not queued.
   const held = thread.indicator === "queued-waiting" && isHeldThread(thread);
-  const statusLabel = held ? HELD_LABEL : (thread.indicatorLabel ?? null);
-  const visual: StatusVisual = held ? HELD_VISUAL : statusVisualFor(thread.indicator);
+  const indicator = effectiveIndicator(thread);
+  // A retried thread keeps bb's "unread-error" label; once it runs again it is labelled by what it is doing.
+  const statusLabel = held ? HELD_LABEL : indicator === thread.indicator ? (thread.indicatorLabel ?? null) : RETRIED_LABEL;
+  const visual: StatusVisual = held ? HELD_VISUAL : statusVisualFor(indicator);
   // Only action states get the wash + left bar + glow, read or not: a tinted
   // row always means "act on this". Plain unread is a bold title only.
   const needsUser = thread.indicator === "waiting-for-input";
   const failed =
-    thread.indicator === "unread-error" ||
-    thread.indicator === "queued-failed";
+    indicator === "unread-error" ||
+    indicator === "queued-failed";
   // Glow is reserved for rows that need action; done and queued stay static.
   const actionPulseClass =
     thread.indicator === "waiting-for-input"
       ? "radar-row-pulse-amber"
-      : thread.indicator === "unread-error" ||
-          thread.indicator === "queued-failed"
+      : indicator === "unread-error" ||
+          indicator === "queued-failed"
         ? "radar-row-pulse-red"
         : null;
   const foldedSummary =
@@ -713,7 +717,7 @@ function RadarThreadRowImpl({
   ]
     .filter((part): part is string => !!part)
     .join(" — ");
-  const statusWord = held ? HELD_WORD : statusWordFor(thread.indicator);
+  const statusWord = held ? HELD_WORD : statusWordFor(indicator);
   // Drawn by the row only when it drops a leading emoji from a title without
   // mentions; otherwise bb's ThreadTitle. Tooltips and labels keep it all.
   // Hidden rows are fetched by Radar, not in bb's feed, so ThreadTitle would draw nothing.

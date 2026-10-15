@@ -2,7 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
 import { openNeeds, type NeedsItem } from "@/lib/needs";
-import { isRunningThread } from "./time";
+import { effectiveIndicator, isRunningThread } from "./time";
 
 /** What the bb-salem-bots plugin publishes for sidebars: identity only, no thread content. */
 export const rosterSchema = z.object({
@@ -143,7 +143,7 @@ export function botState(
 ): BotState {
   if (rolloverBlocked) return "failed";
   if (!thread) return "unavailable";
-  if ( thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error" || thread.queuedWork === "failed" || family.failed > 0) return "failed";
+  if (effectiveIndicator(thread) === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error" || thread.queuedWork === "failed" || family.failed > 0) return "failed";
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input" || family.needsUser > 0) return "needs-you";
   // A decision stays actionable until a new reply, unless the coordinator is already answering it.
   if (pulse?.decision && !isRunningThread(thread)) return "decision";
@@ -160,7 +160,7 @@ export function needsYou(thread: PluginSidebarThread): boolean {
   return (
     thread.hasPendingInteraction ||
     thread.indicator === "waiting-for-input" ||
-    thread.indicator === "unread-error" ||
+    effectiveIndicator(thread) === "unread-error" ||
     thread.indicator === "queued-failed"
   );
 }

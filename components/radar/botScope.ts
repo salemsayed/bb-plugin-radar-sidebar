@@ -1,6 +1,6 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { botState, needsYou, type BotState, type Pulse, type RosterBot } from "./bots";
-import { isRunningThread } from "./time";
+import { effectiveIndicator, isRunningThread } from "./time";
 
 /** Per threads array: child index, the family of each coordinator set, and the refresh key.
  * The sidebar hands the same array to every render until something changes, so
@@ -147,7 +147,7 @@ export function botRailState(threads: readonly PluginSidebarThread[], bot: Roste
   const ids = botScopeIds(stale.length ? [...threads, ...stale] : threads, bot);
   const family = threads.filter(t => ids.has(t.id) && !t.isArchived);
   if (bot.rolloverBlocked) return "failed";
-  if (family.some(t => t.status === "error" || t.queuedWork === "failed" || t.indicator === "unread-error" || t.indicator === "queued-failed")) return "failed";
+  if (family.some(t => t.status === "error" || t.queuedWork === "failed" || effectiveIndicator(t) === "unread-error" || t.indicator === "queued-failed")) return "failed";
   if (family.some(needsYou)) return "needs-you";
   if ((bot.actionableNeeds ?? 0) > 0) return "decision";
   const coordinator = indexOf(threads).byId.get(bot.current);

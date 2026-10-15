@@ -46,7 +46,7 @@ import { botState, botStyle, crewDigest, shortBotName, type Pulse, type RosterBo
 import type { NeedsItem } from "@/lib/needs";
 import { NeedsYouLane } from "./NeedsYouList";
 import type { useVisibleBots } from "./botVisibility";
-import { activityTime, isRunningThread, timeAgo } from "./time";
+import { activityTime, effectiveIndicator, isRunningThread, timeAgo } from "./time";
 import { GroupHeader, SortableGroupSection } from "./RadarGroupHeader";
 import { RadarMenu } from "./RadarMenu";
 import type { SubtreeCounts, ThreadGroup } from "./useThreadGroups";
@@ -420,7 +420,7 @@ export function useRowRenderer({
                   Number(thread.indicator === "waiting-for-input") > 0,
               hiddenFailed:
                 counts.failed - Number(
-                  thread.indicator === "unread-error" ||
+                  effectiveIndicator(thread) === "unread-error" ||
                   thread.indicator === "queued-failed",
                 ) > 0,
               hiddenKids: counts.kids,

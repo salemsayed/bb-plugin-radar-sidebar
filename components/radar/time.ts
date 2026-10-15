@@ -31,6 +31,17 @@ export function isQueuedThread(thread: PluginSidebarThread): boolean {
   return thread.queuedWork === "waiting" && !isHeldThread(thread);
 }
 
+/**
+ * The indicator to act on. bb keeps "unread-error" until a thread is read, even while a retry runs it again (Keep Going
+ * resumed Home's outage-test worker on 2026-10-15 and the bot still showed "!"); a thread that is running again is
+ * working, not failed. A failed send ("queued-failed") still stands.
+ */
+export function effectiveIndicator(thread: PluginSidebarThread): PluginSidebarThread["indicator"] {
+  // Only a turn that is executing again: background work left over after the failure does not hide it (Astra review).
+  const executing = thread.status === "starting" || thread.status === "active" || thread.status === "stopping";
+  return thread.indicator === "unread-error" && executing ? "runtime" : thread.indicator;
+}
+
 /** Execution and background work, excluding queued or blocked work. */
 export function isRunningThread(thread: PluginSidebarThread): boolean {
   if (

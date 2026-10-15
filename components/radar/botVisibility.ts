@@ -2,6 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { coordinatorAsk, type Pulse, type RosterBot } from "./bots";
 import { botFamily } from "./botScope";
+import { effectiveIndicator } from "./time";
 import type { CrewJudgement } from "@/lib/crewAsk";
 import type { NeedsItem } from "@/lib/needs";
 
@@ -78,7 +79,7 @@ export function botDemandsAttention(threads: readonly PluginSidebarThread[], bot
   return bot.rolloverBlocked === true || botFamily(threads, bot).some(t =>
     t.hasPendingInteraction || t.indicator === "waiting-for-input" ||
     (t.isUnread && (t.status === "error" || t.queuedWork === "failed" ||
-      t.indicator === "unread-error" || t.indicator === "queued-failed")));
+      effectiveIndicator(t) === "unread-error" || t.indicator === "queued-failed")));
 }
 
 /**
