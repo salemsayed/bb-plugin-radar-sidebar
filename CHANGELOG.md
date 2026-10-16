@@ -380,3 +380,9 @@ All notable changes to Radar Sidebar are documented here. The format follows
 - Six settings: five that turn down the louder visuals, and a default row
   density.
 - A one-time migration of preferences from the `codex-sidebar:` era.
+
+### Bot attention consistency
+
+- Separate unread chat from saved updates across shortcuts, cards and hover details.
+- Reveal saved attention when selecting a badged bot; show unavailable attention explicitly.
+- Cover read, resolve, reload and active-worker states with regression tests.

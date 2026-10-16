@@ -2540,6 +2540,30 @@ describe("Needs-you lane fold", () => {
   const rpc = (items: unknown[]) => ({ crew_needs_list: () => ({ items }), crew_asks: () => ({ judgements: [] }) });
   const foldButton = () => screen.queryByRole("button", { name: /^Needs you/ });
 
+  it("explains saved attention, reveals its row on selection, and clears the badge after Seen", async () => {
+    let saved = true;
+    const alert = makeNeed({ id: "report", bot: "personal", kind: "alert", text: "Review findings", source: { threadId: "root" } });
+    const slot = renderThreads(laneThreads, { projects, settings: { botRail: true },
+      sdk: { ...sdkFakes(), plugins: { callRpc: async () => ({ bots: [{ ...bot, unseenAttention: saved ? 1 : 0, actionableNeeds: 0 }] }) } },
+      rpc: { crew_needs_list: () => ({ items: saved ? [alert] : [] }), crew_asks: () => ({ judgements: [] }),
+        crew_needs_update: () => { saved = false; return { item: { ...alert, state: "done" } }; } },
+    });
+    const shortcut = await screen.findByRole("button", { name: /Personal Bot, Saved updates/ });
+    expect(shortcut.getAttribute("aria-label")).not.toContain("Unread reply");
+    expect(shortcut.querySelector(".radar-bot-badge-warning")).toBeTruthy();
+    expect(shortcut.querySelector(".radar-bot-unread-dot")).toBeNull();
+    fireEvent.click(shortcut);
+    const seen = await screen.findByRole("button", { name: "Seen: Review findings" });
+    fireEvent.click(seen);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Personal Bot, Idle/ }).querySelector(".radar-bot-badge-warning")).toBeNull());
+    expect(slot.container.querySelector(".radar-bot-unread-dot")).toBeNull();
+  });
+
+  it("reports unavailable saved attention instead of implying an empty list", async () => {
+    renderThreads(laneThreads, { projects, sdk, rpc: { crew_needs_list: () => ({ items: null }), crew_asks: () => ({ judgements: [] }) } });
+    expect(await screen.findByText("Saved attention unavailable. Retrying automatically.")).toBeTruthy();
+  });
+
   it("folds the lane to one counted row in the All view, collapsed by default, and opens it in place", async () => {
     const asking = makeThread({ id: "ask", projectId: "other", hasPendingInteraction: true, indicator: "waiting-for-input" });
     const slot = renderThreads([...laneThreads, asking], { projects, sdk, rpc: rpc([need]) });

@@ -176,6 +176,12 @@ export function RadarThreadList({
   // Bot state reads the feed: the hidden-workers option changes rows, not how a bot looks.
   const visible = useVisibleBots(roster, activityThreads, asking);
   const scopedBot = roster.find(bot => bot.key === railScope) ?? null;
+  // Selecting a bot reveals the records that explain its saved-attention badge.
+  // Only a scope change opens it; subsequent polling respects manual collapse.
+  useEffect(() => {
+    if (railScope && roster.some(bot => bot.key === railScope && ((bot.unseenAttention ?? 0) > 0 || (bot.actionableNeeds ?? 0) > 0))) setNeedsLaneOpen(true);
+  }, [railScope, setNeedsLaneOpen]);
+
   const scopeName = scopedBot?.name ?? "Bot";
   const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
@@ -498,6 +504,7 @@ export function RadarThreadList({
         aria-busy={switchPending || undefined}
         onScroll={orderFreeze.onScroll}
       >
+        {settings.needsYouLane && needs.status === "unavailable" ? <p role="status" className="radar-needs-error">Saved attention unavailable. Retrying automatically.</p> : null}
         {status === "loading" ? (
           <RadarListLoading />
         ) : status === "error" ? (

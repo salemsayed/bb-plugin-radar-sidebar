@@ -857,6 +857,7 @@ export function RadarGroupList({
   const crewBots = settings.botsDeck && !settings.botRail ? roster : [];
   const crewActivity = crewBots.map(bot => botActivity(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage));
   const crewSummary = crewActivity.length ? crewActivity.reduce((sum, next) => ({
+    unread: sum.unread || next.unread, updates: sum.updates + next.updates,
     workers: sum.workers + next.workers, hiddenWorkers: sum.hiddenWorkers + next.hiddenWorkers,
     active: sum.active + next.active, questions: sum.questions + next.questions, decisions: sum.decisions + next.decisions,
     lastKnownWorkers: (sum.lastKnownWorkers ?? 0) + (next.lastKnownWorkers ?? 0),

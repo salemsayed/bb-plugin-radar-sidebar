@@ -8,7 +8,7 @@ import { botActivityText, type BotActivity } from "./botScope";
 import { timeAgo } from "./time";
 import type { RailTip } from "./railTooltip";
 
-const PRIORITY = { failed: 0, "needs-you": 1, working: 2, unread: 3, idle: 4, decision: 1, rollover: 2, unavailable: 5 };
+const PRIORITY = { failed: 0, "needs-you": 1, working: 2, updates: 3, unread: 3, idle: 4, decision: 1, rollover: 2, unavailable: 5 };
 function tokenCount(n: number): string {
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
@@ -65,7 +65,7 @@ export function RadarBotHoverCard({ bot, coordinator, pulse, workers, activity: 
         }
       }}>
       <div className="radar-bot-hover-head">
-        <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={coordinator?.isUnread} motion={motion} />
+        <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={familyActivity?.unread ?? coordinator?.isUnread} updates={familyActivity?.updates ?? bot.unseenAttention} motion={motion} />
         <div className="radar-bot-hover-heading"><strong>{bot.name}</strong>
           <span className="radar-bot-hover-muted">{coordinator && pulse?.subject ? `Replied ${timeAgo(coordinator.latestAttentionAt, Date.now())} · ${coordinator.isUnread ? "unread" : "read"}` : "No reply yet"}</span>
         </div>

@@ -26,7 +26,7 @@ through BB's own flows (pins, reads, renames, archives, deletes).
 
 ## Bot shortcuts
 
-Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A badged bot has unseen alerts or open asks; they are rows in the Needs-you lane, and the face opens its coordinator. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
+Enable **Bot shortcuts** (`botRail`, default `false`) in Radar's settings. Bot faces sit above the list filter, independent of BB's rail layout. A face opens the current coordinator and filters the list to its workers; tap the chosen face from that coordinator again, or **All** at the start of the row, to show every thread. BB's rail Home only switches the sidebar to this list and keeps the bot filter. A blue dot means unread chat in the visible bot family; an amber ! means saved updates, and ? means an open ask. Saved updates survive reading chat and are labelled separately; they are rows in the Needs-you lane, and the face opens its coordinator. Selecting a bot with saved attention opens the Needs-you lane so the reason is visible. Hover/focus a bot on desktop for reply, worker, model and context details; arrow keys traverse shortcuts and Escape closes details.
 
 A blocked handover shows Failed without a spinning ring. Its recovery journal stays intact; only an active or automatically recoverable handover shows Handover.
 
@@ -290,3 +290,5 @@ An **alert** is an important report the bot resolves on its own; nothing waits f
 In the All view (no bot selected) the lane folds to one row, "Needs you · N" (open items plus waiting threads), collapsed by default and remembered per client (`radar-sidebar:needs-lane-open:v1`); at zero it renders nothing. With a bot selected the lane stays open under its heading.
 
 Reading the lane is read-only: no model call, no acknowledgement. A bot's open decision on the list is its ask everywhere in Radar until someone closes or snoozes it.
+
+Badge policy: chat unread and saved attention are projected by `botAttention` for shortcuts, deck cards and hover details. A zero saved-alert count never overrides a real unread chat. Failed attention fetches display an unavailable status, never an empty-list claim.

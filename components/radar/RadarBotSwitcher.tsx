@@ -5,7 +5,7 @@ import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
 import { BotAvatar } from "./BotAvatar";
 import { RadarBotHoverCard } from "./RadarBotHoverCard";
-import { botActivity, botActivityText, botFamily, botRailState, botWorkers } from "./botScope";
+import { botActivity, botActivityText, botAttention, botRailState, botWorkers } from "./botScope";
 import { botStyle, STATE_LABELS, type Pulse, type RosterBot } from "./bots";
 import { moveRailFocus, type RailTip } from "./railTooltip";
 
@@ -87,7 +87,7 @@ export function RadarBotSwitcher({ bots, threads, activityCoverage, pulses, scop
       {bots.map(bot => {
         const state = botRailState(threads, bot, pulses.get(bot.current) ?? null, activityCoverage);
         const label = STATE_LABELS[state];
-        const unread = (bot.unseenAttention ?? 0) > 0 || botFamily(threads, bot).some(thread => thread.isUnread);
+        const { unread, updates } = botAttention(threads, bot);
         const activity = botActivity(threads, bot, pulses.get(bot.current) ?? null, activityCoverage);
         const releases = scope === bot.key && activeThreadId === bot.current;
         const details = `${label.text}${unread ? " · Unread reply" : ""} · ${botActivityText(activity)}${bot.rolloverBlocked ? " · Handover blocked" : ""}`;
@@ -105,7 +105,7 @@ export function RadarBotSwitcher({ bots, threads, activityCoverage, pulses, scop
           onPointerLeave={leave}
           onFocus={event => reveal(event.currentTarget, bot)}
           onBlur={event => { if (!(event.relatedTarget instanceof Node) || !document.querySelector("[data-radar-bot-hover]")?.contains(event.relatedTarget)) leave(); }}>
-          <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={unread} motion={motion} />
+          <BotAvatar botKey={bot.key} name={bot.name} state={state} unread={unread} updates={updates} motion={motion} />
           {bot.rolloverBlocked && activity.active > 0 ? <span className="radar-bot-active-count" aria-hidden="true" title={`${activity.active} active threads`}>{activity.active}</span> : null}
         </button>;
       })}

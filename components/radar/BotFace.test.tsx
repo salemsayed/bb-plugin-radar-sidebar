@@ -29,3 +29,15 @@ describe("bot faces", () => {
     expect(html).toMatch(/<span class="radar-bot-state-spin radar-bot-state-spin-working radar-bot-state-motion"><svg class="radar-bot-state-ring radar-bot-state-ring-working"/);
   });
 });
+
+it("uses an alert badge for saved updates, never a chat unread dot", () => {
+  const saved = renderToStaticMarkup(<BotAvatar botKey="bricks" name="Bricks" state="updates" updates={1} />);
+  expect(saved).toContain("radar-bot-badge-warning");
+  expect(saved).not.toContain("radar-bot-unread-dot");
+  const working = renderToStaticMarkup(<BotAvatar botKey="bricks" name="Bricks" state="working" updates={1} />);
+  expect(working).toContain("radar-bot-state-ring-working");
+  expect(working).toContain("radar-bot-badge-warning");
+  const read = renderToStaticMarkup(<BotAvatar botKey="bricks" name="Bricks" state="idle" />);
+  expect(read).not.toContain("radar-bot-badge-warning");
+  expect(read).not.toContain("radar-bot-unread-dot");
+});

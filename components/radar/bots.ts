@@ -120,7 +120,7 @@ export function askPulse(thread: PluginSidebarThread, pulse: Pulse | null, judge
   return { subject: ask?.text ?? "", quiet: false, ...pulse, decision: ask?.text ?? null };
 }
 
-export type BotState = "failed" | "needs-you" | "working" | "rollover" | "decision" | "unread" | "idle" | "unavailable";
+export type BotState = "failed" | "needs-you" | "working" | "rollover" | "decision" | "updates" | "unread" | "idle" | "unavailable";
 
 export const STATE_LABELS: Record<BotState, { text: string; tone: string; icon: string; action: string; description: string }> = {
   failed: { text: "Failed", tone: "radar-tone-error", icon: "AlertCircle", action: "Check failure", description: "A coordinator, worker or handover failed. Open the coordinator or affected thread to inspect it." },
@@ -128,6 +128,7 @@ export const STATE_LABELS: Record<BotState, { text: string; tone: string; icon: 
   working: { text: "Working", tone: "radar-tone-running", icon: "Loading", action: "View live work", description: "The coordinator or a worker has work in progress." },
   rollover: { text: "Handover", tone: "radar-tone-info", icon: "RotateCcw", action: "View handover", description: "The bot is moving to a replacement coordinator." },
   decision: { text: "Decision", tone: "radar-tone-warning", icon: "ListTodo", action: "Review decision", description: "The latest coordinator reply asks for a decision. Reading it does not resolve it." },
+  updates: { text: "Saved updates", tone: "radar-tone-warning", icon: "Bell", action: "Review saved updates", description: "Saved reports remain in Needs you until seen or resolved. Reading chat does not dismiss them." },
   unread: { text: "New reply", tone: "radar-tone-info", icon: "MessageSquare", action: "Read reply", description: "A reply in this bot's family is unread. Open the thread to read it." },
   idle: { text: "Idle", tone: "radar-tone-muted", icon: "CircleCheck", action: "Open coordinator", description: "No visible work or pending input. The bot is ready for a request." },
   unavailable: { text: "Unavailable", tone: "radar-tone-muted", icon: "Unavailable", action: "Open coordinator", description: "Activity information is incomplete. Open the coordinator to inspect its status." },
@@ -196,6 +197,7 @@ export function crewDigest(states: readonly BotState[], items: readonly NeedsIte
   if (decisions) parts.push(`${decisions} waiting on you`);
   if (count("working")) parts.push(`${count("working")} working`);
   if (count("rollover")) parts.push(`${count("rollover")} rolling over`);
+  if (count("updates")) parts.push(`${count("updates")} with saved updates`);
   if (count("unread")) parts.push(`${count("unread")} new`);
   if (count("unavailable")) parts.push(`${count("unavailable")} unavailable`);
   return parts.length ? parts.join(" · ") : "All quiet";

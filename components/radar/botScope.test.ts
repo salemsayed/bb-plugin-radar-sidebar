@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasUnresolvedActivity, botActivity, botActivityText, botRailState, botScopeIds, botWorkers, rosterRefreshKey } from "./botScope";
+import { hasUnresolvedActivity, botAttention, botActivity, botActivityText, botRailState, botScopeIds, botWorkers, rosterRefreshKey } from "./botScope";
 import { makeThread } from "./fixtures";
 import type { RosterBot } from "./bots";
 
@@ -117,7 +117,7 @@ describe("blocked handover independent signals", () => {
       makeThread({ id: "archived", lifecycleOwnerThreadId: "root", isArchived: true, status: "active" }),
       makeThread({ id: "unrelated", projectId: "proj_a", status: "active" })];
     expect(botRailState(rows, bot, null)).toBe("failed");
-    expect(botActivity(rows, bot, null)).toEqual({ workers: 1, hiddenWorkers: 1, active: 1, questions: 0, decisions: 0 });
+    expect(botActivity(rows, bot, null)).toEqual({ workers: 1, hiddenWorkers: 1, active: 1, questions: 0, decisions: 0, unread: false, updates: 0 });
     expect(botActivityText(botActivity(rows, bot, null))).toBe("1 worker · 1 active");
     expect(botWorkers(rows, bot)).toEqual([]);
   });
@@ -170,5 +170,29 @@ describe("missing ancestry coverage", () => {
     expect(hasUnresolvedActivity([{ ...orphan, lifecycleOwnerThreadId: "root" }], [bot])).toBe(false);
     expect(hasUnresolvedActivity([orphan, makeThread({ id: "missing-archived-bridge", parentThreadId: "root", isArchived: true })], [bot])).toBe(false);
     expect(hasUnresolvedActivity([makeThread({ id: "unrelated-root", sourceThreadId: "absent" })], [bot])).toBe(false);
+  });
+});
+
+
+describe("bot attention lifecycle", () => {
+  it("keeps chat unread independent of saved updates through read, resolve and reload", () => {
+    const saved = { ...bot, unseenAttention: 1, actionableNeeds: 0 };
+    const unread = [makeThread({ id: "root", isUnread: true })];
+    const read = [makeThread({ id: "root", isUnread: false })];
+    expect(botAttention(unread, saved)).toEqual({ unread: true, updates: 1 });
+    expect(botRailState(read, saved, null)).toBe("updates");
+    expect(botAttention(read, JSON.parse(JSON.stringify(saved)))).toEqual({ unread: false, updates: 1 });
+    const resolved = { ...saved, unseenAttention: 0 };
+    expect(botRailState(read, resolved, null)).toBe("idle");
+    expect(botRailState(unread, resolved, null)).toBe("unread");
+    expect(botAttention(read, resolved)).toEqual({ unread: false, updates: 0 });
+  });
+  it("keeps visible worker unread and saved updates during active work without borrowing hidden or unrelated replies", () => {
+    const saved = { ...bot, unseenAttention: 1 };
+    const threads = [makeThread({ id: "root", status: "active" }), makeThread({ id: "child", parentThreadId: "root", isUnread: true })];
+    expect(botRailState(threads, saved, null)).toBe("working");
+    expect(botActivity(threads, saved, null)).toMatchObject({ unread: true, updates: 1 });
+    expect(botRailState([{ ...threads[0]!, status: "idle" }, threads[1]!], { ...saved, unseenAttention: 0 }, null)).toBe("unread");
+    expect(botAttention([threads[0]!, { ...threads[1]!, isHidden: true }, makeThread({ id: "unrelated", isUnread: true })], saved)).toEqual({ unread: false, updates: 1 });
   });
 });

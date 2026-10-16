@@ -120,6 +120,7 @@ export function botActivity(threads: readonly PluginSidebarThread[], bot: Roster
   return {
     ...(coverage ? { complete: coverage.complete, lastKnownWorkers: staleWorkers.length, lastKnownActive: staleFamily.filter(isRunningThread).length,
       lastKnownQuestions: staleFamily.filter(thread => thread.hasPendingInteraction).length } : {}),
+    ...botAttention(threads, bot),
     workers: workers.length + staleWorkers.length,
     hiddenWorkers: [...workers, ...staleWorkers].filter(thread => thread.isHidden).length,
     active: family.filter(isRunningThread).length,
@@ -131,6 +132,7 @@ export type BotActivity = ReturnType<typeof botActivity>;
 
 export function botActivityText(activity: BotActivity): string {
   const parts = [activity.complete === false && activity.workers === 0 ? "Worker count unavailable" : `${activity.workers} worker${activity.workers === 1 ? "" : "s"}`];
+  if (activity.updates) parts.push(`${activity.updates} saved update${activity.updates === 1 ? "" : "s"}`);
   if (activity.active) parts.push(`${activity.active} active`);
   if (activity.lastKnownActive) parts.push(`${activity.lastKnownActive} last known active`);
   if (activity.lastKnownQuestions) parts.push(`${activity.lastKnownQuestions} last known waiting on you`);
@@ -138,6 +140,12 @@ export function botActivityText(activity: BotActivity): string {
   if (activity.decisions) parts.push(`${activity.decisions} decision${activity.decisions === 1 ? "" : "s"}`);
   if (activity.complete === false) parts.push(activity.lastKnownWorkers ? "Activity incomplete; includes last known workers" : activity.workers > 0 ? "Activity incomplete; counts are lower bounds" : "Activity incomplete");
   return parts.join(" · ");
+}
+
+/** Chat read receipts and durable reports have different lifecycles. Every bot surface
+ * uses this projection: a saved report must never masquerade as an unread reply. */
+export function botAttention(threads: readonly PluginSidebarThread[], bot: RosterBot) {
+  return { unread: botFamily(threads, bot).some(thread => thread.isUnread), updates: bot.unseenAttention ?? 0 };
 }
 
 /** Indicators describe the coordinator family, never unrelated project work. */
@@ -155,11 +163,9 @@ export function botRailState(threads: readonly PluginSidebarThread[], bot: Roste
   if (state === "failed" || state === "decision" || state === "rollover") return state;
   if (family.some(isRunningThread)) return "working";
   if (coverage && !coverage.complete && (state === "idle" || state === "unavailable")) return "unavailable";
-  if (bot.unseenAttention !== undefined) {
-    if (bot.unseenAttention > 0 && (state === "idle" || state === "unread")) return "unread";
-    return state === "unread" ? coverage?.complete === false ? "unavailable" : "idle" : state;
-  }
-  return state === "idle" && family.some(t => t.isUnread) ? "unread" : state;
+  const attention = botAttention(threads, bot);
+  if (attention.updates > 0) return "updates";
+  return attention.unread && (state === "idle" || state === "unread") ? "unread" : state;
 }
 
 /** Order-independent 32-bit mix of a string (FNV-1a), so sorting is unnecessary. */

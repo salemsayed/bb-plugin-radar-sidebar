@@ -7,12 +7,12 @@ const RADIUS = 18.5;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /** State signals share one visual language in the rail, roster and details. */
-export function BotAvatar({ botKey, name, context = null, state, unread = false, motion = true }: {
-  botKey: string; name: string; context?: number | null; state?: BotState; unread?: boolean; motion?: boolean;
+export function BotAvatar({ botKey, name, context = null, state, unread = false, updates = 0, motion = true }: {
+  botKey: string; name: string; context?: number | null; state?: BotState; unread?: boolean; updates?: number; motion?: boolean;
 }) {
   const fill = context === null ? 0 : Math.min(1, Math.max(0, context));
   const tone = context === null ? "radar-bot-ring-unknown" : fill >= 0.75 ? "radar-bot-ring-hot" : fill >= 0.6 ? "radar-bot-ring-warm" : "";
-  const badge = state === "failed" ? "!" : state === "needs-you" || state === "decision" ? "?" : null;
+  const badge = state === "failed" ? "!" : state === "needs-you" || state === "decision" ? "?" : updates > 0 || state === "updates" ? "!" : null;
   const ring = state === "working" || state === "rollover" || state === "unavailable";
   return <span className={cn("radar-bot-avatar", state && "radar-bot-avatar-state", state === "unavailable" && "radar-bot-avatar-unavailable")}
     data-bot-state={state} aria-hidden="true">

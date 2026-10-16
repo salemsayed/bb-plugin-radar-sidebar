@@ -37,12 +37,12 @@ export function RadarBotCard({ thread, name, botKey, hue, state, activity, rollo
   const context = pulse?.context ?? null;
   return (
     <div
-      className={cn("radar-bot-card", `radar-bot-${state}`, thread.isUnread && "radar-bot-unread", motion && !rolloverBlocked && "radar-bot-motion")}
+      className={cn("radar-bot-card", `radar-bot-${state}`, (activity?.unread ?? thread.isUnread) && "radar-bot-unread", motion && !rolloverBlocked && "radar-bot-motion")}
       style={{ "--bot-hue": hue } as React.CSSProperties}
       data-thread-id={thread.id}
     >
       <a className="radar-bot-main" href={thread.href} onClick={() => onNavigate()} aria-label={`${name}, ${label.text}${activity ? ` · ${botActivityText(activity)}` : ""}${rolloverBlocked ? " · Handover blocked" : ""}`} title={line}>
-        <BotAvatar botKey={botKey} name={name} context={context} state={rolloverBlocked ? state : undefined} />
+        <BotAvatar botKey={botKey} name={name} context={context} state={rolloverBlocked ? state : undefined} unread={activity?.unread ?? thread.isUnread} updates={activity?.updates} />
         <span className="radar-bot-body">
           <span className="radar-bot-head">
             <span className="radar-bot-name">{short}</span>
