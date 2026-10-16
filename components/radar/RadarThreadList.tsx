@@ -124,7 +124,7 @@ export function RadarThreadList({
   const botRail = settings.botRail;
   // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
-  const roster = useBotRoster(settings.botsDeck || botRail, rosterRefreshKey(feedThreads));
+  const roster = useBotRoster(settings.botsDeck || botRail || settings.botsPage, rosterRefreshKey(feedThreads));
   // Activity discovery is independent of row visibility. Hidden rows join the
   // displayed list only when requested; bot summaries always use the census.
   const hiddenProjectIds = useMemo(
@@ -145,7 +145,7 @@ export function RadarThreadList({
     [showHidden, feedThreads, hiddenRows],
   );
   // Saved asks and alerts are rows in the Needs-you lane, so the lane alone is reason to load them.
-  const needs = useNeedsYou(settings.botsDeck || botRail || settings.needsYouLane);
+  const needs = useNeedsYou(!settings.botsPage && (settings.botsDeck || botRail || settings.needsYouLane));
   const railScope = useValidatedRailScope(roster, botRail);
   // Deck cards read the full roster's coordinators from the unfiltered list,
   // so a hidden bot's open ask can still protect it from hiding.
@@ -186,6 +186,11 @@ export function RadarThreadList({
   const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
+    if (settings.botsPage) {
+      // Bots live on the Bots page: their whole families leave the list.
+      const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
+      return allThreads.filter(thread => !tucked.has(thread.id));
+    }
     if (!botRail) {
       // Deck: a hidden bot's whole family leaves the list, so its coordinator
       // does not come back as a pinned row with its workers nested under it.
@@ -200,7 +205,7 @@ export function RadarThreadList({
     }
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
-  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots]);
+  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots, settings.botsPage]);
   const actions = useRadarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();

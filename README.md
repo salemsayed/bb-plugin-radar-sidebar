@@ -260,6 +260,7 @@ flowchart LR
 | Setting | Default | |
 | --- | --- | --- |
 | `botRail` | `false` | Bot shortcuts and worker filtering in the list header. Off restores the in-list deck. |
+| `botsPage` | `false` | Bots live on the Bots page (bots-page plugin): no bot shortcuts, deck, bot threads or saved bot asks in the list. Overrides `botRail` and `botsDeck`. |
 | `hideWorking` | `false` | Move threads with work in flight into a folded **Working** drawer under the list. They come back when they finish or need you; pinned threads and the open thread stay put, and search or a status filter shows them in place. On desktop, hover the drawer's header to peek at every running thread: its latest words and step, todo progress, run time, context use, and flags for stalls, failing commands, a full context or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |

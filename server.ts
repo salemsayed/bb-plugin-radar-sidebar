@@ -105,6 +105,12 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Show bot faces above the thread list. Select a bot to open its coordinator and workers. Off restores the in-list bots deck.",
       default: false,
     },
+    botsPage: {
+      type: "boolean",
+      label: "Bots on the Bots page",
+      description: "Bots live on the Bots page (bots-page plugin): the list leaves out their coordinators and workers, and shows no bot shortcuts, deck or saved bot asks. Off brings them back.",
+      default: false,
+    },
     swipeActions: {
       type: "boolean",
       label: "Swipe actions",

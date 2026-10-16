@@ -115,9 +115,12 @@ export function useListSettings() {
     writeStored(LAST_TWO_LINE_TITLES_KEY, wrapTitles ? "on" : "off");
     writeStored(LAST_GROUPING_KEY, grouping);
   }, [loaded, density, wrapTitles, grouping]);
+  // The Bots page takes over every bot surface; the list only tucks bot threads away.
+  const botsPage = flag("botsPage", false);
   return {
-    botRail: flag("botRail", false),
-    botsDeck: flag("botsDeck", true),
+    botsPage,
+    botRail: flag("botRail", false) && !botsPage,
+    botsDeck: flag("botsDeck", true) && !botsPage,
     needsYouLane: flag("needsYouLane", true),
     nestByOwner: flag("nestByOwner", true),
     hideEmptySections: flag("hideEmptySections", false),

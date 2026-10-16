@@ -202,6 +202,12 @@ describe("bot scope and experiment fallback", () => {
     fireEvent.click(within(shortcuts).getByRole("button", { name: "All threads" }));
     expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]);
   });
+  it("leaves bots to the Bots page: no shortcuts, deck or bot threads, other threads stay", async () => {
+    const slot = renderThreads(threads, { projects, sdk, settings: { botsPage: true, botRail: true, botsDeck: true } });
+    await waitFor(() => expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]));
+    expect(screen.queryByRole("group", { name: "Bot shortcuts" })).toBeNull();
+    expect(slot.container.querySelector(".radar-bot-card")).toBeNull();
+  });
   it("traverses bot shortcuts from the keyboard without acting on a thread row", async () => {
     const slot = renderThreads(threads, { projects, sdk, settings: { botRail: true } });
     const shortcuts = await screen.findByRole("group", { name: "Bot shortcuts" });

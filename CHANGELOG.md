@@ -8,6 +8,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Added
 
+- **Bots on the Bots page** (`botsPage`, off by default): with the bots-page plugin, bots live on their own page. The list then leaves out every bot coordinator and worker and shows no bot shortcuts, deck or saved bot asks; threads waiting on Salem outside the bots keep the Needs-you lane. Off restores the previous bot surfaces.
 - **Hidden workers** in the view-options panel (off by default, remembered per client as `radar-sidebar:show-hidden:v1`) lists the worker threads the bot plugin hides after relaying their result, dimmed with a "hidden" chip after their visible siblings, under their bot or in their family. A hidden row's menu offers **Show thread** and a visible worker's offers **Hide**; hidden rows never enter Pinned, Needs you, status filters or counts.
 
 ### Fixed
