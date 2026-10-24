@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import { needsRpcContract, openNeeds, type NeedsItem } from "./needs";
+import { useBotsPush } from "./botsPush";
 
 export const NEEDS_CHANGED = "radar:needs-changed";
 export function needsChanged() { window.dispatchEvent(new Event(NEEDS_CHANGED)); }
 
-/** Short polling plus immediate refresh after a reminder or row action. */
+/** Reloads when bb-salem-bots pushes a change (bb 0.47) and after a reminder or row action; a slow poll is the fallback. */
 export function useNeedsYou(enabled = true) {
   const rpc = useRpc<typeof needsRpcContract>();
+  useBotsPush(enabled, needsChanged);
   const [items, setItems] = useState<NeedsItem[] | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const generation = useRef(0);
@@ -26,7 +28,7 @@ export function useNeedsYou(enabled = true) {
     };
     const reload = () => { void load(); };
     void load();
-    const timer = setInterval(reload, 30_000);
+    const timer = setInterval(reload, 120_000);
     window.addEventListener("focus", reload);
     window.addEventListener(NEEDS_CHANGED, reload);
     return () => { cancelled = true; clearInterval(timer); window.removeEventListener("focus", reload); window.removeEventListener(NEEDS_CHANGED, reload); };

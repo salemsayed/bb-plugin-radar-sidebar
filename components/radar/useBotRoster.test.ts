@@ -3,6 +3,9 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RosterBot } from "./bots";
 
+// These tests cover polling and the cache; the push watcher (a live RPC read) has its own tests in lib/botsPush.test.tsx.
+vi.mock("@/lib/botsPush", () => ({ useBotsPush: () => {} }));
+
 const bot: RosterBot = { key: "personal", name: "Personal Bot", current: "root", projectId: "a", projects: [], hostId: "h", providerId: "pi", model: "m", rollover: null };
 const callRpc = vi.fn<() => Promise<{ bots: RosterBot[] }>>();
 const sdk = { plugins: { callRpc } };

@@ -200,7 +200,7 @@ describe("needs hook/server bridge", () => {
     await waitFor(() => expect(host.inspection.rpcCalls.some(call => call.method === "crew_needs_list")).toBe(true));
     expect(screen.queryByRole("region", { name: "Needs you" })).toBeNull();
   });
-  it("refreshes after actions and at the short interval", async () => {
+  it("refreshes after actions and at the fallback interval (pushed changes reload at once)", async () => {
     vi.useFakeTimers();
     let items = [makeNeed()];
     const load = vi.fn(() => ({ items }));
@@ -213,7 +213,7 @@ describe("needs hook/server bridge", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^Mark done:/ })); });
     expect(screen.queryByText("Approve the repair")).toBeNull();
     const calls = load.mock.calls.length;
-    await act(async () => { vi.advanceTimersByTime(30_000); });
+    await act(async () => { vi.advanceTimersByTime(120_000); });
     expect(load.mock.calls.length).toBeGreaterThan(calls);
   });
 });
@@ -252,7 +252,7 @@ it("shares one needs request/interval between the sidebar digest and the list", 
   expect(screen.getByText("1 sidebar items")).toBeTruthy();
   expect(screen.getByRole("region", { name: "Needs you" })).toBeTruthy();
   expect(load).toHaveBeenCalledTimes(1);
-  await act(async () => { vi.advanceTimersByTime(30_000); });
+  await act(async () => { vi.advanceTimersByTime(120_000); });
   expect(load).toHaveBeenCalledTimes(2);
 });
 

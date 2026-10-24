@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { rosterSchema, type RosterBot } from "./bots";
+import { useBotsPush } from "@/lib/botsPush";
+import { needsChanged } from "@/lib/needsClient";
 
 const ROSTER_PLUGIN = "orchestrator-mode";
-const REFRESH_MS = 5_000;
+/** A fallback: bb-salem-bots pushes each change (bb 0.47), which reloads through radar:needs-changed. */
+const REFRESH_MS = 60_000;
 const CACHE_KEY = "radar.botRoster.v1";
 /** Consecutive failures after which the cached roster is dropped: a failed reload must not erase the roster immediately. */
 const STALE_MS = 120_000;
@@ -44,6 +47,7 @@ export function isPluginAbsentError(error: unknown): boolean {
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   const sdk = useSdk();
+  useBotsPush(enabled, needsChanged);
   // The last roster paints immediately, so coordinators never flash as pinned rows before the RPC answers.
   const [bots, setBots] = useState<RosterBot[]>(() => (enabled ? readCache() : []));
   useEffect(() => {
