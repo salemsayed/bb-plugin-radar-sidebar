@@ -1,13 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { experimental_ProviderIcon as ProviderIcon } from "@get-bb/plugin-sdk/app";
-import type {
-  PluginSidebarPullRequest,
-  PluginSidebarThread,
-} from "@get-bb/plugin-sdk";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { RowProviderIcon } from "./RadarThreadRow";
+import type { RowPullRequest } from "./pullRequests";
 
 export interface ContextCategory {
   id: string;
@@ -81,7 +79,7 @@ export function RadarHoverCard({
   anchor: { top: number; bottom: number; left: number; right: number };
   branch: string | null;
   isWorktree: boolean;
-  pullRequest: PluginSidebarPullRequest | null;
+  pullRequest: RowPullRequest | null;
   facts: HoverCardFacts;
   onOpen: () => void;
   onOpenSplit: () => void;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRpc, type PluginThreadPanelProps, type PluginMessageActionRegistration } from "@get-bb/plugin-sdk/app";
+import { useRpc, type PluginMessageActionRegistration } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { needsRpcContract, reminderText } from "@/lib/needs";
 import { ReminderTimePicker } from "./ReminderTimePicker";
@@ -16,7 +16,7 @@ export const remindMeAction: PluginMessageActionRegistration = {
   },
 };
 
-export function RemindMePanel({ threadId, params }: PluginThreadPanelProps) {
+export function RemindMePanel({ threadId, params }: { threadId: string; params: unknown }) {
   const rpc = useRpc<typeof needsRpcContract>();
   const parsed = paramsSchema.safeParse(params);
   const [now, setNow] = useState(Date.now);

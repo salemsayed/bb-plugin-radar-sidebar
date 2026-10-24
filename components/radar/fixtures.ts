@@ -109,6 +109,7 @@ export function makeListedThread(fixture: Partial<ListedThread> & { id: string }
     sectionId: fixture.sectionId ?? null,
     originKind: fixture.originKind ?? null,
     originPluginId: fixture.originPluginId ?? null,
+    parentNotifications: fixture.parentNotifications ?? "auto",
     providerId: fixture.providerId ?? "pi",
     status: fixture.status ?? "idle",
     runtime: fixture.runtime ?? { displayStatus: fixture.status ?? "idle" },

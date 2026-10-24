@@ -13,7 +13,6 @@ import {
   ThreadTitle,
   experimental_Icon as HostIcon,
   experimental_ProviderIcon as ProviderIcon,
-  experimental_useSidebarThreadPullRequest,
   experimental_useSidebarThreadSplit,
   useBbNavigate,
   useSidebarThreadDraft,
@@ -41,6 +40,7 @@ import {
   useThreadExecution,
 } from "./useThreadExecution";
 import { RadarHoverCard, type ContextUsage } from "./RadarHoverCard";
+import { useRowPullRequest } from "./pullRequests";
 import { useRowSwipe } from "./useRowSwipe";
 import { useRowViewport } from "./useRowViewport";
 import {
@@ -441,7 +441,7 @@ function RadarThreadRowImpl({
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const shortcut = useSidebarThreadShortcut(thread.id);
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const pullRequest = useRowPullRequest(thread);
 
   const viewport = useRowViewport(rowRef,
     isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||

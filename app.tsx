@@ -15,7 +15,8 @@ import "./app.css";
 migrateLegacyPreferences();
 
 export default definePluginApp((app) => {
-  app.slots.threadPanelAction({ id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
+  // Same id as the retired threadPanelAction, so saved tabs and remindMeAction's openPanel({ actionId }) still match.
+  app.slots.experimental_tab({ context: { kind: "thread" }, availability: "action", id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
   app.slots.experimental_threadList({
     id: "radar",
