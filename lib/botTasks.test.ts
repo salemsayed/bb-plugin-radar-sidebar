@@ -24,6 +24,20 @@ describe("bot_tasks parsing", () => {
   });
 });
 
+describe("contract sync with core 36fb0ce", () => {
+  it("accepts the additive fields and still strips unknown keys", () => {
+    const day = makeOutput([makeBot(BOT_SEEDS[3]!, [makeTask("home", "Wake", "waiting", { wakeAt: NOW + HOUR, retryAt: NOW + 2 * HOUR })])]);
+    const raw = JSON.parse(JSON.stringify(day));
+    raw.bots[0].tasks[0].fromTheFuture = true;
+    raw.bots[0].surprise = 1;
+    const parsed = botTasksSchema.parse(raw);
+    expect(parsed.bots[0]!.summary.notStarted).toBe(0);
+    expect(parsed.bots[0]!.tasks[0]).toMatchObject({ wakeAt: NOW + HOUR, retryAt: NOW + 2 * HOUR });
+    expect(parsed.bots[0]!.tasks[0]).not.toHaveProperty("fromTheFuture");
+    expect(parsed.bots[0]).not.toHaveProperty("surprise");
+  });
+});
+
 describe("fold rules", () => {
   it("orders open work by urgency and folds waiting after three", () => {
     const bot = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[1]!, [
@@ -93,4 +107,3 @@ describe("live qualification on Lab (thr_g9gsfjxfyx, 2026-10-29)", () => {
     expect(localizeDoneLine({ ...task, line: "Checks passed" }, NOW)).toBe("Checks passed");
   });
 });
-

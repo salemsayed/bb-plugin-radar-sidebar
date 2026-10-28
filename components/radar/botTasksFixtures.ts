@@ -34,8 +34,8 @@ export function makeBot(seed: BotSeed, tasks: TaskRow[], extra: Partial<BotTasks
     coordinatorThreadId: `thr_coord_${seed.key}`,
     tasksV2: true,
     summary: {
-      needs: count(["needs"]), working: count(["working", "checking", "retrying"]), queued: count(["queued", "ready"]),
-      offline: count(["offline"]), waiting: count(["waiting", "overdue"]), done: count(["done"]),
+      needs: count(["needs"]), working: count(["working", "checking", "retrying"]), queued: count(["queued"]),
+      offline: count(["offline"]), waiting: count(["waiting", "overdue"]), done: count(["done"]), notStarted: count(["ready"]),
     },
     tasks,
     unlinked: [],

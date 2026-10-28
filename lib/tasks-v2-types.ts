@@ -3,18 +3,23 @@ export type MessageKind = "decision" | "question" | "info" | "steer" | "new-task
 export interface TaskRow {
   id: string; bot: string; title: string; displayState: DisplayState; line: string;
   waitFor?: string; ageMs: number; completedAt?: number; conversationThreadId: string | null;
+  /** Timestamps behind the line's times (a wake, a queued start's retry), for clients that format them locally. */
+  wakeAt?: number; retryAt?: number;
   needs?: { threadId: string; interactionId: string; question: string; options?: string[] };
   tags: string[]; origin: "verified" | "unverified" | "imported"; observedAt: number;
 }
 export interface BotTasks {
   key: string; name: string; order: number; color?: string; faceUrl?: string; coordinatorThreadId: string;
-  tasksV2: boolean; summary: { needs: number; working: number; queued: number; offline: number; waiting: number; done: number };
+  /** notStarted: filed, not started and not queued (a "ready" task). */
+  tasksV2: boolean; summary: { needs: number; working: number; queued: number; offline: number; waiting: number; done: number; notStarted: number };
   tasks: TaskRow[]; unlinked: { threadId: string; title: string }[];
 }
 export interface BotTasksOutput { bots: BotTasks[]; needs: { bot: string; taskId: string; threadId: string; interactionId: string; question: string }[]; notFiled: { threadId: string; title: string; suggestedBot?: string }[]; observedAt: number }
-export interface RouteSuggestion { parts: { bot: string; kind: MessageKind; taskId?: string; outcome: string; confidence: "high" | "medium" | "low"; reason: string }[]; ask: boolean }
+/** refused: the bot this part is for has tasks v2 off; it is never sent from Tell the bots (send it in that bot's chat). */
+export interface RouteSuggestion { parts: { bot: string; kind: MessageKind; taskId?: string; outcome: string; confidence: "high" | "medium" | "low"; reason: string; refused?: string }[]; ask: boolean }
 export interface IntakeSubmitInput { clientSubmissionId: string; text: string; input?: unknown[] /* bb PromptInput[] from the composer: attachments and mentions, delivered intact */; parts: { bot: string; kind: MessageKind; taskId?: string; outcome: string }[]; threadId?: string }
-export interface IntakeSubmitOutput { submissionId: string; parts: { partId: string; bot: string; kind: MessageKind; taskId?: string; deliveredTo?: { threadId: string } }[] }
+/** Per part: delivered, still sending (resumed by a retry), failed, or refused (its bot has tasks v2 off; nothing sent). */
+export interface IntakeSubmitOutput { submissionId: string; parts: { partId: string; bot: string; kind: MessageKind; taskId?: string; deliveredTo?: { threadId: string }; status: "pending" | "sending" | "delivered" | "failed" | "refused"; error?: string }[] }
 export interface LaunchIntentInput { taskId: string; bot: string; target: { projectId?: string; environment: "reuse" | "worktree"; machine?: string }; launchKey?: string /* "<taskId>:g<generation>:<purpose>" */ }
 export interface LaunchIntentOutput { intentId: string }
 export interface LaunchResultInput { intentId: string; launchKey?: string; threadId?: string; deferred?: { reason: string; retryAfterMs?: number }; failed?: string; uncertain?: string }

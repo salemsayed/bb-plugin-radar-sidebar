@@ -22,6 +22,8 @@ const taskSchema = z.object({
   waitFor: z.string().optional(),
   ageMs: z.number().nonnegative().default(0),
   completedAt: z.number().optional(),
+  wakeAt: z.number().optional(),
+  retryAt: z.number().optional(),
   conversationThreadId: z.string().nullable().default(null),
   needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional() }).optional(),
   tags: z.array(z.string()).default([]),
@@ -38,7 +40,7 @@ const botSchema = z.object({
   faceUrl: z.string().optional(),
   coordinatorThreadId: z.string(),
   tasksV2: z.boolean().default(false),
-  summary: z.object({ needs: count, working: count, queued: count, offline: count, waiting: count, done: count }).partial().default({}),
+  summary: z.object({ needs: count, working: count, queued: count, offline: count, waiting: count, done: count, notStarted: count }).partial().default({}),
   // One malformed row must not blank a whole bot: bad rows are dropped one by one.
   tasks: z.array(z.unknown()).default([]).transform(rows => rows.flatMap(row => {
     const parsed = taskSchema.safeParse(row);
