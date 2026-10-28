@@ -59,6 +59,10 @@ import {
 } from "./RadarListStates";
 import { RadarBulkBar } from "./RadarBulkBar";
 import { problem } from "./listFeedback";
+import { ListModeSwitch, useListMode } from "./ListModeSwitch";
+import { BotsView } from "./BotsView";
+import { useBotTasks } from "./useBotTasks";
+import { needRows } from "@/lib/botTasks";
 
 export type { StatusFilter } from "./useListSettings";
 export type { RowDragHandle } from "./RadarGroupList";
@@ -66,14 +70,64 @@ export type { RowDragHandle } from "./RadarGroupList";
 void preloadExtendedIcons().catch(() => undefined);
 
 /**
+ * The sidebar list. With the botsSwitch setting off it is exactly the thread
+ * list. On, a Bots | Threads switch sits on top: Bots reads each bot's tasks,
+ * Threads is the thread list with every thread in it. Switching never
+ * navigates, so the open thread stays open.
+ */
+export function RadarThreadList(props: PluginThreadListProps) {
+  const { botsSwitch } = useListSettings();
+  if (!botsSwitch) return <RadarThreadsList {...props} />;
+  return <RadarSwitchedList {...props} />;
+}
+
+function RadarSwitchedList(props: PluginThreadListProps) {
+  const { activeThreadId, isCompactViewport, onNavigate: hostOnNavigate } = props;
+  const [mode, setMode] = useListMode();
+  const tasks = useBotTasks(true);
+  const actions = useRadarThreadActions();
+  const navigation = useRef(hostOnNavigate);
+  useLayoutEffect(() => { navigation.current = hostOnNavigate; }, [hostOnNavigate]);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const needsCount = useMemo(() => tasks.data ? needRows(tasks.data).length : null, [tasks.data]);
+  const openThread = useCallback((threadId: string) => {
+    actions.open(threadId);
+    navigation.current();
+  }, [actions]);
+  const showThreads = useCallback(() => setMode("threads"), [setMode]);
+  return (
+    <div className={cn("radar-list-shell", isCompactViewport && "radar-list-compact")} data-radar-mode={mode}>
+      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} />
+      {mode === "threads" ? (
+        <RadarThreadsList {...props} everyThread />
+      ) : (
+        <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
+          <div className="radar-list-body">
+            <BotsView state={tasks} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport}
+              now={now} onOpen={openThread} onShowThreads={showThreads} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * The thread list: composes the host's thread data, bots and settings into
  * the header, the grouped rows, the Working drawer and the bulk dock.
+ * `everyThread` (the switch's Threads view) keeps bot chats and workers in
+ * the list even when the Bots page owns them.
  */
-export function RadarThreadList({
+function RadarThreadsList({
   activeThreadId,
   isCompactViewport,
   onNavigate: hostOnNavigate,
-}: PluginThreadListProps) {
+  everyThread = false,
+}: PluginThreadListProps & { everyThread?: boolean }) {
   // Route changes replace the host's callbacks. Rows need the current action,
   // but only the old/new active rows need new presentation props.
   const navigation = useRef(hostOnNavigate);
@@ -195,6 +249,8 @@ export function RadarThreadList({
   const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
+    // The switch's Threads view lists every thread; only a bot chosen in the shortcuts still narrows it.
+    if (everyThread && !scopedBot) return allThreads;
     if (settings.botsPage) {
       // Bots live on the Bots page: their whole families leave the list.
       const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
@@ -214,7 +270,7 @@ export function RadarThreadList({
     }
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
-  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots, settings.botsPage]);
+  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots, settings.botsPage, everyThread]);
   const actions = useRadarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();

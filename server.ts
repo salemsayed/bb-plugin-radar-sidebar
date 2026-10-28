@@ -111,6 +111,12 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Bots live on the Bots page (bots-page plugin): the list leaves out their coordinators and workers, and shows no bot shortcuts, deck or saved bot asks. Off brings them back.",
       default: false,
     },
+    botsSwitch: {
+      type: "boolean",
+      label: "Bots | Threads switch",
+      description: "A switch at the top of the list (and in the phone drawer): Bots shows each bot's tasks from bb-salem-bots with Needs you on top; Threads shows every thread, bot chats and workers included. Each device keeps its own choice. Off restores the list as it was.",
+      default: false,
+    },
     swipeActions: {
       type: "boolean",
       label: "Swipe actions",

@@ -40,6 +40,7 @@ const STATUS_FILTER_KEY = "radar-sidebar:status-filter:v1";
 const LAST_DEFAULT_DENSITY_KEY = "radar-sidebar:last-default-density:v1";
 const LAST_TWO_LINE_TITLES_KEY = "radar-sidebar:last-two-line-titles:v1";
 const LAST_GROUPING_KEY = "radar-sidebar:last-grouping:v1";
+const LAST_BOTS_SWITCH_KEY = "radar-sidebar:last-bots-switch:v1";
 const WORKING_OPEN_KEY = "radar-sidebar:working-open:v1";
 export const NEEDS_LANE_OPEN_KEY = "radar-sidebar:needs-lane-open:v1";
 export const SHOW_HIDDEN_KEY = "radar-sidebar:show-hidden:v1";
@@ -97,6 +98,7 @@ export function useListSettings() {
     ),
     wrapTitles: readStored(LAST_TWO_LINE_TITLES_KEY, "off", ["off", "on"]) === "on",
     grouping: readStored<Grouping>(LAST_GROUPING_KEY, "time", ["time", "project", "section"]),
+    botsSwitch: readStored(LAST_BOTS_SWITCH_KEY, "off", ["off", "on"]) === "on",
   }));
   const loaded = values !== undefined;
   const density: DensityMode = loaded
@@ -109,16 +111,20 @@ export function useListSettings() {
   // Swipes act on threads, so they wait for the saved choice rather than
   // running on the defaults for someone who turned them off.
   const swipeOn = loaded && flag("swipeActions", true);
+  // The Bots | Threads switch changes the whole list, so a reload paints the last-seen choice too.
+  const botsSwitch = loaded ? flag("botsSwitch", false) : lastSeen.botsSwitch;
   useEffect(() => {
     if (!loaded) return;
     writeStored(LAST_DEFAULT_DENSITY_KEY, density);
     writeStored(LAST_TWO_LINE_TITLES_KEY, wrapTitles ? "on" : "off");
     writeStored(LAST_GROUPING_KEY, grouping);
-  }, [loaded, density, wrapTitles, grouping]);
+    writeStored(LAST_BOTS_SWITCH_KEY, botsSwitch ? "on" : "off");
+  }, [loaded, density, wrapTitles, grouping, botsSwitch]);
   // The Bots page takes over every bot surface; the list only tucks bot threads away.
   const botsPage = flag("botsPage", false);
   return {
     botsPage,
+    botsSwitch,
     botRail: flag("botRail", false) && !botsPage,
     botsDeck: flag("botsDeck", true) && !botsPage,
     needsYouLane: flag("needsYouLane", true),

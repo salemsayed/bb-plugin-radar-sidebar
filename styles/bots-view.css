@@ -1,0 +1,120 @@
+/* Radar Sidebar: the Bots | Threads switch and the Bots view (botsSwitch setting). */
+
+.radar-list-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--foreground); font-size: 13px; }
+.radar-list-shell > .radar-list { flex: 1; height: auto; min-height: 0; }
+
+/* Segmented switch */
+.radar-mode-switch { display: flex; flex: none; gap: 2px; margin: 6px 8px 4px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--muted); }
+.radar-mode-option { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 3px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted-foreground); font: inherit; font-weight: 600; cursor: pointer; }
+.radar-mode-option:hover { color: var(--foreground); }
+.radar-mode-option[aria-pressed="true"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.radar-mode-option:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
+.radar-mode-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--warning, #b0640f); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
+.radar-list-compact .radar-mode-option { min-height: 40px; font-size: 14px; }
+
+/* The view */
+.radar-tasks { min-width: 0; padding: 0 2px 8px; }
+.radar-tasks button { font: inherit; color: inherit; }
+.radar-tasks ul { list-style: none; margin: 0; padding: 0; }
+.radar-tasks-stale { margin: 2px 8px 4px; color: var(--muted-foreground); font-size: 11px; }
+.radar-tasks-section-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 8px 8px 2px; }
+.radar-tasks-section-head h3 { margin: 0; color: var(--muted-foreground); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.radar-tasks-count, .radar-tasks-count-static { margin-left: auto; color: var(--warning, #b0640f); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.radar-tasks-count { min-height: 24px; padding: 2px 8px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
+.radar-tasks-count:hover { background: color-mix(in srgb, var(--warning, #b0640f) 14%, transparent); }
+.radar-tasks-count-static { padding: 2px 8px; }
+
+/* Rows */
+.radar-task-row, .radar-need-row { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; min-height: 32px; padding: 5px 8px; border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; }
+.radar-task-row:hover, .radar-need-row:hover:not(:disabled) { background: var(--muted); }
+.radar-task-row[aria-current="page"], .radar-need-row[aria-current="page"] { background: var(--muted); box-shadow: inset 2px 0 0 var(--primary); }
+.radar-task-row:focus-visible, .radar-need-row:focus-visible, .radar-task-fold:focus-visible, .radar-tasks-bot-open:focus-visible, .radar-tasks-chevron:focus-visible, .radar-tasks-section-toggle:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
+.radar-task-list .radar-task-row { padding-inline-start: 30px; }
+.radar-tasks-extra .radar-task-row { padding-inline-start: 12px; }
+.radar-need-row { background: color-mix(in srgb, var(--warning, #b0640f) 11%, transparent); margin-bottom: 2px; }
+.radar-need-row:hover:not(:disabled) { background: color-mix(in srgb, var(--warning, #b0640f) 19%, transparent); }
+.radar-need-row:disabled { cursor: default; opacity: 0.7; }
+.radar-task-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.radar-task-titleline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-task-title, .radar-task-line { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; unicode-bidi: isolate; }
+.radar-task-title { font-weight: 550; }
+.radar-task-titleline .radar-task-title { flex: 0 1 auto; }
+.radar-task-line { color: var(--muted-foreground); font-size: 12px; }
+.radar-task-age { flex: none; padding-top: 1px; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.radar-task-chip { flex: none; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 600; line-height: 15px; text-transform: lowercase; }
+.radar-task-empty { margin: 0; padding: 4px 8px 6px 30px; color: var(--muted-foreground); font-size: 12px; }
+.radar-tasks-needs .radar-task-empty, .radar-tasks-extra .radar-task-empty { padding-inline-start: 12px; }
+.radar-task-fold { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 3px 8px 3px 30px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: start; cursor: pointer; }
+.radar-task-fold:hover { background: var(--muted); color: var(--foreground); }
+.radar-tasks-needs .radar-task-fold { padding-inline-start: 12px; }
+.radar-task-fold-chevron { width: 12px; text-align: center; }
+
+/* State glyphs: shape and colour both carry the state. */
+.radar-task-glyph { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; box-sizing: border-box; }
+.radar-task-glyph-needs { background: var(--warning, #b0640f); }
+.radar-task-glyph-working, .radar-task-glyph-checking { border: 2px solid var(--primary); border-right-color: transparent; animation: radar-task-spin 1s linear infinite; }
+.radar-task-glyph-retrying { border: 2px dashed var(--primary); animation: radar-task-spin 2s linear infinite; }
+.radar-task-glyph-queued, .radar-task-glyph-ready { border: 2px dotted var(--muted-foreground); }
+.radar-task-glyph-offline { border-radius: 2px; background: var(--muted-foreground); }
+.radar-task-glyph-overdue { border-radius: 2px; background: var(--destructive, #c03a3a); }
+.radar-task-glyph-waiting { border: 2px solid var(--muted-foreground); }
+.radar-task-glyph-done { background: var(--success, #2e9b6a); }
+.radar-task-glyph-stopped, .radar-task-glyph-cancelled { border-radius: 2px; border: 2px solid var(--muted-foreground); }
+.radar-task-glyph-plain { border: 1px solid var(--border); }
+[data-radar-motion="off"] .radar-task-glyph { animation: none; }
+@keyframes radar-task-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .radar-task-glyph { animation: none; } }
+.radar-task-done .radar-task-title, .radar-task-stopped .radar-task-title, .radar-task-cancelled .radar-task-title { color: var(--muted-foreground); font-weight: 450; }
+
+/* Bot groups */
+.radar-tasks-bot { margin-top: 2px; }
+.radar-tasks-bot-head { display: flex; align-items: center; min-width: 0; }
+.radar-tasks-chevron { flex: none; display: grid; place-items: center; width: 24px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.radar-tasks-chevron:hover { background: var(--muted); color: var(--foreground); }
+.radar-tasks-bot-open { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; min-height: 32px; padding: 4px 8px 4px 2px; border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; }
+.radar-tasks-bot-open:hover { background: var(--muted); }
+.radar-tasks-bot-open[aria-current="page"] { background: var(--muted); box-shadow: inset 2px 0 0 var(--primary); }
+.radar-tasks-bot-name { flex: none; max-width: 50%; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tasks-bot-summary { flex: 1; min-width: 0; overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-align: end; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tasks-bot-quiet .radar-tasks-bot-name { color: var(--muted-foreground); font-weight: 550; }
+.radar-tasks-face { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; object-fit: cover; }
+.radar-tasks-face svg { display: block; }
+.radar-tasks-face-letter { color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
+.radar-need-row .radar-tasks-face { margin-top: 1px; }
+.radar-task-unlinked .radar-tasks-face { margin-top: 2px; }
+
+/* Unlinked work and Not filed */
+.radar-tasks-extra { margin-top: 6px; }
+.radar-tasks-section-toggle { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding: 6px 8px 2px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-align: start; text-transform: uppercase; cursor: pointer; }
+.radar-tasks-section-toggle:hover { color: var(--foreground); }
+.radar-tasks-section-count { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Missing RPC, loading or failed first load: one line and a way to the threads. */
+.radar-tasks-fallback { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 10px 10px; color: var(--muted-foreground); font-size: 13px; }
+.radar-tasks-fallback p { margin: 0; }
+.radar-tasks-fallback-action { min-height: 32px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--card, transparent); color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
+.radar-tasks-fallback-action:hover { background: var(--muted); }
+
+/* Desktop hover peek */
+.radar-task-peek { position: fixed; z-index: 110; display: flex; flex-direction: column; gap: 4px; width: 280px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--popover, var(--card)); color: var(--foreground); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); font-size: 12px; line-height: 1.35; pointer-events: none; }
+.radar-task-peek-title { font-weight: 650; unicode-bidi: isolate; overflow-wrap: anywhere; }
+.radar-task-peek-meta { color: var(--muted-foreground); }
+.radar-task-peek-line { unicode-bidi: isolate; overflow-wrap: anywhere; }
+
+/* Phone drawer and touch: every target at least 44px tall. */
+.radar-list-compact .radar-task-row, .radar-list-compact .radar-need-row { min-height: 44px; padding-block: 6px; align-items: center; }
+.radar-list-compact .radar-task-glyph { margin-top: 0; }
+.radar-list-compact .radar-tasks-chevron { width: 40px; height: 44px; }
+.radar-list-compact .radar-tasks-bot-open { min-height: 44px; }
+.radar-list-compact .radar-task-fold, .radar-list-compact .radar-tasks-section-toggle, .radar-list-compact .radar-tasks-count { min-height: 44px; }
+.radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
+.radar-list-compact .radar-task-list .radar-task-row { padding-inline-start: 40px; }
+.radar-list-compact .radar-tasks-extra .radar-task-row { padding-inline-start: 12px; }
+.radar-list-compact .radar-task-fold, .radar-list-compact .radar-task-empty { padding-inline-start: 40px; }
+.radar-list-compact .radar-tasks-needs .radar-task-fold, .radar-list-compact .radar-tasks-needs .radar-task-empty { padding-inline-start: 12px; }
+.radar-list-compact .radar-task-title { font-size: 14px; }
+@media (pointer: coarse) {
+  .radar-task-row, .radar-need-row, .radar-tasks-bot-open, .radar-task-fold, .radar-tasks-section-toggle, .radar-tasks-count { min-height: 44px; }
+  .radar-tasks-chevron { width: 40px; height: 44px; }
+  .radar-mode-option { min-height: 40px; }
+}
