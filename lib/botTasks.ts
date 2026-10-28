@@ -141,7 +141,9 @@ function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string[] 
   add(n(["overdue"]), "overdue");
   add(n(["offline"]), "offline");
   add(n(["working", "checking", "retrying"]), "working");
-  add(n(["queued", "ready"]), "queued");
+  add(n(["queued"]), "queued");
+  // A legacy "ready" task is filed but nothing holds it in a queue.
+  add(n(["ready"]), "not started");
   add(n(["waiting"]), "waiting");
   if (parts.length > 0) return parts;
   return doneToday > 0 ? ["quiet", `${doneToday} done today`] : ["quiet"];
@@ -205,4 +207,18 @@ export function orderedBots(data: BotTasksData): BotTasksBot[] {
 /** When the row was true: the task's own observation, else the response's. */
 export function rowStartedAt(task: BotTaskRow, observedAt: number): number {
   return (task.observedAt ?? observedAt) - task.ageMs;
+}
+
+const doneDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+const SERVER_DONE_DATE = /^Done \d{4}-\d{2}-\d{2}\b/;
+
+/**
+ * A core writes "Done YYYY-MM-DD" from a UTC date, so a task finished after
+ * local midnight read as the day before. The row's completedAt timestamp is
+ * the truth: its date is re-rendered in this device's local time.
+ */
+export function localizeDoneLine(task: Pick<BotTaskRow, "line" | "completedAt">, now: number): string {
+  if (task.completedAt === undefined || !SERVER_DONE_DATE.test(task.line)) return task.line;
+  const day = isSameLocalDay(task.completedAt, now) ? "today" : doneDateFormatter.format(new Date(task.completedAt));
+  return task.line.replace(SERVER_DONE_DATE, `Done ${day}`);
 }

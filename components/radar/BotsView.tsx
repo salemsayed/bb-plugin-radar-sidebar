@@ -5,6 +5,7 @@ import {
   STATE_LABEL,
   isSameLocalDay,
   layoutBot,
+  localizeDoneLine,
   needRows,
   orderedBots,
   rowStartedAt,
@@ -64,9 +65,9 @@ function StateGlyph({ state }: { state: BotTaskRow["displayState"] }) {
   return <span className={cn("radar-task-glyph", `radar-task-glyph-${state}`)} aria-hidden="true" />;
 }
 
-function rowLine(task: BotTaskRow): string {
+function rowLine(task: BotTaskRow, now: number): string {
   if (task.displayState === "waiting" && task.waitFor) return `Waiting for ${task.waitFor}`;
-  return task.line || task.needs?.question || STATE_LABEL[task.displayState];
+  return localizeDoneLine(task, now) || task.needs?.question || STATE_LABEL[task.displayState];
 }
 
 function rowAge(task: BotTaskRow, observedAt: number, now: number): string {
@@ -178,7 +179,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
           className={cn("radar-task-row", `radar-task-${task.displayState}`)}
           data-task-id={task.id}
           aria-current={activeThreadId !== null && target === activeThreadId ? "page" : undefined}
-          aria-label={`${task.title || "Untitled task"}, ${label}, ${age}${rowLine(task) !== label ? `. ${rowLine(task)}` : ""}`}
+          aria-label={`${task.title || "Untitled task"}, ${label}, ${age}${rowLine(task, now) !== label ? `. ${rowLine(task, now)}` : ""}`}
           title={task.conversationThreadId ? undefined : `No task conversation yet: opens ${bot.name}`}
           onClick={() => open(target)}
           onMouseEnter={canPeek ? (event) => {
@@ -194,7 +195,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
               <bdi dir="auto" className="radar-task-title">{task.title || "Untitled task"}</bdi>
               {task.tags.includes("dev") ? <span className="radar-task-chip">dev</span> : null}
             </span>
-            <bdi dir="auto" className="radar-task-line">{rowLine(task)}</bdi>
+            <bdi dir="auto" className="radar-task-line">{rowLine(task, now)}</bdi>
           </span>
           <span className="radar-task-age">{age}</span>
         </button>
@@ -386,7 +387,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
           <span className="radar-task-peek-meta">
             {shortBotName(peek.bot.name)} · {STATE_LABEL[peek.task.displayState]}{peek.task.waitFor ? `: ${peek.task.waitFor}` : ""} · {peek.age}
           </span>
-          {peek.task.line ? <bdi dir="auto" className="radar-task-peek-line">{peek.task.line}</bdi> : null}
+          {peek.task.line ? <bdi dir="auto" className="radar-task-peek-line">{localizeDoneLine(peek.task, now)}</bdi> : null}
           {peek.task.needs ? <bdi dir="auto" className="radar-task-peek-line">Asks: {peek.task.needs.question}</bdi> : null}
           {peek.task.origin !== "verified" ? <span className="radar-task-peek-meta">{peek.task.origin === "imported" ? "Filed from history" : "Not confirmed as yours: filed only"}</span> : null}
         </div>,
