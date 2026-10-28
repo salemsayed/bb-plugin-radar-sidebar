@@ -198,8 +198,10 @@ export function useShowHidden(): [boolean, Dispatch<SetStateAction<boolean>>] {
 }
 
 /** Query, status filter and lifecycle, as this client last left them. */
-export function useListView() {
-  const [query, setQuery] = useState("");
+export function useListView(initialQuery = "", onQueryChange?: (query: string) => void) {
+  const [query, setQuery] = useState(initialQuery);
+  // Lets the Bots | Threads switch carry a typed filter across its remount.
+  useEffect(() => { onQueryChange?.(query); }, [query, onQueryChange]);
   // Older clients could store "archived" (archived only); it now means "all".
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>(() =>
     readStored(LIFECYCLE_KEY, "active", ["active", "archived", "all"]) === "active"

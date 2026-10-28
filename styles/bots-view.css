@@ -76,7 +76,9 @@
 .radar-tasks-bot-open:hover { background: var(--muted); }
 .radar-tasks-bot-open[aria-current="page"] { background: var(--muted); box-shadow: inset 2px 0 0 var(--primary); }
 .radar-tasks-bot-name { flex: none; max-width: 50%; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.radar-tasks-bot-summary { flex: 1; min-width: 0; overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-align: end; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tasks-bot-summary { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 4px; height: 1.4em; line-height: 1.4em; overflow: hidden; color: var(--muted-foreground); font-size: 11px; }
+.radar-tasks-bot-summary-part { white-space: nowrap; }
+.radar-tasks-bot-summary-part:first-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .radar-tasks-bot-quiet .radar-tasks-bot-name { color: var(--muted-foreground); font-weight: 550; }
 .radar-tasks-face { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; object-fit: cover; }
 .radar-tasks-face svg { display: block; }

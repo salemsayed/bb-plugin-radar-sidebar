@@ -106,6 +106,8 @@ export interface BotLayout {
   closedToday: BotTaskRow[];
   /** Nothing needs Salem, nothing is moving and nothing waits. */
   quiet: boolean;
+  /** Most urgent first; the header drops whole trailing parts when it runs out of room. */
+  summaryParts: string[];
   summary: string;
 }
 
@@ -117,6 +119,7 @@ export function layoutBot(bot: BotTasksBot, now: number): BotLayout {
     .filter(task => isClosed(task.displayState) && task.completedAt !== undefined && isSameLocalDay(task.completedAt, now))
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const quiet = needs.length + active.length + waiting.length === 0;
+  const summaryParts = summaryLine(bot.tasks, closedToday.length);
   return {
     bot,
     needs,
@@ -125,11 +128,12 @@ export function layoutBot(bot: BotTasksBot, now: number): BotLayout {
     waitingFolded: waiting.slice(WAITING_SHOWN),
     closedToday,
     quiet,
-    summary: summaryLine(bot.tasks, closedToday.length),
+    summaryParts,
+    summary: summaryParts.join(" · "),
   };
 }
 
-function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string {
+function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string[] {
   const n = (states: readonly DisplayState[]) => tasks.filter(task => states.includes(task.displayState)).length;
   const parts: string[] = [];
   const add = (value: number, label: string) => { if (value > 0) parts.push(`${value} ${label}`); };
@@ -139,8 +143,8 @@ function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string {
   add(n(["working", "checking", "retrying"]), "working");
   add(n(["queued", "ready"]), "queued");
   add(n(["waiting"]), "waiting");
-  if (parts.length > 0) return parts.join(" · ");
-  return doneToday > 0 ? `quiet · ${doneToday} done today` : "quiet";
+  if (parts.length > 0) return parts;
+  return doneToday > 0 ? ["quiet", `${doneToday} done today`] : ["quiet"];
 }
 
 export interface NeedRow {

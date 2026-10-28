@@ -303,6 +303,59 @@ describe("Bots view without bot_tasks", () => {
   });
 });
 
+describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
+  it("renders the bot summary as whole parts and keeps the full line for screen readers", async () => {
+    renderList(normalDay());
+    const header = await screen.findByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 1 working · 1 queued · 4 waiting$/ });
+    const parts = Array.from(header.querySelectorAll(".radar-tasks-bot-summary-part")).map(node => node.textContent);
+    expect(parts).toEqual(["2 for you", "· 1 working", "· 1 queued", "· 4 waiting"]);
+    const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
+    expect(css).toMatch(/\.radar-tasks-bot-summary \{[^}]*flex-wrap: wrap;[^}]*overflow: hidden;/);
+    expect(css).toMatch(/\.radar-tasks-bot-summary-part \{ white-space: nowrap; \}/);
+  });
+
+  it("dates a stale copy from an earlier day", () => {
+    const data = botTasksSchema.parse({ ...normalDay(), observedAt: NOW - 26 * 3_600_000 });
+    render(<BotsView state={{ data, status: "error", cached: false }} activeThreadId={null} isCompactViewport={false} now={NOW} onOpen={() => {}} onShowThreads={() => {}} />);
+    const line = screen.getByText(/^As of /).textContent!;
+    expect(line).toMatch(/20 Sept|Sep 20|20 Sep/);
+    expect(line).toMatch(/Retrying\.$/);
+    cleanup();
+    const today = botTasksSchema.parse({ ...normalDay(), observedAt: NOW - 3_600_000 });
+    render(<BotsView state={{ data: today, status: "ready", cached: true }} activeThreadId={null} isCompactViewport={false} now={NOW} onOpen={() => {}} onShowThreads={() => {}} />);
+    expect(screen.getByText(/^As of /).textContent).not.toMatch(/Sep/);
+  });
+
+  it("reads a task row's line to screen readers", async () => {
+    renderList(normalDay());
+    expect(await screen.findByRole("button", { name: "Move the backend off Replit, Working, 1h. Phase 3: Express paths out, installer syncs moved in." })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Chat · Islam · login code, Waiting for Islam, 1h" })).toBeTruthy();
+  });
+
+  it("keeps focus when Show threads or See all unmounts the pressed button", async () => {
+    renderList(new Error('plugin "orchestrator-mode" has no rpc method "bot_tasks"'));
+    fireEvent.click(await screen.findByRole("button", { name: "Show threads" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Threads" }));
+    cleanup();
+    localStorage.clear();
+    renderList(tenDecisions());
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    fireEvent.click(within(needs).getByRole("button", { name: "See all 10" }));
+    expect((document.activeElement as HTMLElement).textContent).toContain("Is the iPhone connected to the Mac?");
+  });
+
+  it("keeps a typed filter across Bots and back", async () => {
+    localStorage.setItem(LIST_MODE_KEY, "threads");
+    const { slot } = renderList(normalDay());
+    fireEvent.change(await screen.findByPlaceholderText("Filter threads…"), { target: { value: "Plain" } });
+    await waitFor(() => expect(rowIds(slot.container)).toEqual(["plain"]));
+    fireEvent.click(screen.getByRole("button", { name: /^Bots/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Threads" }));
+    expect((await screen.findByPlaceholderText("Filter threads…") as HTMLInputElement).value).toBe("Plain");
+    await waitFor(() => expect(rowIds(slot.container)).toEqual(["plain"]));
+  });
+});
+
 describe("BotsView component", () => {
   it("shows a peek on desktop hover and none on a phone", async () => {
     vi.useFakeTimers({ now: NOW });

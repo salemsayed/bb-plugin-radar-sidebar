@@ -98,12 +98,20 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     actions.open(threadId);
     navigation.current();
   }, [actions]);
-  const showThreads = useCallback(() => setMode("threads"), [setMode]);
+  // "Show threads" unmounts the pressed button, so focus lands on the Threads segment.
+  const threadsSegment = useRef<HTMLButtonElement>(null);
+  const showThreads = useCallback(() => {
+    setMode("threads");
+    threadsSegment.current?.focus();
+  }, [setMode]);
+  // A typed filter survives a trip to Bots and back.
+  const threadsQuery = useRef("");
+  const keepQuery = useCallback((query: string) => { threadsQuery.current = query; }, []);
   return (
     <div className={cn("radar-list-shell", isCompactViewport && "radar-list-compact")} data-radar-mode={mode}>
-      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} />
+      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} threadsRef={threadsSegment} />
       {mode === "threads" ? (
-        <RadarThreadsList {...props} everyThread />
+        <RadarThreadsList {...props} everyThread initialQuery={threadsQuery.current} onQueryChange={keepQuery} />
       ) : (
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">
@@ -127,13 +135,15 @@ function RadarThreadsList({
   isCompactViewport,
   onNavigate: hostOnNavigate,
   everyThread = false,
-}: PluginThreadListProps & { everyThread?: boolean }) {
+  initialQuery,
+  onQueryChange,
+}: PluginThreadListProps & { everyThread?: boolean; initialQuery?: string; onQueryChange?: (query: string) => void }) {
   // Route changes replace the host's callbacks. Rows need the current action,
   // but only the old/new active rows need new presentation props.
   const navigation = useRef(hostOnNavigate);
   useLayoutEffect(() => { navigation.current = hostOnNavigate; }, [hostOnNavigate]);
   const onNavigate = useCallback(() => navigation.current(), []);
-  const view = useListView();
+  const view = useListView(initialQuery, onQueryChange);
   const { query, setQuery, lifecycle, statusFilter, switchPending } = view;
   const settings = useListSettings();
   const { density, grouping } = settings;

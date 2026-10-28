@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
   STATE_LABEL,
+  isSameLocalDay,
   layoutBot,
   needRows,
   orderedBots,
@@ -27,6 +28,12 @@ const FOLDS_KEY = "radar-sidebar:bots-folds:v1";
 const PEEK_DELAY_MS = 350;
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+/** A copy from an earlier day says which day, so yesterday's tasks never read as current. */
+export function asOf(observedAt: number, now: number): string {
+  return (isSameLocalDay(observedAt, now) ? timeFormatter : dateTimeFormatter).format(new Date(observedAt));
+}
 
 function readFolds(): Record<string, boolean> {
   try {
@@ -129,6 +136,15 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
   const [needsAll, setNeedsAll] = useState(() => readStored("radar-sidebar:bots-needs-all:v1", "off", ["off", "on"]) === "on");
   useEffect(() => { writeStored("radar-sidebar:bots-needs-all:v1", needsAll ? "on" : "off"); }, [needsAll]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const rootRef = useRef<HTMLDivElement>(null);
+  const focusNeed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusNeed.current) return;
+    const key = focusNeed.current;
+    focusNeed.current = null;
+    const rows = rootRef.current?.querySelectorAll<HTMLElement>("[data-need-key]") ?? [];
+    Array.from(rows).find(row => row.dataset.needKey === key)?.focus();
+  });
   const toggleExpanded = (id: string) => setExpanded(previous => {
     const next = new Set(previous);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -162,7 +178,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
           className={cn("radar-task-row", `radar-task-${task.displayState}`)}
           data-task-id={task.id}
           aria-current={activeThreadId !== null && target === activeThreadId ? "page" : undefined}
-          aria-label={`${task.title || "Untitled task"}, ${label}, ${age}`}
+          aria-label={`${task.title || "Untitled task"}, ${label}, ${age}${rowLine(task) !== label ? `. ${rowLine(task)}` : ""}`}
           title={task.conversationThreadId ? undefined : `No task conversation yet: opens ${bot.name}`}
           onClick={() => open(target)}
           onMouseEnter={canPeek ? (event) => {
@@ -216,7 +232,12 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
             onClick={() => open(bot.coordinatorThreadId)}>
             <BotTaskFace bot={bot} />
             <span className="radar-tasks-bot-name" dir="auto">{shortBotName(bot.name)}</span>
-            <span className="radar-tasks-bot-summary">{layout.summary}</span>
+            {/* Parts wrap onto a hidden second line, so a narrow header drops whole parts, never half a word. */}
+            <span className="radar-tasks-bot-summary" aria-hidden="true">
+              {layout.summaryParts.map((part, index) => (
+                <span key={part} className="radar-tasks-bot-summary-part">{index > 0 ? `· ${part}` : part}</span>
+              ))}
+            </span>
           </button>
         </div>
         {groupOpen ? (
@@ -247,7 +268,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
     const where = [shortBotName(bot.name), need.taskTitle].filter(Boolean).join(" · ");
     return (
       <li key={need.key}>
-        <button type="button" className="radar-need-row" data-task-id={need.taskId}
+        <button type="button" className="radar-need-row" data-task-id={need.taskId} data-need-key={need.key}
           aria-current={activeThreadId !== null && need.threadId === activeThreadId ? "page" : undefined}
           disabled={!need.threadId}
           onClick={() => open(need.threadId)}>
@@ -266,10 +287,10 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
   const stale = state.status === "error" || state.cached;
 
   return (
-    <div className="radar-tasks" data-compact={isCompactViewport ? "true" : undefined}>
+    <div ref={rootRef} className="radar-tasks" data-compact={isCompactViewport ? "true" : undefined}>
       {stale ? (
         <p className="radar-tasks-stale" role="status">
-          {state.status === "error" ? `As of ${timeFormatter.format(new Date(data.observedAt))}. Retrying.` : `As of ${timeFormatter.format(new Date(data.observedAt))}. Updating…`}
+          {`As of ${asOf(data.observedAt, now)}. ${state.status === "error" ? "Retrying." : "Updating…"}`}
         </p>
       ) : null}
 
@@ -287,7 +308,11 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
         {needs.length === 0 ? <p className="radar-task-empty">Nothing needs you.</p> : (
           <ul className="radar-task-list">
             {shownNeeds.map(needRow)}
-            {!showAllNeeds ? foldRow("@needs", `See all ${needs.length}`, false, () => setNeedsAll(true)) : null}
+            {!showAllNeeds ? foldRow("@needs", `See all ${needs.length}`, false, () => {
+              // The pressed row unmounts: focus moves to the first decision it revealed.
+              focusNeed.current = needs[NEEDS_SHOWN]?.key ?? null;
+              setNeedsAll(true);
+            }) : null}
           </ul>
         )}
       </section>
