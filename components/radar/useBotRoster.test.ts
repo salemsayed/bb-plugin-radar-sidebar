@@ -53,3 +53,20 @@ describe("bot roster cache", () => {
     expect(isPluginAbsentError(new TypeError("Failed to fetch"))).toBe(false);
   });
 });
+
+// Equal polls must not invalidate the full sidebar's derived groups and rows.
+it("preserves the roster identity across unchanged polls, but publishes changed facts", async () => {
+  vi.useFakeTimers();
+  callRpc.mockImplementation(async () => ({ bots: [{ ...bot }] }));
+  let renders = 0;
+  const { result } = renderHook(() => { renders++; return useBotRoster(true); });
+  await act(async () => { await Promise.resolve(); });
+  const initial = result.current;
+  const before = renders;
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(result.current).toBe(initial);
+  expect(renders).toBe(before);
+  callRpc.mockResolvedValue({ bots: [{ ...bot, current: "replacement", unseenAttention: 1 }] });
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(result.current[0]).toMatchObject({ current: "replacement", unseenAttention: 1 });
+});

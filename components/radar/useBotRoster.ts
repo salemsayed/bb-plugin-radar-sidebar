@@ -65,7 +65,9 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
         if (cancelled || current !== request) return;
         failedSince = null;
         const specialists = result.bots.filter(bot => bot.key !== "crew");
-        setBots(specialists);
+        // Polls return fresh objects. Equal facts must not invalidate the
+        // sidebar's family filtering, grouping and row projections.
+        setBots(previous => JSON.stringify(previous) === JSON.stringify(specialists) ? previous : specialists);
         writeCache(specialists);
       } catch (error) {
         if (cancelled || current !== request) return;

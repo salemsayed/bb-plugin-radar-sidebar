@@ -3,6 +3,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -71,8 +72,13 @@ void preloadExtendedIcons().catch(() => undefined);
 export function RadarThreadList({
   activeThreadId,
   isCompactViewport,
-  onNavigate,
+  onNavigate: hostOnNavigate,
 }: PluginThreadListProps) {
+  // Route changes replace the host's callbacks. Rows need the current action,
+  // but only the old/new active rows need new presentation props.
+  const navigation = useRef(hostOnNavigate);
+  useLayoutEffect(() => { navigation.current = hostOnNavigate; }, [hostOnNavigate]);
+  const onNavigate = useCallback(() => navigation.current(), []);
   const view = useListView();
   const { query, setQuery, lifecycle, statusFilter, switchPending } = view;
   const settings = useListSettings();
@@ -131,7 +137,10 @@ export function RadarThreadList({
     () => [...projects.map(project => project.id), ...roster.flatMap(bot => [bot.projectId, ...bot.projects])],
     [projects, roster],
   );
-  const census = useThreadCensus(showHidden || roster.length > 0, hiddenProjectIds, now);
+  // The roster still excludes bot families on the Bots page, but no bot
+  // activity is displayed here. Only visible bot controls or hidden rows need
+  // the independent project census.
+  const census = useThreadCensus(showHidden || ((deck || botRail) && roster.length > 0), hiddenProjectIds, now);
   const hiddenRows = useMemo(() => [...census.rows, ...census.staleRows], [census.rows, census.staleRows]);
   const activityThreads = useMemo(() => mergeActivityThreads(feedThreads, census.rows), [feedThreads, census.rows]);
   const activityCoverage = useMemo(() => {

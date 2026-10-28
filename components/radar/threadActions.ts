@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useBbNavigate, useSdk, type PluginSidebarThread, type PluginThreadActionEntry, type PluginThreadActionTarget } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 
@@ -23,17 +23,19 @@ export function runThreadAction(entries: readonly PluginThreadActionEntry[], key
 export function useRadarThreadActions() {
   const sdk = useSdk();
   const navigate = useBbNavigate();
+  const current = useRef({ sdk, navigate });
+  useLayoutEffect(() => { current.current = { sdk, navigate }; }, [sdk, navigate]);
   const registered = useRef(new Map<string, readonly PluginThreadActionEntry[]>());
   return useMemo(() => {
     const run = (threadId: string, key: string) => {
       runThreadAction(registered.current.get(threadId) ?? [], key);
     };
     return {
-      open: (threadId: string, options?: { split?: boolean }) => navigate.toThread(threadId, options),
-      openNewThread: (options: { projectId: string; focusPrompt?: boolean }) => navigate.toCompose(options),
-      setPinned: (threadId: string, pinned: boolean) => pinned ? sdk.threads.pin({ threadId }) : sdk.threads.unpin({ threadId }),
-      setRead: (threadId: string, read: boolean) => read ? sdk.threads.markRead({ threadId }) : sdk.threads.markUnread({ threadId }),
-      rename: (threadId: string, title: string) => sdk.threads.update({ threadId, title }),
+      open: (threadId: string, options?: { split?: boolean }) => current.current.navigate.toThread(threadId, options),
+      openNewThread: (options: { projectId: string; focusPrompt?: boolean }) => current.current.navigate.toCompose(options),
+      setPinned: (threadId: string, pinned: boolean) => pinned ? current.current.sdk.threads.pin({ threadId }) : current.current.sdk.threads.unpin({ threadId }),
+      setRead: (threadId: string, read: boolean) => read ? current.current.sdk.threads.markRead({ threadId }) : current.current.sdk.threads.markUnread({ threadId }),
+      rename: (threadId: string, title: string) => current.current.sdk.threads.update({ threadId, title }),
       archive: (threadId: string) => run(threadId, "bb--core/archive"),
       requestDelete: (threadId: string) => run(threadId, "bb--core/delete"),
       register: (threadId: string, entries: readonly PluginThreadActionEntry[]) => {
@@ -41,7 +43,7 @@ export function useRadarThreadActions() {
         return () => { if (registered.current.get(threadId) === entries) registered.current.delete(threadId); };
       },
     };
-  }, [sdk, navigate]);
+  }, []);
 }
 
 export type RadarThreadActions = ReturnType<typeof useRadarThreadActions>;

@@ -14,6 +14,7 @@ import { useThreadGroups } from "./useThreadGroups";
 
 const probes = vi.hoisted(() => ({
   rowRenders: 0,
+  freshNavigation: false,
   keyboardCoordinates: null as KeyboardCoordinateGetter | null,
   onDragStart: null as ((event: unknown) => void) | null,
   onDragEnd: null as ((event: unknown) => void) | null,
@@ -30,6 +31,10 @@ vi.mock("@get-bb/plugin-sdk/app", async importOriginal => {
   const actual = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
   return {
     ...actual,
+    useBbNavigate: () => {
+      const navigate = actual.useBbNavigate();
+      return probes.freshNavigation ? { ...navigate } : navigate;
+    },
     useSidebarThreadDraft: (id: string) => {
       probes.rowRenders += 1;
       return actual.useSidebarThreadDraft(id);
@@ -76,7 +81,7 @@ function mount(threads: PluginSidebarThread[], settings: Record<string, string |
 }
 beforeAll(() => { Element.prototype.scrollIntoView = () => {}; });
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals();
-  probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; });
+  probes.freshNavigation = false; probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; });
 
 describe("sidebar behavior regressions", () => {
   it("defers offscreen controls while retaining jump links, keyboard focus and bulk archive actions", async () => {
@@ -232,6 +237,22 @@ describe("sidebar behavior regressions", () => {
     const before = probes.rowRenders;
     slot.rerender(createElement(list.component, { ...props, searchQuery: "irrelevant-host-query" }));
     expect(probes.rowRenders).toBe(before);
+  });
+
+  it("only redraws the newly active row when navigation callbacks change", async () => {
+    probes.freshNavigation = true;
+    const slot = renderSlot(list, props, {
+      settings: { botsDeck: false, botRail: false, botsPage: false },
+      sdk, sidebarThreads: { status: "ready", threads: Array.from({ length: 20 }, (_, i) => makeThread({ id: `row-${i}` })),
+        projects: [makeProject({ id: "proj_a" })], sections: [] },
+    });
+    await act(async () => {});
+    const before = probes.rowRenders;
+    const onNavigate = vi.fn();
+    slot.rerender(createElement(list.component, { ...props, activeThreadId: "row-0", onNavigate }));
+    expect(probes.rowRenders - before).toBe(1);
+    fireEvent.click(slot.container.querySelector('[data-sidebar-thread-id="row-1"]')!);
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 
   it("moves the whole selection when its grip is dropped onto a section", async () => {

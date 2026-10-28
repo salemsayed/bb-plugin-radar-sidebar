@@ -387,3 +387,9 @@ All notable changes to Radar Sidebar are documented here. The format follows
 - Separate unread chat from saved updates across shortcuts, cards and hover details.
 - Reveal saved attention when selecting a badged bot; show unavailable attention explicitly.
 - Cover read, resolve, reload and active-worker states with regression tests.
+
+### Navigation performance (2026-10-18)
+
+- Keep row action callbacks stable across host route updates, while using the latest committed navigation and SDK.
+- Reuse unchanged bot rosters so polling does not rebuild sidebar groups.
+- When Bots owns the bot UI, skip the all-project activity census unless Hidden workers is enabled. Bot rail/deck activity and hidden-row discovery still use the independent census.

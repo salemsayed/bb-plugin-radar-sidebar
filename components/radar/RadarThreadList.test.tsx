@@ -203,10 +203,12 @@ describe("bot scope and experiment fallback", () => {
     expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]);
   });
   it("leaves bots to the Bots page: no shortcuts, deck or bot threads, other threads stay", async () => {
-    const slot = renderThreads(threads, { projects, sdk, settings: { botsPage: true, botRail: true, botsDeck: true } });
+    const list = vi.fn(async () => []);
+    const slot = renderThreads(threads, { projects, sdk: { ...sdk, threads: { ...(sdkFakes().threads as object), list } }, settings: { botsPage: true, botRail: true, botsDeck: true } });
     await waitFor(() => expect(visibleRowIds(slot.container).sort()).toEqual(["other", "owned"]));
     expect(screen.queryByRole("group", { name: "Bot shortcuts" })).toBeNull();
     expect(slot.container.querySelector(".radar-bot-card")).toBeNull();
+    expect(list).not.toHaveBeenCalled();
   });
   it("traverses bot shortcuts from the keyboard without acting on a thread row", async () => {
     const slot = renderThreads(threads, { projects, sdk, settings: { botRail: true } });
@@ -3021,7 +3023,7 @@ describe("review regression: hidden preferences and delayed pages", () => {
     const fake = sdkFakes();
     return renderThreads(rows, { settings: { botRail: rail, hoverCard: false }, projects: [makeProject({ id: "proj_a" }), makeProject({ id: "other" })],
       rpc: { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }) },
-      sdk: { ...fake, threads: { ...(fake.threads as object), list }, plugins: { callRpc: async () => ({ bots }) } } });
+      sdk: { ...fake, threads: { ...(fake.threads as object), list }, plugins: { callRpc: async () => ({ bots: structuredClone(bots) }) } } });
   }
   for (const rail of [true, false]) for (const missing of [true, false]) {
     it(`surfaces blocked hidden bots with a ${missing ? "missing" : "present"} coordinator (${rail}) and restores preference on recovery`, async () => {
