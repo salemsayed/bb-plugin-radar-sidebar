@@ -59,7 +59,7 @@ function StateGlyph({ state }: { state: BotTaskRow["displayState"] }) {
 
 function rowLine(task: BotTaskRow): string {
   if (task.displayState === "waiting" && task.waitFor) return `Waiting for ${task.waitFor}`;
-  return task.line || STATE_LABEL[task.displayState];
+  return task.line || task.needs?.question || STATE_LABEL[task.displayState];
 }
 
 function rowAge(task: BotTaskRow, observedAt: number, now: number): string {
@@ -95,7 +95,7 @@ export function BotsView({
   if (status === "missing") {
     return (
       <div className="radar-tasks-fallback" role="status">
-        <p>This bots core has no task list yet, so there is nothing to show here.</p>
+        <p>This bots core has no task list yet.</p>
         <button type="button" className="radar-tasks-fallback-action" onClick={onShowThreads}>Show threads</button>
       </div>
     );
@@ -190,7 +190,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
     <li key={id}>
       <button type="button" className="radar-task-fold" aria-expanded={isExpanded} onClick={onToggle}>
         <span className="radar-task-fold-chevron" aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
-        {text}
+        <span className="radar-task-fold-text">{text}</span>
       </button>
     </li>
   );
@@ -202,7 +202,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
     const doneOpen = expanded.has(`${bot.key}:done`);
     const done = layout.closedToday.filter(task => task.displayState === "done").length;
     const halted = layout.closedToday.length - done;
-    const doneLabel = [done > 0 ? `Done today · ${done}` : null, halted > 0 ? `${halted} stopped or cancelled` : null].filter(Boolean).join(" · ");
+    const doneLabel = [done > 0 ? `Done today · ${done}` : null, halted > 0 ? `${halted} stopped today` : null].filter(Boolean).join(" · ");
     return (
       <section key={bot.key} className={cn("radar-tasks-bot", layout.quiet && "radar-tasks-bot-quiet")} aria-label={bot.name}>
         <div className="radar-tasks-bot-head">

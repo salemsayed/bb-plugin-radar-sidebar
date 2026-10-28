@@ -47,7 +47,8 @@
 .radar-task-fold { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 3px 8px 3px 30px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: start; cursor: pointer; }
 .radar-task-fold:hover { background: var(--muted); color: var(--foreground); }
 .radar-tasks-needs .radar-task-fold { padding-inline-start: 12px; }
-.radar-task-fold-chevron { width: 12px; text-align: center; }
+.radar-task-fold-chevron { flex: none; width: 12px; text-align: center; }
+.radar-task-fold-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* State glyphs: shape and colour both carry the state. */
 .radar-task-glyph { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; box-sizing: border-box; }
@@ -107,6 +108,7 @@
 .radar-list-compact .radar-tasks-chevron { width: 40px; height: 44px; }
 .radar-list-compact .radar-tasks-bot-open { min-height: 44px; }
 .radar-list-compact .radar-task-fold, .radar-list-compact .radar-tasks-section-toggle, .radar-list-compact .radar-tasks-count { min-height: 44px; }
+.radar-list-compact .radar-tasks-count { min-width: 44px; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 .radar-list-compact .radar-task-list .radar-task-row { padding-inline-start: 40px; }
 .radar-list-compact .radar-tasks-extra .radar-task-row { padding-inline-start: 12px; }
@@ -115,6 +117,7 @@
 .radar-list-compact .radar-task-title { font-size: 14px; }
 @media (pointer: coarse) {
   .radar-task-row, .radar-need-row, .radar-tasks-bot-open, .radar-task-fold, .radar-tasks-section-toggle, .radar-tasks-count { min-height: 44px; }
+  .radar-tasks-count { min-width: 44px; }
   .radar-tasks-chevron { width: 40px; height: 44px; }
   .radar-mode-option { min-height: 40px; }
 }

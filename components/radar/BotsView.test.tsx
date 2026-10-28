@@ -171,7 +171,7 @@ describe("Bots view: a normal day", () => {
     expect(taskTitles(erbareeq)).not.toContain("MSSQL database on our host");
     // A stopped task is never counted as done.
     const bricks = screen.getByRole("region", { name: "Bricks Bot" });
-    expect(within(bricks).getByRole("button", { name: "Done today · 1 · 1 stopped or cancelled" })).toBeTruthy();
+    expect(within(bricks).getByRole("button", { name: "Done today · 1 · 1 stopped today" })).toBeTruthy();
     expect(slot.container.querySelector(".radar-task-age")).toBeTruthy();
   });
 

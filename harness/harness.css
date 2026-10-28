@@ -1,0 +1,28 @@
+/* Visual harness only: bb-like theme tokens and shell around Radar's real thread-list slot. */
+:root {
+  --background: #ffffff; --foreground: #16181d; --card: #fbfbfc; --popover: #ffffff; --muted: #f0f1f4;
+  --muted-foreground: #646a76; --border: #e1e3e8; --primary: #2563eb; --primary-foreground: #fff;
+  --warning: #b0640f; --success: #2e9b6a; --destructive: #c03a3a; --ring: #2563eb;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
+}
+:root[data-theme="dark"] {
+  --background: #15171c; --foreground: #e8eaee; --card: #1b1e24; --popover: #22252c; --muted: #262a32;
+  --muted-foreground: #9aa1ad; --border: #30343d; --primary: #6b9cff; --primary-foreground: #0b0d12;
+  --warning: #e0a03a; --success: #4cc38a; --destructive: #f06a6a; --ring: #6b9cff;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--background); color: var(--foreground); }
+#frame { height: 100vh; display: grid; grid-template-columns: 44px var(--sidebar, 290px) minmax(0, 1fr); }
+.h-rail { background: var(--muted); border-right: 1px solid var(--border); }
+.h-side { min-width: 0; min-height: 0; height: 100vh; border-right: 1px solid var(--border); background: var(--card); overflow: hidden; display: flex; flex-direction: column; }
+.h-side > div:not(.h-drawerbar) { flex: 1; min-height: 0; }
+.h-main { padding: 16px 20px; color: var(--muted-foreground); font-size: 13px; overflow: auto; }
+.h-main h1 { font-size: 15px; color: var(--foreground); margin: 0 0 8px; }
+/* Phone: bb's drawer over a dimmed thread view. */
+body[data-size="phone"] #frame { display: block; position: relative; }
+body[data-size="phone"] .h-rail { display: none; }
+body[data-size="phone"] .h-main { position: absolute; inset: 0; padding: 60px 16px; }
+body[data-size="phone"] .h-scrim { display: block; position: absolute; inset: 0; background: rgb(0 0 0 / 0.35); z-index: 1; }
+body[data-size="phone"] .h-side { position: absolute; left: 0; top: 0; bottom: 0; width: min(85vw, 340px); z-index: 2; box-shadow: 4px 0 18px rgb(0 0 0 / 0.25); padding-top: 8px; }
+.h-drawerbar, .h-scrim { display: none; }
+body[data-size="phone"] .h-drawerbar { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 2px; font-weight: 650; font-size: 15px; }
