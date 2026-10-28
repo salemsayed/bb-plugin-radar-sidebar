@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { botTasksSchema, isSameLocalDay, layoutBot, needRows, orderedBots } from "./botTasks";
-import { HOUR, NOW } from "@/components/radar/fixtures";
+import { botTasksSchema, isSameLocalDay, layoutBot, localizeDoneLine, needRows, orderedBots } from "./botTasks";
+import { DAY, HOUR, NOW } from "@/components/radar/fixtures";
 import { BOT_SEEDS, makeBot, makeOutput, makeTask, normalDay } from "@/components/radar/botTasksFixtures";
 
 describe("bot_tasks parsing", () => {
@@ -70,3 +70,27 @@ describe("fold rules", () => {
     ]);
   });
 });
+
+describe("live qualification on Lab (thr_g9gsfjxfyx, 2026-10-29)", () => {
+  it("calls a legacy ready task not started, never queued", () => {
+    const bot = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[3]!, [
+      makeTask("home", "Filed", "ready", { line: "Filed. Not started." }), makeTask("home", "Held", "queued"),
+    ])])).bots[0]!;
+    expect(layoutBot(bot, NOW).summaryParts).toEqual(["1 queued", "1 not started"]);
+  });
+
+  it("rewrites a server's UTC Done date into the device's local day", () => {
+    // 00:30 BST on the fixture day is 23:30 UTC the day before: a UTC formatter says the previous date.
+    const local = new Date(NOW); local.setHours(0, 30, 0, 0);
+    const utcDate = new Date(local.getTime()).toISOString().slice(0, 10);
+    const task = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[2]!, [
+      makeTask("lab", "Night job", "done", { line: `Done ${utcDate} · TLS fix`, completedAt: local.getTime() }),
+    ])])).bots[0]!.tasks[0]!;
+    expect(utcDate).not.toBe(`${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}`);
+    expect(localizeDoneLine(task, NOW)).toBe("Done today · TLS fix");
+    const yesterday = { ...task, line: "Done 2026-09-19", completedAt: local.getTime() - DAY };
+    expect(localizeDoneLine(yesterday, NOW)).toMatch(/^Done (20 Sept|Sep 20|20 Sep)$/);
+    expect(localizeDoneLine({ ...task, line: "Checks passed" }, NOW)).toBe("Checks passed");
+  });
+});
+

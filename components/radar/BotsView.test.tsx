@@ -356,6 +356,20 @@ describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
   });
 });
 
+describe("live qualification on Lab (2026-10-29)", () => {
+  it("shows a night completion under Done today with the local day, not the server's UTC date", async () => {
+    const local = new Date(NOW); local.setHours(0, 30, 0, 0);
+    const day = normalDay();
+    day.bots[2]!.tasks.push({ ...day.bots[2]!.tasks[0]!, id: "t_night", title: "Night job", displayState: "done", line: `Done ${local.toISOString().slice(0, 10)}`, completedAt: local.getTime() });
+    renderList(day);
+    const lab = await screen.findByRole("region", { name: "Lab Bot" });
+    fireEvent.click(within(lab).getByRole("button", { name: /^Done today · 1/ }));
+    const row = within(lab).getByRole("button", { name: /^Night job, Done/ });
+    expect(row.textContent).toContain("Done today");
+    expect(row.textContent).not.toContain(local.toISOString().slice(0, 10));
+  });
+});
+
 describe("BotsView component", () => {
   it("shows a peek on desktop hover and none on a phone", async () => {
     vi.useFakeTimers({ now: NOW });
