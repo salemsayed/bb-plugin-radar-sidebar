@@ -138,8 +138,27 @@ export function rowStateWord(task: BotTaskRow, now: number): string {
   return day ? `${STATE_LABEL[task.displayState]} ${day}` : STATE_LABEL[task.displayState];
 }
 
+const clockFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const clearsWeekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const dayMonthFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
+/**
+ * When a waiting row clears, in the device's own day (Salem, 2026-10-29: "Show when it clears instead of the reason"):
+ * "checks tonight 20:30", "checks tomorrow 07:00", "checks Sat 1 Nov"; a passed date reads as overdue. The reason itself is
+ * in the row's details.
+ */
+export function clearsLine(at: number, now: number): string {
+  const day = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const days = Math.round((day(at) - day(now)) / 86_400_000), time = clockFormatter.format(new Date(at));
+  if (at < now) return days === 0 ? `check overdue since ${time}` : `check overdue since ${dayMonthFormatter.format(new Date(at))}`;
+  if (days === 0) return `checks ${new Date(at).getHours() >= 17 ? "tonight" : "today"} ${time}`;
+  if (days === 1) return `checks tomorrow ${time}`;
+  if (days < 7) return `checks ${clearsWeekdayFormatter.format(new Date(at))} ${time}`;
+  return `checks ${dayMonthFormatter.format(new Date(at))}`;
+}
+
 export function rowDetail(task: BotTaskRow, now: number): string {
   const label = STATE_LABEL[task.displayState];
+  if (task.displayState === "waiting" && task.wakeAt !== undefined) return clearsLine(task.wakeAt, now);
   if (task.displayState === "waiting") {
     const line = waitingLine(task);
     return line === STATE_LABEL.waiting ? "" : line.replace(/^Waiting for /, "");
