@@ -128,7 +128,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
  * The thread list: composes the host's thread data, bots and settings into
  * the header, the grouped rows, the Working drawer and the bulk dock.
  * `everyThread` (the switch's Threads view) keeps bot chats and workers in
- * the list even when the Bots page owns them.
+ * the list unless the Bots page owns them (`botsPage`).
  */
 function RadarThreadsList({
   activeThreadId,
@@ -259,8 +259,9 @@ function RadarThreadsList({
   const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
-    // The switch's Threads view lists every thread; only a bot chosen in the shortcuts still narrows it.
-    if (everyThread && !scopedBot) return allThreads;
+    // The switch's Threads view lists every thread unless the Bots page owns the bots (Salem, 2026-10-29: his pinned bot
+    // chats showed in Threads); only a bot chosen in the shortcuts still narrows it.
+    if (everyThread && !scopedBot && !settings.botsPage) return allThreads;
     if (settings.botsPage) {
       // Bots live on the Bots page: their whole families leave the list.
       const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));

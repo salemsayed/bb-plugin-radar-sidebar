@@ -114,7 +114,7 @@ export default async function plugin(bb: BbPluginApi) {
     botsSwitch: {
       type: "boolean",
       label: "Bots | Threads switch",
-      description: "A switch at the top of the list (and in the phone drawer): Bots shows each bot's tasks from bb-salem-bots with Needs you on top; Threads shows every thread, bot chats and workers included. Each device keeps its own choice. Off restores the list as it was.",
+      description: "A switch at the top of the list (and in the phone drawer): Bots shows each bot's tasks from bb-salem-bots with Needs you on top; Threads shows every thread, leaving bot chats and workers out while Bots on the Bots page is on. Each device keeps its own choice. Off restores the list as it was.",
       default: false,
     },
     swipeActions: {
