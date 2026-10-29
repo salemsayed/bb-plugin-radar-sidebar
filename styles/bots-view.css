@@ -132,10 +132,11 @@
    a part that wraps to the start of a line takes its dot outside the box, where the overflow clips it. */
 .radar-tasks-bot-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 13px; max-height: 40px; min-width: 0; overflow: hidden; font-size: 11.5px; line-height: 18px; }
 /* Each part keeps its own direction, so "1 for you" never reads "for you 1" in an RTL page. */
-.radar-tasks-bot-summary-part { position: relative; flex: none; max-width: 100%; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; unicode-bidi: plaintext; }
+.radar-tasks-bot-summary-part { position: relative; flex: none; max-width: 100%; overflow: hidden; color: var(--muted-foreground); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: plaintext; }
 .radar-tasks-bot-summary-part + .radar-tasks-bot-summary-part::before { content: "·"; position: absolute; inset-inline-start: -9px; }
-.radar-tasks-bot-mood { padding: 0 7px; border-radius: 999px; color: var(--foreground); background: var(--muted); font-weight: 650; overflow: hidden; }
-.radar-tasks-bot-mood + .radar-tasks-bot-summary-part { margin-inline-start: -5px; }
+.radar-tasks-bot-mood { margin-inline-end: -5px; padding: 0 7px; border-radius: 999px; color: var(--foreground); background: var(--muted); font-weight: 650; overflow: hidden; }
+/* The pull toward the mood sits on the mood's end, never on the next part's start: a part wrapped to the start of
+   a line kept that pull and lost its first digit to the clip ("18 done today" read ".8 done today", stress test). */
 .radar-tasks-bot-mood + .radar-tasks-bot-summary-part::before { content: none; }
 .radar-tasks-bot-ask .radar-tasks-bot-mood { color: var(--radar-ask-ink); background: var(--radar-ask-chip); }
 .radar-tasks-bot-trouble .radar-tasks-bot-mood { color: var(--destructive-foreground, #fff); background: var(--radar-trouble); }
