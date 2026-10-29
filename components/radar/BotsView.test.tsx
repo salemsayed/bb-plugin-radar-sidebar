@@ -108,9 +108,15 @@ describe("Bots | Threads switch", () => {
     expect((await screen.findByRole("button", { name: "Threads" })).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("shows every thread in Threads, bot chats and workers included, even with botsPage on", async () => {
+  it("leaves bot chats and workers out of Threads while the Bots page owns them (Salem, 2026-10-29: pinned bot chats in Threads)", async () => {
     localStorage.setItem(LIST_MODE_KEY, "threads");
     const { slot } = renderList(normalDay(), { settings: { botsPage: true } });
+    await waitFor(() => expect(rowIds(slot.container)).toEqual(["plain"]));
+  });
+
+  it("shows every thread in Threads, bot chats and workers included, with botsPage off", async () => {
+    localStorage.setItem(LIST_MODE_KEY, "threads");
+    const { slot } = renderList(normalDay(), { settings: { botsPage: false } });
     await waitFor(() => expect(rowIds(slot.container).sort()).toEqual(["bricks_worker", "plain", "thr_coord_bricks"]));
   });
 
