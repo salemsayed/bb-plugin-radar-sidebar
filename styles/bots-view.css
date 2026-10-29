@@ -354,7 +354,10 @@
 .radar-list-compact .radar-band-toggle, .radar-list-compact .radar-more { min-height: 44px; }
 .radar-list-compact .radar-feed-more { width: 44px; justify-content: center; }
 .radar-list-compact .radar-focus-head h3 { font-size: 16px; }
-.radar-list-compact .radar-focus-chat { min-height: 44px; padding-inline: 20px; font-size: 15px; }
+/* A compact pill that leaves the title room; ::after keeps the touch target at 44px. Two classes on purpose:
+   this beats the (pointer: coarse) 44px rule below, which would bring the big pill back. */
+.radar-list-compact .radar-focus-chat { position: relative; min-height: 32px; padding: 4px 12px; font-size: 13.5px; box-shadow: none; }
+.radar-list-compact .radar-focus-chat::after { content: ""; position: absolute; inset: -6px -2px; }
 .radar-list-compact .radar-focus-clear { width: 44px; height: 44px; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 .radar-list-compact .radar-task-attempt { min-height: 44px; align-items: center; }

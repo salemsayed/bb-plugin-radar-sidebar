@@ -734,8 +734,8 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
         )}
         {layouts.length > 0 && deskMenu ? (
           <p className="radar-room-hint">
-            <span className="radar-room-hint-mouse">Click a bot to chat, its name for its work · right-click for more</span>
-            <span className="radar-room-hint-touch">Tap a bot to chat, its name for its work · hold for more</span>
+            <span className="radar-room-hint-mouse">Bot → chat · Name → work · Right-click → more</span>
+            <span className="radar-room-hint-touch">Bot → chat · Name → work · Hold → more</span>
           </p>
         ) : null}
       </section>

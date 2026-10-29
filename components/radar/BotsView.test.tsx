@@ -529,8 +529,8 @@ describe("Bots view: a bot's menu on hold or right-click, its sheet on a tap (Sa
   it("says how to reach the menu, blocks text selection and the iOS callout on desks, and offers a keyboard ⋯", async () => {
     const { slot } = renderList(normalDay());
     await screen.findByRole("region", { name: "Bots" });
-    expect(screen.getByText("Tap a bot to chat, its name for its work · hold for more")).toBeTruthy();
-    expect(screen.getByText("Click a bot to chat, its name for its work · right-click for more")).toBeTruthy();
+    expect(screen.getByText("Bot → chat · Name → work · Hold → more")).toBeTruthy();
+    expect(screen.getByText("Bot → chat · Name → work · Right-click → more")).toBeTruthy();
     expect(css()).toMatch(/\.radar-room \{ -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; \}/);
     expect(css()).toMatch(/\.radar-desk-chat, \.radar-desk-front \{ touch-action: manipulation;/);
     fireEvent.click(screen.getByRole("button", { name: "More for ERBareeq Bot" }));
