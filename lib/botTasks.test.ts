@@ -54,6 +54,11 @@ describe("fold rules", () => {
     expect(layout.summary).toBe("1 for you · 1 overdue · 1 offline · 1 working · 1 queued · 4 waiting");
   });
 
+  it("never counts a result waiting for the bot's check as working (Salem's status pass, 2026-10-29)", () => {
+    const bot = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[1]!, [makeTask("bricks", "c", "checking"), makeTask("bricks", "w", "waiting")])])).bots[0]!;
+    expect(layoutBot(bot, NOW).summary).toBe("1 to check · 1 waiting");
+  });
+
   it("counts a completion as today only on the same local calendar day", () => {
     const midnight = new Date(NOW); midnight.setHours(0, 0, 0, 0);
     expect(isSameLocalDay(midnight.getTime(), NOW)).toBe(true);
