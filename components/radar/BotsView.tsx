@@ -262,28 +262,147 @@ const SCREEN: Record<CrewTone, "work" | "alert" | "ask" | "idle" | "off"> = { bu
  * One tap opens the bot's chat (Salem, thr_2gjivwx8ea seq 2220: "A click on the bot icon should directly open
  * the chat of it instead of needing two clicks"); the desk whose chat is open wears the ring.
  */
-function Desk({ layout, compact, onOpen, chatOpen }: { layout: BotLayout; compact: boolean; onOpen: () => void; chatOpen: boolean }) {
+/** How long a touch holds a desk before its menu opens instead of its chat. */
+export const LONG_PRESS_MS = 500;
+/** A touch that drifts further than this is a scroll, not a press. */
+const PRESS_SLOP_PX = 10;
+
+/**
+ * A desk's menu: what the host wraps around the desk (bb's thread menu for the bot's coordinator, with the
+ * desk's own items inline). It opens on the `contextmenu` event: a right-click, Android's native long-press,
+ * or the long-press the desk detects itself (iOS fires no contextmenu on a long-press). Without one the desk
+ * only opens its chat.
+ */
+export interface DeskMenuProps {
+  bot: BotTasksBot;
+  children: ReactNode;
+  onShowWork: () => void;
+  onOpenChat: () => void;
+}
+export type DeskMenu = (props: DeskMenuProps) => ReactNode;
+
+/** Opens a desk's menu the way a right-click would, at a point on screen. */
+function openMenuAt(element: Element, x: number, y: number): void {
+  element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2 }));
+}
+
+/** After a held touch lifts, clicks are swallowed this long, or until the next touch comes down. */
+const SWALLOW_AFTER_LIFT_MS = 600;
+
+/**
+ * Tap opens the chat; a held touch opens the menu instead, and the clicks the browser sends when that touch
+ * lifts are swallowed (Chromium sends one, iOS may), so the chat never opens and the drawer stays put (Salem,
+ * thr_2gjivwx8ea seq 2358). The next touch starts fresh. A touch that moves is a scroll and does nothing.
+ */
+function useDeskPress(onTap: () => void) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const swallowClick = useRef(false);
+  const menuOpened = useRef(false);
+  const dispatching = useRef(false);
+  const release = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    start.current = null;
+  };
+  useEffect(() => () => { cancel(); if (release.current) clearTimeout(release.current); }, []);
+  return {
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (release.current) clearTimeout(release.current);
+      release.current = null;
+      swallowClick.current = false;
+      menuOpened.current = false;
+      if (event.pointerType === "mouse") return;
+      const target = event.currentTarget;
+      const { clientX: x, clientY: y } = event;
+      start.current = { x, y };
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        swallowClick.current = true;
+        if (menuOpened.current) return;
+        menuOpened.current = true;
+        dispatching.current = true;
+        try { openMenuAt(target, x, y); } finally { dispatching.current = false; }
+      }, LONG_PRESS_MS);
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const from = start.current;
+      if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > PRESS_SLOP_PX) cancel();
+    },
+    onPointerUp: () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      start.current = null;
+      if (swallowClick.current) release.current = setTimeout(() => { swallowClick.current = false; release.current = null; }, SWALLOW_AFTER_LIFT_MS);
+    },
+    onPointerCancel: () => {
+      cancel();
+      if (swallowClick.current) release.current = setTimeout(() => { swallowClick.current = false; release.current = null; }, SWALLOW_AFTER_LIFT_MS);
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (dispatching.current) return;
+      // A touch-held desk on Android gets the browser's own contextmenu too: it opens the menu once and
+      // eats the click that follows; a second one for the same press is dropped.
+      if (start.current || timer.current || swallowClick.current) {
+        if (menuOpened.current) { event.preventDefault(); event.stopPropagation(); return; }
+        menuOpened.current = true;
+        swallowClick.current = true;
+        cancel();
+      }
+    },
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (swallowClick.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      onTap();
+    },
+  };
+}
+
+function Desk({ layout, compact, onOpen, onShowWork, chatOpen, Menu }: {
+  layout: BotLayout; compact: boolean; onOpen: () => void; onShowWork: () => void; chatOpen: boolean; Menu?: DeskMenu;
+}) {
   const { bot } = layout;
   const status = crewStatus(layout);
   const tone = status.tone;
   const asks = tone === "ask" ? status.count : bot.tasks.filter(task => task.displayState === "needs").length;
+  const press = useDeskPress(onOpen);
+  const deskRef = useRef<HTMLButtonElement>(null);
+  const desk = (
+    <button ref={deskRef} type="button" className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
+      data-bot={bot.key} data-mood={layout.mood} aria-current={chatOpen ? "page" : undefined}
+      aria-label={`Open ${bot.name} chat: ${layout.summary}`}
+      {...press}>
+      {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
+      <span className="radar-desk-char" aria-hidden="true"><BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} /></span>
+      <span className="radar-desk-top" aria-hidden="true">
+        <span className={cn("radar-desk-laptop", `radar-desk-laptop-${SCREEN[tone]}`)}><i /><i /><i /></span>
+        {tone === "trouble" ? <span className="radar-desk-siren" /> : <span className="radar-desk-mug" />}
+      </span>
+      <span className="radar-desk-front">
+        <span className="radar-desk-name" dir="auto">{shortBotName(bot.name)}</span>
+        <span className="radar-desk-status">{status.label}</span>
+      </span>
+    </button>
+  );
   return (
     <li className="radar-desk-slot">
-      <button type="button" className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
-        data-bot={bot.key} data-mood={layout.mood} aria-current={chatOpen ? "page" : undefined}
-        aria-label={`Open ${bot.name} chat: ${layout.summary}`}
-        onClick={onOpen}>
-        {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
-        <span className="radar-desk-char" aria-hidden="true"><BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} /></span>
-        <span className="radar-desk-top" aria-hidden="true">
-          <span className={cn("radar-desk-laptop", `radar-desk-laptop-${SCREEN[tone]}`)}><i /><i /><i /></span>
-          {tone === "trouble" ? <span className="radar-desk-siren" /> : <span className="radar-desk-mug" />}
-        </span>
-        <span className="radar-desk-front">
-          <span className="radar-desk-name" dir="auto">{shortBotName(bot.name)}</span>
-          <span className="radar-desk-status">{status.label}</span>
-        </span>
-      </button>
+      {Menu ? <Menu bot={bot} onShowWork={onShowWork} onOpenChat={onOpen}>{desk}</Menu> : desk}
+      {Menu ? (
+        // The menu, findable on a phone: the same menu a long-press or right-click opens, anchored on the desk.
+        <button type="button" className="radar-desk-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu"
+          onClick={event => {
+            event.stopPropagation();
+            const box = deskRef.current?.getBoundingClientRect();
+            if (deskRef.current && box) openMenuAt(deskRef.current, box.left + box.width / 2, box.top + box.height / 2);
+          }}>
+          <Icon name="MoreHorizontal" aria-hidden="true" className="radar-desk-more-icon" />
+        </button>
+      ) : null}
     </li>
   );
 }
@@ -298,7 +417,7 @@ function joined(parts: readonly ReactNode[]): ReactNode[] {
 
 /** Bands that are live work always show; waits and history fold to their count. */
 const ALWAYS_OPEN: ReadonlySet<Band["key"]> = new Set(["stuck", "working", "next"]);
-/** The prefix stored folds carry, kept from when a desk could focus one bot. */
+/** The prefix stored folds carry across the crew; a bot's sheet keeps its own under the bot's key. */
 const FOLD_SCOPE = "@all";
 
 /**
@@ -317,6 +436,7 @@ export function BotsView({
   onOpen,
   onReply,
   onShowThreads,
+  deskMenu,
 }: {
   state: BotTasksState;
   activeThreadId: string | null;
@@ -326,6 +446,8 @@ export function BotsView({
   /** Open a thread with a reply typed into its composer, unsent. Without it an answer just opens the thread. */
   onReply?: (threadId: string, text: string) => void;
   onShowThreads: () => void;
+  /** The bot menu each desk wears (long-press, right-click, or its "⋯"); the plugin passes bb's thread menu. */
+  deskMenu?: DeskMenu;
 }) {
   const { data, status } = state;
   if (status === "missing") {
@@ -345,19 +467,30 @@ export function BotsView({
     );
   }
   return <CrewBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
-    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} />;
+    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} deskMenu={deskMenu} />;
 }
 
-function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onReply, onShowThreads }: {
+/** The bot whose work sheet is open stays open while the drawer closes and opens again in this session. */
+let rememberedSheet: string | null = null;
+/** For tests: start each render with no sheet open. */
+export function resetBotSheet(): void { rememberedSheet = null; }
+
+function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onReply, onShowThreads, deskMenu }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number;
-  onOpen: (threadId: string) => void; onReply?: (threadId: string, text: string) => void; onShowThreads: () => void;
+  onOpen: (threadId: string) => void; onReply?: (threadId: string, text: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu;
 }) {
   const bots = useMemo(() => orderedBots(data), [data]);
   const layouts = useMemo(() => bots.map(bot => layoutBot(bot, now)), [bots, now]);
   const needs = useMemo(() => needRows(data), [data]);
   const botByKey = useMemo(() => new Map(bots.map(bot => [bot.key, bot])), [bots]);
 
-  const bands = useMemo(() => feedBands(layouts), [layouts]);
+  // A bot's work sheet, opened from its desk's menu ("Show <bot>'s work"): its asks, all its work, its chat.
+  const [sheetKey, setSheetKey] = useState<string | null>(() => rememberedSheet);
+  const focus = sheetKey ? layouts.find(layout => layout.bot.key === sheetKey) ?? null : null;
+  // A bot that leaves the roster closes its sheet for good, so it never reopens if the bot comes back.
+  useEffect(() => { if (sheetKey && !focus) setSheetKey(null); }, [sheetKey, focus]);
+  useEffect(() => { rememberedSheet = sheetKey; }, [sheetKey]);
+  const bands = useMemo(() => feedBands(focus ? [focus] : layouts), [focus, layouts]);
 
   const [folds, setFolds] = useState<Record<string, boolean>>(readFolds);
   useEffect(() => { writeStored(FOLDS_KEY, JSON.stringify(folds)); }, [folds]);
@@ -399,11 +532,13 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   };
 
   /* ---------- Needs you: each ask as a card, its question in full, its answers one tap away ---------- */
-  // Every ask is on the page, so no bot's question hides behind its desk's bubble.
-  const asks = needs;
+  // Every ask is on the page, so no bot's question hides behind its desk's bubble: with a sheet open, its
+  // bot's asks lead the sheet and every other bot's stay listed under it.
+  const ownAsks = focus ? needs.filter(need => need.botKey === focus.bot.key) : [];
+  const asks = focus ? needs.filter(need => need.botKey !== focus.bot.key) : needs;
   const showAllNeeds = isCompactViewport || needsAll || asks.length <= NEEDS_SHOWN;
   const shownNeeds = showAllNeeds ? asks : asks.slice(0, NEEDS_SHOWN);
-  const askCard = (need: NeedRow) => {
+  const askCard = (need: NeedRow, inSheet = false) => {
     const bot = need.bot ?? { key: need.botKey, name: need.botKey, color: undefined, faceUrl: undefined };
     const name = shortBotName(bot.name);
     return (
@@ -415,8 +550,9 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
           onClick={() => open(need.threadId)}>
           <span className="radar-ask-face" aria-hidden="true"><BotTaskFace bot={bot} size={isCompactViewport ? 34 : 30} state="needs-you" /></span>
           <span className="radar-ask-who">
-            <span className="radar-ask-bot" dir="auto">{name}</span>
-            {need.taskTitle ? <span className="radar-sep" aria-hidden="true">·</span> : null}
+            {/* Inside its bot's sheet the name is the heading already; the card names only the task. */}
+            {inSheet ? null : <span className="radar-ask-bot" dir="auto">{name}</span>}
+            {need.taskTitle && !inSheet ? <span className="radar-sep" aria-hidden="true">·</span> : null}
             {need.taskTitle ? <bdi dir="auto" className="radar-ask-task">{need.taskTitle}</bdi> : null}
           </span>
           <bdi dir="auto" className="radar-ask-question">{need.question}</bdi>
@@ -469,7 +605,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
               </span>
               <span className="radar-feed-line">
                 {joined([
-                  <span key="bot" className="radar-feed-bot">{shortBotName(bot.name)}</span>,
+                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(bot.name)}</span>,
                   word ? <span key="word" className={cn("radar-feed-state", `radar-feed-state-${task.displayState}`)}>{word}</span> : null,
                   detail ? <bdi key="detail" dir="auto" className="radar-feed-detail">{detail}</bdi> : null,
                 ])}
@@ -503,7 +639,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
               <bdi dir="auto" className="radar-feed-title">{item.title || "Untitled worker"}</bdi>
               <span className="radar-feed-line">
                 {joined([
-                  <span key="bot" className="radar-feed-bot">{shortBotName(item.bot.name)}</span>,
+                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(item.bot.name)}</span>,
                   <span key="detail" className="radar-feed-detail">worker without a task</span>,
                 ])}
               </span>
@@ -515,8 +651,9 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   };
 
   const band = (item: Band) => {
-    const fallback = ALWAYS_OPEN.has(item.key);
-    const foldId = `${FOLD_SCOPE}:${item.key}`;
+    // In a bot's sheet its waits and today's work show open; across the crew they fold to a count.
+    const fallback = ALWAYS_OPEN.has(item.key) || (focus !== null && (item.key === "waiting" || item.key === "done"));
+    const foldId = `${focus ? focus.bot.key : FOLD_SCOPE}:${item.key}`;
     const foldable = !ALWAYS_OPEN.has(item.key);
     const shown = !foldable || isOpen(foldId, fallback);
     const halted = item.key === "done" ? item.items.filter(entry => entry.kind === "task" && entry.task.displayState !== "done").length : 0;
@@ -569,22 +706,57 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
             </p>
             <ul className="radar-room-floor">
               {layouts.map(layout => (
-                <Desk key={layout.bot.key} layout={layout} compact={isCompactViewport}
+                <Desk key={layout.bot.key} layout={layout} compact={isCompactViewport} Menu={deskMenu}
                   chatOpen={activeThreadId === layout.bot.coordinatorThreadId}
-                  onOpen={() => open(layout.bot.coordinatorThreadId)} />
+                  onOpen={() => open(layout.bot.coordinatorThreadId)}
+                  onShowWork={() => { clearPeek(); setInfoTask(null); setSheetKey(layout.bot.key); }} />
               ))}
             </ul>
           </div>
         )}
+        {layouts.length > 0 && deskMenu ? (
+          <p className="radar-room-hint">
+            <span className="radar-room-hint-mouse">Click a bot to chat · right-click for more</span>
+            <span className="radar-room-hint-touch">Tap a bot to chat · hold for more</span>
+          </p>
+        ) : null}
       </section>
 
-      <section className={cn("radar-asks", asks.length === 0 && "radar-asks-clear")} aria-label="Needs you">
+      {focus ? (
+        // The bot's work sheet opens right under the room, its notch pointing at the bot's desk.
+        <section className="radar-sheet" aria-label={`${focus.bot.name}: work`} data-column={layouts.indexOf(focus) % 3}
+          style={{ "--radar-bot": botTint(focus.bot) } as CSSProperties}>
+          <div className="radar-section-head radar-focus-head">
+            <BotTaskFace bot={focus.bot} size={26} state={moodFace(focus.mood)} />
+            <h3 dir="auto">{`${shortBotName(focus.bot.name)}'s work`}</h3>
+            <button type="button" className="radar-focus-chat"
+              aria-current={activeThreadId === focus.bot.coordinatorThreadId ? "page" : undefined}
+              aria-label={`Open ${focus.bot.name} chat`}
+              onClick={() => open(focus.bot.coordinatorThreadId)}>
+              <Icon name="MessageSquare" aria-hidden="true" className="radar-focus-chat-icon" />Chat
+            </button>
+            <button type="button" className="radar-focus-clear" aria-label={`Close ${shortBotName(focus.bot.name)}'s work`} onClick={() => { setInfoTask(null); setSheetKey(null); }}>
+              <Icon name="X" aria-hidden="true" className="radar-focus-clear-icon" />
+            </button>
+          </div>
+          {ownAsks.length > 0 ? (
+            <section className="radar-asks radar-asks-own" aria-label={`${focus.bot.name}: needs you`}>
+              <ul className="radar-ask-list">{ownAsks.map(need => askCard(need, true))}</ul>
+            </section>
+          ) : null}
+          {liveCount === 0 && ownAsks.length === 0 ? <p className="radar-bots-empty">{focus.quiet ? "Nothing open. Resting." : "Nothing running."}</p> : null}
+          {bands.map(band)}
+        </section>
+      ) : null}
+
+      {focus && asks.length === 0 ? null : (
+      <section className={cn("radar-asks", asks.length === 0 && "radar-asks-clear")} aria-label={focus ? "Other bots need you" : "Needs you"}>
         {asks.length === 0 ? (
           <p className="radar-asks-none"><Icon name="Check" aria-hidden="true" className="radar-asks-none-icon" />Nothing needs you</p>
         ) : (
           <>
             <div className="radar-section-head">
-              <h3>Needs you</h3>
+              <h3>{focus ? "Other bots need you" : "Needs you"}</h3>
               <span className="radar-section-count">{asks.length}</span>
             </div>
             <ul className="radar-ask-list">
@@ -602,8 +774,9 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
           </>
         )}
       </section>
+      )}
 
-      {layouts.length > 0 ? (
+      {!focus && layouts.length > 0 ? (
         <section className="radar-now" aria-label="Now">
           <div className="radar-section-head">
             <h3>Now</h3>
@@ -614,7 +787,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
         </section>
       ) : null}
 
-      {data.notFiled.length > 0 ? (
+      {!focus && data.notFiled.length > 0 ? (
         <section className="radar-notfiled" aria-label="Not filed">
           <button type="button" className="radar-band-head radar-band-toggle" aria-expanded={notFiledOpen} onClick={() => toggle("@not-filed", false)}>
             <span className="radar-band-mark radar-band-mark-quiet" aria-hidden="true" />

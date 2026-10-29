@@ -116,7 +116,18 @@
 .radar-room-board-trouble { color: var(--radar-trouble-text); }
 .radar-tasks .radar-room-floor { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 6px; margin: 0; padding: 56px 8px 14px; }
 @container radar-board (max-width: 230px) { .radar-tasks .radar-room-floor { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.radar-desk-slot { min-width: 0; }
+.radar-desk-slot { position: relative; min-width: 0; }
+/* A held desk opens its menu: no text selection, no iOS callout or magnifier, no double-tap zoom delay. */
+.radar-room { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.radar-desk { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+/* The menu's button for keyboards and screen readers; it shows only when focused (touch holds, mice right-click). */
+.radar-desk-more { position: absolute; top: 2px; inset-inline-end: 2px; z-index: 4; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 999px; background: var(--radar-surface); color: var(--foreground); box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); opacity: 0; pointer-events: none; }
+.radar-desk-more:focus-visible { opacity: 1; pointer-events: auto; }
+.radar-desk-more-icon, .radar-desk-more-icon [data-icon-root] { width: 16px; height: 16px; }
+/* How to reach a bot's menu, said once under the room in the input's own words. */
+.radar-room-hint { margin: 8px 4px 0; color: var(--muted-foreground); font-size: 11.5px; text-align: center; }
+.radar-room-hint-touch { display: none; }
+@media (hover: none), (pointer: coarse) { .radar-room-hint-touch { display: inline; } .radar-room-hint-mouse { display: none; } }
 .radar-desk { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; min-width: 0; padding: 24px 0 4px; border: 0; border-radius: 14px; background: transparent; cursor: pointer; }
 .radar-desk:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 0; }
 .radar-desk-char { position: relative; z-index: 1; margin-bottom: -16px; transition: transform 200ms ease; }
@@ -175,8 +186,33 @@
 }
 
 
+   sheet itself (one surface, hairlines), so cards never nest. */
+.radar-sheet { --radar-notch: 50%; position: relative; margin-top: 14px; padding: 12px 12px 8px; border: 1px solid var(--radar-edge); border-radius: 20px; background: var(--radar-surface); box-shadow: var(--radar-shadow); }
+.radar-sheet[data-column="0"] { --radar-notch: 17%; }
+.radar-sheet[data-column="2"] { --radar-notch: 83%; }
+.radar-sheet::before { content: ""; position: absolute; top: -8px; inset-inline-start: calc(var(--radar-notch) - 8px); width: 14px; height: 14px; border-top: 1px solid var(--radar-edge); border-inline-start: 1px solid var(--radar-edge); background: var(--radar-surface); transform: rotate(45deg); }
+.radar-sheet:dir(rtl)::before { transform: rotate(-45deg); }
+@container radar-board (max-width: 230px) { .radar-sheet::before { display: none; } }
+.radar-sheet .radar-focus-head { margin-top: 0; padding: 0 2px 4px; }
+.radar-sheet .radar-asks-own { padding-top: 6px; }
+.radar-sheet .radar-feed-list, .radar-sheet .radar-band-toggle[aria-expanded="false"] { border: 0; border-radius: 12px; background: transparent; box-shadow: none; }
+.radar-sheet .radar-band-toggle[aria-expanded="false"] { min-height: 40px; padding-inline: 6px; }
+.radar-sheet .radar-band + .radar-band { margin-top: 6px; border-top: 1px solid var(--radar-hairline); padding-top: 6px; }
+.radar-sheet .radar-band:first-of-type { margin-top: 8px; }
+.radar-sheet .radar-feed-row { padding-inline-start: 4px; }
+.radar-sheet .radar-feed-item + .radar-feed-item::before { inset-inline-start: 26px; }
+.radar-sheet .radar-bots-empty { padding: 8px 4px; }
+
 /* 3. Now: live work across the crew, grouped by what is happening. The heading names the state once. */
 .radar-now { padding-top: var(--radar-section); }
+.radar-focus-head { gap: 8px; }
+.radar-focus-head h3 { font-size: 15px; font-weight: 700; }
+.radar-focus-chat { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 30px; margin-inline-start: auto; padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--radar-card); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.radar-focus-chat:hover { background: var(--radar-hover); }
+.radar-focus-chat[aria-current="page"] { background: var(--radar-pressed); }
+.radar-focus-chat-icon, .radar-focus-chat-icon [data-icon-root], .radar-focus-clear-icon, .radar-focus-clear-icon [data-icon-root] { width: 14px; height: 14px; }
+.radar-focus-clear { display: grid; flex: none; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.radar-focus-clear:hover { background: var(--radar-hover); color: var(--foreground); }
 .radar-band + .radar-band { margin-top: 12px; }
 .radar-band-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; margin: 0; padding: 4px 6px; border: 0; border-radius: 10px; background: transparent; color: var(--foreground); font-size: 12.5px; font-weight: 650; text-align: start; }
 .radar-band-head + .radar-feed-list { margin-top: 2px; }
@@ -304,6 +340,9 @@
 .radar-list-compact .radar-band-head { font-size: 13px; }
 .radar-list-compact .radar-band-toggle, .radar-list-compact .radar-more { min-height: 44px; }
 .radar-list-compact .radar-feed-more { width: 44px; justify-content: center; }
+.radar-list-compact .radar-focus-head h3 { font-size: 16px; }
+.radar-list-compact .radar-focus-chat { min-height: 44px; padding-inline: 16px; font-size: 13.5px; }
+.radar-list-compact .radar-focus-clear { width: 44px; height: 44px; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 .radar-list-compact .radar-task-attempt { min-height: 44px; align-items: center; }
 .radar-list-compact .radar-task-attempt .radar-task-title { font-size: 13.5px; }
@@ -311,6 +350,7 @@
 .radar-list-compact .radar-task-info { font-size: 12.5px; }
 @media (pointer: coarse) {
   .radar-ask-answer { min-height: 44px; }
-  .radar-band-toggle, .radar-more, .radar-task-attempt, .radar-mode-option { min-height: 44px; }
+  .radar-band-toggle, .radar-more, .radar-focus-chat, .radar-task-attempt, .radar-mode-option { min-height: 44px; }
+  .radar-focus-clear { width: 44px; height: 44px; }
   .radar-feed-more { width: 44px; justify-content: center; }
 }

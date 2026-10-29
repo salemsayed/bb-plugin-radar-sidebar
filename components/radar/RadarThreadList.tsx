@@ -62,6 +62,7 @@ import { RadarBulkBar } from "./RadarBulkBar";
 import { problem } from "./listFeedback";
 import { ListModeSwitch, useListMode } from "./ListModeSwitch";
 import { BotsView } from "./BotsView";
+import { BotDeskMenu, BotDeskMenuProvider } from "./BotDeskMenu";
 import { useBotTasks } from "./useBotTasks";
 import { needRows } from "@/lib/botTasks";
 
@@ -126,13 +127,15 @@ function RadarSwitchedList(props: PluginThreadListProps) {
 }
 
 /**
- * The Bots view with answers wired: an ask's answer opens its thread with the answer typed in, nothing sent.
+ * The Bots view with answers and desk menus wired: an ask's answer opens its thread with the answer typed in,
+ * nothing sent.
  * The prefill watches the on-screen composers, so it lives here, under the Bots switch, rather than at the
  * list root, where every composer change would re-render the Threads list too.
  */
-function BotsPane(props: Omit<ComponentProps<typeof BotsView>, "onReply">) {
+function BotsPane(props: Omit<ComponentProps<typeof BotsView>, "onReply" | "deskMenu">) {
   const reply = useReplyPrefill(props.onOpen);
-  return <BotsView {...props} onReply={reply} />;
+  // Each desk wears bb's thread menu for its bot's coordinator: long-press, right-click or its "⋯".
+  return <BotDeskMenuProvider><BotsView {...props} onReply={reply} deskMenu={BotDeskMenu} /></BotDeskMenuProvider>;
 }
 
 /**

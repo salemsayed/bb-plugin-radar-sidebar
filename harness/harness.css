@@ -45,3 +45,15 @@ body[data-size="phone"] .h-scrim { display: block; position: absolute; inset: 0;
 body[data-size="phone"] .h-side { position: absolute; left: 0; top: 0; bottom: 0; width: min(85vw, 340px); z-index: 2; box-shadow: 4px 0 18px rgb(0 0 0 / 0.25); padding-top: 8px; }
 .h-drawerbar, .h-scrim { display: none; }
 body[data-size="phone"] .h-drawerbar { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 2px; font-weight: 650; font-size: 15px; }
+
+/* Stand-in for bb's thread menu: the SDK's test runtime renders the real menu items (bb's core actions from the
+   fixture plus the plugin's inline items) unstyled and inline. bb shows a drawer on phones and a popover on
+   desktop; these rules only imitate that placement for screenshots. */
+[data-testid="bb-thread-actions-context-menu"] [role="menu"] { position: absolute; top: 100%; inset-inline-start: 4px; z-index: 50; display: flex; flex-direction: column; min-width: 210px; margin-top: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--popover, var(--card)); box-shadow: 0 12px 32px rgb(0 0 0 / 0.22); }
+[data-testid="bb-thread-actions-context-menu"] [role="menuitem"] { min-height: 34px; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--foreground); font: inherit; font-size: 13.5px; text-align: start; cursor: pointer; }
+[data-testid="bb-thread-actions-context-menu"] [role="menuitem"]:hover { background: var(--state-hover); }
+[data-testid="bb-thread-actions-context-menu"] [role="menuitem"][data-thread-action^="bb--core/delete"] { color: var(--destructive-text); }
+body[data-size="phone"] [data-testid="bb-thread-actions-context-menu"] [role="menu"] { position: fixed; inset: auto 0 0 0; z-index: 60; min-width: 0; margin: 0; padding: 10px 10px calc(18px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgb(0 0 0 / 0.3); }
+body[data-size="phone"] [data-testid="bb-thread-actions-context-menu"] [role="menuitem"] { min-height: 48px; font-size: 16px; }
+/* bb renders its menu above the page, never clipped by the room: the desktop stand-in sits beside the sidebar. */
+body:not([data-size="phone"]) [data-testid="bb-thread-actions-context-menu"] [role="menu"] { position: fixed; top: 96px; inset-inline-start: calc(44px + var(--sidebar, 290px) - 120px); margin: 0; }

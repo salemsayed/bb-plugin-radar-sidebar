@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { NOW, makeThread } from "./fixtures";
 import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 import { attemptThreads, normalDay, peakDay, rtlAndEmpty, taskDetails, tenDecisions } from "./botTasksFixtures";
-import { BotsView, attemptWhen, closedAge, moodFace, rowDetail, rowStateWord, waitingLine } from "./BotsView";
+import { BotsView, LONG_PRESS_MS, attemptWhen, closedAge, moodFace, resetBotSheet, rowDetail, rowStateWord, waitingLine } from "./BotsView";
 import { resetTaskAttempts } from "./useTaskAttempts";
 import { LIST_MODE_KEY } from "./ListModeSwitch";
 import { answerOptions, botMood, botTasksSchema, crewStatus, feedBands, layoutBot, needRows } from "@/lib/botTasks";
@@ -90,6 +90,7 @@ afterEach(() => {
   localStorage.clear();
   resetBotsPush();
   resetTaskAttempts();
+  resetBotSheet();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -366,6 +367,125 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
     expect(sheet).toMatch(/\.radar-list-compact \.radar-band-toggle, \.radar-list-compact \.radar-more \{ min-height: 44px; \}/);
     expect(sheet).toMatch(/\.radar-list-compact \.radar-feed-more \{ width: 44px;/);
     expect(sheet).toMatch(/\.radar-feed-row \{[^}]*min-height: (4[4-9]|5\d)px;/);
+  });
+});
+
+describe("Bots view: a bot's menu without opening its chat (Salem, thr_2gjivwx8ea seq 2358)", () => {
+  const menuOf = (container: HTMLElement, threadId: string) => container.querySelector<HTMLElement>(`[data-testid="bb-thread-actions-context-menu"][data-thread-id="${threadId}"] [role="menu"]`);
+  const hold = (ms: number) => act(() => new Promise(resolve => setTimeout(resolve, ms)));
+  const touch = { pointerType: "touch", clientX: 40, clientY: 40 };
+
+  it("opens bb's thread menu for the bot's coordinator on right-click, with Open chat and Show <bot>'s work, and no chat", async () => {
+    const navigate = vi.fn();
+    const { slot } = renderList(normalDay(), { onNavigate: navigate });
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.contextMenu(desk("Bricks"));
+    const menu = menuOf(slot.container, "thr_coord_bricks")!;
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map(node => node.textContent)).toEqual(["Archive", "Delete", "Pin", "Rename", "Open chat", "Show Bricks's work"]);
+    expect(opened(slot)).toEqual([]);
+    expect(navigate).not.toHaveBeenCalled();
+    // The coordinator's own actions run on the coordinator, as on its row in Threads.
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Pin" }));
+    expect(recordedActions(slot)).toContainEqual({ method: "setPinned", threadId: "thr_coord_bricks", pinned: true });
+    fireEvent.contextMenu(desk("Bricks"));
+    fireEvent.click(within(menuOf(slot.container, "thr_coord_bricks")!).getByRole("menuitem", { name: "Open chat" }));
+    expect(opened(slot)).toEqual(["thr_coord_bricks"]);
+    expect(navigate).toHaveBeenCalledOnce();
+  });
+
+  it("opens the menu on a held touch and swallows the clicks that follow, so the chat stays closed and the drawer open", async () => {
+    const navigate = vi.fn();
+    const { slot } = renderList(normalDay(), { compact: true, onNavigate: navigate });
+    await screen.findByRole("region", { name: "Bots" });
+    const bricks = desk("Bricks");
+    fireEvent.pointerDown(bricks, touch);
+    await hold(LONG_PRESS_MS + 50);
+    expect(menuOf(slot.container, "thr_coord_bricks")).toBeTruthy();
+    fireEvent.pointerUp(bricks, touch);
+    fireEvent.click(bricks);
+    fireEvent.click(bricks);
+    expect(opened(slot)).toEqual([]);
+    expect(navigate).not.toHaveBeenCalled();
+    // The next tap starts fresh and opens the chat.
+    fireEvent.pointerDown(desk("Lab"), touch);
+    fireEvent.pointerUp(desk("Lab"), touch);
+    fireEvent.click(desk("Lab"));
+    expect(opened(slot)).toEqual(["thr_coord_lab"]);
+  });
+
+  it("takes Android's own long-press contextmenu once, and a touch that moves or lifts early stays a scroll or a tap", async () => {
+    const { slot } = renderList(normalDay(), { compact: true });
+    await screen.findByRole("region", { name: "Bots" });
+    const home = desk("Home");
+    fireEvent.pointerDown(home, touch);
+    fireEvent.contextMenu(home, touch);
+    await hold(LONG_PRESS_MS + 50);
+    expect(slot.container.querySelectorAll('[data-testid="bb-thread-actions-context-menu"] [role="menu"]')).toHaveLength(1);
+    fireEvent.pointerUp(home, touch);
+    fireEvent.click(home);
+    expect(opened(slot)).toEqual([]);
+    cleanup();
+    const second = renderList(normalDay(), { compact: true });
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.pointerDown(desk("Work"), touch);
+    fireEvent.pointerMove(desk("Work"), { ...touch, clientY: 90 });
+    await hold(LONG_PRESS_MS + 50);
+    expect(menuOf(second.slot.container, "thr_coord_work")).toBeNull();
+    fireEvent.pointerCancel(desk("Work"), touch);
+    fireEvent.pointerDown(desk("Work"), touch);
+    await hold(LONG_PRESS_MS - 300);
+    fireEvent.pointerUp(desk("Work"), touch);
+    fireEvent.click(desk("Work"));
+    expect(menuOf(second.slot.container, "thr_coord_work")).toBeNull();
+    expect(opened(second.slot)).toEqual(["thr_coord_work"]);
+  });
+
+  it("shows a bot's work from its menu: its asks and tasks in a sheet, every other ask still listed, closed with ×", async () => {
+    const { slot } = renderList(normalDay(), { compact: true });
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.contextMenu(desk("Bricks"));
+    fireEvent.click(within(menuOf(slot.container, "thr_coord_bricks")!).getByRole("menuitem", { name: "Show Bricks's work" }));
+    expect(opened(slot)).toEqual([]);
+    const sheet = screen.getByRole("region", { name: "Bricks Bot: work" });
+    expect(sheet.dataset.column).toBe("1");
+    expect(within(sheet).getByText("Bricks's work")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Bricks Bot: needs you" }).querySelectorAll(".radar-ask")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Other bots need you" }).querySelectorAll(".radar-ask")).toHaveLength(2);
+    expect(feedTitles(sheet)).toEqual(["Watch our GitHub PRs too", "PR #11: Yasser's three changes", "Meta ads with the demo offer", "fe!1024 on iPhone and Android"]);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Open Bricks Bot chat" }));
+    expect(opened(slot)).toEqual(["thr_coord_bricks"]);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Close Bricks's work" }));
+    expect(screen.queryByRole("region", { name: "Bricks Bot: work" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
+  });
+
+  it("closes a bot's sheet for good when the bot leaves the roster", async () => {
+    let bots = normalDay();
+    renderList(() => bots);
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.contextMenu(desk("Home"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Show Home's work" }));
+    expect(screen.getByRole("region", { name: "Home Bot: work" })).toBeTruthy();
+    bots = { ...normalDay(), bots: normalDay().bots.filter(bot => bot.key !== "home") };
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Open Home Bot chat/ })).toBeNull());
+    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
+    bots = normalDay();
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await screen.findByRole("button", { name: /^Open Home Bot chat/ });
+    expect(screen.queryByRole("region", { name: "Home Bot: work" })).toBeNull();
+  });
+
+  it("says how to reach the menu, blocks text selection and the iOS callout on desks, and offers a keyboard ⋯", async () => {
+    const { slot } = renderList(normalDay());
+    await screen.findByRole("region", { name: "Bots" });
+    expect(screen.getByText("Tap a bot to chat · hold for more")).toBeTruthy();
+    expect(screen.getByText("Click a bot to chat · right-click for more")).toBeTruthy();
+    expect(css()).toMatch(/\.radar-room \{ -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; \}/);
+    expect(css()).toMatch(/\.radar-desk \{ touch-action: manipulation;/);
+    fireEvent.click(screen.getByRole("button", { name: "More for ERBareeq Bot" }));
+    expect(menuOf(slot.container, "thr_coord_erbareeq")).toBeTruthy();
+    expect(opened(slot)).toEqual([]);
   });
 });
 

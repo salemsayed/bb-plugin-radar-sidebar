@@ -7,6 +7,7 @@ import { NOW, makeThread } from "@/components/radar/fixtures";
 import { attemptThreads, normalDay, peakDay, quietDay, rtlAndEmpty, taskDetails, tenDecisions } from "@/components/radar/botTasksFixtures";
 import { LIST_MODE_KEY } from "@/components/radar/ListModeSwitch";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
+import { recordedActions, threadActionsFixture } from "@/components/radar/threadActions.fixtures";
 
 const params = new URLSearchParams(location.search);
 const size = params.get("size") ?? "desktop";
@@ -102,15 +103,24 @@ const sdk: Record<string, unknown> = {
 
 const frame = document.getElementById("frame")!;
 frame.innerHTML = `<div class="h-rail"></div><aside class="h-side"><div class="h-drawerbar"><span>bb</span><span>✕</span></div></aside><div class="h-scrim"></div><main class="h-main"><h1>Thread view</h1><p id="opened">Nothing opened yet.</p></main>`;
-const slot = renderSlot(app.threadLists[0]!, {
+// bb's core thread actions (pin, rename, archive, delete) in their public shape, recorded, as the tests use them.
+const actions = threadActionsFixture();
+const slot = actions.capture(renderSlot(app.threadLists[0]!, {
   activeThreadId: active, activeProjectId: null, isCompactViewport: size === "phone",
   onNavigate: () => { document.getElementById("opened")!.dataset.closed = String(Number(document.getElementById("opened")!.dataset.closed ?? 0) + 1); },
   searchQuery: "",
 }, {
   sdk, settings: { botsSwitch: true, botsPage: true, hoverCard: false },
   rpc: { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }), working_digest: () => ({ digests: [] }) },
+  threadActions: actions.threadActions,
   sidebarThreads: { status: "ready", threads, projects, sections: [], experimental_archived: null },
-} as never);
+} as never));
+// What a driver script needs to check: every thread opened, every drawer close, every menu action run.
+(window as unknown as { harnessLog: () => unknown }).harnessLog = () => ({
+  opened: slot.inspection.navigateCalls.filter(call => call.method === "toThread").map(call => (call as { threadId?: string }).threadId),
+  closes: Number(document.getElementById("opened")!.dataset.closed ?? 0),
+  actions: recordedActions(slot).filter(call => call.method !== "open"),
+});
 frame.querySelector(".h-side")!.appendChild(slot.container);
 // What a tap opened, for the tap-count checks.
 setInterval(() => {
