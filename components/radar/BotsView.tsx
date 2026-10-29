@@ -83,10 +83,6 @@ export function BotTaskFace({ bot, size = 20, state }: { bot: Pick<BotTasksBot, 
   );
 }
 
-function StateGlyph({ state }: { state: BotTaskRow["displayState"] }) {
-  return <span className={cn("radar-task-glyph", `radar-task-glyph-${state}`)} aria-hidden="true" />;
-}
-
 /** The expression a bot's hero face wears for its mood: the crew's own face language, not a new one. */
 export function moodFace(mood: BotMood): BotState | undefined {
   if (mood === "needs") return "needs-you";
@@ -250,11 +246,6 @@ function TaskInfo({ id, task, now, observedAt, activeThreadId, onOpen }: {
 
 interface Peek { task: BotTaskRow; bot: BotTasksBot; age: string; top: number; left: number }
 
-/** The bot a tile focuses stays focused while the drawer closes and opens again in this session, not across reloads. */
-let rememberedFocus: string | null = null;
-/** For tests: start each render with every bot shown. */
-export function resetBotsFocus(): void { rememberedFocus = null; }
-
 /** The bot's own colour, for the stage its character stands on: identity, not state. */
 export function botTint(bot: Pick<BotTasksBot, "key" | "name" | "color">): string {
   return bot.color ?? `hsl(${botStyle(bot.key, bot.name).hue} 70% 55%)`;
@@ -268,8 +259,10 @@ const SCREEN: Record<CrewTone, "work" | "alert" | "ask" | "idle" | "off"> = { bu
  * up in a warm light with a speech bubble when it needs Salem, a red light on the desk when something is
  * stuck, asleep with the screen off when there is nothing to do. The name plate says the state in words, so
  * the scene is decoration over a plain label: the desk's accessible name carries the bot's whole summary.
+ * One tap opens the bot's chat (Salem, thr_2gjivwx8ea seq 2220: "A click on the bot icon should directly open
+ * the chat of it instead of needing two clicks"); the desk whose chat is open wears the ring.
  */
-function Desk({ layout, focused, compact, onSelect, chatOpen }: { layout: BotLayout; focused: boolean; compact: boolean; onSelect: () => void; chatOpen: boolean }) {
+function Desk({ layout, compact, onOpen, chatOpen }: { layout: BotLayout; compact: boolean; onOpen: () => void; chatOpen: boolean }) {
   const { bot } = layout;
   const status = crewStatus(layout);
   const tone = status.tone;
@@ -277,9 +270,9 @@ function Desk({ layout, focused, compact, onSelect, chatOpen }: { layout: BotLay
   return (
     <li className="radar-desk-slot">
       <button type="button" className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
-        data-bot={bot.key} data-mood={layout.mood} aria-pressed={focused} data-chat-open={chatOpen ? "true" : undefined}
-        aria-label={`${bot.name}: ${layout.summary}. ${focused ? "Showing its work; press to show every bot" : "Show its work"}`}
-        onClick={onSelect}>
+        data-bot={bot.key} data-mood={layout.mood} aria-current={chatOpen ? "page" : undefined}
+        aria-label={`Open ${bot.name} chat: ${layout.summary}`}
+        onClick={onOpen}>
         {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
         <span className="radar-desk-char" aria-hidden="true"><BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} /></span>
         <span className="radar-desk-top" aria-hidden="true">
@@ -303,19 +296,17 @@ function joined(parts: readonly ReactNode[]): ReactNode[] {
   return parts.filter(Boolean).flatMap((part, index) => index === 0 ? [part] : [<span key={`sep${index}`} className="radar-sep" aria-hidden="true">·</span>, part]);
 }
 
-/** Bands that are live work always show; waits and history fold to their count unless a bot is in focus. */
+/** Bands that are live work always show; waits and history fold to their count. */
 const ALWAYS_OPEN: ReadonlySet<Band["key"]> = new Set(["stuck", "working", "next"]);
-function bandOpenByDefault(key: Band["key"], focused: boolean): boolean {
-  if (ALWAYS_OPEN.has(key)) return true;
-  return focused && (key === "waiting" || key === "done");
-}
+/** The prefix stored folds carry, kept from when a desk could focus one bot. */
+const FOLD_SCOPE = "@all";
 
 /**
  * The Bots view of the sidebar, a studio (Salem, thr_2gjivwx8ea: "go with studio"):
  * every bot at its own desk acting out its state, a whiteboard with the day's
  * counts, then what needs Salem (each ask with its answers, always listed), then
  * one list of what is happening across the crew, grouped by state. A desk opens
- * its bot's sheet under the room. Every row opens bb's own thread route; nothing here
+ * its bot's chat. Every row opens bb's own thread route; nothing here
  * changes a task.
  */
 export function BotsView({
@@ -366,15 +357,10 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   const needs = useMemo(() => needRows(data), [data]);
   const botByKey = useMemo(() => new Map(bots.map(bot => [bot.key, bot])), [bots]);
 
-  const [focusKey, setFocusKey] = useState<string | null>(() => rememberedFocus);
-  useEffect(() => { rememberedFocus = focusKey; }, [focusKey]);
-  // A bot that left the roster takes its focus with it.
-  const focus = focusKey ? layouts.find(layout => layout.bot.key === focusKey) ?? null : null;
-  const bands = useMemo(() => feedBands(focus ? [focus] : layouts), [focus, layouts]);
+  const bands = useMemo(() => feedBands(layouts), [layouts]);
 
   const [folds, setFolds] = useState<Record<string, boolean>>(readFolds);
   useEffect(() => { writeStored(FOLDS_KEY, JSON.stringify(folds)); }, [folds]);
-  const scope = focus ? focus.bot.key : "@all";
   const isOpen = (id: string, fallback: boolean) => folds[id] ?? fallback;
   const toggle = (id: string, fallback: boolean) => setFolds(previous => ({ ...previous, [id]: !(previous[id] ?? fallback) }));
 
@@ -413,13 +399,11 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   };
 
   /* ---------- Needs you: each ask as a card, its question in full, its answers one tap away ---------- */
-  // Every ask stays on the page whatever is focused: a focused bot's own asks lead its sheet, and the rest
-  // stay listed under it, so another bot's question never hides behind its desk's bubble.
-  const ownAsks = focus ? needs.filter(need => need.botKey === focus.bot.key) : [];
-  const asks = focus ? needs.filter(need => need.botKey !== focus.bot.key) : needs;
+  // Every ask is on the page, so no bot's question hides behind its desk's bubble.
+  const asks = needs;
   const showAllNeeds = isCompactViewport || needsAll || asks.length <= NEEDS_SHOWN;
   const shownNeeds = showAllNeeds ? asks : asks.slice(0, NEEDS_SHOWN);
-  const askCard = (need: NeedRow, inSheet = false) => {
+  const askCard = (need: NeedRow) => {
     const bot = need.bot ?? { key: need.botKey, name: need.botKey, color: undefined, faceUrl: undefined };
     const name = shortBotName(bot.name);
     return (
@@ -431,9 +415,8 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
           onClick={() => open(need.threadId)}>
           <span className="radar-ask-face" aria-hidden="true"><BotTaskFace bot={bot} size={isCompactViewport ? 34 : 30} state="needs-you" /></span>
           <span className="radar-ask-who">
-            {/* Inside its bot's sheet the name is the heading already; the card names only the task. */}
-            {inSheet ? null : <span className="radar-ask-bot" dir="auto">{name}</span>}
-            {need.taskTitle && !inSheet ? <span className="radar-sep" aria-hidden="true">·</span> : null}
+            <span className="radar-ask-bot" dir="auto">{name}</span>
+            {need.taskTitle ? <span className="radar-sep" aria-hidden="true">·</span> : null}
             {need.taskTitle ? <bdi dir="auto" className="radar-ask-task">{need.taskTitle}</bdi> : null}
           </span>
           <bdi dir="auto" className="radar-ask-question">{need.question}</bdi>
@@ -478,7 +461,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
               peekTimer.current = setTimeout(() => setPeek({ task, bot, age, top: rect.top, left: rect.right + 8 }), PEEK_DELAY_MS);
             } : undefined}
             onMouseLeave={canPeek ? clearPeek : undefined}>
-            {focus ? <StateGlyph state={task.displayState} /> : <BotTaskFace bot={bot} size={26} />}
+            <BotTaskFace bot={bot} size={26} />
             <span className="radar-feed-body">
               <span className="radar-feed-titleline">
                 <bdi dir="auto" className="radar-feed-title">{task.title || "Untitled task"}</bdi>
@@ -486,7 +469,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
               </span>
               <span className="radar-feed-line">
                 {joined([
-                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(bot.name)}</span>,
+                  <span key="bot" className="radar-feed-bot">{shortBotName(bot.name)}</span>,
                   word ? <span key="word" className={cn("radar-feed-state", `radar-feed-state-${task.displayState}`)}>{word}</span> : null,
                   detail ? <bdi key="detail" dir="auto" className="radar-feed-detail">{detail}</bdi> : null,
                 ])}
@@ -515,12 +498,12 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
             aria-current={item.threadId === activeThreadId ? "page" : undefined}
             aria-label={`${item.title || "Untitled worker"}, ${shortBotName(item.bot.name)}, running, no task`}
             onClick={() => open(item.threadId)}>
-            {focus ? <StateGlyph state="working" /> : <BotTaskFace bot={item.bot} size={26} />}
+            <BotTaskFace bot={item.bot} size={26} />
             <span className="radar-feed-body">
               <bdi dir="auto" className="radar-feed-title">{item.title || "Untitled worker"}</bdi>
               <span className="radar-feed-line">
                 {joined([
-                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(item.bot.name)}</span>,
+                  <span key="bot" className="radar-feed-bot">{shortBotName(item.bot.name)}</span>,
                   <span key="detail" className="radar-feed-detail">worker without a task</span>,
                 ])}
               </span>
@@ -532,8 +515,8 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   };
 
   const band = (item: Band) => {
-    const fallback = bandOpenByDefault(item.key, focus !== null);
-    const foldId = `${scope}:${item.key}`;
+    const fallback = ALWAYS_OPEN.has(item.key);
+    const foldId = `${FOLD_SCOPE}:${item.key}`;
     const foldable = !ALWAYS_OPEN.has(item.key);
     const shown = !foldable || isOpen(foldId, fallback);
     const halted = item.key === "done" ? item.items.filter(entry => entry.kind === "task" && entry.task.displayState !== "done").length : 0;
@@ -560,10 +543,9 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
 
   const live = bands.filter(item => ALWAYS_OPEN.has(item.key));
   const liveCount = live.reduce((sum, item) => sum + item.items.length, 0);
-  // The whiteboard counts the whole crew, whichever bot is focused.
+  // The whiteboard counts the whole crew.
   const stuckCount = layouts.filter(layout => crewStatus(layout).tone === "trouble").length;
   const liveAll = layouts.reduce((sum, layout) => sum + layout.active.length + layout.bot.unlinked.length, 0);
-  const focusIndex = focus ? layouts.indexOf(focus) : 0;
   const notFiledOpen = isOpen("@not-filed", false);
   const stale = state.status === "error" || state.cached;
 
@@ -587,50 +569,22 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
             </p>
             <ul className="radar-room-floor">
               {layouts.map(layout => (
-                <Desk key={layout.bot.key} layout={layout} focused={focus?.bot.key === layout.bot.key} compact={isCompactViewport}
+                <Desk key={layout.bot.key} layout={layout} compact={isCompactViewport}
                   chatOpen={activeThreadId === layout.bot.coordinatorThreadId}
-                  onSelect={() => { clearPeek(); setInfoTask(null); setFocusKey(focus?.bot.key === layout.bot.key ? null : layout.bot.key); }} />
+                  onOpen={() => open(layout.bot.coordinatorThreadId)} />
               ))}
             </ul>
           </div>
         )}
       </section>
 
-      {focus ? (
-        // The focused bot's sheet opens right under the room, its notch pointing at the bot's desk.
-        <section className="radar-sheet" aria-label={`${focus.bot.name}: work`} data-column={focusIndex % 3}
-          style={{ "--radar-bot": botTint(focus.bot) } as CSSProperties}>
-          <div className="radar-section-head radar-focus-head">
-            <BotTaskFace bot={focus.bot} size={26} state={moodFace(focus.mood)} />
-            <h3 dir="auto">{shortBotName(focus.bot.name)}</h3>
-            <button type="button" className="radar-focus-chat"
-              aria-current={activeThreadId === focus.bot.coordinatorThreadId ? "page" : undefined}
-              aria-label={`Open ${focus.bot.name} chat`}
-              onClick={() => open(focus.bot.coordinatorThreadId)}>
-              <Icon name="MessageSquare" aria-hidden="true" className="radar-focus-chat-icon" />Chat
-            </button>
-            <button type="button" className="radar-focus-clear" aria-label="Show every bot" onClick={() => { setInfoTask(null); setFocusKey(null); }}>
-              <Icon name="X" aria-hidden="true" className="radar-focus-clear-icon" />
-            </button>
-          </div>
-          {ownAsks.length > 0 ? (
-            <section className="radar-asks radar-asks-own" aria-label={`${focus.bot.name}: needs you`}>
-              <ul className="radar-ask-list">{ownAsks.map(need => askCard(need, true))}</ul>
-            </section>
-          ) : null}
-          {liveCount === 0 && ownAsks.length === 0 ? <p className="radar-bots-empty">{focus.quiet ? "Nothing open. Resting." : "Nothing running."}</p> : null}
-          {bands.map(band)}
-        </section>
-      ) : null}
-
-      {focus && asks.length === 0 ? null : (
-      <section className={cn("radar-asks", asks.length === 0 && "radar-asks-clear")} aria-label={focus ? "Other bots need you" : "Needs you"}>
+      <section className={cn("radar-asks", asks.length === 0 && "radar-asks-clear")} aria-label="Needs you">
         {asks.length === 0 ? (
           <p className="radar-asks-none"><Icon name="Check" aria-hidden="true" className="radar-asks-none-icon" />Nothing needs you</p>
         ) : (
           <>
             <div className="radar-section-head">
-              <h3>{focus ? "Other bots need you" : "Needs you"}</h3>
+              <h3>Needs you</h3>
               <span className="radar-section-count">{asks.length}</span>
             </div>
             <ul className="radar-ask-list">
@@ -648,9 +602,8 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
           </>
         )}
       </section>
-      )}
 
-      {!focus && layouts.length > 0 ? (
+      {layouts.length > 0 ? (
         <section className="radar-now" aria-label="Now">
           <div className="radar-section-head">
             <h3>Now</h3>
@@ -661,7 +614,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
         </section>
       ) : null}
 
-      {!focus && data.notFiled.length > 0 ? (
+      {data.notFiled.length > 0 ? (
         <section className="radar-notfiled" aria-label="Not filed">
           <button type="button" className="radar-band-head radar-band-toggle" aria-expanded={notFiledOpen} onClick={() => toggle("@not-filed", false)}>
             <span className="radar-band-mark radar-band-mark-quiet" aria-hidden="true" />

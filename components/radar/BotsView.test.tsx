@@ -8,10 +8,10 @@ import { resolve } from "node:path";
 import { NOW, makeThread } from "./fixtures";
 import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 import { attemptThreads, normalDay, peakDay, rtlAndEmpty, taskDetails, tenDecisions } from "./botTasksFixtures";
-import { BotsView, attemptWhen, closedAge, moodFace, resetBotsFocus, rowDetail, rowStateWord, waitingLine } from "./BotsView";
+import { BotsView, attemptWhen, closedAge, moodFace, rowDetail, rowStateWord, waitingLine } from "./BotsView";
 import { resetTaskAttempts } from "./useTaskAttempts";
 import { LIST_MODE_KEY } from "./ListModeSwitch";
-import { botMood, botTasksSchema, crewStatus, feedBands, layoutBot, needRows } from "@/lib/botTasks";
+import { answerOptions, botMood, botTasksSchema, crewStatus, feedBands, layoutBot, needRows } from "@/lib/botTasks";
 import { makeTask } from "./botTasksFixtures";
 import { DAY, HOUR } from "./fixtures";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
@@ -32,7 +32,7 @@ const threads: PluginSidebarThread[] = [
 
 type Tasks = BotTasksOutput | (() => BotTasksOutput | Promise<BotTasksOutput>) | Error;
 
-function renderList(tasks: Tasks, options: { settings?: Record<string, boolean>; compact?: boolean; activeThreadId?: string | null; onNavigate?: () => void; detail?: "missing" | "error" } = {}) {
+function renderList(tasks: Tasks, options: { settings?: Record<string, boolean>; compact?: boolean; activeThreadId?: string | null; onNavigate?: () => void; detail?: "missing" | "error"; composerThread?: string } = {}) {
   const calls: string[] = [];
   const callRpc = vi.fn(async ({ method, input }: { method: string; input?: unknown }) => {
     calls.push(method);
@@ -66,6 +66,7 @@ function renderList(tasks: Tasks, options: { settings?: Record<string, boolean>;
     onNavigate: options.onNavigate ?? (() => {}), searchQuery: "",
   }, {
     sdk, threadActions: actions.threadActions,
+    ...(options.composerThread ? { composer: { scope: { kind: "thread", threadId: options.composerThread } } } : {}),
     settings: { botsSwitch: true, hoverCard: false, ...options.settings },
     rpc: { crew_needs_list: () => ({ items: [] }), crew_asks: () => ({ judgements: [] }) },
     sidebarThreads: { status: "ready", threads, projects: [], sections: [], experimental_archived: null },
@@ -77,7 +78,7 @@ const rowIds = (container: HTMLElement) => Array.from(container.querySelectorAll
 const opened = (slot: ReturnType<typeof renderList>["slot"]) => recordedActions(slot).filter(call => call.method === "open").map(call => call.threadId);
 const feedTitles = (scope: ParentNode) => Array.from(scope.querySelectorAll(".radar-feed-row .radar-feed-title")).map(node => node.textContent);
 const band = (key: string) => document.querySelector<HTMLElement>(`[data-band="${key}"]`);
-const desk = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} Bot: `) });
+const desk = (name: string) => screen.getByRole("button", { name: new RegExp(`^Open ${name} Bot chat: `) });
 const css = () => readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
 
 beforeEach(() => {
@@ -89,7 +90,6 @@ afterEach(() => {
   localStorage.clear();
   resetBotsPush();
   resetTaskAttempts();
-  resetBotsFocus();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -166,7 +166,7 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
     expect(desk("Lab").querySelector(".radar-desk-siren")).toBeNull();
     expect(desk("ERBareeq").querySelector(".radar-desk-bubble")?.textContent).toBe("2 ?");
     expect(desk("Lab").querySelector(".radar-desk-bubble")).toBeNull();
-    expect(desk("ERBareeq").getAttribute("aria-label")).toBe("ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting. Show its work");
+    expect(desk("ERBareeq").getAttribute("aria-label")).toBe("Open ERBareeq Bot chat: 2 for you · 2 working · 1 queued · 4 waiting");
     // The scene is decoration; the character wears the bot's mood and its own colour tints its mug.
     expect(desk("Lab").querySelector(".radar-desk-char")?.getAttribute("aria-hidden")).toBe("true");
     expect(desk("Lab").querySelector('.bot-mascot[data-mascot="lab"]')).toBeTruthy();
@@ -187,34 +187,55 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
     expect(quiet.textContent).toBe("All quiet");
   });
 
-  it("opens with nothing focused: every ask, then the crew's live work; a desk opens its sheet under the room", async () => {
-    const { slot } = renderList(normalDay());
+  it("opens a bot's chat in one tap on its desk, and rings the desk whose chat is open (Salem, thr_2gjivwx8ea seq 2220)", async () => {
+    const navigate = vi.fn();
+    const { slot } = renderList(normalDay(), { onNavigate: navigate, compact: true });
     await screen.findByRole("region", { name: "Bots" });
+    fireEvent.click(desk("Bricks"));
+    expect(opened(slot)).toEqual(["thr_coord_bricks"]);
+    // One tap: the phone drawer closes on the way to the chat, and nothing on the page changed under it.
+    expect(navigate).toHaveBeenCalledOnce();
     expect(slot.container.querySelector(".radar-sheet")).toBeNull();
-    expect(screen.getByRole("region", { name: "Needs you" }).querySelectorAll(".radar-ask")).toHaveLength(3);
-    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
-    fireEvent.click(desk("Lab"));
-    const sheet = slot.container.querySelector<HTMLElement>(".radar-sheet")!;
-    // The sheet sits right after the room, its notch over Lab's column (the third).
-    expect(sheet.previousElementSibling?.classList.contains("radar-studio")).toBe(true);
-    expect(sheet.dataset.column).toBe("2");
-    expect(desk("Lab").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("region", { name: "Needs you" }).querySelectorAll(".radar-ask")).toHaveLength(4);
+    cleanup();
+    renderList(normalDay(), { activeThreadId: "thr_coord_lab" });
+    await screen.findByRole("region", { name: "Bots" });
+    expect(desk("Lab").getAttribute("aria-current")).toBe("page");
+    expect(desk("Bricks").getAttribute("aria-current")).toBeNull();
+    expect(css()).toMatch(/\.radar-desk\[aria-current="page"\] \.radar-desk-front \{ box-shadow:/);
   });
 
-  it("never hides another bot's question behind its desk: focused anywhere, every ask stays listed and answerable", async () => {
-    renderList(normalDay());
+  it("keeps every ask and all live work on the page: no bot's question hides behind its desk's bubble", async () => {
+    renderList(normalDay(), { compact: true });
     await screen.findByRole("region", { name: "Bots" });
-    fireEvent.click(desk("Home"));
-    // Home asks nothing: all four asks stay under its sheet.
-    const others = screen.getByRole("region", { name: "Other bots need you" });
-    fireEvent.click(within(others).getByRole("button", { name: "1 more ask" }));
-    expect(others.querySelectorAll(".radar-ask")).toHaveLength(4);
-    fireEvent.click(desk("Bricks"));
-    const own = screen.getByRole("region", { name: "Bricks Bot: needs you" });
-    const rest = screen.getByRole("region", { name: "Other bots need you" });
-    expect(own.querySelectorAll(".radar-ask")).toHaveLength(2);
-    expect(rest.querySelectorAll(".radar-ask")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Needs you" }).querySelectorAll(".radar-ask")).toHaveLength(4);
     expect(screen.getAllByRole("button", { name: /^Answer Yes: / })).toHaveLength(4);
+    expect(feedTitles(screen.getByRole("region", { name: "Now" }))).toHaveLength(9);
+  });
+
+  it("types an answer into the asking thread's composer, end to end, and sends nothing", async () => {
+    const { slot } = renderList(normalDay(), { composerThread: "thr_worker_surveys" });
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    const first = needs.querySelector<HTMLElement>(".radar-ask")!;
+    fireEvent.click(within(first).getByRole("button", { name: "Answer Not yet: opens the chat with it typed in" }));
+    expect(opened(slot)).toEqual(["thr_worker_surveys"]);
+    await waitFor(() => expect(slot.inspection.composer.text).toBe("Not yet"));
+    expect(slot.inspection.composer.submits).toEqual([]);
+  });
+
+  it("cleans up a bot's suggested answers the same way on every path", () => {
+    expect(answerOptions([" Yes ", "", "Yes", "Not yet", "Later", "Never"])).toEqual(["Yes", "Not yet", "Later"]);
+    expect(answerOptions(undefined)).toEqual([]);
+    const day = normalDay();
+    // A needs task the server listed without an interaction still gets clean answers.
+    day.needs = day.needs.filter(item => item.taskId !== "t_brk42");
+    day.bots[1]!.tasks.find(task => task.id === "t_brk42")!.needs!.options = ["  Open it ", "Open it", ""];
+    expect(needRows(botTasksSchema.parse(day)).find(row => row.taskId === "t_brk42")!.options).toEqual(["Open it"]);
+  });
+
+  it("stops every loop and transition when motion is off", () => {
+    expect(css()).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.radar-studio \*, \.radar-tasks \* \{ animation: none !important; transition: none !important; \} \}/);
+    expect(css()).toMatch(/\[data-radar-motion="off"\] \.radar-tasks \* \{ animation: none !important; transition: none !important; \}/);
   });
 
   it("keeps a busy day readable: ten asks all listed on a phone, each desk counting its own", async () => {
@@ -317,32 +338,6 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
     expect(screen.getByRole("button", { name: "Move the backend off Replit, ERBareeq, Working, 1h. Phase 3: Express paths out, installer syncs moved in." })).toBeTruthy();
   });
 
-  it("focuses one bot from its tile: its asks, its work with waits and today open, and its chat; again or × shows every bot", async () => {
-    const { slot } = renderList(normalDay());
-    await screen.findByRole("region", { name: "Bots" });
-    fireEvent.click(desk("Bricks"));
-    expect(desk("Bricks").getAttribute("aria-pressed")).toBe("true");
-    const asks = screen.getByRole("region", { name: "Bricks Bot: needs you" });
-    expect(Array.from(asks.querySelectorAll(".radar-ask-question")).map(node => node.textContent)).toEqual(["Is the iPhone connected to the Mac?", "Open the MR for Yasser?"]);
-    // The heading names the bot, so the cards don't.
-    expect(asks.querySelector(".radar-ask-bot")).toBeNull();
-    const work = screen.getByRole("region", { name: "Bricks Bot: work" });
-    expect(feedTitles(work)).toEqual(["Watch our GitHub PRs too", "PR #11: Yasser's three changes", "Meta ads with the demo offer", "fe!1024 on iPhone and Android"]);
-    expect(within(work).getByRole("button", { name: /^Earlier this week/ }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("region", { name: "Not filed" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Open Bricks Bot chat" }));
-    expect(opened(slot)).toEqual(["thr_coord_bricks"]);
-    // The focus survives the drawer closing and opening.
-    cleanup();
-    renderList(normalDay());
-    await screen.findByRole("region", { name: "Bricks Bot: work" });
-    fireEvent.click(screen.getByRole("button", { name: "Show every bot" }));
-    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
-    fireEvent.click(desk("Home"));
-    fireEvent.click(desk("Home"));
-    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
-  });
-
   it("opens a task's conversation and a worker without a task, and lists Not filed", async () => {
     const { slot } = renderList(normalDay());
     fireEvent.click(await screen.findByRole("button", { name: /^Move the backend off Replit/ }));
@@ -369,8 +364,6 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
     const sheet = css();
     expect(sheet).toMatch(/\.radar-list-compact \.radar-ask-answer \{ min-height: 44px; \}/);
     expect(sheet).toMatch(/\.radar-list-compact \.radar-band-toggle, \.radar-list-compact \.radar-more \{ min-height: 44px; \}/);
-    expect(sheet).toMatch(/\.radar-list-compact \.radar-focus-chat \{ min-height: 44px;/);
-    expect(sheet).toMatch(/\.radar-list-compact \.radar-focus-clear \{ width: 44px; height: 44px; \}/);
     expect(sheet).toMatch(/\.radar-list-compact \.radar-feed-more \{ width: 44px;/);
     expect(sheet).toMatch(/\.radar-feed-row \{[^}]*min-height: (4[4-9]|5\d)px;/);
   });
@@ -591,11 +584,8 @@ describe("Bots view: nothing vanishes, workers as a task's attempts (Salem, thr_
     expect(feedTitles(earlier)).toEqual(["MSSQL database on our host", "Expense report for October", "Orange lines: September invoice check", "Warranty QR relabel for Yasser", "Instagram views report"]);
     expect(within(earlier).getByRole("button", { name: /^Instagram views report, ERBareeq, Stopped, Thu\b/ })).toBeTruthy();
     expect(within(earlier).getByRole("button", { name: /^Orange lines: September invoice check, ERBareeq, Done, Sat\b/ })).toBeTruthy();
-    // A quiet bot keeps its week too, under its own focus.
-    fireEvent.click(desk("Work"));
-    const work = screen.getByRole("region", { name: "Work Bot: work" });
-    expect(within(work).getByText("Nothing open. Resting.")).toBeTruthy();
-    expect(within(work).getByRole("button", { name: /^Earlier this week/ })).toBeTruthy();
+    // A quiet bot's week is there too: Work's October expense report.
+    expect(within(earlier).getByRole("button", { name: /^Expense report for October, Work, Done, / })).toBeTruthy();
   });
 
   it("lists a task's attempts newest first with model, effort and times, each opening its thread; the row still opens the latest", async () => {

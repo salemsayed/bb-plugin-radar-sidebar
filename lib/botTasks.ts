@@ -223,7 +223,7 @@ export function needRows(data: BotTasksData): NeedRow[] {
         threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId,
         question: task.needs?.question || task.line || task.title,
         taskTitle: task.title,
-        options: task.needs?.options ?? [],
+        options: answerOptions(task.needs?.options),
       });
     }
   }
@@ -236,7 +236,12 @@ export function needRows(data: BotTasksData): NeedRow[] {
 /** A task's suggested answers belong to its own pending interaction only, never to another ask on the same task. */
 function optionsFor(task: BotTaskRow | undefined, interactionId: string): string[] {
   if (!task?.needs || task.needs.interactionId !== interactionId) return [];
-  return (task.needs.options ?? []).map(option => option.trim()).filter(Boolean).slice(0, 3);
+  return answerOptions(task.needs.options);
+}
+
+/** Answers as buttons: trimmed, blanks and repeats dropped, at most three, the same on every path an ask arrives by. */
+export function answerOptions(options: readonly string[] | undefined): string[] {
+  return [...new Set((options ?? []).map(option => option.trim()).filter(Boolean))].slice(0, 3);
 }
 
 export function orderedBots(data: BotTasksData): BotTasksBot[] {

@@ -146,8 +146,9 @@
 .radar-desk-trouble .radar-desk-status { background: var(--radar-trouble); color: var(--destructive-foreground, #fff); }
 .radar-desk-busy .radar-desk-status { background: color-mix(in srgb, var(--radar-busy) 80%, #000); color: #fff; }
 .radar-desk::after { content: ""; position: absolute; bottom: -2px; left: 12%; right: 12%; height: 8px; border-radius: 50%; background: rgb(0 0 0 / 0.12); filter: blur(2px); }
-/* The focused desk: one ring in the ink colour around its front, never a new hue. */
-.radar-desk[aria-pressed="true"] .radar-desk-front { box-shadow: 0 0 0 2px var(--floor), 0 0 0 4px var(--foreground); }
+/* The desk whose chat is open wears one ring in the ink colour around its front, never a new hue. */
+.radar-desk[aria-current="page"] .radar-desk-front { box-shadow: 0 0 0 2px var(--floor), 0 0 0 4px var(--foreground); }
+.radar-desk:hover .radar-desk-front { filter: brightness(1.07); }
 /* Acting out the state. */
 .radar-desk-busy .radar-desk-char { animation: radar-desk-bob 1.1s ease-in-out infinite; }
 .radar-desk-ask .radar-desk-char { transform: translateY(-10px); }
@@ -160,8 +161,9 @@
 @keyframes radar-desk-type { 0% { width: 20%; } 100% { width: 100%; } }
 @keyframes radar-desk-pop { 0%, 70%, 100% { transform: translateY(0); } 80% { transform: translateY(-4px); } }
 @keyframes radar-desk-blink { 50% { opacity: 0.35; } }
-[data-radar-motion="off"] .radar-studio * { animation: none !important; }
-@media (prefers-reduced-motion: reduce) { .radar-studio * { animation: none !important; } }
+/* Motion off (Radar's setting or the system's): no loops and no transitions anywhere in the view. */
+[data-radar-motion="off"] .radar-studio *, [data-radar-motion="off"] .radar-tasks * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .radar-studio *, .radar-tasks * { animation: none !important; transition: none !important; } }
 .radar-list-compact .radar-desk-name { font-size: 13px; }
 .radar-list-compact .radar-desk-status { font-size: 11.5px; line-height: 19px; }
 /* A narrow desktop sidebar (280px): the plate steps down so "1 overdue" fits whole. */
@@ -172,34 +174,9 @@
   .radar-desk-name { font-size: 12px; }
 }
 
-/* A bot's sheet: it opens right under the room, its notch pointing at the bot's desk. Inside it, rows sit on the
-   sheet itself (one surface, hairlines), so cards never nest. */
-.radar-sheet { --radar-notch: 50%; position: relative; margin-top: 14px; padding: 12px 12px 8px; border: 1px solid var(--radar-edge); border-radius: 20px; background: var(--radar-surface); box-shadow: var(--radar-shadow); }
-.radar-sheet[data-column="0"] { --radar-notch: 17%; }
-.radar-sheet[data-column="2"] { --radar-notch: 83%; }
-.radar-sheet::before { content: ""; position: absolute; top: -8px; inset-inline-start: calc(var(--radar-notch) - 8px); width: 14px; height: 14px; border-top: 1px solid var(--radar-edge); border-inline-start: 1px solid var(--radar-edge); background: var(--radar-surface); transform: rotate(45deg); }
-.radar-sheet:dir(rtl)::before { transform: rotate(-45deg); }
-@container radar-board (max-width: 230px) { .radar-sheet::before { display: none; } }
-.radar-sheet .radar-focus-head { margin-top: 0; padding: 0 2px 4px; }
-.radar-sheet .radar-asks-own { padding-top: 6px; }
-.radar-sheet .radar-feed-list, .radar-sheet .radar-band-toggle[aria-expanded="false"] { border: 0; border-radius: 12px; background: transparent; box-shadow: none; }
-.radar-sheet .radar-band-toggle[aria-expanded="false"] { min-height: 40px; padding-inline: 6px; }
-.radar-sheet .radar-band + .radar-band { margin-top: 6px; border-top: 1px solid var(--radar-hairline); padding-top: 6px; }
-.radar-sheet .radar-band:first-of-type { margin-top: 8px; }
-.radar-sheet .radar-feed-row { padding-inline-start: 4px; }
-.radar-sheet .radar-feed-item + .radar-feed-item::before { inset-inline-start: 26px; }
-.radar-sheet .radar-bots-empty { padding: 8px 4px; }
 
 /* 3. Now: live work across the crew, grouped by what is happening. The heading names the state once. */
 .radar-now { padding-top: var(--radar-section); }
-.radar-focus-head { gap: 8px; }
-.radar-focus-head h3 { font-size: 15px; font-weight: 700; }
-.radar-focus-chat { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 30px; margin-inline-start: auto; padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--radar-card); font-size: 12.5px; font-weight: 600; cursor: pointer; }
-.radar-focus-chat:hover { background: var(--radar-hover); }
-.radar-focus-chat[aria-current="page"] { background: var(--radar-pressed); }
-.radar-focus-chat-icon, .radar-focus-chat-icon [data-icon-root], .radar-focus-clear-icon, .radar-focus-clear-icon [data-icon-root] { width: 14px; height: 14px; }
-.radar-focus-clear { display: grid; flex: none; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
-.radar-focus-clear:hover { background: var(--radar-hover); color: var(--foreground); }
 .radar-band + .radar-band { margin-top: 12px; }
 .radar-band-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; margin: 0; padding: 4px 6px; border: 0; border-radius: 10px; background: transparent; color: var(--foreground); font-size: 12.5px; font-weight: 650; text-align: start; }
 .radar-band-head + .radar-feed-list { margin-top: 2px; }
@@ -232,8 +209,6 @@
 .radar-band-stuck .radar-band-label { color: var(--radar-trouble-text); }
 .radar-feed-row { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 52px; padding-block: 8px; padding-inline: 10px 2px; border: 0; background: transparent; text-align: start; cursor: pointer; }
 .radar-feed-row > .radar-tasks-face { width: auto !important; height: auto !important; border-radius: 0; overflow: visible; }
-/* A state glyph takes the character's 26px column, so titles keep one start rail in both views. */
-.radar-feed-row > .radar-task-glyph { margin: 0 7px; }
 .radar-feed-body { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
 .radar-feed-titleline { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .radar-feed-title { display: block; min-width: 0; overflow: hidden; font-size: 13px; font-weight: 550; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: isolate; }
@@ -263,17 +238,7 @@
 
 /* State glyphs: shape and colour both carry the state. */
 .radar-task-glyph { flex: none; width: 12px; height: 12px; margin: 3px 0 0; border-radius: 50%; box-sizing: border-box; }
-.radar-task-glyph-needs { background: var(--radar-ask); }
 .radar-task-glyph-working { border: 2.5px solid var(--radar-busy); border-right-color: transparent; animation: radar-task-spin 1s linear infinite; }
-/* Nothing runs: the result waits for the bot's check, so the ring stands still. */
-.radar-task-glyph-checking { border: 2.5px solid var(--radar-busy); }
-.radar-task-glyph-retrying { border: 2px dashed var(--radar-busy); animation: radar-task-spin 2s linear infinite; }
-.radar-task-glyph-queued, .radar-task-glyph-ready { border: 2px dotted var(--radar-rest); }
-.radar-task-glyph-offline { border-radius: 2px; background: var(--radar-rest); }
-.radar-task-glyph-overdue { border-radius: 2px; background: var(--radar-trouble); }
-.radar-task-glyph-waiting { border: 2px solid var(--radar-rest); }
-.radar-task-glyph-done { background: var(--radar-done); }
-.radar-task-glyph-stopped, .radar-task-glyph-cancelled { border-radius: 2px; border: 2px solid var(--radar-rest); }
 .radar-task-glyph-plain { border: 1px solid var(--border); }
 [data-radar-motion="off"] .radar-task-glyph { animation: none; }
 @keyframes radar-task-spin { to { transform: rotate(360deg); } }
@@ -334,13 +299,10 @@
 .radar-list-compact .radar-ask-pill { padding: 6px 16px; font-size: 14px; }
 .radar-list-compact .radar-ask-answers { padding-inline-start: calc(12px + 34px + 10px - 4px); }
 .radar-list-compact .radar-section-head h3 { font-size: 14px; }
-.radar-list-compact .radar-focus-head h3 { font-size: 16px; }
 .radar-list-compact .radar-feed-title { font-size: 14px; line-height: 19px; }
 .radar-list-compact .radar-feed-line { font-size: 12.5px; line-height: 17px; }
 .radar-list-compact .radar-band-head { font-size: 13px; }
 .radar-list-compact .radar-band-toggle, .radar-list-compact .radar-more { min-height: 44px; }
-.radar-list-compact .radar-focus-chat { min-height: 44px; padding-inline: 16px; font-size: 13.5px; }
-.radar-list-compact .radar-focus-clear { width: 44px; height: 44px; }
 .radar-list-compact .radar-feed-more { width: 44px; justify-content: center; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 .radar-list-compact .radar-task-attempt { min-height: 44px; align-items: center; }
@@ -349,7 +311,6 @@
 .radar-list-compact .radar-task-info { font-size: 12.5px; }
 @media (pointer: coarse) {
   .radar-ask-answer { min-height: 44px; }
-  .radar-band-toggle, .radar-more, .radar-focus-chat, .radar-task-attempt, .radar-mode-option { min-height: 44px; }
-  .radar-focus-clear { width: 44px; height: 44px; }
+  .radar-band-toggle, .radar-more, .radar-task-attempt, .radar-mode-option { min-height: 44px; }
   .radar-feed-more { width: 44px; justify-content: center; }
 }
