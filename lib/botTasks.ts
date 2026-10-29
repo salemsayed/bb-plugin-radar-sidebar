@@ -241,12 +241,15 @@ export function rowStartedAt(task: BotTaskRow, observedAt: number): number {
 }
 
 const doneDateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-const SERVER_DONE_DATE = /^Done \d{4}-\d{2}-\d{2}\b/;
+const SERVER_DONE_DATE = /^Done (?:\d{4}-\d{2}-\d{2}|\d{1,2} [A-Z][a-z]{2})\b/;
 
 /**
- * A core writes "Done YYYY-MM-DD" from a UTC date, so a task finished after
- * local midnight read as the day before. The row's completedAt timestamp is
- * the truth: its date is re-rendered in this device's local time.
+ * A core writes "Done YYYY-MM-DD" from a UTC date (older) or "Done 29 Oct" in
+ * Cairo time (current), so a task finished after local midnight could read as
+ * another day. The row's completedAt timestamp is the truth: its date is
+ * re-rendered in this device's local time, and today reads "Done today" (the
+ * stress test found every row of today saying "Done 29 Oct": only the older
+ * form was recognised).
  */
 export function localizeDoneLine(task: Pick<BotTaskRow, "line" | "completedAt">, now: number): string {
   if (task.completedAt === undefined || !SERVER_DONE_DATE.test(task.line)) return task.line;

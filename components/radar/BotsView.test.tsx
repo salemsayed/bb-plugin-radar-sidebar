@@ -515,6 +515,9 @@ describe("Bots view redesign (Salem, thr_2gjivwx8ea, 2026-10-29: bold redesign, 
     expect(rowDetail(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
     // A finished row's word carries its local day, so "Done today · 62 lines matched" reads as one line.
     expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("Done today");
+    // The current core writes the day in Cairo time ("Done 29 Oct"); a row finished today still reads "Done today".
+    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 29 Oct", completedAt: NOW }), NOW)).toBe("Done today");
+    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 29 Oct · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
     expect(rowStateWord(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("Done");
     expect(rowStateWord(makeTask("x", "a", "stopped", { line: "Stopped by Salem", completedAt: NOW }), NOW)).toBe("Stopped");
   });

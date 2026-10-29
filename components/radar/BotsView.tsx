@@ -35,8 +35,9 @@ const NOT_FILED_SHOWN = 30;
 const FOLDS_KEY = "radar-sidebar:bots-folds:v1";
 const PEEK_DELAY_MS = 350;
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+// 24-hour, like the waiting rows' "tonight 20:30" (a finished row read "5:54 PM" next to them).
+const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const dateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 const DAY_MS = 86_400_000;
@@ -370,7 +371,8 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
           type="button"
           className={cn("radar-task-row", `radar-task-${task.displayState}`)}
           data-task-id={task.id}
-          aria-current={activeThreadId !== null && target === activeThreadId ? "page" : undefined}
+          // Only a task's own conversation marks it open: one without a worker opens the bot's chat, which is the card's.
+          aria-current={activeThreadId !== null && task.conversationThreadId === activeThreadId ? "page" : undefined}
           aria-label={`${task.title || "Untitled task"}, ${label}, ${age}${rowLine(task, now) !== label ? `. ${rowLine(task, now)}` : ""}`}
           title={task.conversationThreadId ? undefined : `No task conversation yet: opens ${bot.name}`}
           onClick={() => open(target)}
