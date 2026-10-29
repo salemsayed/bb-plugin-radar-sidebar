@@ -7,7 +7,6 @@ import {
   type PluginThreadActionTarget,
   type PluginThreadActionsInlineItem,
 } from "@get-bb/plugin-sdk/app";
-import { shortBotName } from "./bots";
 import { threadActionTarget } from "./threadActions";
 import type { DeskMenuProps } from "./BotsView";
 
@@ -29,19 +28,15 @@ export function coordinatorTarget(thread: PluginSidebarThread | undefined, threa
 /**
  * A desk's menu (Salem, thr_2gjivwx8ea seq 2358: "I'm unable to open the bot context menu at all"): bb's own
  * thread menu for the bot's coordinator, the same one its row in Threads opens (pin, rename, notifications,
- * other plugins' actions, archive, delete), with the desk's two items on top: open its chat, or show its work
- * (its asks and tasks in a sheet under the room). bb opens it on right-click; the desk turns a long-press into
- * the same event.
+ * other plugins' actions, archive, delete), with Open chat on top (a tap on the desk shows the bot's work).
+ * bb opens it on right-click and on a long-press; the desk turns its own long-press into the same event.
  */
-export function BotDeskMenu({ bot, children, onShowWork, onOpenChat }: DeskMenuProps) {
+export function BotDeskMenu({ bot, children, onOpenChat }: DeskMenuProps) {
   const threads = useContext(SidebarThreads);
   const target = coordinatorTarget(threads.get(bot.coordinatorThreadId), bot.coordinatorThreadId);
-  const name = shortBotName(bot.name);
   const inline = useMemo<PluginThreadActionsInlineItem[]>(() => [
     { key: "radar-sidebar/bot-open-chat", group: experimental_THREAD_ACTION_GROUPS.open,
       action: { label: "Open chat", icon: "MessageSquare", run: onOpenChat } },
-    { key: "radar-sidebar/bot-show-work", group: experimental_THREAD_ACTION_GROUPS.open,
-      action: { label: `Show ${name}'s work`, icon: "Eye", run: onShowWork } },
-  ], [name, onOpenChat, onShowWork]);
+  ], [onOpenChat]);
   return <ThreadActionsContextMenu thread={target} inline={inline}>{children}</ThreadActionsContextMenu>;
 }

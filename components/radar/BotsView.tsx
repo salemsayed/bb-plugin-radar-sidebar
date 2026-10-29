@@ -251,19 +251,19 @@ export function botTint(bot: Pick<BotTasksBot, "key" | "name" | "color">): strin
   return bot.color ?? `hsl(${botStyle(bot.key, bot.name).hue} 70% 55%)`;
 }
 
+/** The bot's sheet, which its desk opens and controls. */
+const BOT_SHEET_ID = "radar-bot-sheet";
+
 /** What a desk's laptop shows: work scrolling, a red "!", a "?" waiting on Salem, a dim idle screen, or off. */
 const SCREEN: Record<CrewTone, "work" | "alert" | "ask" | "idle" | "off"> = { busy: "work", trouble: "alert", ask: "ask", idle: "idle", quiet: "off" };
 
 /**
- * A bot at its desk in the studio, acting out its state: typing at a glowing laptop while it works, standing
- * up in a warm light with a speech bubble when it needs Salem, a red light on the desk when something is
- * stuck, asleep with the screen off when there is nothing to do. The name plate says the state in words, so
- * the scene is decoration over a plain label: the desk's accessible name carries the bot's whole summary.
- * One tap opens the bot's chat (Salem, thr_2gjivwx8ea seq 2220: "A click on the bot icon should directly open
- * the chat of it instead of needing two clicks"); the desk whose chat is open wears the ring.
+ * How long a touch holds a desk before its menu opens instead of a tap: bb's own long-press time (bb 0.48's
+ * compact menu trigger uses 700ms), so a desk answers a hold exactly like a thread row does and a slow tap of
+ * half a second is still a tap. bb runs that detector itself on phones; the desk's own keeps the menu
+ * reachable where the host has none (and in the SDK's test runtime).
  */
-/** How long a touch holds a desk before its menu opens instead of its chat. */
-export const LONG_PRESS_MS = 500;
+export const LONG_PRESS_MS = 700;
 /** A touch that drifts further than this is a scroll, not a press. */
 const PRESS_SLOP_PX = 10;
 
@@ -271,12 +271,11 @@ const PRESS_SLOP_PX = 10;
  * A desk's menu: what the host wraps around the desk (bb's thread menu for the bot's coordinator, with the
  * desk's own items inline). It opens on the `contextmenu` event: a right-click, Android's native long-press,
  * or the long-press the desk detects itself (iOS fires no contextmenu on a long-press). Without one the desk
- * only opens its chat.
+ * only opens its sheet.
  */
 export interface DeskMenuProps {
   bot: BotTasksBot;
   children: ReactNode;
-  onShowWork: () => void;
   onOpenChat: () => void;
 }
 export type DeskMenu = (props: DeskMenuProps) => ReactNode;
@@ -290,11 +289,13 @@ function openMenuAt(element: Element, x: number, y: number): void {
 const SWALLOW_AFTER_LIFT_MS = 600;
 
 /**
- * Tap opens the chat; a held touch opens the menu instead, and the clicks the browser sends when that touch
- * lifts are swallowed (Chromium sends one, iOS may), so the chat never opens and the drawer stays put (Salem,
- * thr_2gjivwx8ea seq 2358). The next touch starts fresh. A touch that moves is a scroll and does nothing.
+ * The desk's press handling, on the element that holds both of its buttons: a held touch opens the menu and
+ * the clicks the browser sends when that touch lifts are swallowed before either button sees them (Chromium
+ * sends one, iOS may), so neither the chat nor the sheet opens under the menu (Salem, thr_2gjivwx8ea seq
+ * 2358). The next touch starts fresh. A touch that moves is a scroll and does nothing. Taps go through to
+ * whichever button was tapped.
  */
-function useDeskPress(onTap: () => void) {
+function useDeskPress() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
   const swallowClick = useRef(false);
@@ -306,9 +307,12 @@ function useDeskPress(onTap: () => void) {
     timer.current = null;
     start.current = null;
   };
+  const armRelease = () => {
+    if (swallowClick.current) release.current = setTimeout(() => { swallowClick.current = false; release.current = null; }, SWALLOW_AFTER_LIFT_MS);
+  };
   useEffect(() => () => { cancel(); if (release.current) clearTimeout(release.current); }, []);
   return {
-    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
       if (release.current) clearTimeout(release.current);
       release.current = null;
       swallowClick.current = false;
@@ -327,7 +331,7 @@ function useDeskPress(onTap: () => void) {
         try { openMenuAt(target, x, y); } finally { dispatching.current = false; }
       }, LONG_PRESS_MS);
     },
-    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
       const from = start.current;
       if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > PRESS_SLOP_PX) cancel();
     },
@@ -335,13 +339,10 @@ function useDeskPress(onTap: () => void) {
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       start.current = null;
-      if (swallowClick.current) release.current = setTimeout(() => { swallowClick.current = false; release.current = null; }, SWALLOW_AFTER_LIFT_MS);
+      armRelease();
     },
-    onPointerCancel: () => {
-      cancel();
-      if (swallowClick.current) release.current = setTimeout(() => { swallowClick.current = false; release.current = null; }, SWALLOW_AFTER_LIFT_MS);
-    },
-    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
+    onPointerCancel: () => { cancel(); armRelease(); },
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
       if (dispatching.current) return;
       // A touch-held desk on Android gets the browser's own contextmenu too: it opens the menu once and
       // eats the click that follows; a second one for the same press is dropped.
@@ -352,48 +353,64 @@ function useDeskPress(onTap: () => void) {
         cancel();
       }
     },
-    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (swallowClick.current) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      onTap();
+    onClickCapture: (event: React.MouseEvent<HTMLElement>) => {
+      if (!swallowClick.current) return;
+      event.preventDefault();
+      event.stopPropagation();
     },
   };
 }
 
-function Desk({ layout, compact, onOpen, onShowWork, chatOpen, Menu }: {
-  layout: BotLayout; compact: boolean; onOpen: () => void; onShowWork: () => void; chatOpen: boolean; Menu?: DeskMenu;
+/**
+ * A bot at its desk in the studio, acting out its state: typing at a glowing laptop while it works, standing
+ * up in a warm light with a speech bubble when it needs Salem, a red light on the desk when something is
+ * stuck, asleep with the screen off when there is nothing to do. The plate says the state in words, so the
+ * scene is decoration over plain labels.
+ *
+ * Two taps (Salem, thr_2gjivwx8ea: "Before a click would show a context menu with tasks and click to chat that
+ * was useful", then "I wanted that AND a click to open the bot chat directly"): the character, with a chat
+ * badge at its side, opens the bot's chat; the name plate, a tab with a caret, opens and closes the bot's work
+ * sheet under the room and wears the ring while it is open. A hold or right-click anywhere on the desk opens
+ * bb's thread menu for the bot instead.
+ */
+function Desk({ layout, compact, onShowWork, onOpenChat, sheetOpen, chatOpen, Menu }: {
+  layout: BotLayout; compact: boolean; onShowWork: () => void; onOpenChat: () => void; sheetOpen: boolean; chatOpen: boolean; Menu?: DeskMenu;
 }) {
   const { bot } = layout;
   const status = crewStatus(layout);
   const tone = status.tone;
   const asks = tone === "ask" ? status.count : bot.tasks.filter(task => task.displayState === "needs").length;
-  const press = useDeskPress(onOpen);
-  const deskRef = useRef<HTMLButtonElement>(null);
+  const name = shortBotName(bot.name);
+  const press = useDeskPress();
+  const deskRef = useRef<HTMLDivElement>(null);
   const desk = (
-    <button ref={deskRef} type="button" className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
-      data-bot={bot.key} data-mood={layout.mood} aria-current={chatOpen ? "page" : undefined}
-      aria-label={`Open ${bot.name} chat: ${layout.summary}`}
-      {...press}>
-      {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
-      <span className="radar-desk-char" aria-hidden="true"><BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} /></span>
-      <span className="radar-desk-top" aria-hidden="true">
-        <span className={cn("radar-desk-laptop", `radar-desk-laptop-${SCREEN[tone]}`)}><i /><i /><i /></span>
-        {tone === "trouble" ? <span className="radar-desk-siren" /> : <span className="radar-desk-mug" />}
-      </span>
-      <span className="radar-desk-front">
-        <span className="radar-desk-name" dir="auto">{shortBotName(bot.name)}</span>
+    <div ref={deskRef} className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
+      data-bot={bot.key} data-mood={layout.mood} {...press}>
+      <button type="button" className="radar-desk-chat" aria-current={chatOpen ? "page" : undefined}
+        aria-label={`Open ${bot.name} chat`} onClick={onOpenChat}>
+        {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
+        <span className="radar-desk-char" aria-hidden="true">
+          <BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} />
+          <span className="radar-desk-chat-badge"><Icon name="MessageSquare" aria-hidden="true" className="radar-desk-chat-icon" /></span>
+        </span>
+        <span className="radar-desk-top" aria-hidden="true">
+          <span className={cn("radar-desk-laptop", `radar-desk-laptop-${SCREEN[tone]}`)}><i /><i /><i /></span>
+          {tone === "trouble" ? <span className="radar-desk-siren" /> : <span className="radar-desk-mug" />}
+        </span>
+      </button>
+      <button type="button" className="radar-desk-front" aria-expanded={sheetOpen} aria-controls={sheetOpen ? BOT_SHEET_ID : undefined}
+        aria-label={`Show ${name}'s work: ${layout.summary}`} onClick={onShowWork}>
+        <span className="radar-desk-name" dir="auto">{name}</span>
         <span className="radar-desk-status">{status.label}</span>
-      </span>
-    </button>
+        <Icon name="ChevronDown" aria-hidden="true" className="radar-desk-caret" />
+      </button>
+    </div>
   );
   return (
     <li className="radar-desk-slot">
-      {Menu ? <Menu bot={bot} onShowWork={onShowWork} onOpenChat={onOpen}>{desk}</Menu> : desk}
+      {Menu ? <Menu bot={bot} onOpenChat={onOpenChat}>{desk}</Menu> : desk}
       {Menu ? (
-        // The menu, findable on a phone: the same menu a long-press or right-click opens, anchored on the desk.
+        // The menu for keyboards and screen readers: the same menu a long-press or right-click opens.
         <button type="button" className="radar-desk-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu"
           onClick={event => {
             event.stopPropagation();
@@ -484,7 +501,7 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
   const needs = useMemo(() => needRows(data), [data]);
   const botByKey = useMemo(() => new Map(bots.map(bot => [bot.key, bot])), [bots]);
 
-  // A bot's work sheet, opened from its desk's menu ("Show <bot>'s work"): its asks, all its work, its chat.
+  // A bot's work sheet, opened by a tap on its desk: its asks, all its work, its chat.
   const [sheetKey, setSheetKey] = useState<string | null>(() => rememberedSheet);
   const focus = sheetKey ? layouts.find(layout => layout.bot.key === sheetKey) ?? null : null;
   // A bot that leaves the roster closes its sheet for good, so it never reopens if the bot comes back.
@@ -707,31 +724,32 @@ function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen
             <ul className="radar-room-floor">
               {layouts.map(layout => (
                 <Desk key={layout.bot.key} layout={layout} compact={isCompactViewport} Menu={deskMenu}
+                  sheetOpen={focus?.bot.key === layout.bot.key}
                   chatOpen={activeThreadId === layout.bot.coordinatorThreadId}
-                  onOpen={() => open(layout.bot.coordinatorThreadId)}
-                  onShowWork={() => { clearPeek(); setInfoTask(null); setSheetKey(layout.bot.key); }} />
+                  onOpenChat={() => open(layout.bot.coordinatorThreadId)}
+                  onShowWork={() => { clearPeek(); setInfoTask(null); setSheetKey(key => key === layout.bot.key ? null : layout.bot.key); }} />
               ))}
             </ul>
           </div>
         )}
         {layouts.length > 0 && deskMenu ? (
           <p className="radar-room-hint">
-            <span className="radar-room-hint-mouse">Click a bot to chat · right-click for more</span>
-            <span className="radar-room-hint-touch">Tap a bot to chat · hold for more</span>
+            <span className="radar-room-hint-mouse">Click a bot to chat, its name for its work · right-click for more</span>
+            <span className="radar-room-hint-touch">Tap a bot to chat, its name for its work · hold for more</span>
           </p>
         ) : null}
       </section>
 
       {focus ? (
         // The bot's work sheet opens right under the room, its notch pointing at the bot's desk.
-        <section className="radar-sheet" aria-label={`${focus.bot.name}: work`} data-column={layouts.indexOf(focus) % 3}
+        <section id={BOT_SHEET_ID} className="radar-sheet" aria-label={`${focus.bot.name}: work`} data-column={layouts.indexOf(focus) % 3}
           style={{ "--radar-bot": botTint(focus.bot) } as CSSProperties}>
           <div className="radar-section-head radar-focus-head">
             <BotTaskFace bot={focus.bot} size={26} state={moodFace(focus.mood)} />
             <h3 dir="auto">{`${shortBotName(focus.bot.name)}'s work`}</h3>
             <button type="button" className="radar-focus-chat"
               aria-current={activeThreadId === focus.bot.coordinatorThreadId ? "page" : undefined}
-              aria-label={`Open ${focus.bot.name} chat`}
+              aria-label={`Chat with ${shortBotName(focus.bot.name)}`}
               onClick={() => open(focus.bot.coordinatorThreadId)}>
               <Icon name="MessageSquare" aria-hidden="true" className="radar-focus-chat-icon" />Chat
             </button>

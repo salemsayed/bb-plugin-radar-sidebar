@@ -119,7 +119,7 @@
 .radar-desk-slot { position: relative; min-width: 0; }
 /* A held desk opens its menu: no text selection, no iOS callout or magnifier, no double-tap zoom delay. */
 .radar-room { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.radar-desk { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.radar-desk-chat, .radar-desk-front { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 /* The menu's button for keyboards and screen readers; it shows only when focused (touch holds, mice right-click). */
 .radar-desk-more { position: absolute; top: 2px; inset-inline-end: 2px; z-index: 4; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 999px; background: var(--radar-surface); color: var(--foreground); box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); opacity: 0; pointer-events: none; }
 .radar-desk-more:focus-visible { opacity: 1; pointer-events: auto; }
@@ -128,8 +128,16 @@
 .radar-room-hint { margin: 8px 4px 0; color: var(--muted-foreground); font-size: 11.5px; text-align: center; }
 .radar-room-hint-touch { display: none; }
 @media (hover: none), (pointer: coarse) { .radar-room-hint-touch { display: inline; } .radar-room-hint-mouse { display: none; } }
-.radar-desk { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; min-width: 0; padding: 24px 0 4px; border: 0; border-radius: 14px; background: transparent; cursor: pointer; }
-.radar-desk:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 0; }
+/* A desk holds two buttons, one above the other, never overlapping: the character (its chat) and the plate
+   (its work). Each is a full-width target at least 44px tall. */
+.radar-desk { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; min-width: 0; padding: 0 0 10px; }
+.radar-desk-chat { position: relative; display: flex; font: inherit; flex-direction: column; align-items: center; width: 100%; min-height: 44px; padding: 24px 0 0; border: 0; border-radius: 14px 14px 0 0; background: transparent; cursor: pointer; }
+.radar-desk-chat:focus-visible, .radar-desk-front:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
+.radar-desk-chat:hover .radar-desk-char { filter: brightness(1.06); }
+/* The chat badge at the character's side says what a tap on it does; it fills in while that chat is open. */
+.radar-desk-chat-badge { position: absolute; top: 0; inset-inline-start: -12px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--radar-surface); color: var(--foreground); box-shadow: 0 1px 4px rgb(0 0 0 / 0.22); }
+.radar-desk-chat-icon, .radar-desk-chat-icon [data-icon-root] { width: 13px; height: 13px; }
+.radar-desk-chat[aria-current="page"] .radar-desk-chat-badge { background: var(--foreground); color: var(--background, #fff); }
 .radar-desk-char { position: relative; z-index: 1; margin-bottom: -16px; transition: transform 200ms ease; }
 .radar-desk-char .radar-tasks-face { width: auto !important; height: auto !important; border-radius: 0; overflow: visible; }
 .radar-desk-top { position: relative; z-index: 2; width: 94%; height: 12px; border-radius: 6px 6px 2px 2px; background: var(--wood); }
@@ -150,16 +158,20 @@
 .radar-desk-laptop-off { background: light-dark(#5a5e6b, #0c0d14); }
 .radar-desk-mug { position: absolute; bottom: 100%; inset-inline-start: 8px; width: 8px; height: 9px; border-radius: 1px 1px 3px 3px; background: var(--radar-bot); }
 .radar-desk-siren { position: absolute; bottom: 100%; inset-inline-start: 8px; width: 11px; height: 11px; border-radius: 50% 50% 2px 2px; background: var(--radar-trouble); box-shadow: 0 0 10px 3px color-mix(in srgb, var(--radar-trouble) 60%, transparent); animation: radar-desk-blink 1s steps(2) infinite; }
-.radar-desk-front { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 84%; padding: 5px 2px 7px; border-radius: 0 0 10px 10px; background: var(--wood-dark); }
+/* The plate is a tab: a button in the desk's front with a caret under it that turns while its sheet is open. */
+.radar-desk-front { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 84%; min-height: 44px; padding: 5px 2px 9px; border: 0; border-radius: 0 0 10px 10px; background: var(--wood-dark); color: inherit; font: inherit; cursor: pointer; }
+.radar-desk-front:hover { filter: brightness(1.08); }
+.radar-desk-caret { position: absolute; bottom: -8px; left: 50%; display: grid; place-items: center; width: 18px; height: 14px; padding: 0 2px; border-radius: 0 0 8px 8px; background: var(--wood-dark); color: var(--plate); transform: translateX(-50%); transition: transform 160ms ease; }
+.radar-desk-caret, .radar-desk-caret [data-icon-root] { width: 18px; height: 14px; }
+.radar-desk-front[aria-expanded="true"] .radar-desk-caret { transform: translateX(-50%) rotate(180deg); }
 .radar-desk-name { max-width: 100%; overflow: hidden; color: var(--plate); font-size: 12.5px; font-weight: 700; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .radar-desk-status { max-width: 100%; padding: 0 6px; overflow: hidden; border-radius: 999px; background: rgb(0 0 0 / 0.2); color: var(--plate); font-size: 11px; font-weight: 650; line-height: 18px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .radar-desk-ask .radar-desk-status { background: var(--radar-ask-fill); color: var(--radar-ask-ink); }
 .radar-desk-trouble .radar-desk-status { background: var(--radar-trouble); color: var(--destructive-foreground, #fff); }
 .radar-desk-busy .radar-desk-status { background: color-mix(in srgb, var(--radar-busy) 80%, #000); color: #fff; }
 .radar-desk::after { content: ""; position: absolute; bottom: -2px; left: 12%; right: 12%; height: 8px; border-radius: 50%; background: rgb(0 0 0 / 0.12); filter: blur(2px); }
-/* The desk whose chat is open wears one ring in the ink colour around its front, never a new hue. */
-.radar-desk[aria-current="page"] .radar-desk-front { box-shadow: 0 0 0 2px var(--floor), 0 0 0 4px var(--foreground); }
-.radar-desk:hover .radar-desk-front { filter: brightness(1.07); }
+/* The plate whose sheet is open wears one ring in the ink colour, never a new hue. */
+.radar-desk-front[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--floor), 0 0 0 4px var(--foreground); }
 /* Acting out the state. */
 .radar-desk-busy .radar-desk-char { animation: radar-desk-bob 1.1s ease-in-out infinite; }
 .radar-desk-ask .radar-desk-char { transform: translateY(-10px); }
@@ -207,9 +219,10 @@
 .radar-now { padding-top: var(--radar-section); }
 .radar-focus-head { gap: 8px; }
 .radar-focus-head h3 { font-size: 15px; font-weight: 700; }
-.radar-focus-chat { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 30px; margin-inline-start: auto; padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--radar-card); font-size: 12.5px; font-weight: 600; cursor: pointer; }
-.radar-focus-chat:hover { background: var(--radar-hover); }
-.radar-focus-chat[aria-current="page"] { background: var(--radar-pressed); }
+/* The sheet's Chat: the one solid control on it, in the ink colour, so "talk to this bot" is one obvious tap. */
+.radar-focus-chat { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 34px; margin-inline-start: auto; padding: 4px 16px; border: 0; border-radius: 999px; background: var(--foreground); color: var(--background, #fff) !important; font-size: 13.5px; font-weight: 650; cursor: pointer; box-shadow: var(--radar-shadow); }
+.radar-focus-chat:hover { background: color-mix(in srgb, var(--foreground) 85%, var(--background, #fff)); }
+.radar-focus-chat[aria-current="page"] { background: color-mix(in srgb, var(--foreground) 70%, var(--background, #fff)); }
 .radar-focus-chat-icon, .radar-focus-chat-icon [data-icon-root], .radar-focus-clear-icon, .radar-focus-clear-icon [data-icon-root] { width: 14px; height: 14px; }
 .radar-focus-clear { display: grid; flex: none; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
 .radar-focus-clear:hover { background: var(--radar-hover); color: var(--foreground); }
@@ -341,7 +354,7 @@
 .radar-list-compact .radar-band-toggle, .radar-list-compact .radar-more { min-height: 44px; }
 .radar-list-compact .radar-feed-more { width: 44px; justify-content: center; }
 .radar-list-compact .radar-focus-head h3 { font-size: 16px; }
-.radar-list-compact .radar-focus-chat { min-height: 44px; padding-inline: 16px; font-size: 13.5px; }
+.radar-list-compact .radar-focus-chat { min-height: 44px; padding-inline: 20px; font-size: 15px; }
 .radar-list-compact .radar-focus-clear { width: 44px; height: 44px; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 .radar-list-compact .radar-task-attempt { min-height: 44px; align-items: center; }
