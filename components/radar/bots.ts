@@ -171,13 +171,15 @@ export function shortBotName(name: string): string {
 }
 
 /** A mascot and colour per bot, so the deck reads at a glance. Unknown keys get a stable hue from their name. */
-export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq";
+export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq" | "lab";
 const KNOWN_STYLE: Record<string, { emoji: string; hue: number; mascot: BotMascot }> = {
   personal: { emoji: "🧭", hue: 212, mascot: "personal" },
   home: { emoji: "🏠", hue: 146, mascot: "home" },
   bricks: { emoji: "🧱", hue: 24, mascot: "bricks" },
   work: { emoji: "💼", hue: 268, mascot: "work" },
   erbareeq: { emoji: "⚡", hue: 44, mascot: "erbareeq" },
+  // Lab keeps the pink its letter fallback wore before it had a face (Salem's sidebar, 2026-10-29).
+  lab: { emoji: "🧪", hue: 335, mascot: "lab" },
 };
 export interface BotStyle { emoji: string; hue: number; mascot: BotMascot | null }
 export function botStyle(key: string, name: string): BotStyle {

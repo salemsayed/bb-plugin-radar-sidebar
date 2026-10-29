@@ -98,14 +98,38 @@ export function isSameLocalDay(a: number, b: number): boolean {
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
 
+/** The one state a bot wears on its card: its most urgent open work, else quiet. */
+export type BotMood = "needs" | "overdue" | "offline" | "working" | "checking" | "queued" | "ready" | "waiting" | "quiet";
+/** Card tones group moods: amber asks, red trouble, the bot's own colour for motion, nothing for the rest. */
+export const MOOD_TONE: Record<BotMood, "ask" | "trouble" | "busy" | "idle" | "quiet"> = {
+  needs: "ask", overdue: "trouble", offline: "trouble", working: "busy", checking: "busy", queued: "idle", ready: "idle", waiting: "idle", quiet: "quiet",
+};
+const MOOD_ORDER: readonly Exclude<BotMood, "quiet">[] = ["needs", "overdue", "offline", "working", "checking", "queued", "ready", "waiting"];
+
+/** Most urgent open state first, in the summary's own order; work without a task counts as working. */
+export function botMood(tasks: readonly BotTaskRow[], withoutTask = 0): BotMood {
+  const has = (state: DisplayState) => tasks.some(task => task.displayState === state);
+  for (const mood of MOOD_ORDER) {
+    if (has(mood) || (mood === "working" && (has("retrying") || withoutTask > 0))) return mood;
+  }
+  return "quiet";
+}
+
 export interface BotLayout {
   bot: BotTasksBot;
+  mood: BotMood;
   needs: BotTaskRow[];
   active: BotTaskRow[];
   waitingShown: BotTaskRow[];
   waitingFolded: BotTaskRow[];
-  /** Finished, stopped or cancelled today (local), newest first. Older closed work is not listed. */
+  /** Finished, stopped or cancelled today (local), newest first. */
   closedToday: BotTaskRow[];
+  /**
+   * Closed before today, newest first: the rest of the week the core sends, so
+   * nothing finished vanishes from under its bot (Salem, thr_g9gsfjxfyx). A
+   * closed row the core dated nowhere lands here too rather than nowhere.
+   */
+  closedEarlier: BotTaskRow[];
   /** Nothing needs Salem, nothing is moving and nothing waits. */
   quiet: boolean;
   /** Most urgent first; the header drops whole trailing parts when it runs out of room. */
@@ -117,19 +141,21 @@ export function layoutBot(bot: BotTasksBot, now: number): BotLayout {
   const needs = bot.tasks.filter(task => task.displayState === "needs");
   const active = ACTIVE_ORDER.flatMap(state => bot.tasks.filter(task => task.displayState === state));
   const waiting = bot.tasks.filter(task => task.displayState === "waiting");
-  const closedToday = bot.tasks
-    .filter(task => isClosed(task.displayState) && task.completedAt !== undefined && isSameLocalDay(task.completedAt, now))
-    .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+  const closed = bot.tasks.filter(task => isClosed(task.displayState)).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+  const closedToday = closed.filter(task => task.completedAt !== undefined && isSameLocalDay(task.completedAt, now));
+  const closedEarlier = closed.filter(task => !closedToday.includes(task));
   // Workers the bot runs without a task (a job relayed from another thread) count too (Salem, 2026-10-29).
   const quiet = needs.length + active.length + waiting.length + bot.unlinked.length === 0;
   const summaryParts = summaryLine(bot.tasks, closedToday.length, bot.unlinked.length);
   return {
     bot,
+    mood: botMood(bot.tasks, bot.unlinked.length),
     needs,
     active,
     waitingShown: waiting.slice(0, WAITING_SHOWN),
     waitingFolded: waiting.slice(WAITING_SHOWN),
     closedToday,
+    closedEarlier,
     quiet,
     summaryParts,
     summary: summaryParts.join(" · "),
@@ -226,4 +252,86 @@ export function localizeDoneLine(task: Pick<BotTaskRow, "line" | "completedAt">,
   if (task.completedAt === undefined || !SERVER_DONE_DATE.test(task.line)) return task.line;
   const day = isSameLocalDay(task.completedAt, now) ? "today" : doneDateFormatter.format(new Date(task.completedAt));
   return task.line.replace(SERVER_DONE_DATE, `Done ${day}`);
+}
+
+/**
+ * The core's `task_detail`: a task's workers (its attempts), each with the
+ * model and effort it ran on and its thread's live state. Checks and the wait
+ * are not read here. An older core without the method is handled by the hook.
+ */
+export const taskDetailSchema = z.object({
+  taskId: z.string(),
+  outcome: z.string().default(""),
+  workers: z.array(z.object({
+    threadId: z.string(),
+    title: z.string().default(""),
+    model: z.string().nullable().default(null),
+    effort: z.string().nullable().default(null),
+    state: z.string().default("unknown"),
+  })).default([]),
+  history: z.array(z.object({ threadId: z.string(), until: z.number() })).default([]),
+  conversation: z.object({ threadId: z.string(), since: z.number() }).nullable().default(null),
+});
+export type TaskDetail = z.infer<typeof taskDetailSchema>;
+
+/** What `threads.list` says about a worker's thread, when it answers: its times and whether it still runs. */
+export interface AttemptThread { id: string; title?: string | null; status?: string; createdAt?: number; updatedAt?: number }
+
+export interface Attempt {
+  threadId: string;
+  title: string;
+  /** "codex/gpt-6.1-sol" when the core read what the worker ran on, else null. */
+  model: string | null;
+  effort: string | null;
+  /** The thread's status (running, idle, …) from the list, else the core's word, else "unknown". */
+  state: string;
+  startedAt: number | null;
+  /** The thread's last activity: when an attempt that no longer runs ended. */
+  endedAt: number | null;
+  /** The attempt a tap on the task row opens: the task's conversation. */
+  latest: boolean;
+}
+
+/**
+ * A task's attempts, newest first. The core lists workers in its own order
+ * (the executor, then every worker ever started); the threads' creation times
+ * put them in order, and without those the latest attempt leads. A task whose
+ * detail lists no worker still has its conversation as its one known attempt.
+ * The core sends no per-attempt result line: the thread's state stands in.
+ */
+export function taskAttempts(task: Pick<BotTaskRow, "conversationThreadId">, detail: TaskDetail | null, threads: readonly AttemptThread[] = []): Attempt[] {
+  const byId = new Map(threads.map(thread => [thread.id, thread]));
+  const latest = task.conversationThreadId;
+  const rows = (detail?.workers ?? []).map((worker, index) => {
+    const thread = byId.get(worker.threadId);
+    const running = (thread?.status ?? worker.state) === "running";
+    return { index, attempt: {
+      threadId: worker.threadId,
+      title: worker.title || thread?.title || "Worker",
+      model: worker.model,
+      effort: worker.effort,
+      state: thread?.status ?? worker.state,
+      startedAt: thread?.createdAt ?? null,
+      endedAt: running ? null : thread?.updatedAt ?? null,
+      latest: worker.threadId === latest,
+    } satisfies Attempt };
+  });
+  if (rows.length === 0 && latest) {
+    const thread = byId.get(latest);
+    const running = thread?.status === "running";
+    rows.push({ index: 0, attempt: { threadId: latest, title: thread?.title || "Worker", model: null, effort: null, state: thread?.status ?? "unknown",
+      startedAt: thread?.createdAt ?? null, endedAt: running ? null : thread?.updatedAt ?? null, latest: true } });
+  }
+  return rows.sort((a, b) => {
+    if (a.attempt.startedAt !== null && b.attempt.startedAt !== null) return b.attempt.startedAt - a.attempt.startedAt;
+    if (a.attempt.latest !== b.attempt.latest) return a.attempt.latest ? -1 : 1;
+    return b.index - a.index;
+  }).map(row => row.attempt);
+}
+
+/** "codex/gpt-6.1-sol" reads as "gpt-6.1-sol": the provider is noise in a 12px line. */
+export function shortModel(model: string | null): string {
+  if (!model) return "";
+  const slash = model.lastIndexOf("/");
+  return slash >= 0 ? model.slice(slash + 1) : model;
 }

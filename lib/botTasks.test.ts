@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { botTasksSchema, isSameLocalDay, layoutBot, localizeDoneLine, needRows, orderedBots } from "./botTasks";
+import { botTasksSchema, isSameLocalDay, layoutBot, localizeDoneLine, needRows, orderedBots, shortModel, taskAttempts, taskDetailSchema } from "./botTasks";
 import { DAY, HOUR, NOW } from "@/components/radar/fixtures";
-import { BOT_SEEDS, makeBot, makeOutput, makeTask, normalDay } from "@/components/radar/botTasksFixtures";
+import { BOT_SEEDS, attemptThreads, makeBot, makeOutput, makeTask, normalDay, taskDetails } from "@/components/radar/botTasksFixtures";
 
 describe("bot_tasks parsing", () => {
   it("accepts the contract shape", () => {
@@ -110,5 +110,49 @@ describe("live qualification on Lab (thr_g9gsfjxfyx, 2026-10-29)", () => {
     const yesterday = { ...task, line: "Done 2026-09-19", completedAt: local.getTime() - DAY };
     expect(localizeDoneLine(yesterday, NOW)).toMatch(/^Done (20 Sept|Sep 20|20 Sep)$/);
     expect(localizeDoneLine({ ...task, line: "Checks passed" }, NOW)).toBe("Checks passed");
+  });
+});
+
+describe("a week of closed work and a task's attempts (Salem, thr_g9gsfjxfyx: nothing vanishes)", () => {
+  it("files closed rows before today, or undated, under earlier this week, newest first", () => {
+    const bot = makeBot(BOT_SEEDS[0]!, [
+      makeTask("erbareeq", "Today", "done", { completedAt: NOW - HOUR }),
+      makeTask("erbareeq", "Yesterday", "done", { completedAt: NOW - DAY }),
+      makeTask("erbareeq", "Last week", "stopped", { completedAt: NOW - 6 * DAY }),
+      makeTask("erbareeq", "Undated", "cancelled"),
+      makeTask("erbareeq", "Open", "working"),
+    ]);
+    const layout = layoutBot(botTasksSchema.parse(makeOutput([bot])).bots[0]!, NOW);
+    expect(layout.closedToday.map(task => task.title)).toEqual(["Today"]);
+    expect(layout.closedEarlier.map(task => task.title)).toEqual(["Yesterday", "Last week", "Undated"]);
+    expect(layout.active.map(task => task.title)).toEqual(["Open"]);
+    expect(layout.quiet).toBe(false);
+  });
+
+  it("parses task_detail with defaults for a lighter core and strips what it does not read", () => {
+    const parsed = taskDetailSchema.parse({ taskId: "t", outcome: "x", checks: [{ criterion: "c", status: "pass" }], wait: null, workers: [{ threadId: "w" }], history: [], conversation: null });
+    expect(parsed).toEqual({ taskId: "t", outcome: "x", workers: [{ threadId: "w", title: "", model: null, effort: null, state: "unknown" }], history: [], conversation: null });
+  });
+
+  it("orders attempts by their threads' start, newest first, and by the latest then the core's reverse order without times", () => {
+    const detail = taskDetailSchema.parse(taskDetails().t_replit);
+    const timed = taskAttempts({ conversationThreadId: "thr_task_t_replit" }, detail, attemptThreads());
+    expect(timed.map(attempt => [attempt.threadId, attempt.state, attempt.latest])).toEqual([
+      ["thr_task_t_replit", "running", true], ["thr_replit_a2", "idle", false], ["thr_replit_a1", "idle", false],
+    ]);
+    expect(timed[0]).toMatchObject({ model: "codex/gpt-6.1-sol", effort: "xhigh", startedAt: NOW - HOUR, endedAt: null });
+    expect(timed[1]).toMatchObject({ startedAt: NOW - 3 * HOUR - 30 * 60_000, endedAt: NOW - 2 * HOUR });
+    const untimed = taskAttempts({ conversationThreadId: "thr_replit_a1" }, detail);
+    expect(untimed.map(attempt => attempt.threadId)).toEqual(["thr_replit_a1", "thr_replit_a2", "thr_task_t_replit"]);
+    expect(untimed[0]).toMatchObject({ startedAt: null, endedAt: null, state: "idle", latest: true });
+  });
+
+  it("falls back to the task's conversation as its one attempt when the detail lists no worker or is unavailable", () => {
+    const own = taskAttempts({ conversationThreadId: "thr_task_t_orange" }, taskDetailSchema.parse(taskDetails().t_orange), attemptThreads());
+    expect(own).toEqual([{ threadId: "thr_task_t_orange", title: "Unused company lines (Orange)", model: null, effort: null, state: "idle", startedAt: NOW - 5 * HOUR, endedAt: NOW - 2 * HOUR, latest: true }]);
+    expect(taskAttempts({ conversationThreadId: "thr_x" }, null)).toEqual([{ threadId: "thr_x", title: "Worker", model: null, effort: null, state: "unknown", startedAt: null, endedAt: null, latest: true }]);
+    expect(taskAttempts({ conversationThreadId: null }, null)).toEqual([]);
+    expect(shortModel("codex/gpt-6.1-sol")).toBe("gpt-6.1-sol");
+    expect(shortModel(null)).toBe("");
   });
 });

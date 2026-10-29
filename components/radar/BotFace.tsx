@@ -13,6 +13,8 @@ const BODY: Record<BotMascot, ReactNode> = {
     </g>
   ),
   erbareeq: <path d="M22 6C29 15 34 22 34 29.5A12 12 0 1 1 10 29.5C10 22 15 15 22 6Z" />,
+  // A flask: a narrow neck over a wide body, so the face sits in the bowl.
+  lab: <path d="M16.5 5.5h11a1.5 1.5 0 0 1 0 3H27v6.2l9.6 17.8A3.5 3.5 0 0 1 33.5 37.5h-23a3.5 3.5 0 0 1-3.1-5.1L17 14.7V8.5h-.5a1.5 1.5 0 0 1 0-3Z" />,
 };
 
 /** A white mark on the body, a third identity cue behind shape and colour. Kept clear of the face. */
@@ -23,6 +25,8 @@ const MARK: Record<BotMascot, ReactNode> = {
   bricks: null,
   work: null,
   erbareeq: <path d="M23.2 8.6L19.2 14.6h2.7l-.8 4.6 4.6-6.6h-2.7z" fill="#fff" />,
+  // Two bubbles low in the bowl, below the mouth.
+  lab: <g fill="#fff"><circle cx="15.5" cy="33" r="1.7" /><circle cx="29" cy="34.2" r="1.3" /></g>,
 };
 
 const INK = "#12141a";

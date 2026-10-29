@@ -1,8 +1,10 @@
 // Visual harness: Radar's real thread-list slot, rendered through the SDK's
 // test runtime with bot_tasks fixtures, inside a bb-like shell.
 // Query: ?size=desktop|tablet|phone&fixture=normal|peak|ten|rtl|missing|loading&mode=bots|threads&theme=light|dark&active=<threadId>
+//        &sidebar=<px> (desktop/tablet sidebar width) &dir=rtl &detail=missing (a core without task_detail)
+//        &open=<bot>:<week|done|waiting>,… (folds to open) &info=<taskId> (a task's details to open)
 import { NOW, makeThread } from "@/components/radar/fixtures";
-import { normalDay, peakDay, rtlAndEmpty, tenDecisions } from "@/components/radar/botTasksFixtures";
+import { attemptThreads, normalDay, peakDay, rtlAndEmpty, taskDetails, tenDecisions } from "@/components/radar/botTasksFixtures";
 import { LIST_MODE_KEY } from "@/components/radar/ListModeSwitch";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
 
@@ -14,7 +16,9 @@ const theme = params.get("theme") ?? "light";
 const active = params.get("active");
 document.documentElement.dataset.theme = theme;
 document.body.dataset.size = size;
+if (params.get("dir") === "rtl") document.documentElement.dir = "rtl";
 if (size === "tablet") document.documentElement.style.setProperty("--sidebar", "280px");
+if (params.get("sidebar")) document.documentElement.style.setProperty("--sidebar", `${params.get("sidebar")}px`);
 
 // Fixtures are dated around NOW; the page's clock starts there and runs on.
 const RealDate = Date;
@@ -54,19 +58,26 @@ const projects = ["proj_erbareeq", "proj_bricks", "proj_home", "proj_misc"].map(
 
 const sdk: Record<string, unknown> = {
   threads: {
-    list: async () => [], defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
+    // Worker threads behind the attempts list answer by id; everything else lists nothing.
+    list: async (query?: { threadIds?: readonly string[] }) => query?.threadIds ? attemptThreads().filter(thread => query.threadIds!.includes(thread.id)) : [],
+    defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
     markRead: async () => ({ ok: true }), output: async () => ({ output: null }), timeline: async () => ({ segments: [] }),
   },
   providers: { models: async () => ({ models: [] }) },
   system: { uiPreferences: { list: async () => ({ preferences: {} }), set: async () => ({ revision: 1, value: [] }) } },
   plugins: {
-    callRpc: async ({ method }: { method: string }) => {
+    callRpc: async ({ method, input }: { method: string; input?: unknown }) => {
       if (method === "bot_roster") return { bots: roster };
       if (method === "bot_tasks") {
         const source = tasks[fixture] ?? normalDay;
         if (source === "missing") throw new Error('HTTP 404: plugin "orchestrator-mode" has no rpc method "bot_tasks"');
         if (source === "loading") return new Promise(() => {});
         return source();
+      }
+      if (method === "task_detail" && params.get("detail") !== "missing") {
+        const found = taskDetails()[(input as { taskId: string }).taskId];
+        if (!found) throw new Error("Task not found");
+        return found;
       }
       throw new Error(`plugin "orchestrator-mode" has no rpc method "${method}"`);
     },
@@ -92,5 +103,23 @@ setInterval(() => {
   const node = document.getElementById("opened")!;
   node.textContent = last ? `Opened ${last.threadId} (${calls.length} open${calls.length === 1 ? "" : "s"})` : "Nothing opened yet.";
   node.dataset.opened = last?.threadId ?? "";
+}, 100);
+// Folds and a task's details the screenshot wants open: pressed once each, as a reader would.
+const wantedFolds = (params.get("open") ?? "").split(",").filter(Boolean);
+const wantedInfo = params.get("info");
+const opener = setInterval(() => {
+  let pending = false;
+  for (const want of wantedFolds) {
+    const [bot, kind] = want.split(":");
+    const fold = document.querySelector<HTMLButtonElement>(`.radar-tasks-bot[data-bot="${bot}"] [data-fold="${kind}"]`);
+    if (!fold) { pending = true; continue; }
+    if (fold.getAttribute("aria-expanded") === "false") fold.click();
+  }
+  if (wantedInfo) {
+    const toggle = document.querySelector<HTMLButtonElement>(`[data-info-task="${wantedInfo}"]`);
+    if (!toggle) pending = true;
+    else if (toggle.getAttribute("aria-expanded") === "false") toggle.click();
+  }
+  if (!pending) clearInterval(opener);
 }, 100);
 (window as unknown as { harnessReady: boolean }).harnessReady = true;

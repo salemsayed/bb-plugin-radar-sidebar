@@ -1,5 +1,5 @@
 import type { BotTasks, BotTasksOutput, DisplayState, TaskRow } from "@/lib/tasks-v2-types";
-import { HOUR, MINUTE, NOW } from "./fixtures";
+import { DAY, HOUR, MINUTE, NOW } from "./fixtures";
 
 /**
  * bot_tasks responses for the Bots view's tests and the visual harness, shaped
@@ -60,7 +60,7 @@ const seed = (key: string) => BOT_SEEDS.find(bot => bot.key === key)!;
 export function normalDay(): BotTasksOutput {
   const bots = [
     makeBot(seed("erbareeq"), [
-      makeTask("erbareeq", "Merchant feedback surveys, part 1", "needs", { id: "t_surveys", line: "Built, Fable-reviewed, 151 tests pass. Flag stays off.", ageMs: 4 * HOUR, tags: ["dev"], needs: ask("surveys", "Merge and deploy dark, flag off?", "thr_worker_surveys") }),
+      makeTask("erbareeq", "Merchant feedback surveys, part 1", "needs", { id: "t_surveys", line: "Built, Fable-reviewed, 151 tests pass. Flag stays off.", ageMs: 4 * HOUR, tags: ["dev"], conversationThreadId: "thr_worker_surveys", needs: ask("surveys", "Merge and deploy dark, flag off?", "thr_worker_surveys") }),
       makeTask("erbareeq", "Voice notes on local models", "needs", { line: "Live as prod-5ae861f2a; no real voice note yet.", needs: ask("voice", "Send one voice note in each app so I can confirm?") }),
       makeTask("erbareeq", "Move the backend off Replit", "working", { id: "t_replit", line: "Phase 3: Express paths out, installer syncs moved in.", tags: ["dev"] }),
       makeTask("erbareeq", "Survey stress test and video", "queued", { line: "Queued: no Opus capacity · retry 14:20", ageMs: 3 * MINUTE }),
@@ -70,6 +70,9 @@ export function normalDay(): BotTasksOutput {
       makeTask("erbareeq", "Google Maps key: new server IP", "waiting", { waitFor: "Google review" }),
       makeTask("erbareeq", "Unused company lines (Orange)", "done", { id: "t_orange", line: "62 lines matched; list with confidence levels.", completedAt: NOW - 2 * HOUR }),
       makeTask("erbareeq", "MSSQL database on our host", "done", { id: "t_mssql", line: "TLS fix committed to main as d39bbab78.", completedAt: NOW - 16 * HOUR }),
+      // Earlier this week (the core sends a week of closed tasks, up to 40 per bot): kept under the bot, folded.
+      makeTask("erbareeq", "Orange lines: September invoice check", "done", { id: "t_orange_sep", line: "Done 2026-09-19 · 14 lines disputed, letter sent.", ageMs: 3 * DAY, completedAt: NOW - 2 * DAY - 3 * HOUR }),
+      makeTask("erbareeq", "Instagram views report", "stopped", { id: "t_ig", line: "Stopped by Salem · replaced by the weekly digest", ageMs: 5 * DAY, completedAt: NOW - 4 * DAY }),
     ], { unlinked: [{ threadId: "thr_unlinked_1", title: "Fable review: deploy window" }] }),
     makeBot(seed("bricks"), [
       makeTask("bricks", "iPhone TestFlight 9.3 retest", "needs", { needs: ask("iphone", "Is the iPhone connected to the Mac?"), ageMs: 48 * HOUR }),
@@ -78,6 +81,7 @@ export function normalDay(): BotTasksOutput {
       makeTask("bricks", "PR #11: Yasser's three changes", "waiting", { waitFor: "Yasser · wakes on his comment", ageMs: 11 * HOUR }),
       makeTask("bricks", "Meta ads with the demo offer", "stopped", { line: "Stopped by Salem · 2 workers halted", completedAt: NOW - 20 * MINUTE }),
       makeTask("bricks", "fe!1024 on iPhone and Android", "done", { completedAt: NOW - 3 * HOUR }),
+      makeTask("bricks", "Warranty QR relabel for Yasser", "cancelled", { id: "t_qr", line: "Cancelled · Yasser did it by hand", ageMs: 4 * DAY, completedAt: NOW - 3 * DAY - 5 * HOUR }),
     ]),
     makeBot(seed("lab"), [
       makeTask("lab", "Bots as the only way to run bb", "working", { id: "t_botsonly", line: "Building tasks v2 behind flags." }),
@@ -87,6 +91,8 @@ export function normalDay(): BotTasksOutput {
       makeTask("home", "Multi-WAN bonding (EdgeRouter)", "offline", { line: "salem-pc is off · seen 6 min ago", ageMs: 3 * HOUR }),
       makeTask("home", "Kitchen TV colour fault: root cause", "overdue", { line: "Wake was due 09:00 · overdue 2h", ageMs: 24 * HOUR }),
       makeTask("home", "Kitchen TV: Clean Your TV launcher", "working", { line: "Worker installing; then checked on TV and camera." }),
+      // A wait on the bot itself, in the core's own line shape: the row shows the reason, not "Waiting for the bot".
+      makeTask("home", "Kitchen TV standby", "waiting", { id: "t_standby", waitFor: "the bot", line: "Waiting for the bot: natural standby wakes with Wake on Wi-Fi off · wakes 09:00", ageMs: 2 * HOUR }),
     ]),
     makeBot(seed("personal"), []),
     makeBot(seed("work"), [makeTask("work", "Expense report for October", "done", { completedAt: NOW - 30 * HOUR })]),
@@ -141,4 +147,59 @@ export function rtlAndEmpty(): BotTasksOutput {
     makeBot(seed("personal"), []),
   ];
   return makeOutput(bots);
+}
+
+/** The core's `task_detail` answer, shaped as its runtime schema sends it. */
+export interface TaskDetailFixture {
+  taskId: string; outcome: string; checks: { criterion: string; status: "pending" | "pass" | "fail" }[]; wait: null;
+  workers: { threadId: string; title: string; model: string | null; effort: string | null; state: string }[];
+  history: { threadId: string; until: number }[]; conversation: { threadId: string; since: number } | null;
+}
+/** A worker thread as `threads.list` returns it, reduced to what the attempts list reads. */
+export interface AttemptThreadFixture { id: string; projectId: string; parentThreadId: string; title: string; status: string; createdAt: number; updatedAt: number }
+
+const worker = (threadId: string, title: string, model: string | null, effort: string | null, state: string) => ({ threadId, title, model, effort, state });
+const detail = (taskId: string, outcome: string, workers: TaskDetailFixture["workers"], conversation: string | null): TaskDetailFixture => ({
+  taskId, outcome, checks: [], wait: null, workers, history: [], conversation: conversation ? { threadId: conversation, since: NOW - HOUR } : null,
+});
+
+/**
+ * Attempts behind the normal day's tasks: the Replit move took three workers
+ * (a Sol build, an Opus retry after an outage, the Sol phase now running); the
+ * surveys task a build then a Fable review; the Orange lines task was the bot's
+ * own step with no worker at all.
+ */
+export function taskDetails(): Record<string, TaskDetailFixture> {
+  return {
+    t_replit: detail("t_replit", "Move the backend off Replit", [
+      worker("thr_task_t_replit", "Replit move: phase 3, installer syncs", "codex/gpt-6.1-sol", "xhigh", "running"),
+      worker("thr_replit_a1", "Replit move: phase 1, Express paths", "codex/gpt-6.1-sol", "high", "idle"),
+      worker("thr_replit_a2", "Replit move: phase 2 (retry after outage)", "claude/claude-opus-5-5", "medium", "idle"),
+    ], "thr_task_t_replit"),
+    t_surveys: detail("t_surveys", "Merchant feedback surveys, part 1", [
+      worker("thr_worker_surveys", "Fable review: surveys part 1", "claude/claude-fable-5-1", "high", "idle"),
+      worker("thr_surveys_a1", "Build: merchant feedback surveys", "codex/gpt-6.1-sol", "high", "idle"),
+    ], "thr_worker_surveys"),
+    t_botsonly: detail("t_botsonly", "Bots as the only way to run bb", [
+      worker("thr_task_t_botsonly", "Tasks v2 behind flags", "codex/gpt-6.1-sol", "high", "running"),
+      worker("thr_botsonly_a1", "Tasks v2 plan review", "claude/claude-fable-5-1", null, "idle"),
+    ], "thr_task_t_botsonly"),
+    t_orange: detail("t_orange", "Unused company lines (Orange)", [], "thr_task_t_orange"),
+  };
+}
+
+/** The worker threads behind `taskDetails`, with the times the attempts list shows. */
+export function attemptThreads(): AttemptThreadFixture[] {
+  const thread = (id: string, title: string, status: string, createdAt: number, updatedAt: number, projectId = "proj_erbareeq", parent = "thr_coord_erbareeq"): AttemptThreadFixture =>
+    ({ id, projectId, parentThreadId: parent, title, status, createdAt, updatedAt });
+  return [
+    thread("thr_replit_a1", "Replit move: phase 1, Express paths", "idle", NOW - 6 * HOUR, NOW - 4 * HOUR),
+    thread("thr_replit_a2", "Replit move: phase 2 (retry after outage)", "idle", NOW - 3 * HOUR - 30 * MINUTE, NOW - 2 * HOUR),
+    thread("thr_task_t_replit", "Replit move: phase 3, installer syncs", "running", NOW - HOUR, NOW - 2 * MINUTE),
+    thread("thr_surveys_a1", "Build: merchant feedback surveys", "idle", NOW - 4 * HOUR, NOW - 2 * HOUR - 30 * MINUTE),
+    thread("thr_worker_surveys", "Fable review: surveys part 1", "idle", NOW - 2 * HOUR, NOW - 30 * MINUTE),
+    thread("thr_botsonly_a1", "Tasks v2 plan review", "idle", NOW - DAY - 2 * HOUR, NOW - DAY, "proj_lab", "thr_coord_lab"),
+    thread("thr_task_t_botsonly", "Tasks v2 behind flags", "running", NOW - HOUR, NOW - MINUTE, "proj_lab", "thr_coord_lab"),
+    thread("thr_task_t_orange", "Unused company lines (Orange)", "idle", NOW - 5 * HOUR, NOW - 2 * HOUR),
+  ];
 }
