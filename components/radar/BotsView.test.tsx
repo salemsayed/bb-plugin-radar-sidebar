@@ -148,7 +148,7 @@ describe("Bots view: a normal day", () => {
     expect(questions).toEqual(["Merge and deploy dark, flag off?", "Send one voice note in each app so I can confirm?", "Is the iPhone connected to the Mac?", "Open the MR for Yasser?"]);
     const sections = Array.from(slot.container.querySelectorAll(".radar-tasks-bot")).map(node => node.getAttribute("aria-label"));
     expect(sections).toEqual(["ERBareeq Bot", "Bricks Bot", "Lab Bot", "Home Bot", "Personal Bot", "Work Bot"]);
-    expect(screen.getByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 1 working · 1 queued · 4 waiting$/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting$/ })).toBeTruthy();
     // A decision opens the exact thread holding the interaction (a worker here), and closes the phone drawer.
     fireEvent.click(within(needs).getByText("Merge and deploy dark, flag off?"));
     expect(opened(slot)).toEqual(["thr_worker_surveys"]);
@@ -166,7 +166,7 @@ describe("Bots view: a normal day", () => {
     const { slot } = renderList(normalDay());
     const erbareeq = await screen.findByRole("region", { name: "ERBareeq Bot" });
     expect(taskTitles(erbareeq)).toEqual([
-      "Merchant feedback surveys, part 1", "Voice notes on local models", "Move the backend off Replit", "Survey stress test and video",
+      "Merchant feedback surveys, part 1", "Voice notes on local models", "Move the backend off Replit", "Survey stress test and video", "Fable review: deploy window",
       "مراجعة تسويات مرتجعات بريكس", "Chat · Islam · login code", "Social posts in our style, all pages",
     ]);
     fireEvent.click(within(erbareeq).getByRole("button", { name: /1 more waiting/ }));
@@ -201,12 +201,11 @@ describe("Bots view: a normal day", () => {
     expect(screen.getByRole("button", { name: "Open Work Bot: quiet" })).toBeTruthy();
   });
 
-  it("shows the dev chip, Unlinked work and Not filed", async () => {
+  it("shows the dev chip, a bot's work without a task in its own group, and Not filed", async () => {
     const { slot } = renderList(normalDay());
     const row = await screen.findByRole("button", { name: /^Move the backend off Replit/ });
     expect(within(row).getByText("dev")).toBeTruthy();
-    const unlinked = screen.getByRole("region", { name: "Unlinked work" });
-    fireEvent.click(within(unlinked).getByText("Fable review: deploy window"));
+    fireEvent.click(within(screen.getByRole("region", { name: "ERBareeq Bot" })).getByRole("button", { name: "Fable review: deploy window, running, no task" }));
     const notFiled = screen.getByRole("region", { name: "Not filed" });
     fireEvent.click(within(notFiled).getByRole("button", { name: /Not filed/ }));
     expect(within(notFiled).getByText("Likely Lab")).toBeTruthy();
@@ -312,9 +311,9 @@ describe("Bots view without bot_tasks", () => {
 describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
   it("renders the bot summary as whole parts and keeps the full line for screen readers", async () => {
     renderList(normalDay());
-    const header = await screen.findByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 1 working · 1 queued · 4 waiting$/ });
+    const header = await screen.findByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting$/ });
     const parts = Array.from(header.querySelectorAll(".radar-tasks-bot-summary-part")).map(node => node.textContent);
-    expect(parts).toEqual(["2 for you", "· 1 working", "· 1 queued", "· 4 waiting"]);
+    expect(parts).toEqual(["2 for you", "· 2 working", "· 1 queued", "· 4 waiting"]);
     const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
     expect(css).toMatch(/\.radar-tasks-bot-summary \{[^}]*flex-wrap: wrap;[^}]*overflow: hidden;/);
     expect(css).toMatch(/\.radar-tasks-bot-summary-part \{ white-space: nowrap; \}/);

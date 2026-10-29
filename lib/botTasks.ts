@@ -120,8 +120,9 @@ export function layoutBot(bot: BotTasksBot, now: number): BotLayout {
   const closedToday = bot.tasks
     .filter(task => isClosed(task.displayState) && task.completedAt !== undefined && isSameLocalDay(task.completedAt, now))
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
-  const quiet = needs.length + active.length + waiting.length === 0;
-  const summaryParts = summaryLine(bot.tasks, closedToday.length);
+  // Workers the bot runs without a task (a job relayed from another thread) count too (Salem, 2026-10-29).
+  const quiet = needs.length + active.length + waiting.length + bot.unlinked.length === 0;
+  const summaryParts = summaryLine(bot.tasks, closedToday.length, bot.unlinked.length);
   return {
     bot,
     needs,
@@ -135,14 +136,14 @@ export function layoutBot(bot: BotTasksBot, now: number): BotLayout {
   };
 }
 
-function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string[] {
+function summaryLine(tasks: readonly BotTaskRow[], doneToday: number, withoutTask = 0): string[] {
   const n = (states: readonly DisplayState[]) => tasks.filter(task => states.includes(task.displayState)).length;
   const parts: string[] = [];
   const add = (value: number, label: string) => { if (value > 0) parts.push(`${value} ${label}`); };
   add(n(["needs"]), "for you");
   add(n(["overdue"]), "overdue");
   add(n(["offline"]), "offline");
-  add(n(["working", "retrying"]), "working");
+  add(n(["working", "retrying"]) + withoutTask, "working");
   // A result waiting for the bot's check is not work in progress (Salem's status pass, 2026-10-29).
   add(n(["checking"]), "to check");
   add(n(["queued"]), "queued");

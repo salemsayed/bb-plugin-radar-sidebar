@@ -126,7 +126,6 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
   const bots = useMemo(() => orderedBots(data), [data]);
   const layouts = useMemo(() => bots.map(bot => layoutBot(bot, now)), [bots, now]);
   const needs = useMemo(() => needRows(data), [data]);
-  const unlinked = useMemo(() => bots.flatMap(bot => bot.unlinked.map(item => ({ ...item, bot }))), [bots]);
   const botByKey = useMemo(() => new Map(bots.map(bot => [bot.key, bot])), [bots]);
 
   const [folds, setFolds] = useState<Record<string, boolean>>(readFolds);
@@ -245,6 +244,20 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
           <ul className="radar-task-list">
             {layout.needs.map(task => taskRow(bot, task))}
             {layout.active.map(task => taskRow(bot, task))}
+            {bot.unlinked.map(item => (
+              <li key={item.threadId}>
+                <button type="button" className="radar-task-row radar-task-working radar-task-unlinked"
+                  aria-current={item.threadId === activeThreadId ? "page" : undefined}
+                  aria-label={`${item.title || "Untitled worker"}, running, no task`}
+                  onClick={() => open(item.threadId)}>
+                  <StateGlyph state="working" />
+                  <span className="radar-task-body">
+                    <bdi dir="auto" className="radar-task-title">{item.title || "Untitled worker"}</bdi>
+                    <span className="radar-task-line">Running · no task</span>
+                  </span>
+                </button>
+              </li>
+            ))}
             {layout.waitingShown.map(task => taskRow(bot, task))}
             {layout.waitingFolded.length > 0
               ? foldRow(`${bot.key}:waiting`, waitingOpen ? "Fewer waiting" : `${layout.waitingFolded.length} more waiting`, waitingOpen, () => toggleExpanded(`${bot.key}:waiting`))
@@ -284,7 +297,6 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
   };
 
   const notFiledOpen = isOpen("@not-filed", false);
-  const unlinkedOpen = isOpen("@unlinked", unlinked.length > 0);
   const stale = state.status === "error" || state.cached;
 
   return (
@@ -321,31 +333,7 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
       <div className="radar-tasks-section-head"><h3>Bots</h3></div>
       {layouts.length === 0 ? <p className="radar-task-empty">No bots are registered.</p> : layouts.map(botGroup)}
 
-      <section className="radar-tasks-extra" aria-label="Unlinked work">
-        <button type="button" className="radar-tasks-section-toggle" aria-expanded={unlinkedOpen}
-          onClick={() => toggle("@unlinked", unlinked.length > 0)}>
-          <span aria-hidden="true">{unlinkedOpen ? "▾" : "▸"}</span> Unlinked work <span className="radar-tasks-section-count">{unlinked.length}</span>
-        </button>
-        {unlinkedOpen ? (
-          unlinked.length === 0 ? <p className="radar-task-empty">Every running worker belongs to a task.</p> : (
-            <ul className="radar-task-list">
-              {unlinked.map(item => (
-                <li key={item.threadId}>
-                  <button type="button" className="radar-task-row radar-task-unlinked"
-                    aria-current={item.threadId === activeThreadId ? "page" : undefined}
-                    onClick={() => open(item.threadId)}>
-                    <BotTaskFace bot={item.bot} size={16} />
-                    <span className="radar-task-body">
-                      <bdi dir="auto" className="radar-task-title">{item.title || "Untitled thread"}</bdi>
-                      <span className="radar-task-line">{shortBotName(item.bot.name)} · no task</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )
-        ) : null}
-      </section>
+      {/* Work a bot runs without a task now shows inside its bot's group (Salem, 2026-10-29). */}
 
       <section className="radar-tasks-extra" aria-label="Not filed">
         <button type="button" className="radar-tasks-section-toggle" aria-expanded={notFiledOpen}
