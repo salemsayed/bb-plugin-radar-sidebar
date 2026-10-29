@@ -431,11 +431,11 @@ describe("Bots view: the row's second line and the quiet zero", () => {
     expect(waitingLine({ line: "Blocked until the host returns", waitFor: "the bot" })).toBe("Blocked until the host returns");
   });
 
-  it("renders the reason in the row and reads it to screen readers", async () => {
+  it("says 'no date' for a wait on the bot with no wake, and keeps the reason for its details (Salem, 2026-10-29)", async () => {
     renderList(normalDay());
-    const row = await screen.findByRole("button", { name: "Kitchen TV standby, Waiting for the bot, 2h. natural standby wakes with Wake on Wi-Fi off · wakes 09:00" });
-    expect(within(row).getByText("natural standby wakes with Wake on Wi-Fi off · wakes 09:00")).toBeTruthy();
-    expect(within(row).queryByText("Waiting for the bot")).toBeNull();
+    const row = await screen.findByRole("button", { name: /^Kitchen TV standby, Waiting for the bot, 2h/ });
+    expect(within(row).getByText("no date")).toBeTruthy();
+    expect(rowDetail(makeTask("x", "a", "waiting", { waitFor: "the bot", wakeAt: NOW + 3_600_000 }), NOW)).not.toBe("no date");
   });
 
   it("mutes the Needs you count at zero and warns above it", async () => {

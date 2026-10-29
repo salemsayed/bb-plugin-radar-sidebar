@@ -159,6 +159,9 @@ export function clearsLine(at: number, now: number): string {
 export function rowDetail(task: BotTaskRow, now: number): string {
   const label = STATE_LABEL[task.displayState];
   if (task.displayState === "waiting" && task.wakeAt !== undefined) return clearsLine(task.wakeAt, now);
+  // A wait on the bot itself with no date: said plainly, not hidden behind a nudge time (Salem, 2026-10-29: one reminder
+  // system). A wait on someone else keeps naming them; it has no date of its own.
+  if (task.displayState === "waiting" && task.waitFor === "the bot") return "no date";
   if (task.displayState === "waiting") {
     const line = waitingLine(task);
     return line === STATE_LABEL.waiting ? "" : line.replace(/^Waiting for /, "");
