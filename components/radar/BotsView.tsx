@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -208,7 +208,7 @@ export function attemptStateWord(state: string): string {
 function TaskInfo({ id, task, now, observedAt, activeThreadId, onOpen }: {
   id: string; task: BotTaskRow; now: number; observedAt: number; activeThreadId: string | null; onOpen: (threadId: string) => void;
 }) {
-  const { status, attempts } = useTaskAttempts(task);
+  const { status, attempts } = useTaskAttempts(task, observedAt);
   const label = STATE_LABEL[task.displayState] + (task.displayState === "waiting" && task.waitFor ? ` for ${task.waitFor}` : "");
   const age = rowAge(task, observedAt, now);
   const line = localizeDoneLine(task, now);
@@ -423,20 +423,20 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
     const weekOpen = expanded.has(`${bot.key}:week`);
     const done = layout.closedToday.filter(task => task.displayState === "done").length;
     const halted = layout.closedToday.length - done;
-    const doneLabel = [done > 0 ? `Done today · ${done}` : null, halted > 0 ? `${halted} stopped today` : null].filter(Boolean).join(" · ");
-    const style = botStyle(bot.key, bot.name);
+    // "today" once: "Done today · 2 · 1 stopped", or "1 stopped today" alone.
+    const doneLabel = [done > 0 ? `Done today · ${done}` : null, halted > 0 ? `${halted} stopped${done > 0 ? "" : " today"}` : null].filter(Boolean).join(" · ");
     const tone = MOOD_TONE[layout.mood];
     return (
       <section key={bot.key}
         className={cn("radar-tasks-bot", `radar-tasks-bot-${tone}`, layout.quiet && "radar-tasks-bot-quiet", !groupOpen && "radar-tasks-bot-folded")}
-        data-mood={layout.mood} data-bot={bot.key} aria-label={bot.name}
-        style={{ "--bot-color": bot.color ?? `hsl(${style.hue} 70% 50%)` } as CSSProperties}>
+        data-mood={layout.mood} data-bot={bot.key} aria-label={bot.name}>
         <div className="radar-tasks-bot-head">
           <button type="button" className="radar-tasks-bot-open"
             aria-current={activeThreadId === bot.coordinatorThreadId ? "page" : undefined}
             aria-label={`Open ${bot.name}: ${layout.summary}`}
             onClick={() => open(bot.coordinatorThreadId)}>
-            <BotHero bot={bot} mood={layout.mood} size={isCompactViewport ? 44 : 40} />
+            {/* A quiet bot has nothing to show: a smaller face keeps its card to one compact header. */}
+            <BotHero bot={bot} mood={layout.mood} size={layout.quiet ? 28 : isCompactViewport ? 44 : 40} />
             <span className="radar-tasks-bot-text">
               <span className="radar-tasks-bot-name" dir="auto">{shortBotName(bot.name)}</span>
               {/* The first part is the bot's mood and wears its tone; the rest are counts. Parts wrap onto a hidden

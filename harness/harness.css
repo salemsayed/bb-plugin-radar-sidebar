@@ -1,20 +1,37 @@
 /* Visual harness only: bb-like theme tokens and shell around Radar's real thread-list slot. */
+/* bb's default theme (app 0.48, themeId "default"): a monochrome primary, amber attention, orange warning. */
 :root {
-  --background: #ffffff; --foreground: #16181d; --card: #fbfbfc; --popover: #ffffff; --muted: #f0f1f4;
-  --muted-foreground: #646a76; --border: #e1e3e8; --primary: #2563eb; --primary-foreground: #fff;
-  --warning: #b0640f; --success: #2e9b6a; --destructive: #c03a3a; --ring: #2563eb;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --canvas: oklch(100% 0 0); --ink: oklch(32.11% 0 0);
+  --background: var(--canvas); --foreground: var(--ink); --card: var(--canvas); --popover: var(--canvas);
+  --primary: oklch(27% 0 0); --primary-foreground: oklch(100% 0 0);
+  --muted: color-mix(in oklch, var(--ink) 11%, var(--canvas)); --muted-foreground: oklch(44% 0 0);
+  --border: color-mix(in oklch, var(--ink) 14%, var(--canvas)); --ring: var(--primary);
+  --sidebar: color-mix(in oklch, var(--ink) 2.2%, var(--canvas));
+  --state-hover: color-mix(in oklab, var(--ink) 5.9%, transparent); --state-active: color-mix(in oklab, var(--ink) 11.8%, transparent);
+  --destructive: oklch(45% .19 25.8625); --destructive-text: oklch(45% .19 25.8625);
+  --attention: oklch(74% .15 80); --attention-foreground: var(--ink);
+  --warning: oklch(70% .16 50); --warning-text: oklch(55% .14 50);
+  --success: oklch(70% .15 155); --success-foreground: oklch(53% .14 155);
+  font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
 }
 :root[data-theme="dark"] {
-  --background: #15171c; --foreground: #e8eaee; --card: #1b1e24; --popover: #22252c; --muted: #262a32;
-  --muted-foreground: #9aa1ad; --border: #30343d; --primary: #6b9cff; --primary-foreground: #0b0d12;
-  --warning: #e0a03a; --success: #4cc38a; --destructive: #f06a6a; --ring: #6b9cff;
+  --canvas: oklch(19.5% 0 0); --ink: oklch(81% 0 0);
+  --primary: oklch(82% 0 0); --primary-foreground: oklch(21.78% 0 0);
+  --muted: color-mix(in oklch, var(--ink) 16%, var(--canvas)); --muted-foreground: oklch(78% 0 0);
+  --border: color-mix(in oklch, var(--ink) 19.4%, var(--canvas));
+  --sidebar: color-mix(in oklch, var(--ink) 4.3%, var(--canvas));
+  --state-hover: color-mix(in oklab, var(--ink) 13.8%, transparent); --state-active: color-mix(in oklab, var(--ink) 22.5%, transparent);
+  --destructive: oklch(56% .19 22.1703); --destructive-text: oklch(65% .16 22);
+  --attention: oklch(80% .15 80); --attention-foreground: var(--canvas);
+  --warning: oklch(75% .16 50); --warning-text: oklch(75% .16 50);
+  --success: oklch(74% .15 155); --success-foreground: var(--success);
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--background); color: var(--foreground); }
 #frame { height: 100vh; display: grid; grid-template-columns: 44px var(--sidebar, 290px) minmax(0, 1fr); }
 .h-rail { background: var(--muted); border-right: 1px solid var(--border); }
-.h-side { min-width: 0; min-height: 0; height: 100vh; border-right: 1px solid var(--border); background: var(--card); overflow: hidden; display: flex; flex-direction: column; }
+.h-side { min-width: 0; min-height: 0; height: 100vh; border-right: 1px solid var(--border); background: var(--sidebar); overflow: hidden; display: flex; flex-direction: column; }
 .h-side > div:not(.h-drawerbar) { flex: 1; min-height: 0; }
 .h-main { padding: 16px 20px; color: var(--muted-foreground); font-size: 13px; overflow: auto; }
 .h-main h1 { font-size: 15px; color: var(--foreground); margin: 0 0 8px; }

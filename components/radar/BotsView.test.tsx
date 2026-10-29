@@ -189,7 +189,7 @@ describe("Bots view: a normal day", () => {
     expect(taskTitles(erbareeq)).not.toContain("MSSQL database on our host");
     // A stopped task is never counted as done.
     const bricks = screen.getByRole("region", { name: "Bricks Bot" });
-    expect(within(bricks).getByRole("button", { name: "Done today · 1 · 1 stopped today" })).toBeTruthy();
+    expect(within(bricks).getByRole("button", { name: "Done today · 1 · 1 stopped" })).toBeTruthy();
     expect(slot.container.querySelector(".radar-task-age")).toBeTruthy();
   });
 
@@ -329,7 +329,7 @@ describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
     expect(parts).toEqual(["2 for you", "2 working", "1 queued", "4 waiting"]);
     const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
     expect(css).toMatch(/\.radar-tasks-bot-summary \{[^}]*flex-wrap: wrap;[^}]*overflow: hidden;/);
-    expect(css).toMatch(/\.radar-tasks-bot-summary-part \{ white-space: nowrap; \}/);
+    expect(css).toMatch(/\.radar-tasks-bot-summary-part \{[^}]*white-space: nowrap;/);
   });
 
   it("dates a stale copy from an earlier day", () => {
@@ -622,6 +622,37 @@ describe("Bots view: one row per thing asked for, workers as its attempts, nothi
     expect(toggle.closest(".radar-list-compact")).toBeTruthy();
     fireEvent.click(toggle);
     expect(await screen.findByRole("region", { name: "Move the backend off Replit: details" })).toBeTruthy();
+  });
+
+  it("shows a worker started while the details are open on the next bots refresh, with one task_detail per refresh (Fable, thr_kekmhnwp6p)", async () => {
+    let observedAt = NOW;
+    const { callRpc } = renderList(() => ({ ...normalDay(), observedAt }));
+    await screen.findByRole("region", { name: "ERBareeq Bot" });
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
+    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(3));
+    const detailCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "task_detail").length;
+    const botTasksCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "bot_tasks").length;
+    expect(detailCalls()).toBe(1);
+    // A new worker the list does not know yet: it has no start time, so it follows the timed ones.
+    const original = callRpc.getMockImplementation()!;
+    callRpc.mockImplementation(async (args: { method: string; input?: unknown }) => {
+      if (args.method !== "task_detail") return original(args);
+      const found = taskDetails().t_replit;
+      return { ...found, workers: [...found.workers, { threadId: "thr_replit_a3", title: "Replit move: phase 4, cutover", model: null, effort: null, state: "running" }] };
+    });
+    // Same data again: nothing new to read.
+    const before = botTasksCalls();
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await waitFor(() => expect(botTasksCalls()).toBe(before + 1));
+    await act(async () => { await Promise.resolve(); });
+    expect(detailCalls()).toBe(1);
+    observedAt = NOW + 60_000;
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(4));
+    expect(detailCalls()).toBe(2);
+    expect(attemptLabels(details)[3]).toMatch(/^Replit move: phase 4, cutover, Running/);
+    expect(attemptLabels(details)[0]).toMatch(/latest attempt$/);
   });
 
   it("names a finished row's day: time today, weekday this week, date beyond; an attempt's times read as a span", () => {

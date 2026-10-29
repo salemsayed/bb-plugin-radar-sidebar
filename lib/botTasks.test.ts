@@ -147,6 +147,22 @@ describe("a week of closed work and a task's attempts (Salem, thr_g9gsfjxfyx: no
     expect(untimed[0]).toMatchObject({ startedAt: null, endedAt: null, state: "idle", latest: true });
   });
 
+  it("orders attempts deterministically when threads.list answers only some: timed newest first, then untimed with the latest leading (Fable, thr_kekmhnwp6p)", () => {
+    const detail = taskDetailSchema.parse(taskDetails().t_replit);
+    const some = attemptThreads().filter(thread => thread.id !== "thr_replit_a2");
+    // The latest (the conversation) has no time; an older worker does.
+    const partial = taskAttempts({ conversationThreadId: "thr_replit_a2" }, detail, some);
+    expect(partial.map(attempt => [attempt.threadId, attempt.latest])).toEqual([
+      ["thr_task_t_replit", false], ["thr_replit_a1", false], ["thr_replit_a2", true],
+    ]);
+    // The same answer in any order of threads gives the same list.
+    expect(taskAttempts({ conversationThreadId: "thr_replit_a2" }, detail, [...some].reverse())).toEqual(partial);
+    const extra = taskDetailSchema.parse({ ...taskDetails().t_replit, workers: [...taskDetails().t_replit.workers, { threadId: "thr_new", title: "New" }] });
+    const mixed = taskAttempts({ conversationThreadId: "thr_task_t_replit" }, extra, attemptThreads().filter(thread => thread.id === "thr_replit_a1" || thread.id === "thr_task_t_replit"));
+    expect(mixed.map(attempt => attempt.threadId)).toEqual(["thr_task_t_replit", "thr_replit_a1", "thr_new", "thr_replit_a2"]);
+    expect(mixed.filter(attempt => attempt.latest).map(attempt => attempt.threadId)).toEqual(["thr_task_t_replit"]);
+  });
+
   it("falls back to the task's conversation as its one attempt when the detail lists no worker or is unavailable", () => {
     const own = taskAttempts({ conversationThreadId: "thr_task_t_orange" }, taskDetailSchema.parse(taskDetails().t_orange), attemptThreads());
     expect(own).toEqual([{ threadId: "thr_task_t_orange", title: "Unused company lines (Orange)", model: null, effort: null, state: "idle", startedAt: NOW - 5 * HOUR, endedAt: NOW - 2 * HOUR, latest: true }]);

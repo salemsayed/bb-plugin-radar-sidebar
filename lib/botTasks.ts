@@ -295,7 +295,7 @@ export interface Attempt {
 /**
  * A task's attempts, newest first. The core lists workers in its own order
  * (the executor, then every worker ever started); the threads' creation times
- * put them in order, and without those the latest attempt leads. A task whose
+ * put them in order, and those without a time follow, the latest leading. A task whose
  * detail lists no worker still has its conversation as its one known attempt.
  * The core sends no per-attempt result line: the thread's state stands in.
  */
@@ -322,11 +322,12 @@ export function taskAttempts(task: Pick<BotTaskRow, "conversationThreadId">, det
     rows.push({ index: 0, attempt: { threadId: latest, title: thread?.title || "Worker", model: null, effort: null, state: thread?.status ?? "unknown",
       startedAt: thread?.createdAt ?? null, endedAt: running ? null : thread?.updatedAt ?? null, latest: true } });
   }
-  return rows.sort((a, b) => {
-    if (a.attempt.startedAt !== null && b.attempt.startedAt !== null) return b.attempt.startedAt - a.attempt.startedAt;
-    if (a.attempt.latest !== b.attempt.latest) return a.attempt.latest ? -1 : 1;
-    return b.index - a.index;
-  }).map(row => row.attempt);
+  // Timed attempts first, newest first; then untimed ones, the latest leading and the rest in the
+  // core's reverse order. One key per group keeps the order total when threads.list answers only some.
+  const rank = (row: typeof rows[number]) => row.attempt.startedAt !== null ? 0 : row.attempt.latest ? 1 : 2;
+  return rows.sort((a, b) => rank(a) - rank(b)
+    || (rank(a) === 0 ? b.attempt.startedAt! - a.attempt.startedAt! : 0)
+    || b.index - a.index).map(row => row.attempt);
 }
 
 /** "codex/gpt-6.1-sol" reads as "gpt-6.1-sol": the provider is noise in a 12px line. */

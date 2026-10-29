@@ -9,26 +9,38 @@
 .radar-mode-option:hover { color: var(--foreground); }
 .radar-mode-option[aria-pressed="true"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .radar-mode-option:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
-.radar-mode-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--warning, #b0640f); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
+.radar-mode-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--attention, var(--warning, #b0640f)); color: var(--attention-foreground, #2a1a00); font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
 .radar-list-compact .radar-mode-option { min-height: 44px; font-size: 14px; }
 
-/* The view: one card per bot. Tones carry state everywhere: amber asks, red trouble, blue motion, grey rest. */
+/* The view: one card per bot. Tones carry state everywhere: amber asks, red trouble, blue motion, grey rest.
+   Fills use bb's tone; text uses its -text twin, which keeps contrast on light themes. Motion is the Threads
+   view's running blue, not --primary: bb's default primary is near-black and would read as rest. */
 .radar-tasks {
   --radar-ask: var(--warning, #b0640f);
+  --radar-ask-text: var(--warning-text, var(--radar-ask));
+  --radar-ask-ink: var(--attention-foreground, #2a1a00);
+  /* Solid amber for small text on ask fills: ink on --warning is 4.48:1 in light; bb pairs --attention with its foreground. */
+  --radar-ask-chip: var(--attention, var(--radar-ask));
   --radar-trouble: var(--destructive, #c03a3a);
-  --radar-busy: var(--primary, #2563eb);
+  --radar-trouble-text: var(--destructive-text, var(--radar-trouble));
+  --radar-busy: color-mix(in oklab, oklch(62% 0.17 250) 72%, var(--foreground));
   --radar-done: var(--success, #2e9b6a);
+  --radar-done-text: var(--success-foreground, var(--radar-done));
   --radar-rest: var(--muted-foreground);
   --radar-card: var(--card, var(--background));
+  --radar-hover: var(--state-hover, color-mix(in srgb, var(--foreground) 6%, transparent));
   --radar-gutter: 10px;
+  /* The end column: a row's age and details toggle. A row without one keeps the same text edge. */
+  --radar-end: 38px;
   min-width: 0; padding: 0 6px 10px;
 }
-.radar-tasks button { font: inherit; color: inherit; }
+/* Zero specificity, so a control's own muted colour (folds, counts, the details toggle) wins. */
+:where(.radar-tasks button) { font: inherit; color: inherit; }
 .radar-tasks ul { list-style: none; margin: 0; padding: 0; }
 .radar-tasks-stale { margin: 2px 4px 4px; color: var(--muted-foreground); font-size: 11px; }
 .radar-tasks-section-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 10px 4px 4px; }
 .radar-tasks-section-head h3 { margin: 0; color: var(--muted-foreground); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
-.radar-tasks-count, .radar-tasks-count-static { margin-inline-start: auto; color: var(--radar-ask); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.radar-tasks-count, .radar-tasks-count-static { margin-inline-start: auto; color: var(--radar-ask-text); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .radar-tasks-count { min-height: 24px; padding: 2px 8px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
 .radar-tasks-count:hover { background: color-mix(in srgb, var(--radar-ask) 14%, transparent); }
 .radar-tasks-count-static { padding: 2px 8px; }
@@ -36,17 +48,18 @@
 .radar-tasks-count-zero { color: var(--muted-foreground); font-weight: 500; }
 
 /* Needs you: an amber lane of questions, each with the asking bot's face. */
-.radar-tasks-needs .radar-tasks-section-head h3 { color: var(--radar-ask); }
-.radar-need-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 44px; margin-bottom: 4px; padding: 7px 10px 7px 9px; border: 0; border-inline-start: 3px solid var(--radar-ask); border-radius: 10px; background: color-mix(in srgb, var(--radar-ask) 11%, var(--radar-card)); text-align: start; cursor: pointer; }
-.radar-need-row:hover:not(:disabled) { background: color-mix(in srgb, var(--radar-ask) 19%, var(--radar-card)); }
+.radar-tasks-needs .radar-tasks-section-head h3 { color: var(--radar-ask-text); }
+.radar-tasks-needs .radar-task-list { display: flex; flex-direction: column; gap: 4px; }
+.radar-need-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 44px; padding: 7px 10px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--radar-ask) 12%, var(--radar-card)); text-align: start; cursor: pointer; }
+.radar-need-row:hover:not(:disabled) { background: color-mix(in srgb, var(--radar-ask) 20%, var(--radar-card)); }
 .radar-need-row:disabled { cursor: default; opacity: 0.7; }
 .radar-need-row .radar-task-title { font-size: 13.5px; font-weight: 600; }
 
 /* Rows */
 .radar-task-row { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; min-height: 36px; padding: 5px 8px 5px var(--radar-gutter); border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; }
-.radar-task-row:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.radar-task-row:hover { background: var(--radar-hover); }
 .radar-task-row[aria-current="page"], .radar-need-row[aria-current="page"] { box-shadow: inset 2px 0 0 var(--radar-busy); }
-.radar-task-row[aria-current="page"], .radar-task-rowline:has(.radar-task-row[aria-current="page"]) { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.radar-task-row[aria-current="page"], .radar-task-rowline:has(.radar-task-row[aria-current="page"]) { background: var(--radar-hover); }
 .radar-task-row:focus-visible, .radar-need-row:focus-visible, .radar-task-fold:focus-visible, .radar-tasks-bot-open:focus-visible, .radar-tasks-chevron:focus-visible, .radar-tasks-section-toggle:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
 /* A row that asks or is in trouble carries its tone as a wash, so it reads before its text. */
 .radar-task-needs { background: color-mix(in srgb, var(--radar-ask) 9%, transparent); }
@@ -63,16 +76,16 @@
 .radar-task-state { font-weight: 650; color: var(--radar-rest); }
 .radar-task-detail { unicode-bidi: isolate; }
 .radar-task-detail::before { content: " · "; color: var(--muted-foreground); }
-.radar-task-state-needs { color: var(--radar-ask); }
-.radar-task-state-overdue, .radar-task-state-offline { color: var(--radar-trouble); }
+.radar-task-state-needs { color: var(--radar-ask-text); }
+.radar-task-state-overdue, .radar-task-state-offline { color: var(--radar-trouble-text); }
 .radar-task-state-working, .radar-task-state-retrying, .radar-task-state-checking { color: var(--radar-busy); }
-.radar-task-state-done { color: var(--radar-done); }
+.radar-task-state-done { color: var(--radar-done-text); }
 .radar-task-age { flex: none; padding-top: 2px; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .radar-task-chip { flex: none; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted-foreground); font-size: 10px; font-weight: 600; line-height: 15px; text-transform: lowercase; }
 .radar-task-empty { margin: 0; padding: 6px 8px 8px var(--radar-gutter); color: var(--muted-foreground); font-size: 12px; }
 .radar-tasks-needs .radar-task-empty, .radar-tasks-extra .radar-task-empty { padding-inline-start: 6px; }
-.radar-task-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 30px; padding: 3px 8px 3px var(--radar-gutter); border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: start; cursor: pointer; }
-.radar-task-fold:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); color: var(--foreground); }
+.radar-task-fold { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 3px 8px 3px var(--radar-gutter); border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: 12px; text-align: start; cursor: pointer; }
+.radar-task-fold:hover { background: var(--radar-hover); color: var(--foreground); }
 .radar-tasks-needs .radar-task-fold { padding-inline-start: 6px; }
 .radar-task-fold-chevron { flex: none; display: inline-grid; place-items: center; width: 12px; }
 .radar-task-fold-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -97,39 +110,45 @@
 .radar-task-done .radar-task-title, .radar-task-stopped .radar-task-title, .radar-task-cancelled .radar-task-title { color: var(--muted-foreground); font-weight: 450; }
 .radar-task-waiting .radar-task-title, .radar-task-queued .radar-task-title, .radar-task-ready .radar-task-title { font-weight: 500; }
 
-/* Bot cards: the bot's own colour on the start edge and as a faint wash; the mood tints asks and trouble. */
-.radar-tasks-bot { --radar-tone: var(--bot-color); position: relative; margin: 0 0 8px; padding: 6px 6px 4px; border: 1px solid color-mix(in srgb, var(--bot-color) 30%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--bot-color) 5%, var(--radar-card)); }
-.radar-tasks-bot::before { content: ""; position: absolute; inset-block: 10px; inset-inline-start: -1px; width: 3px; border-radius: 3px; background: var(--bot-color); }
-.radar-tasks-bot-ask { --radar-tone: var(--radar-ask); border-color: color-mix(in srgb, var(--radar-ask) 55%, var(--border)); background: color-mix(in srgb, var(--radar-ask) 6%, var(--radar-card)); }
-.radar-tasks-bot-trouble { --radar-tone: var(--radar-trouble); border-color: color-mix(in srgb, var(--radar-trouble) 55%, var(--border)); background: color-mix(in srgb, var(--radar-trouble) 5%, var(--radar-card)); }
+/* Bot cards: a plain raised card; only a mood that needs Salem (asks, trouble) tints it. The face says which bot. */
+.radar-tasks-bot { --radar-tone: var(--radar-rest); position: relative; margin: 0 0 8px; padding: 6px 6px 4px; border: 1px solid var(--border); border-radius: 14px; background: var(--radar-card); }
+.radar-tasks-bot-ask { --radar-tone: var(--radar-ask); border-color: color-mix(in srgb, var(--radar-ask) 50%, var(--border)); background: color-mix(in srgb, var(--radar-ask) 5%, var(--radar-card)); }
+.radar-tasks-bot-trouble { --radar-tone: var(--radar-trouble); border-color: color-mix(in srgb, var(--radar-trouble) 50%, var(--border)); background: color-mix(in srgb, var(--radar-trouble) 4%, var(--radar-card)); }
 .radar-tasks-bot-busy { --radar-tone: var(--radar-busy); }
-.radar-tasks-bot-idle { --radar-tone: var(--radar-rest); }
-.radar-tasks-bot-quiet { --radar-tone: var(--radar-rest); border-color: color-mix(in srgb, var(--border) 70%, transparent); background: transparent; }
-.radar-tasks-bot-quiet::before { opacity: 0.45; }
+.radar-tasks-bot-quiet { border-color: color-mix(in srgb, var(--border) 70%, transparent); background: transparent; }
 .radar-tasks-bot-folded { padding-bottom: 6px; }
 .radar-tasks-bot-head { display: flex; align-items: center; min-width: 0; }
 .radar-tasks-bot-open { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 44px; padding: 2px 4px 2px 6px; border: 0; border-radius: 10px; background: transparent; text-align: start; cursor: pointer; }
-.radar-tasks-bot-open:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
-.radar-tasks-bot-open[aria-current="page"] { background: color-mix(in srgb, var(--foreground) 6%, transparent); box-shadow: inset 2px 0 0 var(--radar-busy); }
+.radar-tasks-bot-open:hover { background: var(--radar-hover); }
+.radar-tasks-bot-open[aria-current="page"] { background: var(--radar-hover); box-shadow: inset 2px 0 0 var(--radar-busy); }
 .radar-tasks-bot-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 3px; }
 .radar-tasks-bot-name { min-width: 0; overflow: hidden; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .radar-tasks-bot-quiet .radar-tasks-bot-name { color: var(--muted-foreground); font-weight: 600; }
-/* Chips: the first is the mood, solid in its tone; the rest are soft counts. At most two visible lines, whole chips only. */
-.radar-tasks-bot-summary { display: flex; flex-wrap: wrap; gap: 4px; max-height: 40px; min-width: 0; overflow: hidden; font-size: 11px; line-height: 18px; }
-.radar-tasks-bot-summary-part { white-space: nowrap; }
-.radar-tasks-bot-summary-part { flex: none; max-width: 100%; padding: 0 7px; border-radius: 999px; color: var(--muted-foreground); background: color-mix(in srgb, var(--foreground) 7%, transparent); font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
-.radar-tasks-bot-mood { color: #fff; background: var(--radar-tone); }
-.radar-tasks-bot-busy .radar-tasks-bot-mood { color: var(--primary-foreground, #fff); background: var(--radar-busy); }
-.radar-tasks-bot-ask .radar-tasks-bot-mood { color: #2a1a00; background: #f6b21b; }
-.radar-tasks-bot-idle .radar-tasks-bot-mood, .radar-tasks-bot-quiet .radar-tasks-bot-mood { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 14%, transparent); }
-.radar-tasks-bot-quiet .radar-tasks-bot-mood { color: var(--muted-foreground); font-weight: 600; }
+/* A quiet bot is one line: its name, then "quiet". */
+.radar-tasks-bot-quiet .radar-tasks-bot-text { flex-direction: row; align-items: baseline; gap: 8px; }
+.radar-tasks-bot-quiet .radar-tasks-bot-summary { flex: 1; }
+/* The summary: the first part is the mood, the one solid chip, in its tone; the counts follow as plain muted
+   numerals. At most two visible lines, whole parts only. Each separator dot sits in the gap before its part, so
+   a part that wraps to the start of a line takes its dot outside the box, where the overflow clips it. */
+.radar-tasks-bot-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 13px; max-height: 40px; min-width: 0; overflow: hidden; font-size: 11.5px; line-height: 18px; }
+/* Each part keeps its own direction, so "1 for you" never reads "for you 1" in an RTL page. */
+.radar-tasks-bot-summary-part { position: relative; flex: none; max-width: 100%; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; unicode-bidi: plaintext; }
+.radar-tasks-bot-summary-part + .radar-tasks-bot-summary-part::before { content: "·"; position: absolute; inset-inline-start: -9px; }
+.radar-tasks-bot-mood { padding: 0 7px; border-radius: 999px; color: var(--foreground); background: var(--muted); font-weight: 650; overflow: hidden; }
+.radar-tasks-bot-mood + .radar-tasks-bot-summary-part { margin-inline-start: -5px; }
+.radar-tasks-bot-mood + .radar-tasks-bot-summary-part::before { content: none; }
+.radar-tasks-bot-ask .radar-tasks-bot-mood { color: var(--radar-ask-ink); background: var(--radar-ask-chip); }
+.radar-tasks-bot-trouble .radar-tasks-bot-mood { color: var(--destructive-foreground, #fff); background: var(--radar-trouble); }
+.radar-tasks-bot-busy .radar-tasks-bot-mood { color: var(--background, #fff); background: var(--radar-busy); }
+.radar-tasks-bot-quiet .radar-tasks-bot-mood { padding: 0; overflow: visible; color: var(--muted-foreground); background: transparent; font-weight: 500; }
 .radar-tasks-chevron { flex: none; display: grid; place-items: center; width: 36px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
-.radar-tasks-chevron:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); color: var(--foreground); }
+.radar-tasks-chevron:hover { background: var(--radar-hover); color: var(--foreground); }
 .radar-tasks-chevron-icon, .radar-tasks-chevron-icon [data-icon-root] { width: 14px; height: 14px; }
 .radar-tasks-chevron-icon { display: inline-flex; flex: none; color: var(--muted-foreground); }
-.radar-tasks-bot .radar-task-list { margin-top: 4px; padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--bot-color) 18%, var(--border)); }
-.radar-tasks-bot-ask .radar-task-list { border-top-color: color-mix(in srgb, var(--radar-ask) 30%, var(--border)); }
-.radar-tasks-bot-trouble .radar-task-list { border-top-color: color-mix(in srgb, var(--radar-trouble) 30%, var(--border)); }
+/* A folded section points along the reading direction. */
+.radar-tasks-chevron-icon:dir(rtl) { transform: scaleX(-1); }
+/* Rows inside a card sit 2px apart, so two washed rows read as two, not one block with a seam. */
+.radar-tasks-bot .radar-task-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--radar-tone) 22%, var(--border)); }
 
 /* The hero face: a ring in the mood's tone that turns while the bot works, a badge when it asks or is in trouble. */
 .radar-tasks-hero { position: relative; flex: none; display: grid; place-items: center; padding: 3px; }
@@ -143,8 +162,8 @@
 .radar-tasks-hero-quiet .radar-tasks-face { opacity: 0.6; filter: saturate(0.5); }
 .radar-tasks-hero[data-mood="offline"] .radar-tasks-face { opacity: 0.55; filter: grayscale(1); }
 .radar-tasks-hero-badge { position: absolute; top: -3px; inset-inline-end: -3px; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; line-height: 1; box-shadow: 0 0 0 2px var(--radar-card); }
-.radar-tasks-hero-ask .radar-tasks-hero-badge { color: #2a1a00; background: #f6b21b; }
-.radar-tasks-hero-trouble .radar-tasks-hero-badge { background: var(--radar-trouble); }
+.radar-tasks-hero-ask .radar-tasks-hero-badge { color: var(--radar-ask-ink); background: var(--radar-ask-chip); }
+.radar-tasks-hero-trouble .radar-tasks-hero-badge { color: var(--destructive-foreground, #fff); background: var(--radar-trouble); }
 [data-radar-motion="off"] .radar-tasks-hero-ring { animation: none; }
 @media (prefers-reduced-motion: reduce) { .radar-tasks-hero-ring { animation: none; } }
 .radar-tasks-face { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; object-fit: cover; }
@@ -160,6 +179,8 @@
 .radar-tasks-section-toggle-label { flex: none; }
 .radar-tasks-section-count { margin-inline-start: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
 .radar-tasks-extra .radar-task-row { padding-inline-start: 6px; }
+/* A running worker without a task has no end column; its text keeps its neighbours' end edge. */
+.radar-task-row.radar-task-unlinked { padding-inline-end: calc(var(--radar-end) + 2px); }
 
 /* Missing RPC, loading or failed first load: one line and a way to the threads. */
 .radar-tasks-fallback { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 10px 10px; color: var(--muted-foreground); font-size: 13px; }
@@ -170,16 +191,16 @@
 /* A task row and its end column share one line that wears the state's wash. The end column is the details toggle:
    the age on top and, on hover or on touch screens, the info glyph beneath; the details panel opens under the row. */
 .radar-task-rowline { display: flex; align-items: stretch; min-width: 0; border-radius: 8px; }
-.radar-task-rowline:hover, .radar-task-item-open .radar-task-rowline { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.radar-task-rowline:hover, .radar-task-item-open .radar-task-rowline { background: var(--radar-hover); }
 .radar-task-rowline .radar-task-row, .radar-task-rowline .radar-task-row:hover, .radar-task-rowline .radar-task-row[aria-current="page"] { flex: 1; min-width: 0; padding-inline-end: 2px; border-start-end-radius: 0; border-end-end-radius: 0; background: transparent; }
-.radar-task-info-toggle { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; width: 38px; min-height: 36px; padding: 5px 2px 3px; border: 0; border-start-end-radius: 8px; border-end-end-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.radar-task-info-toggle { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; width: var(--radar-end); min-height: 36px; padding: 5px 2px 3px; border: 0; border-start-end-radius: 8px; border-end-end-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
 .radar-task-info-toggle .radar-task-age { padding-top: 0; }
-.radar-task-info-toggle:hover, .radar-task-info-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--foreground) 7%, transparent); color: var(--foreground); }
+.radar-task-info-toggle:hover, .radar-task-info-toggle[aria-expanded="true"] { background: var(--radar-hover); color: var(--foreground); }
 .radar-task-info-toggle:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
 .radar-task-info-icon { display: none; flex: none; }
-.radar-task-info-icon, .radar-task-info-icon [data-icon-root] { width: 15px; height: 15px; }
+.radar-task-info-icon, .radar-task-info-icon [data-icon-root] { width: 14px; height: 14px; }
 .radar-task-rowline:hover .radar-task-info-icon, .radar-task-info-toggle:focus-visible .radar-task-info-icon, .radar-task-info-toggle[aria-expanded="true"] .radar-task-info-icon { display: inline-flex; }
-.radar-task-info { margin-block: 2px 8px; margin-inline: calc(var(--radar-gutter) + 12px) 4px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--foreground) 4%, transparent); font-size: 12px; line-height: 1.35; }
+.radar-task-info { margin-block: 2px 6px; margin-inline: calc(var(--radar-gutter) + 10px) 4px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--foreground) 4%, transparent); font-size: 12px; line-height: 1.35; }
 .radar-task-info p { margin: 0; }
 .radar-task-info-meta { color: var(--muted-foreground); overflow-wrap: anywhere; }
 .radar-task-info-line { display: block; margin-top: 3px; unicode-bidi: isolate; overflow-wrap: anywhere; }
@@ -188,8 +209,8 @@
 .radar-task-info-note { color: var(--muted-foreground); font-size: 11.5px; }
 .radar-task-attempts { margin: 0 -4px; }
 .radar-task-attempt { display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; min-height: 34px; padding: 4px 6px; border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; }
-.radar-task-attempt:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
-.radar-task-attempt[aria-current="page"] { background: color-mix(in srgb, var(--foreground) 6%, transparent); box-shadow: inset 2px 0 0 var(--radar-busy); }
+.radar-task-attempt:hover { background: var(--radar-hover); }
+.radar-task-attempt[aria-current="page"] { background: var(--radar-hover); box-shadow: inset 2px 0 0 var(--radar-busy); }
 .radar-task-attempt:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
 .radar-task-attempt .radar-task-title { font-size: 12.5px; font-weight: 500; }
 .radar-task-attempt .radar-task-line { font-size: 11px; }
@@ -204,7 +225,7 @@
 .radar-task-peek-line { unicode-bidi: isolate; overflow-wrap: anywhere; }
 
 /* Phone drawer and touch: every target at least 44px tall. */
-.radar-list-compact .radar-tasks { padding-inline: 8px; }
+.radar-list-compact .radar-tasks { --radar-end: 44px; padding-inline: 8px; }
 .radar-list-compact .radar-task-row, .radar-list-compact .radar-need-row { min-height: 44px; padding-block: 6px; align-items: center; }
 .radar-list-compact .radar-task-glyph { margin-top: 0; }
 .radar-list-compact .radar-task-age { padding-top: 0; }
@@ -213,7 +234,7 @@
 .radar-list-compact .radar-task-fold, .radar-list-compact .radar-tasks-section-toggle, .radar-list-compact .radar-tasks-count { min-height: 44px; }
 .radar-list-compact .radar-tasks-count { min-width: 44px; }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
-.radar-list-compact .radar-task-info-toggle { justify-content: center; width: 44px; min-height: 44px; padding-block: 2px; }
+.radar-list-compact .radar-task-info-toggle { justify-content: center; min-height: 44px; padding-block: 2px; }
 .radar-list-compact .radar-task-info-icon { display: inline-flex; }
 .radar-list-compact .radar-task-attempt { min-height: 44px; align-items: center; }
 .radar-list-compact .radar-task-attempt .radar-task-title { font-size: 13.5px; }
@@ -222,12 +243,13 @@
 .radar-list-compact .radar-task-title { font-size: 14px; }
 .radar-list-compact .radar-task-line { font-size: 12px; }
 .radar-list-compact .radar-tasks-bot-name { font-size: 16px; }
-.radar-list-compact .radar-tasks-bot-summary { max-height: 44px; font-size: 11.5px; line-height: 20px; }
+.radar-list-compact .radar-tasks-bot-summary { max-height: 44px; font-size: 12.5px; line-height: 20px; }
 @media (pointer: coarse) {
   .radar-task-row, .radar-need-row, .radar-tasks-bot-open, .radar-task-fold, .radar-tasks .radar-tasks-section-toggle, .radar-tasks-count { min-height: 44px; }
   .radar-tasks-count { min-width: 44px; }
   .radar-tasks-chevron { width: 44px; height: 44px; }
-  .radar-task-info-toggle { justify-content: center; width: 44px; min-height: 44px; padding-block: 2px; }
+  .radar-tasks { --radar-end: 44px; }
+  .radar-task-info-toggle { justify-content: center; min-height: 44px; padding-block: 2px; }
   .radar-task-info-icon { display: inline-flex; }
   .radar-task-attempt { min-height: 44px; }
   .radar-mode-option { min-height: 44px; }

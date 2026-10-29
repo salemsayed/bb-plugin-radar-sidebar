@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { taskAttempts, taskDetailSchema, type Attempt, type AttemptThread, type BotTaskRow, type TaskDetail } from "@/lib/botTasks";
 import { isPluginAbsentError } from "./useBotRoster";
@@ -23,18 +23,26 @@ export function resetTaskAttempts(): void { remembered.clear(); }
  * A task's attempts: its workers from the core's `task_detail`, then each
  * worker thread's start, last activity and status from `threads.list`. A
  * core that lacks the method, or a failed read, still yields the task's
- * conversation as the one attempt the row would open.
+ * conversation as the one attempt the row would open. `refreshKey` (the
+ * Bots data's observedAt, new on every bots push or poll) reads both again
+ * while the details stay open, so a worker started meanwhile appears.
  */
-export function useTaskAttempts(task: BotTaskRow | null): AttemptsState {
+export function useTaskAttempts(task: BotTaskRow | null, refreshKey?: number): AttemptsState {
   const sdk = useSdk();
   const taskId = task?.id ?? null;
   const conversation = task?.conversationThreadId ?? null;
   const [state, setState] = useState<AttemptsState>(() => initial(task));
+  const shown = useRef<string | null>(null);
   useEffect(() => {
     if (!taskId) return;
     const row = { conversationThreadId: conversation };
-    const known = remembered.get(taskId);
-    setState({ status: known ? "ready" : "loading", attempts: taskAttempts(row, known?.detail ?? null, known?.threads ?? []) });
+    // A refresh of the same task keeps what is shown until the new answer lands.
+    const subject = `${taskId}\u0000${conversation ?? ""}`;
+    if (shown.current !== subject) {
+      shown.current = subject;
+      const known = remembered.get(taskId);
+      setState({ status: known ? "ready" : "loading", attempts: taskAttempts(row, known?.detail ?? null, known?.threads ?? []) });
+    }
     let cancelled = false;
     (async () => {
       let detail: TaskDetail | null = null;
@@ -52,11 +60,13 @@ export function useTaskAttempts(task: BotTaskRow | null): AttemptsState {
         // The core's list still shows, without times.
       }
       if (cancelled) return;
+      // A failed refresh keeps the last good list rather than dropping to the latest attempt alone.
+      if (status === "error" && remembered.has(taskId)) return;
       if (status === "ready") remembered.set(taskId, { detail, threads });
       setState({ status, attempts: taskAttempts(row, detail, threads) });
     })();
     return () => { cancelled = true; };
-  }, [sdk, taskId, conversation]);
+  }, [sdk, taskId, conversation, refreshKey]);
   return taskId ? state : { status: "ready", attempts: [] };
 }
 
