@@ -8,10 +8,10 @@ import { resolve } from "node:path";
 import { NOW, makeThread } from "./fixtures";
 import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 import { attemptThreads, normalDay, peakDay, rtlAndEmpty, taskDetails, tenDecisions } from "./botTasksFixtures";
-import { BotsView, attemptWhen, closedAge, moodFace, rowDetail, rowStateWord, waitingLine } from "./BotsView";
+import { BotsView, attemptWhen, closedAge, moodFace, resetBotsFocus, rowDetail, rowStateWord, waitingLine } from "./BotsView";
 import { resetTaskAttempts } from "./useTaskAttempts";
 import { LIST_MODE_KEY } from "./ListModeSwitch";
-import { botMood, botTasksSchema } from "@/lib/botTasks";
+import { botMood, botTasksSchema, crewStatus, feedBands, layoutBot, needRows } from "@/lib/botTasks";
 import { makeTask } from "./botTasksFixtures";
 import { DAY, HOUR } from "./fixtures";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
@@ -75,7 +75,10 @@ function renderList(tasks: Tasks, options: { settings?: Record<string, boolean>;
 
 const rowIds = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-sidebar-thread-id]")).map(node => node.getAttribute("data-sidebar-thread-id"));
 const opened = (slot: ReturnType<typeof renderList>["slot"]) => recordedActions(slot).filter(call => call.method === "open").map(call => call.threadId);
-const taskTitles = (scope: HTMLElement) => Array.from(scope.querySelectorAll(".radar-task-row .radar-task-title")).map(node => node.textContent);
+const feedTitles = (scope: ParentNode) => Array.from(scope.querySelectorAll(".radar-feed-row .radar-feed-title")).map(node => node.textContent);
+const band = (key: string) => document.querySelector<HTMLElement>(`[data-band="${key}"]`);
+const desk = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name} Bot: `) });
+const css = () => readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
 
 beforeEach(() => {
   // Only the clock is fixed, so "Done today" means the fixtures' day; timers and promises stay real.
@@ -86,6 +89,7 @@ afterEach(() => {
   localStorage.clear();
   resetBotsPush();
   resetTaskAttempts();
+  resetBotsFocus();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -134,11 +138,11 @@ describe("Bots | Threads switch", () => {
 
   it("keeps the open thread highlighted across the switch", async () => {
     renderList(normalDay(), { activeThreadId: "thr_task_t_replit" });
-    const row = await screen.findByRole("button", { name: /^Move the backend off Replit, Working/ });
+    const row = await screen.findByRole("button", { name: /^Move the backend off Replit, ERBareeq, Working/ });
     expect(row.getAttribute("aria-current")).toBe("page");
     fireEvent.click(screen.getByRole("button", { name: "Threads" }));
     fireEvent.click(screen.getByRole("button", { name: /^Bots/ }));
-    expect((await screen.findByRole("button", { name: /^Move the backend off Replit, Working/ })).getAttribute("aria-current")).toBe("page");
+    expect((await screen.findByRole("button", { name: /^Move the backend off Replit, ERBareeq, Working/ })).getAttribute("aria-current")).toBe("page");
   });
 
   it("works in the phone drawer with 40px+ controls", async () => {
@@ -148,81 +152,208 @@ describe("Bots | Threads switch", () => {
   });
 });
 
-describe("Bots view: a normal day", () => {
-  it("lists Needs you first, then each bot in roster order with its summary", async () => {
+describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total redesign)", () => {
+  it("seats every bot at its own desk in roster order, acting out its state, with its state in words on the plate", async () => {
+    const { slot } = renderList(normalDay());
+    await screen.findByRole("region", { name: "Bots" });
+    const desks = Array.from(slot.container.querySelectorAll<HTMLElement>(".radar-desk"));
+    expect(desks.map(node => node.dataset.bot)).toEqual(["erbareeq", "bricks", "lab", "home", "personal", "work"]);
+    expect(desks.map(node => node.querySelector(".radar-desk-status")?.textContent)).toEqual(["2 for you", "2 for you", "2 working", "1 overdue", "Quiet", "Quiet"]);
+    expect(desks.map(node => node.className.match(/radar-desk-(ask|trouble|busy|idle|quiet)\b/)?.[1])).toEqual(["ask", "ask", "busy", "trouble", "quiet", "quiet"]);
+    // The laptop shows what the bot is doing: work scrolling, a "?" for Salem, a red "!", off at rest.
+    expect(desks.map(node => node.querySelector(".radar-desk-laptop")?.className.match(/radar-desk-laptop-(\w+)/)?.[1])).toEqual(["ask", "ask", "work", "alert", "off", "off"]);
+    expect(desk("Home").querySelector(".radar-desk-siren")).toBeTruthy();
+    expect(desk("Lab").querySelector(".radar-desk-siren")).toBeNull();
+    expect(desk("ERBareeq").querySelector(".radar-desk-bubble")?.textContent).toBe("2 ?");
+    expect(desk("Lab").querySelector(".radar-desk-bubble")).toBeNull();
+    expect(desk("ERBareeq").getAttribute("aria-label")).toBe("ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting. Show its work");
+    // The scene is decoration; the character wears the bot's mood and its own colour tints its mug.
+    expect(desk("Lab").querySelector(".radar-desk-char")?.getAttribute("aria-hidden")).toBe("true");
+    expect(desk("Lab").querySelector('.bot-mascot[data-mascot="lab"]')).toBeTruthy();
+    expect(desk("Lab").style.getPropertyValue("--radar-bot")).toBe("#7b61d9");
+    expect(desk("Home").dataset.mood).toBe("overdue");
+  });
+
+  it("writes the day's counts on the whiteboard, and says all quiet when there is nothing", async () => {
+    renderList(normalDay());
+    const board = (await screen.findByRole("region", { name: "Bots" })).querySelector(".radar-room-board")!;
+    expect(Array.from(board.children).map(node => node.textContent).filter(Boolean)).toEqual(["4 asks", "1 stuck", "9 live"]);
+    cleanup();
+    const still = normalDay();
+    for (const bot of still.bots) { bot.tasks = bot.tasks.filter(task => ["done", "stopped", "cancelled", "waiting"].includes(task.displayState)); bot.unlinked = []; }
+    still.needs = [];
+    renderList(still);
+    const quiet = (await screen.findByRole("region", { name: "Bots" })).querySelector(".radar-room-board")!;
+    expect(quiet.textContent).toBe("All quiet");
+  });
+
+  it("opens with nothing focused: every ask, then the crew's live work; a desk opens its sheet under the room", async () => {
+    const { slot } = renderList(normalDay());
+    await screen.findByRole("region", { name: "Bots" });
+    expect(slot.container.querySelector(".radar-sheet")).toBeNull();
+    expect(screen.getByRole("region", { name: "Needs you" }).querySelectorAll(".radar-ask")).toHaveLength(3);
+    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
+    fireEvent.click(desk("Lab"));
+    const sheet = slot.container.querySelector<HTMLElement>(".radar-sheet")!;
+    // The sheet sits right after the room, its notch over Lab's column (the third).
+    expect(sheet.previousElementSibling?.classList.contains("radar-studio")).toBe(true);
+    expect(sheet.dataset.column).toBe("2");
+    expect(desk("Lab").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("never hides another bot's question behind its desk: focused anywhere, every ask stays listed and answerable", async () => {
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.click(desk("Home"));
+    // Home asks nothing: all four asks stay under its sheet.
+    const others = screen.getByRole("region", { name: "Other bots need you" });
+    fireEvent.click(within(others).getByRole("button", { name: "1 more ask" }));
+    expect(others.querySelectorAll(".radar-ask")).toHaveLength(4);
+    fireEvent.click(desk("Bricks"));
+    const own = screen.getByRole("region", { name: "Bricks Bot: needs you" });
+    const rest = screen.getByRole("region", { name: "Other bots need you" });
+    expect(own.querySelectorAll(".radar-ask")).toHaveLength(2);
+    expect(rest.querySelectorAll(".radar-ask")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Answer Yes: / })).toHaveLength(4);
+  });
+
+  it("keeps a busy day readable: ten asks all listed on a phone, each desk counting its own", async () => {
+    const { slot } = renderList(tenDecisions(), { compact: true });
+    await screen.findByRole("region", { name: "Bots" });
+    expect(screen.getByRole("region", { name: "Needs you" }).querySelectorAll(".radar-ask")).toHaveLength(10);
+    expect(Array.from(slot.container.querySelectorAll(".radar-desk-bubble")).map(node => node.textContent)).toEqual(["3 ?", "3 ?", "2 ?", "2 ?"]);
+  });
+
+  it("puts asks first in full, with the bot's answers; an ask opens its exact thread and an answer opens it with the reply typed in", async () => {
     const navigate = vi.fn();
     const { slot } = renderList(normalDay(), { onNavigate: navigate });
     const needs = await screen.findByRole("region", { name: "Needs you" });
-    // Desktop shows three, and the count opens every decision in one tap.
-    expect(within(needs).getAllByRole("listitem")).toHaveLength(4);
-    fireEvent.click(within(needs).getByRole("button", { name: "Needs you: open all 4" }));
-    const questions = Array.from(needs.querySelectorAll(".radar-need-row .radar-task-title")).map(node => node.textContent);
-    expect(questions).toEqual(["Merge and deploy dark, flag off?", "Send one voice note in each app so I can confirm?", "Is the iPhone connected to the Mac?", "Open the MR for Yasser?"]);
-    const sections = Array.from(slot.container.querySelectorAll(".radar-tasks-bot")).map(node => node.getAttribute("aria-label"));
-    expect(sections).toEqual(["ERBareeq Bot", "Bricks Bot", "Lab Bot", "Home Bot", "Personal Bot", "Work Bot"]);
-    expect(screen.getByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting$/ })).toBeTruthy();
-    // A decision opens the exact thread holding the interaction (a worker here), and closes the phone drawer.
-    fireEvent.click(within(needs).getByText("Merge and deploy dark, flag off?"));
+    // Desktop shows three, then one button for the rest.
+    expect(needs.querySelectorAll(".radar-ask")).toHaveLength(3);
+    fireEvent.click(within(needs).getByRole("button", { name: "1 more ask" }));
+    expect(Array.from(needs.querySelectorAll(".radar-ask-question")).map(node => node.textContent))
+      .toEqual(["Merge and deploy dark, flag off?", "Send one voice note in each app so I can confirm?", "Is the iPhone connected to the Mac?", "Open the MR for Yasser?"]);
+    const first = needs.querySelector<HTMLElement>(".radar-ask")!;
+    expect(within(first).getByText("ERBareeq")).toBeTruthy();
+    expect(within(first).getByText("Merchant feedback surveys, part 1")).toBeTruthy();
+    fireEvent.click(within(first).getByText("Merge and deploy dark, flag off?"));
     expect(opened(slot)).toEqual(["thr_worker_surveys"]);
     expect(navigate).toHaveBeenCalledOnce();
+    fireEvent.click(within(first).getByRole("button", { name: "Answer Not yet: opens the chat with it typed in" }));
+    expect(opened(slot)).toEqual(["thr_worker_surveys", "thr_worker_surveys"]);
+    // The question wraps (up to three lines), it is never one cut line.
+    expect(css()).toMatch(/\.radar-ask-question \{[^}]*-webkit-line-clamp: 3;/);
   });
 
-  it("opens a task's conversation and a bot's coordinator in bb's thread route", async () => {
+  it("hands an answer to onReply, and opens the thread when there is none", () => {
+    const data = botTasksSchema.parse(normalDay());
+    const onOpen = vi.fn();
+    const onReply = vi.fn();
+    const props = { state: { data, status: "ready" as const, cached: false }, activeThreadId: null, isCompactViewport: true, now: NOW, onOpen, onShowThreads: () => {} };
+    const { unmount } = render(<BotsView {...props} onReply={onReply} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Answer Yes: opens the chat with it typed in" })[2]!);
+    expect(onReply).toHaveBeenCalledWith("thr_ask_iphone", "Yes");
+    expect(onOpen).not.toHaveBeenCalled();
+    unmount();
+    render(<BotsView {...props} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Answer Yes: opens the chat with it typed in" })[0]!);
+    expect(onOpen).toHaveBeenCalledWith("thr_worker_surveys");
+  });
+
+  it("offers a task's answers only on its own pending interaction", () => {
+    const day = normalDay();
+    expect(needRows(botTasksSchema.parse(day))[0]!.options).toEqual(["Yes", "Not yet"]);
+    day.needs[0]!.interactionId = "int_other";
+    expect(needRows(botTasksSchema.parse(day))[0]!.options).toEqual([]);
+  });
+
+  it("says plainly when nothing needs Salem", async () => {
+    const quiet = normalDay();
+    for (const bot of quiet.bots) bot.tasks = bot.tasks.filter(task => task.displayState !== "needs");
+    quiet.needs = [];
+    renderList(quiet);
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    expect(needs.textContent).toBe("Nothing needs you");
+    expect(needs.querySelector(".radar-ask")).toBeNull();
+  });
+
+  it("groups live work across bots by what is happening, asks not repeated, waits and history folded to a count", async () => {
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Now" });
+    expect(Array.from(document.querySelectorAll(".radar-band")).map(node => node.getAttribute("data-band"))).toEqual(["stuck", "working", "next", "waiting", "done", "earlier"]);
+    expect(feedTitles(band("stuck")!)).toEqual(["Kitchen TV colour fault: root cause", "Multi-WAN bonding (EdgeRouter)"]);
+    expect(feedTitles(band("working")!)).toEqual([
+      "Move the backend off Replit", "Fable review: deploy window", "Watch our GitHub PRs too",
+      "Pool: one stale login can't block Claude workers", "Bots as the only way to run bb", "Kitchen TV: Clean Your TV launcher",
+    ]);
+    expect(feedTitles(band("next")!)).toEqual(["Survey stress test and video"]);
+    // Asks lead the page; they are not rows again.
+    expect(feedTitles(document)).not.toContain("Merchant feedback surveys, part 1");
+    for (const key of ["waiting", "done", "earlier"]) {
+      expect(band(key)!.querySelector("[data-fold]")!.getAttribute("aria-expanded")).toBe("false");
+      expect(feedTitles(band(key)!)).toEqual([]);
+    }
+    expect(band("waiting")!.querySelector(".radar-band-count")!.textContent).toBe("6");
+    // A stopped task is never counted as done, and yesterday's finish is not "today".
+    expect(band("done")!.querySelector(".radar-band-count")!.textContent).toBe("2 · 1 stopped");
+    fireEvent.click(band("done")!.querySelector("[data-fold]")!);
+    expect(feedTitles(band("done")!)).toEqual(["Meta ads with the demo offer", "Unused company lines (Orange)", "fe!1024 on iPhone and Android"]);
+    expect(feedTitles(band("done")!)).not.toContain("MSSQL database on our host");
+  });
+
+  it("names a row's state only when its heading does not already say it", async () => {
+    renderList(normalDay());
+    const offline = await screen.findByRole("button", { name: /^Multi-WAN bonding \(EdgeRouter\), Home, Offline/ });
+    expect(within(offline).getByText("Offline").className).toContain("radar-feed-state-offline");
+    const overdue = screen.getByRole("button", { name: /^Kitchen TV colour fault: root cause, Home, Overdue/ });
+    expect(overdue.querySelector(".radar-feed-state")).toBeNull();
+    expect(within(screen.getByRole("button", { name: /^Pool: one stale login/ })).getByText("Retrying")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /^Watch our GitHub PRs too/ })).getByText("To check")).toBeTruthy();
+    const queued = screen.getByRole("button", { name: /^Survey stress test and video, ERBareeq, Queued/ });
+    expect(queued.querySelector(".radar-feed-state")).toBeNull();
+    expect(within(queued).getByText("no Opus capacity · retry 14:20")).toBeTruthy();
+    // Across bots each row names its bot; the face column keeps one start rail.
+    expect(within(queued).getByText("ERBareeq").className).toBe("radar-feed-bot");
+    expect(screen.getByRole("button", { name: "Move the backend off Replit, ERBareeq, Working, 1h. Phase 3: Express paths out, installer syncs moved in." })).toBeTruthy();
+  });
+
+  it("focuses one bot from its tile: its asks, its work with waits and today open, and its chat; again or × shows every bot", async () => {
+    const { slot } = renderList(normalDay());
+    await screen.findByRole("region", { name: "Bots" });
+    fireEvent.click(desk("Bricks"));
+    expect(desk("Bricks").getAttribute("aria-pressed")).toBe("true");
+    const asks = screen.getByRole("region", { name: "Bricks Bot: needs you" });
+    expect(Array.from(asks.querySelectorAll(".radar-ask-question")).map(node => node.textContent)).toEqual(["Is the iPhone connected to the Mac?", "Open the MR for Yasser?"]);
+    // The heading names the bot, so the cards don't.
+    expect(asks.querySelector(".radar-ask-bot")).toBeNull();
+    const work = screen.getByRole("region", { name: "Bricks Bot: work" });
+    expect(feedTitles(work)).toEqual(["Watch our GitHub PRs too", "PR #11: Yasser's three changes", "Meta ads with the demo offer", "fe!1024 on iPhone and Android"]);
+    expect(within(work).getByRole("button", { name: /^Earlier this week/ }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: "Not filed" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open Bricks Bot chat" }));
+    expect(opened(slot)).toEqual(["thr_coord_bricks"]);
+    // The focus survives the drawer closing and opening.
+    cleanup();
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Bricks Bot: work" });
+    fireEvent.click(screen.getByRole("button", { name: "Show every bot" }));
+    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
+    fireEvent.click(desk("Home"));
+    fireEvent.click(desk("Home"));
+    expect(screen.getByRole("region", { name: "Now" })).toBeTruthy();
+  });
+
+  it("opens a task's conversation and a worker without a task, and lists Not filed", async () => {
     const { slot } = renderList(normalDay());
     fireEvent.click(await screen.findByRole("button", { name: /^Move the backend off Replit/ }));
-    fireEvent.click(screen.getByRole("button", { name: /^Open Bricks Bot:/ }));
-    expect(opened(slot)).toEqual(["thr_task_t_replit", "thr_coord_bricks"]);
-  });
-
-  it("folds waiting beyond three, and Done today holds only today's real completions", async () => {
-    const { slot } = renderList(normalDay());
-    const erbareeq = await screen.findByRole("region", { name: "ERBareeq Bot" });
-    expect(taskTitles(erbareeq)).toEqual([
-      "Merchant feedback surveys, part 1", "Voice notes on local models", "Move the backend off Replit", "Survey stress test and video", "Fable review: deploy window",
-      "مراجعة تسويات مرتجعات بريكس", "Chat · Islam · login code", "Social posts in our style, all pages",
-    ]);
-    fireEvent.click(within(erbareeq).getByRole("button", { name: /1 more waiting/ }));
-    expect(taskTitles(erbareeq)).toContain("Google Maps key: new server IP");
-    // Yesterday's MSSQL finish is not "today".
-    fireEvent.click(within(erbareeq).getByRole("button", { name: /Done today · 1/ }));
-    expect(taskTitles(erbareeq)).toContain("Unused company lines (Orange)");
-    expect(taskTitles(erbareeq)).not.toContain("MSSQL database on our host");
-    // A stopped task is never counted as done.
-    const bricks = screen.getByRole("region", { name: "Bricks Bot" });
-    expect(within(bricks).getByRole("button", { name: "Done today · 1 · 1 stopped" })).toBeTruthy();
-    expect(slot.container.querySelector(".radar-task-age")).toBeTruthy();
-  });
-
-  it("always shows needs, working, queued, offline, retrying and overdue rows", async () => {
-    renderList(normalDay());
-    const home = await screen.findByRole("region", { name: "Home Bot" });
-    expect(within(home).getByRole("button", { name: /^Multi-WAN bonding \(EdgeRouter\), Offline/ })).toBeTruthy();
-    expect(within(home).getByRole("button", { name: /^Kitchen TV colour fault: root cause, Overdue/ })).toBeTruthy();
-    const lab = screen.getByRole("region", { name: "Lab Bot" });
-    expect(within(lab).getByRole("button", { name: /, Retrying, / })).toBeTruthy();
-  });
-
-  it("collapses quiet bots; unfolding an empty bot says so", async () => {
-    renderList(normalDay());
-    const personal = await screen.findByRole("region", { name: "Personal Bot" });
-    expect(within(personal).queryByRole("list")).toBeNull();
-    expect(within(personal).getByRole("button", { name: "Open Personal Bot: quiet" })).toBeTruthy();
-    fireEvent.click(within(personal).getByRole("button", { name: "Unfold Personal Bot" }));
-    expect(within(personal).getByText("Nothing open")).toBeTruthy();
-    // Yesterday's completion keeps Work quiet without a Done today.
-    expect(screen.getByRole("button", { name: "Open Work Bot: quiet" })).toBeTruthy();
-  });
-
-  it("shows the dev chip, a bot's work without a task in its own group, and Not filed", async () => {
-    const { slot } = renderList(normalDay());
-    const row = await screen.findByRole("button", { name: /^Move the backend off Replit/ });
-    expect(within(row).getByText("dev")).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("region", { name: "ERBareeq Bot" })).getByRole("button", { name: "Fable review: deploy window, running, no task" }));
+    const row = screen.getByRole("button", { name: "Fable review: deploy window, ERBareeq, running, no task" });
+    fireEvent.click(row);
+    expect(within(screen.getByRole("button", { name: /^Move the backend off Replit/ })).getByText("dev")).toBeTruthy();
     const notFiled = screen.getByRole("region", { name: "Not filed" });
     fireEvent.click(within(notFiled).getByRole("button", { name: /Not filed/ }));
     expect(within(notFiled).getByText("Likely Lab")).toBeTruthy();
     fireEvent.click(within(notFiled).getByText("Untitled plain thread"));
-    expect(opened(slot)).toEqual(["thr_unlinked_1", "thr_plain_1"]);
+    expect(opened(slot)).toEqual(["thr_task_t_replit", "thr_unlinked_1", "thr_plain_1"]);
   });
 
   it("refreshes on the bots push signal", async () => {
@@ -233,32 +364,61 @@ describe("Bots view: a normal day", () => {
     await screen.findByText("Lab v2");
     expect(callRpc.mock.calls.filter(([call]) => call.method === "bot_tasks").length).toBeGreaterThanOrEqual(2);
   });
+
+  it("keeps every target phone-sized", () => {
+    const sheet = css();
+    expect(sheet).toMatch(/\.radar-list-compact \.radar-ask-answer \{ min-height: 44px; \}/);
+    expect(sheet).toMatch(/\.radar-list-compact \.radar-band-toggle, \.radar-list-compact \.radar-more \{ min-height: 44px; \}/);
+    expect(sheet).toMatch(/\.radar-list-compact \.radar-focus-chat \{ min-height: 44px;/);
+    expect(sheet).toMatch(/\.radar-list-compact \.radar-focus-clear \{ width: 44px; height: 44px; \}/);
+    expect(sheet).toMatch(/\.radar-list-compact \.radar-feed-more \{ width: 44px;/);
+    expect(sheet).toMatch(/\.radar-feed-row \{[^}]*min-height: (4[4-9]|5\d)px;/);
+  });
+});
+
+describe("Bots view: the crew board's rules", () => {
+  it("gives each bot one line from its most urgent open state", () => {
+    const data = botTasksSchema.parse(normalDay());
+    const status = (key: string) => crewStatus(layoutBot(data.bots.find(bot => bot.key === key)!, NOW));
+    expect(status("erbareeq")).toEqual({ tone: "ask", count: 2, label: "2 for you" });
+    expect(status("lab")).toEqual({ tone: "busy", count: 2, label: "2 working" });
+    expect(status("home")).toEqual({ tone: "trouble", count: 1, label: "1 overdue" });
+    expect(status("personal")).toEqual({ tone: "quiet", count: 0, label: "Quiet" });
+    const one = botTasksSchema.parse({ ...normalDay(), bots: [{ ...normalDay().bots[1]!, tasks: [makeTask("bricks", "a", "needs")] }] }).bots[0]!;
+    expect(crewStatus(layoutBot(one, NOW)).label).toBe("1 for you");
+  });
+
+  it("drops empty bands and keeps closed work newest first", () => {
+    const data = botTasksSchema.parse(normalDay());
+    const personal = layoutBot(data.bots.find(bot => bot.key === "personal")!, NOW);
+    expect(feedBands([personal])).toEqual([]);
+    const work = layoutBot(data.bots.find(bot => bot.key === "work")!, NOW);
+    expect(feedBands([work]).map(item => item.key)).toEqual(["earlier"]);
+  });
 });
 
 describe("Bots view under load", () => {
-  it("handles the 44-task peak: every open task is shown or counted in a fold", async () => {
+  it("handles the 44-task peak: every open task is an ask, a row, or counted in the waiting fold", async () => {
     const peak = peakDay();
     expect(peak.bots.reduce((sum, bot) => sum + bot.tasks.length, 0)).toBe(44);
     const started = performance.now();
     const { slot } = renderList(peak);
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    const shown = slot.container.querySelectorAll(".radar-tasks-bot .radar-task-row").length;
-    const folded = Array.from(slot.container.querySelectorAll(".radar-tasks-bot .radar-task-fold"))
-      .map(node => Number(/(\d+) more waiting/.exec(node.textContent ?? "")?.[1] ?? 0)).reduce((a, b) => a + b, 0);
-    expect(shown + folded).toBe(44);
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    const asks = Number(needs.querySelector(".radar-section-count")!.textContent);
+    const rows = slot.container.querySelectorAll(".radar-now .radar-feed-row").length;
+    const waiting = Number(band("waiting")!.querySelector(".radar-band-count")!.textContent);
+    expect(asks + rows + waiting).toBe(44);
+    expect(asks).toBe(8);
     expect(performance.now() - started).toBeLessThan(2_000);
-    // Every needs, working and queued row is on screen without unfolding anything.
-    const openRows = peak.bots.flatMap(bot => bot.tasks).filter(task => task.displayState !== "waiting").length;
-    expect(slot.container.querySelectorAll(".radar-tasks-bot .radar-task-row:not(.radar-task-waiting)").length).toBe(openRows);
   });
 
   it("puts all ten decisions one tap from the phone drawer", async () => {
     const navigate = vi.fn();
     const { slot } = renderList(tenDecisions(), { compact: true, onNavigate: navigate });
     const needs = await screen.findByRole("region", { name: "Needs you" });
-    const rows = within(needs).getAllByRole("button").filter(button => button.classList.contains("radar-need-row"));
+    const rows = Array.from(needs.querySelectorAll<HTMLButtonElement>(".radar-ask-open"));
     expect(rows).toHaveLength(10);
-    expect(within(needs).queryByText(/See all/)).toBeNull();
+    expect(within(needs).queryByText(/more ask/)).toBeNull();
     for (const row of rows) fireEvent.click(row);
     // Opening the drawer is tap one; each decision is tap two, landing on its own thread.
     expect(opened(slot)).toEqual(["thr_dec_3", "thr_dec_4", "thr_dec_5", "thr_dec_0", "thr_dec_1", "thr_dec_2", "thr_dec_8", "thr_dec_9", "thr_dec_6", "thr_dec_7"]);
@@ -266,31 +426,36 @@ describe("Bots view under load", () => {
     expect(screen.getByRole("button", { name: "Bots, 10 need you" })).toBeTruthy();
   });
 
-  it("reaches all ten on a desktop through the count in one click", async () => {
+  it("reaches all ten on a desktop in one click, and keeps focus on the first ask it revealed", async () => {
     renderList(tenDecisions());
     const needs = await screen.findByRole("region", { name: "Needs you" });
-    expect(needs.querySelectorAll(".radar-need-row")).toHaveLength(3);
-    fireEvent.click(within(needs).getByRole("button", { name: "Needs you: open all 10" }));
-    expect(needs.querySelectorAll(".radar-need-row")).toHaveLength(10);
+    expect(needs.querySelectorAll(".radar-ask")).toHaveLength(3);
+    fireEvent.click(within(needs).getByRole("button", { name: "7 more asks" }));
+    expect(needs.querySelectorAll(".radar-ask")).toHaveLength(10);
+    expect((document.activeElement as HTMLElement).textContent).toContain("Is the iPhone connected to the Mac?");
+    fireEvent.click(within(needs).getByRole("button", { name: "Show fewer" }));
+    expect(needs.querySelectorAll(".radar-ask")).toHaveLength(3);
   });
 });
 
 describe("Bots view: RTL and long titles", () => {
-  it("isolates every title and line with dir=auto, on one line", async () => {
+  it("isolates every title, detail and question with dir=auto", async () => {
     const { slot } = renderList(rtlAndEmpty());
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    // Titles, the detail after a row's state word, and the needs lane's second line all carry text Salem wrote.
-    const titles = Array.from(slot.container.querySelectorAll(".radar-task-title, .radar-task-detail, .radar-need-row .radar-task-line"));
-    expect(titles.length).toBeGreaterThan(6);
-    for (const node of titles) {
-      expect(node.tagName === "BDI" || node.getAttribute("dir") === "auto" || node.closest(".radar-tasks-extra")).toBeTruthy();
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(band("waiting")!.querySelector("[data-fold]")!);
+    const nodes = Array.from(slot.container.querySelectorAll(".radar-feed-title, .radar-feed-detail, .radar-ask-question, .radar-ask-task"));
+    expect(nodes.length).toBe(6);
+    for (const node of nodes) {
+      expect(node.tagName).toBe("BDI");
+      expect(node.getAttribute("dir")).toBe("auto");
     }
-    const rtl = slot.container.querySelector('[data-task-id="t_rtl"] .radar-task-title')!;
-    expect(rtl.tagName).toBe("BDI");
-    expect(rtl.getAttribute("dir")).toBe("auto");
+    const rtl = slot.container.querySelector('[data-task-id="t_rtl"] .radar-feed-title')!;
     expect(rtl.textContent!.length).toBeGreaterThan(150);
-    const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
-    expect(css).toMatch(/\.radar-task-title, \.radar-task-line \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;[^}]*unicode-bidi: isolate;/);
+    expect(css()).toMatch(/\.radar-feed-title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*unicode-bidi: isolate;/);
+    // English counts keep their order in an RTL page ("1 needs you", not "needs you 1").
+    expect(css()).toMatch(/\.radar-desk-status, [^{]*\{ unicode-bidi: plaintext; \}/);
+    // Separators are their own elements, so they sit between parts whatever each part's direction.
+    expect(slot.container.querySelector(".radar-ask-who .radar-sep")).toBeTruthy();
   });
 });
 
@@ -299,9 +464,9 @@ describe("Bots view without bot_tasks", () => {
     const { slot } = renderList(new Error('HTTP 404: plugin "orchestrator-mode" has no rpc method "bot_tasks"'));
     const status = await screen.findByText(/This bots core has no task list yet/);
     expect(status.closest('[role="status"]')).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Bots" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show threads" }));
     await waitFor(() => expect(rowIds(slot.container)).toContain("plain"));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Threads" }));
   });
 
   it("never shows a blank list while loading or after a transient failure", async () => {
@@ -313,23 +478,11 @@ describe("Bots view without bot_tasks", () => {
   it("keeps the last tasks on a transient failure and says how old they are", async () => {
     let fail = false;
     renderList(() => { if (fail) throw new Error("fetch failed"); return normalDay(); });
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
+    await screen.findByRole("region", { name: "Bots" });
     fail = true;
     act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
     expect(await screen.findByText(/^As of .*Retrying\.$/)).toBeTruthy();
-    expect(screen.getByRole("region", { name: "ERBareeq Bot" })).toBeTruthy();
-  });
-});
-
-describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
-  it("renders the bot summary as whole parts and keeps the full line for screen readers", async () => {
-    renderList(normalDay());
-    const header = await screen.findByRole("button", { name: /^Open ERBareeq Bot: 2 for you · 2 working · 1 queued · 4 waiting$/ });
-    const parts = Array.from(header.querySelectorAll(".radar-tasks-bot-summary-part")).map(node => node.textContent);
-    expect(parts).toEqual(["2 for you", "2 working", "1 queued", "4 waiting"]);
-    const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
-    expect(css).toMatch(/\.radar-tasks-bot-summary \{[^}]*flex-wrap: wrap;[^}]*overflow: hidden;/);
-    expect(css).toMatch(/\.radar-tasks-bot-summary-part \{[^}]*white-space: nowrap;/);
+    expect(screen.getByRole("region", { name: "Bots" })).toBeTruthy();
   });
 
   it("dates a stale copy from an earlier day", () => {
@@ -344,24 +497,6 @@ describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
     expect(screen.getByText(/^As of /).textContent).not.toMatch(/Sep/);
   });
 
-  it("reads a task row's line to screen readers", async () => {
-    renderList(normalDay());
-    expect(await screen.findByRole("button", { name: "Move the backend off Replit, Working, 1h. Phase 3: Express paths out, installer syncs moved in." })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Chat · Islam · login code, Waiting for Islam, 1h" })).toBeTruthy();
-  });
-
-  it("keeps focus when Show threads or See all unmounts the pressed button", async () => {
-    renderList(new Error('plugin "orchestrator-mode" has no rpc method "bot_tasks"'));
-    fireEvent.click(await screen.findByRole("button", { name: "Show threads" }));
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Threads" }));
-    cleanup();
-    localStorage.clear();
-    renderList(tenDecisions());
-    const needs = await screen.findByRole("region", { name: "Needs you" });
-    fireEvent.click(within(needs).getByRole("button", { name: "See all 10" }));
-    expect((document.activeElement as HTMLElement).textContent).toContain("Is the iPhone connected to the Mac?");
-  });
-
   it("keeps a typed filter across Bots and back", async () => {
     localStorage.setItem(LIST_MODE_KEY, "threads");
     const { slot } = renderList(normalDay());
@@ -374,17 +509,183 @@ describe("review fixes (Fable, thr_tgexkf5gv4)", () => {
   });
 });
 
-describe("live qualification on Lab (2026-10-29)", () => {
+describe("Bots view: dates and waits", () => {
   it("shows a night completion under Done today with the local day, not the server's UTC date", async () => {
     const local = new Date(NOW); local.setHours(0, 30, 0, 0);
     const day = normalDay();
     day.bots[2]!.tasks.push({ ...day.bots[2]!.tasks[0]!, id: "t_night", title: "Night job", displayState: "done", line: `Done ${local.toISOString().slice(0, 10)}`, completedAt: local.getTime() });
     renderList(day);
-    const lab = await screen.findByRole("region", { name: "Lab Bot" });
-    fireEvent.click(within(lab).getByRole("button", { name: /^Done today · 1/ }));
-    const row = within(lab).getByRole("button", { name: /^Night job, Done/ });
-    expect(row.textContent).toContain("Done today");
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(band("done")!.querySelector("[data-fold]")!);
+    const row = within(band("done")!).getByRole("button", { name: /^Night job, Lab, Done, / });
     expect(row.textContent).not.toContain(local.toISOString().slice(0, 10));
+  });
+
+  it("shows what a waiting task waits for, not only whom", () => {
+    expect(waitingLine({ line: "Waiting for the bot: Kitchen TV standby wakes with Wake on Wi-Fi off · wakes 09:00", waitFor: "the bot" }))
+      .toBe("Kitchen TV standby wakes with Wake on Wi-Fi off · wakes 09:00");
+    expect(waitingLine({ line: "Waiting for Mohamed Omar: the reconciliation file · no wake set", waitFor: "Mohamed Omar" }))
+      .toBe("Mohamed Omar: the reconciliation file · no wake set");
+    expect(waitingLine({ line: "", waitFor: "Islam" })).toBe("Waiting for Islam");
+    expect(waitingLine({ line: "", waitFor: undefined })).toBe("Waiting");
+    expect(waitingLine({ line: "Blocked until the host returns", waitFor: "the bot" })).toBe("Blocked until the host returns");
+  });
+
+  it("says 'no date' for a wait on the bot with no wake (Salem, 2026-10-29)", async () => {
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(band("waiting")!.querySelector("[data-fold]")!);
+    const row = screen.getByRole("button", { name: /^Kitchen TV standby, Home, Waiting for the bot, 2h/ });
+    expect(within(row).getByText("no date")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /^Chat · Islam · login code, ERBareeq, Waiting for Islam, 1h/ })).getByText("Islam")).toBeTruthy();
+    expect(rowDetail(makeTask("x", "a", "waiting", { waitFor: "the bot", wakeAt: NOW + 3_600_000 }), NOW)).not.toBe("no date");
+  });
+
+  it("picks the mood from the most urgent open state, with work without a task counting as working", () => {
+    expect(botMood([makeTask("x", "a", "waiting"), makeTask("x", "b", "working"), makeTask("x", "c", "offline")])).toBe("offline");
+    expect(botMood([makeTask("x", "a", "waiting"), makeTask("x", "b", "retrying")])).toBe("working");
+    expect(botMood([makeTask("x", "a", "done", { completedAt: NOW })], 1)).toBe("working");
+    expect(botMood([makeTask("x", "a", "done", { completedAt: NOW })])).toBe("quiet");
+    expect(botMood([makeTask("x", "a", "checking"), makeTask("x", "b", "queued")])).toBe("checking");
+    expect(moodFace("needs")).toBe("needs-you");
+    expect(moodFace("overdue")).toBe("failed");
+    expect(moodFace("offline")).toBe("unavailable");
+    expect(moodFace("waiting")).toBeUndefined();
+  });
+
+  it("writes a row's detail without repeating its state", () => {
+    expect(rowDetail(makeTask("x", "a", "queued", { line: "Queued: no capacity" }), NOW)).toBe("no capacity");
+    expect(rowDetail(makeTask("x", "a", "working", { line: "" }), NOW)).toBe("");
+    expect(rowDetail(makeTask("x", "a", "waiting", { waitFor: "Islam" }), NOW)).toBe("Islam");
+    expect(rowDetail(makeTask("x", "a", "waiting", {}), NOW)).toBe("");
+    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28", completedAt: NOW }), NOW)).toBe("");
+    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
+    expect(rowDetail(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
+    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("Done today");
+    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 29 Oct", completedAt: NOW }), NOW)).toBe("Done today");
+    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 29 Oct · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
+    expect(rowStateWord(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("Done");
+    expect(rowStateWord(makeTask("x", "a", "stopped", { line: "Stopped by Salem", completedAt: NOW }), NOW)).toBe("Stopped");
+  });
+
+  it("names a finished row's day: time today, weekday this week, date beyond; an attempt's times read as a span", () => {
+    expect(closedAge(NOW - HOUR, NOW)).toMatch(/\d/);
+    expect(closedAge(NOW - 4 * DAY, NOW)).toBe("Thu");
+    expect(closedAge(NOW - 9 * DAY, NOW)).toMatch(/Sep/);
+    expect(attemptWhen({ startedAt: null, endedAt: null, state: "idle" }, NOW)).toBe("");
+    expect(attemptWhen({ startedAt: NOW - HOUR, endedAt: null, state: "running" }, NOW)).toMatch(/^Started \S+/);
+    expect(attemptWhen({ startedAt: NOW - 2 * HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/ · ended /);
+    expect(attemptWhen({ startedAt: NOW - DAY - HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/Sep/);
+  });
+});
+
+describe("Bots view: nothing vanishes, workers as a task's attempts (Salem, thr_g9gsfjxfyx)", () => {
+  const attemptLabels = (scope: HTMLElement) => Array.from(scope.querySelectorAll(".radar-task-attempt")).map(node => node.getAttribute("aria-label"));
+
+  it("keeps closed work from earlier this week, folded with its count, with the day in the age column", async () => {
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Now" });
+    const earlier = band("earlier")!;
+    expect(earlier.querySelector(".radar-band-count")!.textContent).toBe("5");
+    fireEvent.click(earlier.querySelector("[data-fold]")!);
+    expect(feedTitles(earlier)).toEqual(["MSSQL database on our host", "Expense report for October", "Orange lines: September invoice check", "Warranty QR relabel for Yasser", "Instagram views report"]);
+    expect(within(earlier).getByRole("button", { name: /^Instagram views report, ERBareeq, Stopped, Thu\b/ })).toBeTruthy();
+    expect(within(earlier).getByRole("button", { name: /^Orange lines: September invoice check, ERBareeq, Done, Sat\b/ })).toBeTruthy();
+    // A quiet bot keeps its week too, under its own focus.
+    fireEvent.click(desk("Work"));
+    const work = screen.getByRole("region", { name: "Work Bot: work" });
+    expect(within(work).getByText("Nothing open. Resting.")).toBeTruthy();
+    expect(within(work).getByRole("button", { name: /^Earlier this week/ })).toBeTruthy();
+  });
+
+  it("lists a task's attempts newest first with model, effort and times, each opening its thread; the row still opens the latest", async () => {
+    const { slot, callRpc } = renderList(normalDay());
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
+    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(3));
+    expect(callRpc).toHaveBeenCalledWith(expect.objectContaining({ method: "task_detail", input: { taskId: "t_replit" } }));
+    expect(attemptLabels(details)).toEqual([
+      expect.stringMatching(/^Replit move: phase 3, installer syncs, Running, gpt-6\.1-sol · xhigh, Started \S+( [AP]M)?, latest attempt$/),
+      expect.stringMatching(/^Replit move: phase 2 \(retry after outage\), Ended, claude-opus-5-5 · medium, \S+( [AP]M)? · ended \S+( [AP]M)?$/),
+      expect.stringMatching(/^Replit move: phase 1, Express paths, Ended, gpt-6\.1-sol · high, \S+( [AP]M)? · ended \S+( [AP]M)?$/),
+    ]);
+    fireEvent.click(within(details).getAllByRole("button")[2]!);
+    expect(opened(slot)).toEqual(["thr_replit_a1"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Move the backend off Replit, ERBareeq, Working/ }));
+    expect(opened(slot)).toEqual(["thr_replit_a1", "thr_task_t_replit"]);
+    // Only one task's details are open at a time; the toggle closes its own.
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Survey stress test and video" }));
+    expect(screen.queryByRole("region", { name: "Move the backend off Replit: details" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Hide details: Survey stress test and video" }));
+    expect(screen.queryByRole("region", { name: /: details$/ })).toBeNull();
+  });
+
+  it("shows a task the bot did itself as one attempt from its conversation", async () => {
+    renderList(normalDay());
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(band("done")!.querySelector("[data-fold]")!);
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Unused company lines (Orange)" }));
+    const details = await screen.findByRole("region", { name: "Unused company lines (Orange): details" });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(1));
+    expect(attemptLabels(details)[0]).toMatch(/^Unused company lines \(Orange\), Ended, \S+( [AP]M)? · ended \S+( [AP]M)?, latest attempt$/);
+    expect(within(details).getByText(/finished/)).toBeTruthy();
+  });
+
+  it("says so when the core has no task_detail, or the read fails, and still offers the latest attempt", async () => {
+    const { slot } = renderList(normalDay(), { detail: "missing" });
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
+    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
+    await within(details).findByText("This core doesn't list attempts yet; only the latest is known.");
+    expect(attemptLabels(details)).toEqual([expect.stringMatching(/^Replit move: phase 3, installer syncs, Running, Started .*, latest attempt$/)]);
+    fireEvent.click(within(details).getByRole("button"));
+    expect(opened(slot)).toEqual(["thr_task_t_replit"]);
+    cleanup();
+    resetTaskAttempts();
+    renderList(normalDay(), { detail: "error" });
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
+    await screen.findByText("Attempts didn't load; only the latest is known.");
+  });
+
+  it("works on a phone: the details toggle is its own target beside each row", async () => {
+    const { slot } = renderList(normalDay(), { compact: true });
+    await screen.findByRole("region", { name: "Now" });
+    const toggle = screen.getByRole("button", { name: "Show details: Move the backend off Replit" });
+    expect(toggle.closest(".radar-feed-rowline")).toBeTruthy();
+    expect(toggle.classList.contains("radar-feed-more")).toBe(true);
+    expect(slot.container.querySelector(".radar-list-compact")).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(await screen.findByRole("region", { name: "Move the backend off Replit: details" })).toBeTruthy();
+  });
+
+  it("shows a worker started while the details are open on the next bots refresh, with one task_detail per refresh (Fable, thr_kekmhnwp6p)", async () => {
+    let observedAt = NOW;
+    const { callRpc } = renderList(() => ({ ...normalDay(), observedAt }));
+    await screen.findByRole("region", { name: "Now" });
+    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
+    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(3));
+    const detailCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "task_detail").length;
+    const botTasksCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "bot_tasks").length;
+    expect(detailCalls()).toBe(1);
+    const original = callRpc.getMockImplementation()!;
+    callRpc.mockImplementation(async (args: { method: string; input?: unknown }) => {
+      if (args.method !== "task_detail") return original(args);
+      const found = taskDetails().t_replit;
+      return { ...found, workers: [...found.workers, { threadId: "thr_replit_a3", title: "Replit move: phase 4, cutover", model: null, effort: null, state: "running" }] };
+    });
+    const before = botTasksCalls();
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await waitFor(() => expect(botTasksCalls()).toBe(before + 1));
+    await act(async () => { await Promise.resolve(); });
+    expect(detailCalls()).toBe(1);
+    observedAt = NOW + 60_000;
+    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
+    await waitFor(() => expect(attemptLabels(details)).toHaveLength(4));
+    expect(detailCalls()).toBe(2);
+    expect(attemptLabels(details)[3]).toMatch(/^Replit move: phase 4, cutover, Running/);
   });
 });
 
@@ -414,257 +715,5 @@ describe("BotsView component", () => {
     render(<BotsView state={{ data, status: "ready", cached: false }} activeThreadId={null} isCompactViewport now={NOW} onOpen={onOpen} onShowThreads={() => {}} />);
     fireEvent.click(within(screen.getByRole("region", { name: "Needs you" })).getByText("Open the MR for Yasser?"));
     expect(onOpen).toHaveBeenCalledWith("thr_ask_brk42");
-  });
-});
-
-describe("Bots view: the row's second line and the quiet zero", () => {
-  it("shows what a waiting task waits for, not only whom", () => {
-    // The core's line: "Waiting for <owner>: <reason> · wakes …". The ring already says waiting.
-    expect(waitingLine({ line: "Waiting for the bot: Kitchen TV standby wakes with Wake on Wi-Fi off · wakes 09:00", waitFor: "the bot" }))
-      .toBe("Kitchen TV standby wakes with Wake on Wi-Fi off · wakes 09:00");
-    expect(waitingLine({ line: "Waiting for Mohamed Omar: the reconciliation file · no wake set", waitFor: "Mohamed Omar" }))
-      .toBe("Mohamed Omar: the reconciliation file · no wake set");
-    // No reason known: the owner alone, as before.
-    expect(waitingLine({ line: "", waitFor: "Islam" })).toBe("Waiting for Islam");
-    expect(waitingLine({ line: "", waitFor: undefined })).toBe("Waiting");
-    // A line the core wrote in another shape passes through untouched.
-    expect(waitingLine({ line: "Blocked until the host returns", waitFor: "the bot" })).toBe("Blocked until the host returns");
-  });
-
-  it("says 'no date' for a wait on the bot with no wake, and keeps the reason for its details (Salem, 2026-10-29)", async () => {
-    renderList(normalDay());
-    const row = await screen.findByRole("button", { name: /^Kitchen TV standby, Waiting for the bot, 2h/ });
-    expect(within(row).getByText("no date")).toBeTruthy();
-    expect(rowDetail(makeTask("x", "a", "waiting", { waitFor: "the bot", wakeAt: NOW + 3_600_000 }), NOW)).not.toBe("no date");
-  });
-
-  it("mutes the Needs you count at zero and warns above it", async () => {
-    const quiet = normalDay();
-    for (const bot of quiet.bots) bot.tasks = bot.tasks.filter(task => task.displayState !== "needs");
-    quiet.needs = [];
-    const { slot } = renderList(quiet);
-    await screen.findByRole("region", { name: "Needs you" });
-    expect(slot.container.querySelector(".radar-tasks-count-static")?.className).toContain("radar-tasks-count-zero");
-    cleanup();
-    localStorage.clear();
-    const { slot: busy } = renderList(tenDecisions(), { compact: true });
-    await screen.findByRole("region", { name: "Needs you" });
-    expect(busy.container.querySelector(".radar-tasks-count-static")?.className).not.toContain("radar-tasks-count-zero");
-  });
-
-  it("gives Lab a mascot like the rest of the crew, and folds with one icon chevron", async () => {
-    const { slot } = renderList(normalDay());
-    const lab = await screen.findByRole("region", { name: "Lab Bot" });
-    expect(lab.querySelector('.bot-mascot[data-mascot="lab"]')).toBeTruthy();
-    expect(lab.querySelector(".radar-tasks-face-letter")).toBeNull();
-    expect(slot.container.textContent).not.toMatch(/[▾▸]/);
-    expect(slot.container.querySelectorAll(".radar-tasks-chevron .radar-tasks-chevron-icon").length).toBe(6);
-  });
-});
-
-describe("Bots view redesign (Salem, thr_2gjivwx8ea, 2026-10-29: bold redesign, status at a glance)", () => {
-  it("wears each bot's mood on its card: tone, face, badge and a solid first chip", async () => {
-    const { slot } = renderList(normalDay());
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    const moods = Array.from(slot.container.querySelectorAll(".radar-tasks-bot")).map(node => [node.getAttribute("aria-label"), node.getAttribute("data-mood")]);
-    expect(moods).toEqual([["ERBareeq Bot", "needs"], ["Bricks Bot", "needs"], ["Lab Bot", "working"], ["Home Bot", "overdue"], ["Personal Bot", "quiet"], ["Work Bot", "quiet"]]);
-    const erbareeq = screen.getByRole("region", { name: "ERBareeq Bot" });
-    expect(erbareeq.className).toContain("radar-tasks-bot-ask");
-    expect(erbareeq.querySelector(".radar-tasks-hero-badge")?.textContent).toBe("?");
-    expect(erbareeq.querySelector(".radar-tasks-bot-mood")?.textContent).toBe("2 for you");
-    const home = screen.getByRole("region", { name: "Home Bot" });
-    expect(home.className).toContain("radar-tasks-bot-trouble");
-    expect(home.querySelector(".radar-tasks-hero-badge")?.textContent).toBe("!");
-    const lab = screen.getByRole("region", { name: "Lab Bot" });
-    expect(lab.querySelector(".radar-tasks-hero-badge")).toBeNull();
-    expect(lab.querySelector(".radar-tasks-hero")?.className).toContain("radar-tasks-hero-busy");
-    // The hero is decorative; the header's label still says it all.
-    expect(lab.querySelector(".radar-tasks-hero")?.getAttribute("aria-hidden")).toBe("true");
-    expect(within(lab).getByRole("button", { name: "Open Lab Bot: 2 working" })).toBeTruthy();
-  });
-
-  it("picks the mood from the most urgent open state, with work without a task counting as working", () => {
-    expect(botMood([makeTask("x", "a", "waiting"), makeTask("x", "b", "working"), makeTask("x", "c", "offline")])).toBe("offline");
-    expect(botMood([makeTask("x", "a", "waiting"), makeTask("x", "b", "retrying")])).toBe("working");
-    expect(botMood([makeTask("x", "a", "done", { completedAt: NOW })], 1)).toBe("working");
-    expect(botMood([makeTask("x", "a", "done", { completedAt: NOW })])).toBe("quiet");
-    expect(botMood([makeTask("x", "a", "checking"), makeTask("x", "b", "queued")])).toBe("checking");
-    expect(moodFace("needs")).toBe("needs-you");
-    expect(moodFace("overdue")).toBe("failed");
-    expect(moodFace("offline")).toBe("unavailable");
-    expect(moodFace("waiting")).toBeUndefined();
-  });
-
-  it("opens every row's second line with its state word, then the detail without a repeated preamble", async () => {
-    renderList(normalDay());
-    const queued = await screen.findByRole("button", { name: /^Survey stress test and video, Queued/ });
-    expect(within(queued).getByText("Queued").className).toContain("radar-task-state-queued");
-    expect(within(queued).getByText("no Opus capacity · retry 14:20")).toBeTruthy();
-    const waiting = screen.getByRole("button", { name: "Chat · Islam · login code, Waiting for Islam, 1h" });
-    expect(within(waiting).getByText("Waiting")).toBeTruthy();
-    expect(within(waiting).getByText("Islam")).toBeTruthy();
-    const home = screen.getByRole("region", { name: "Home Bot" });
-    expect(within(home).getByText("Overdue").className).toContain("radar-task-state-overdue");
-    expect(within(home).getByText("Offline").className).toContain("radar-task-state-offline");
-    expect(rowDetail(makeTask("x", "a", "queued", { line: "Queued: no capacity" }), NOW)).toBe("no capacity");
-    expect(rowDetail(makeTask("x", "a", "working", { line: "" }), NOW)).toBe("");
-    expect(rowDetail(makeTask("x", "a", "waiting", { waitFor: "Islam" }), NOW)).toBe("Islam");
-    expect(rowDetail(makeTask("x", "a", "waiting", {}), NOW)).toBe("");
-    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28", completedAt: NOW }), NOW)).toBe("");
-    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
-    expect(rowDetail(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
-    // A finished row's word carries its local day, so "Done today · 62 lines matched" reads as one line.
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("Done today");
-    // The current core writes the day in Cairo time ("Done 29 Oct"); a row finished today still reads "Done today".
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 29 Oct", completedAt: NOW }), NOW)).toBe("Done today");
-    expect(rowDetail(makeTask("x", "a", "done", { line: "Done 29 Oct · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("Done");
-    expect(rowStateWord(makeTask("x", "a", "stopped", { line: "Stopped by Salem", completedAt: NOW }), NOW)).toBe("Stopped");
-  });
-
-  it("keeps the fold and open targets phone-sized and the chevron at the card's end", async () => {
-    const { slot } = renderList(normalDay(), { compact: true });
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    const head = slot.container.querySelector(".radar-tasks-bot-head")!;
-    expect(Array.from(head.children).map(node => node.className)).toEqual(["radar-tasks-bot-open", "radar-tasks-chevron"]);
-    const css = readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
-    expect(css).toMatch(/\.radar-list-compact \.radar-tasks-chevron \{ width: 44px; height: 4[48]px; \}/);
-    expect(css).toMatch(/\.radar-list-compact \.radar-tasks-bot-open \{ min-height: 4[48]px; \}/);
-  });
-});
-
-describe("Bots view: one row per thing asked for, workers as its attempts, nothing vanishes (Salem, thr_g9gsfjxfyx)", () => {
-  const attemptLabels = (scope: HTMLElement) => Array.from(scope.querySelectorAll(".radar-task-attempt")).map(node => node.getAttribute("aria-label"));
-
-  it("keeps closed work from earlier this week under its bot, folded with its count, with the day in the age column", async () => {
-    renderList(normalDay());
-    const erbareeq = await screen.findByRole("region", { name: "ERBareeq Bot" });
-    const fold = within(erbareeq).getByRole("button", { name: "Earlier this week · 3" });
-    expect(fold.getAttribute("aria-expanded")).toBe("false");
-    expect(taskTitles(erbareeq)).not.toContain("MSSQL database on our host");
-    fireEvent.click(fold);
-    expect(taskTitles(erbareeq).slice(-3)).toEqual(["MSSQL database on our host", "Orange lines: September invoice check", "Instagram views report"]);
-    // With both folds open every closed row the core sent is on screen.
-    fireEvent.click(within(erbareeq).getByRole("button", { name: /^Done today · 1/ }));
-    const closed = normalDay().bots[0]!.tasks.filter(task => ["done", "stopped", "cancelled"].includes(task.displayState));
-    expect(closed).toHaveLength(4);
-    for (const task of closed) expect(taskTitles(erbareeq)).toContain(task.title);
-    // The age column names the weekday (NOW is a Monday; the report stopped on Thursday) and the row still opens.
-    expect(within(erbareeq).getByRole("button", { name: /^Instagram views report, Stopped, Thu\b/ })).toBeTruthy();
-    expect(within(erbareeq).getByRole("button", { name: /^Orange lines: September invoice check, Done, Sat\b/ })).toBeTruthy();
-    // A quiet bot keeps its week too, behind its own fold.
-    const work = screen.getByRole("region", { name: "Work Bot" });
-    fireEvent.click(within(work).getByRole("button", { name: "Unfold Work Bot" }));
-    expect(within(work).getByRole("button", { name: "Earlier this week · 1" })).toBeTruthy();
-    expect(within(work).queryByText("Nothing open")).toBeNull();
-  });
-
-  it("lists a task's attempts newest first with model, effort and times, each opening its thread; the row still opens the latest", async () => {
-    const { slot, callRpc } = renderList(normalDay());
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
-    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
-    await waitFor(() => expect(attemptLabels(details)).toHaveLength(3));
-    expect(callRpc).toHaveBeenCalledWith(expect.objectContaining({ method: "task_detail", input: { taskId: "t_replit" } }));
-    expect(attemptLabels(details)).toEqual([
-      expect.stringMatching(/^Replit move: phase 3, installer syncs, Running, gpt-6\.1-sol · xhigh, Started \S+( [AP]M)?, latest attempt$/),
-      expect.stringMatching(/^Replit move: phase 2 \(retry after outage\), Ended, claude-opus-5-5 · medium, \S+( [AP]M)? · ended \S+( [AP]M)?$/),
-      expect.stringMatching(/^Replit move: phase 1, Express paths, Ended, gpt-6\.1-sol · high, \S+( [AP]M)? · ended \S+( [AP]M)?$/),
-    ]);
-    expect(within(details).getByText("Phase 3: Express paths out, installer syncs moved in.")).toBeTruthy();
-    fireEvent.click(within(details).getAllByRole("button")[2]!);
-    expect(opened(slot)).toEqual(["thr_replit_a1"]);
-    fireEvent.click(screen.getByRole("button", { name: /^Move the backend off Replit, Working/ }));
-    expect(opened(slot)).toEqual(["thr_replit_a1", "thr_task_t_replit"]);
-    // Only one task's details are open at a time; the toggle closes its own.
-    fireEvent.click(screen.getByRole("button", { name: "Show details: Voice notes on local models" }));
-    expect(screen.queryByRole("region", { name: "Move the backend off Replit: details" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Hide details: Voice notes on local models" }));
-    expect(screen.queryByRole("region", { name: /: details$/ })).toBeNull();
-  });
-
-  it("shows a task the bot did itself as one attempt from its conversation, and a Needs-you task's question", async () => {
-    renderList(normalDay());
-    const erbareeq = await screen.findByRole("region", { name: "ERBareeq Bot" });
-    fireEvent.click(within(erbareeq).getByRole("button", { name: /^Done today · 1/ }));
-    fireEvent.click(within(erbareeq).getByRole("button", { name: "Show details: Unused company lines (Orange)" }));
-    const details = await screen.findByRole("region", { name: "Unused company lines (Orange): details" });
-    await waitFor(() => expect(attemptLabels(details)).toHaveLength(1));
-    expect(attemptLabels(details)[0]).toMatch(/^Unused company lines \(Orange\), Ended, \S+( [AP]M)? · ended \S+( [AP]M)?, latest attempt$/);
-    expect(within(details).getByText(/finished/)).toBeTruthy();
-    fireEvent.click(within(erbareeq).getByRole("button", { name: "Show details: Merchant feedback surveys, part 1" }));
-    const surveys = await screen.findByRole("region", { name: "Merchant feedback surveys, part 1: details" });
-    expect(within(surveys).getByText("Asks: Merge and deploy dark, flag off?")).toBeTruthy();
-    await waitFor(() => expect(attemptLabels(surveys)).toHaveLength(2));
-    expect(attemptLabels(surveys)[0]).toMatch(/^Fable review: surveys part 1, Ended, claude-fable-5-1 · high, .*, latest attempt$/);
-  });
-
-  it("says so when the core has no task_detail, or the read fails, and still offers the latest attempt", async () => {
-    const { slot } = renderList(normalDay(), { detail: "missing" });
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
-    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
-    await within(details).findByText("This core doesn't list attempts yet; only the latest is known.");
-    expect(attemptLabels(details)).toEqual([expect.stringMatching(/^Replit move: phase 3, installer syncs, Running, Started .*, latest attempt$/)]);
-    fireEvent.click(within(details).getByRole("button"));
-    expect(opened(slot)).toEqual(["thr_task_t_replit"]);
-    cleanup();
-    resetTaskAttempts();
-    renderList(normalDay(), { detail: "error" });
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
-    await screen.findByText("Attempts didn't load; only the latest is known.");
-  });
-
-  it("works on a phone: the details toggle is its own 44px target beside each row", async () => {
-    const { slot } = renderList(normalDay(), { compact: true });
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    const toggle = screen.getByRole("button", { name: "Show details: Move the backend off Replit" });
-    expect(toggle.closest(".radar-task-rowline")).toBeTruthy();
-    expect(toggle.classList.contains("radar-task-info-toggle")).toBe(true);
-    expect(toggle.closest(".radar-list-compact")).toBeTruthy();
-    fireEvent.click(toggle);
-    expect(await screen.findByRole("region", { name: "Move the backend off Replit: details" })).toBeTruthy();
-  });
-
-  it("shows a worker started while the details are open on the next bots refresh, with one task_detail per refresh (Fable, thr_kekmhnwp6p)", async () => {
-    let observedAt = NOW;
-    const { callRpc } = renderList(() => ({ ...normalDay(), observedAt }));
-    await screen.findByRole("region", { name: "ERBareeq Bot" });
-    fireEvent.click(screen.getByRole("button", { name: "Show details: Move the backend off Replit" }));
-    const details = await screen.findByRole("region", { name: "Move the backend off Replit: details" });
-    await waitFor(() => expect(attemptLabels(details)).toHaveLength(3));
-    const detailCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "task_detail").length;
-    const botTasksCalls = () => callRpc.mock.calls.filter(([call]) => call.method === "bot_tasks").length;
-    expect(detailCalls()).toBe(1);
-    // A new worker the list does not know yet: it has no start time, so it follows the timed ones.
-    const original = callRpc.getMockImplementation()!;
-    callRpc.mockImplementation(async (args: { method: string; input?: unknown }) => {
-      if (args.method !== "task_detail") return original(args);
-      const found = taskDetails().t_replit;
-      return { ...found, workers: [...found.workers, { threadId: "thr_replit_a3", title: "Replit move: phase 4, cutover", model: null, effort: null, state: "running" }] };
-    });
-    // Same data again: nothing new to read.
-    const before = botTasksCalls();
-    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
-    await waitFor(() => expect(botTasksCalls()).toBe(before + 1));
-    await act(async () => { await Promise.resolve(); });
-    expect(detailCalls()).toBe(1);
-    observedAt = NOW + 60_000;
-    act(() => { window.dispatchEvent(new Event(NEEDS_CHANGED)); });
-    await waitFor(() => expect(attemptLabels(details)).toHaveLength(4));
-    expect(detailCalls()).toBe(2);
-    expect(attemptLabels(details)[3]).toMatch(/^Replit move: phase 4, cutover, Running/);
-    expect(attemptLabels(details)[0]).toMatch(/latest attempt$/);
-  });
-
-  it("names a finished row's day: time today, weekday this week, date beyond; an attempt's times read as a span", () => {
-    expect(closedAge(NOW - HOUR, NOW)).toMatch(/\d/);
-    expect(closedAge(NOW - 4 * DAY, NOW)).toBe("Thu");
-    expect(closedAge(NOW - 9 * DAY, NOW)).toMatch(/Sep/);
-    expect(attemptWhen({ startedAt: null, endedAt: null, state: "idle" }, NOW)).toBe("");
-    expect(attemptWhen({ startedAt: NOW - HOUR, endedAt: null, state: "running" }, NOW)).toMatch(/^Started \S+/);
-    expect(attemptWhen({ startedAt: NOW - 2 * HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/ · ended /);
-    expect(attemptWhen({ startedAt: NOW - DAY - HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/Sep/);
   });
 });

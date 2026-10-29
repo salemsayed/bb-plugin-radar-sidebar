@@ -1,4 +1,6 @@
 /* Visual harness only: bb-like theme tokens and shell around Radar's real thread-list slot. */
+/* bb's own Inter Variable, served by the harness from the installed bb app (harness/vite.config.ts). */
+@font-face { font-family: "Inter Variable"; font-style: normal; font-display: block; font-weight: 100 900; src: url("/bb-inter.woff2") format("woff2-variations"); }
 /* bb's default theme (app 0.48, themeId "default"): a monochrome primary, amber attention, orange warning. */
 :root {
   --canvas: oklch(100% 0 0); --ink: oklch(32.11% 0 0);

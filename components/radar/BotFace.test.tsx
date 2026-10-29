@@ -14,9 +14,20 @@ describe("bot faces", () => {
     expect(face("rollover")).toBe(face("working"));
     expect(face("decision")).toBe(face("needs-you"));
   });
-  it("keep marks out of the face area and scale to their box", () => {
-    expect(face()).not.toContain('fill="#fff"');
+  it("scale to their box, and give every crew member its own silhouette and prop", () => {
     expect(face()).toContain('width="100%"');
+    const crew = ["personal", "home", "bricks", "work", "erbareeq", "lab"].map(key => renderToStaticMarkup(<BotFace botKey={key} name={key} />));
+    expect(new Set(crew).size).toBe(6);
+    // Bricks wears a hard hat; Lab's face floats in its liquid.
+    expect(face()).toContain("hsl(46 96% 56%)");
+    expect(crew[5]).toContain("hsl(330 45% 95%)");
+  });
+  it("keep their gradient and clip ids apart, so two faces on one page never share a fill", () => {
+    const html = renderToStaticMarkup(<><BotFace botKey="home" name="Home" /><BotFace botKey="home" name="Home" /></>);
+    const ids = [...html.matchAll(/id="([^"]+)"/g)].map(match => match[1]);
+    expect(ids).toHaveLength(4);
+    expect(new Set(ids).size).toBe(4);
+    for (const id of ids) expect(id).toMatch(/^bot-(fill|clip)-[a-zA-Z0-9_-]+$/);
   });
   it("frame the face with the state ring and a corner badge in the avatar", () => {
     const html = renderToStaticMarkup(<BotAvatar botKey="home" name="Home Bot" state="decision" />);

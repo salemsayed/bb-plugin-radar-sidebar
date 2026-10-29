@@ -2,9 +2,9 @@
 // test runtime with bot_tasks fixtures, inside a bb-like shell.
 // Query: ?size=desktop|tablet|phone&fixture=normal|peak|ten|rtl|missing|loading&mode=bots|threads&theme=light|dark&active=<threadId>
 //        &sidebar=<px> (desktop/tablet sidebar width) &dir=rtl &detail=missing (a core without task_detail)
-//        &open=<bot>:<week|done|waiting>,… (folds to open) &info=<taskId> (a task's details to open)
+//        &focus=<botKey> (a desk to press) &open=<waiting|done|earlier>,… (bands to unfold) &info=<taskId> (a task's details to open)
 import { NOW, makeThread } from "@/components/radar/fixtures";
-import { attemptThreads, normalDay, peakDay, rtlAndEmpty, taskDetails, tenDecisions } from "@/components/radar/botTasksFixtures";
+import { attemptThreads, normalDay, peakDay, quietDay, rtlAndEmpty, taskDetails, tenDecisions } from "@/components/radar/botTasksFixtures";
 import { LIST_MODE_KEY } from "@/components/radar/ListModeSwitch";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
 
@@ -19,6 +19,22 @@ document.body.dataset.size = size;
 if (params.get("dir") === "rtl") document.documentElement.dir = "rtl";
 if (size === "tablet") document.documentElement.style.setProperty("--sidebar", "280px");
 if (params.get("sidebar")) document.documentElement.style.setProperty("--sidebar", `${params.get("sidebar")}px`);
+
+// ?sheet=faces: every character in every state, large and at row size, for reviewing the art alone.
+if (params.get("sheet") === "faces") {
+  const [{ createRoot }, { createElement: h }, { BotFace }] = await Promise.all([import("react-dom/client"), import("react"), import("@/components/radar/BotFace")]);
+  const keys = ["personal", "home", "bricks", "work", "erbareeq", "lab"];
+  const states = [undefined, "working", "needs-you", "failed", "unavailable"] as const;
+  document.getElementById("frame")!.style.display = "block";
+  createRoot(document.getElementById("frame")!).render(h("div", { style: { padding: 16, display: "grid", gap: 12 } },
+    keys.map(key => h("div", { key, style: { display: "flex", alignItems: "end", gap: 14 } },
+      h("b", { style: { width: 70, fontSize: 13 } }, key),
+      states.map(state => h("span", { key: String(state), style: { display: "inline-flex", alignItems: "end", gap: 6 } },
+        h(BotFace, { botKey: key, name: key, state, size: 88 }), h(BotFace, { botKey: key, name: key, state, size: 36 }), h(BotFace, { botKey: key, name: key, state, size: 20 }))))),
+  ));
+  (window as unknown as { harnessReady: boolean }).harnessReady = true;
+  await new Promise(() => {});
+}
 
 // Fixtures are dated around NOW; the page's clock starts there and runs on.
 const RealDate = Date;
@@ -39,7 +55,7 @@ const { loadPluginApp, renderSlot } = await import("@get-bb/plugin-sdk/testing/a
 const app = await loadPluginApp(() => import("../app"));
 
 const tasks: Record<string, (() => BotTasksOutput) | "missing" | "loading"> = {
-  normal: normalDay, peak: peakDay, ten: tenDecisions, rtl: rtlAndEmpty, missing: "missing", loading: "loading",
+  normal: normalDay, quiet: quietDay, peak: peakDay, ten: tenDecisions, rtl: rtlAndEmpty, missing: "missing", loading: "loading",
 };
 const roster = ["erbareeq", "bricks", "home"].map(key => ({
   key, name: `${key[0]!.toUpperCase()}${key.slice(1)} Bot`, current: `thr_coord_${key}`, projectId: `proj_${key}`, projects: [],
@@ -104,14 +120,22 @@ setInterval(() => {
   node.textContent = last ? `Opened ${last.threadId} (${calls.length} open${calls.length === 1 ? "" : "s"})` : "Nothing opened yet.";
   node.dataset.opened = last?.threadId ?? "";
 }, 100);
-// Folds and a task's details the screenshot wants open: pressed once each, as a reader would.
+// A tile, folds and a task's details the screenshot wants open: pressed once each, as a reader would.
+const wantedFocus = params.get("focus");
 const wantedFolds = (params.get("open") ?? "").split(",").filter(Boolean);
 const wantedInfo = params.get("info");
+let focused = !wantedFocus;
 const opener = setInterval(() => {
+  if (!focused) {
+    const tile = document.querySelector<HTMLButtonElement>(`.radar-desk[data-bot="${wantedFocus}"]`);
+    if (!tile) return;
+    if (tile.getAttribute("aria-pressed") !== "true") tile.click();
+    focused = true;
+    return;
+  }
   let pending = false;
-  for (const want of wantedFolds) {
-    const [bot, kind] = want.split(":");
-    const fold = document.querySelector<HTMLButtonElement>(`.radar-tasks-bot[data-bot="${bot}"] [data-fold="${kind}"]`);
+  for (const kind of wantedFolds) {
+    const fold = document.querySelector<HTMLButtonElement>(`[data-fold="${kind}"]`);
     if (!fold) { pending = true; continue; }
     if (fold.getAttribute("aria-expanded") === "false") fold.click();
   }

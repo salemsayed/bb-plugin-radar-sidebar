@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import {
-  MOOD_TONE,
   STATE_LABEL,
+  crewStatus,
+  feedBands,
   isClosed,
   isSameLocalDay,
   layoutBot,
@@ -14,14 +15,18 @@ import {
   rowStartedAt,
   shortModel,
   type Attempt,
+  type Band,
   type BotLayout,
+  type CrewTone,
   type BotMood,
+  type FeedItem,
   type BotTaskRow,
   type BotTasksBot,
   type BotTasksData,
   type NeedRow,
 } from "@/lib/botTasks";
 import { botStyle, shortBotName, type BotState } from "./bots";
+import type { CSSProperties } from "react";
 import { BotFace } from "./BotFace";
 import { shortAgo } from "./time";
 import type { BotTasksState } from "./useBotTasks";
@@ -32,7 +37,7 @@ import { readStored, writeStored } from "./useListSettings";
 export const NEEDS_SHOWN = 3;
 /** Not filed rows rendered before the rest are left to the Threads list. */
 const NOT_FILED_SHOWN = 30;
-const FOLDS_KEY = "radar-sidebar:bots-folds:v1";
+const FOLDS_KEY = "radar-sidebar:bots-folds:v2";
 const PEEK_DELAY_MS = 350;
 
 // 24-hour, like the waiting rows' "tonight 20:30" (a finished row read "5:54 PM" next to them).
@@ -92,22 +97,6 @@ export function moodFace(mood: BotMood): BotState | undefined {
 }
 
 /**
- * The bot as the hero of its card: a large face in its mood, with a ring
- * that turns while it works, a "?" when it needs Salem and a "!" when
- * something is overdue or offline. Decorative: the header's label says it all.
- */
-function BotHero({ bot, mood, size }: { bot: BotTasksBot; mood: BotMood; size: number }) {
-  const badge = mood === "needs" ? "?" : mood === "overdue" || mood === "offline" ? "!" : null;
-  return (
-    <span className={cn("radar-tasks-hero", `radar-tasks-hero-${MOOD_TONE[mood]}`)} data-mood={mood} aria-hidden="true">
-      <span className="radar-tasks-hero-ring" />
-      <BotTaskFace bot={bot} size={size} state={moodFace(mood)} />
-      {badge ? <span className="radar-tasks-hero-badge">{badge}</span> : null}
-    </span>
-  );
-}
-
-/**
  * A waiting row's second line says what it waits for, not only whom: the core
  * writes "Waiting for the bot: <reason> · wakes 09:00", and the hollow ring
  * already says "waiting", so the row keeps the reason and drops the preamble.
@@ -119,11 +108,6 @@ export function waitingLine(task: Pick<BotTaskRow, "line" | "waitFor">): string 
   const reason = task.line.startsWith(prefix) ? task.line.slice(prefix.length).trim() : "";
   if (!reason) return task.line || (owner ? `Waiting for ${owner}` : STATE_LABEL.waiting);
   return owner && owner !== "the bot" ? `${owner}: ${reason}` : reason;
-}
-
-function rowLine(task: BotTaskRow, now: number): string {
-  if (task.displayState === "waiting") return waitingLine(task);
-  return localizeDoneLine(task, now) || task.needs?.question || STATE_LABEL[task.displayState];
 }
 
 /**
@@ -266,10 +250,73 @@ function TaskInfo({ id, task, now, observedAt, activeThreadId, onOpen }: {
 
 interface Peek { task: BotTaskRow; bot: BotTasksBot; age: string; top: number; left: number }
 
+/** The bot a tile focuses stays focused while the drawer closes and opens again in this session, not across reloads. */
+let rememberedFocus: string | null = null;
+/** For tests: start each render with every bot shown. */
+export function resetBotsFocus(): void { rememberedFocus = null; }
+
+/** The bot's own colour, for the stage its character stands on: identity, not state. */
+export function botTint(bot: Pick<BotTasksBot, "key" | "name" | "color">): string {
+  return bot.color ?? `hsl(${botStyle(bot.key, bot.name).hue} 70% 55%)`;
+}
+
+/** What a desk's laptop shows: work scrolling, a red "!", a "?" waiting on Salem, a dim idle screen, or off. */
+const SCREEN: Record<CrewTone, "work" | "alert" | "ask" | "idle" | "off"> = { busy: "work", trouble: "alert", ask: "ask", idle: "idle", quiet: "off" };
+
 /**
- * The Bots view of the sidebar: Needs you across every bot, then each bot in
- * roster order with its tasks, then work no task owns. Every row opens bb's
- * own thread route; nothing here changes a task.
+ * A bot at its desk in the studio, acting out its state: typing at a glowing laptop while it works, standing
+ * up in a warm light with a speech bubble when it needs Salem, a red light on the desk when something is
+ * stuck, asleep with the screen off when there is nothing to do. The name plate says the state in words, so
+ * the scene is decoration over a plain label: the desk's accessible name carries the bot's whole summary.
+ */
+function Desk({ layout, focused, compact, onSelect, chatOpen }: { layout: BotLayout; focused: boolean; compact: boolean; onSelect: () => void; chatOpen: boolean }) {
+  const { bot } = layout;
+  const status = crewStatus(layout);
+  const tone = status.tone;
+  const asks = tone === "ask" ? status.count : bot.tasks.filter(task => task.displayState === "needs").length;
+  return (
+    <li className="radar-desk-slot">
+      <button type="button" className={cn("radar-desk", `radar-desk-${tone}`)} style={{ "--radar-bot": botTint(bot) } as CSSProperties}
+        data-bot={bot.key} data-mood={layout.mood} aria-pressed={focused} data-chat-open={chatOpen ? "true" : undefined}
+        aria-label={`${bot.name}: ${layout.summary}. ${focused ? "Showing its work; press to show every bot" : "Show its work"}`}
+        onClick={onSelect}>
+        {asks > 0 ? <span className="radar-desk-bubble" aria-hidden="true">{asks > 1 ? `${asks} ?` : "?"}</span> : null}
+        <span className="radar-desk-char" aria-hidden="true"><BotTaskFace bot={bot} size={compact ? 54 : 48} state={moodFace(layout.mood)} /></span>
+        <span className="radar-desk-top" aria-hidden="true">
+          <span className={cn("radar-desk-laptop", `radar-desk-laptop-${SCREEN[tone]}`)}><i /><i /><i /></span>
+          {tone === "trouble" ? <span className="radar-desk-siren" /> : <span className="radar-desk-mug" />}
+        </span>
+        <span className="radar-desk-front">
+          <span className="radar-desk-name" dir="auto">{shortBotName(bot.name)}</span>
+          <span className="radar-desk-status">{status.label}</span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A row's parts with a separator element between them, not a ::before inside each part: inside an isolated
+ * part the dot sat at that text's own start, the wrong side of an English detail in an RTL page.
+ */
+function joined(parts: readonly ReactNode[]): ReactNode[] {
+  return parts.filter(Boolean).flatMap((part, index) => index === 0 ? [part] : [<span key={`sep${index}`} className="radar-sep" aria-hidden="true">·</span>, part]);
+}
+
+/** Bands that are live work always show; waits and history fold to their count unless a bot is in focus. */
+const ALWAYS_OPEN: ReadonlySet<Band["key"]> = new Set(["stuck", "working", "next"]);
+function bandOpenByDefault(key: Band["key"], focused: boolean): boolean {
+  if (ALWAYS_OPEN.has(key)) return true;
+  return focused && (key === "waiting" || key === "done");
+}
+
+/**
+ * The Bots view of the sidebar, a studio (Salem, thr_2gjivwx8ea: "go with studio"):
+ * every bot at its own desk acting out its state, a whiteboard with the day's
+ * counts, then what needs Salem (each ask with its answers, always listed), then
+ * one list of what is happening across the crew, grouped by state. A desk opens
+ * its bot's sheet under the room. Every row opens bb's own thread route; nothing here
+ * changes a task.
  */
 export function BotsView({
   state,
@@ -277,6 +324,7 @@ export function BotsView({
   isCompactViewport,
   now,
   onOpen,
+  onReply,
   onShowThreads,
 }: {
   state: BotTasksState;
@@ -284,6 +332,8 @@ export function BotsView({
   isCompactViewport: boolean;
   now: number;
   onOpen: (threadId: string) => void;
+  /** Open a thread with a reply typed into its composer, unsent. Without it an answer just opens the thread. */
+  onReply?: (threadId: string, text: string) => void;
   onShowThreads: () => void;
 }) {
   const { data, status } = state;
@@ -303,39 +353,41 @@ export function BotsView({
       </div>
     );
   }
-  return <BotsList data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now} onOpen={onOpen} onShowThreads={onShowThreads} />;
+  return <CrewBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} />;
 }
 
-function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads }: {
+function CrewBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onReply, onShowThreads }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number;
-  onOpen: (threadId: string) => void; onShowThreads: () => void;
+  onOpen: (threadId: string) => void; onReply?: (threadId: string, text: string) => void; onShowThreads: () => void;
 }) {
   const bots = useMemo(() => orderedBots(data), [data]);
   const layouts = useMemo(() => bots.map(bot => layoutBot(bot, now)), [bots, now]);
   const needs = useMemo(() => needRows(data), [data]);
   const botByKey = useMemo(() => new Map(bots.map(bot => [bot.key, bot])), [bots]);
 
+  const [focusKey, setFocusKey] = useState<string | null>(() => rememberedFocus);
+  useEffect(() => { rememberedFocus = focusKey; }, [focusKey]);
+  // A bot that left the roster takes its focus with it.
+  const focus = focusKey ? layouts.find(layout => layout.bot.key === focusKey) ?? null : null;
+  const bands = useMemo(() => feedBands(focus ? [focus] : layouts), [focus, layouts]);
+
   const [folds, setFolds] = useState<Record<string, boolean>>(readFolds);
   useEffect(() => { writeStored(FOLDS_KEY, JSON.stringify(folds)); }, [folds]);
+  const scope = focus ? focus.bot.key : "@all";
   const isOpen = (id: string, fallback: boolean) => folds[id] ?? fallback;
   const toggle = (id: string, fallback: boolean) => setFolds(previous => ({ ...previous, [id]: !(previous[id] ?? fallback) }));
 
   const [needsAll, setNeedsAll] = useState(() => readStored("radar-sidebar:bots-needs-all:v1", "off", ["off", "on"]) === "on");
   useEffect(() => { writeStored("radar-sidebar:bots-needs-all:v1", needsAll ? "on" : "off"); }, [needsAll]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const rootRef = useRef<HTMLDivElement>(null);
   const focusNeed = useRef<string | null>(null);
   useEffect(() => {
     if (!focusNeed.current) return;
     const key = focusNeed.current;
     focusNeed.current = null;
-    const rows = rootRef.current?.querySelectorAll<HTMLElement>("[data-need-key]") ?? [];
+    const rows = rootRef.current?.querySelectorAll<HTMLElement>("button[data-need-key]") ?? [];
     Array.from(rows).find(row => row.dataset.needKey === key)?.focus();
-  });
-  const toggleExpanded = (id: string) => setExpanded(previous => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
   });
 
   // One task's details open at a time: the panel is the row's own, so a second tap elsewhere moves it.
@@ -355,170 +407,163 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
     clearPeek();
     onOpen(threadId);
   };
+  const answer = (threadId: string, text: string) => {
+    clearPeek();
+    if (onReply) onReply(threadId, text); else onOpen(threadId);
+  };
 
-  const taskRow = (bot: BotTasksBot, task: BotTaskRow): ReactNode => {
+  /* ---------- Needs you: each ask as a card, its question in full, its answers one tap away ---------- */
+  // Every ask stays on the page whatever is focused: a focused bot's own asks lead its sheet, and the rest
+  // stay listed under it, so another bot's question never hides behind its desk's bubble.
+  const ownAsks = focus ? needs.filter(need => need.botKey === focus.bot.key) : [];
+  const asks = focus ? needs.filter(need => need.botKey !== focus.bot.key) : needs;
+  const showAllNeeds = isCompactViewport || needsAll || asks.length <= NEEDS_SHOWN;
+  const shownNeeds = showAllNeeds ? asks : asks.slice(0, NEEDS_SHOWN);
+  const askCard = (need: NeedRow, inSheet = false) => {
+    const bot = need.bot ?? { key: need.botKey, name: need.botKey, color: undefined, faceUrl: undefined };
+    const name = shortBotName(bot.name);
+    return (
+      <li key={need.key} className="radar-ask">
+        <button type="button" className="radar-ask-open" data-task-id={need.taskId} data-need-key={need.key}
+          aria-current={activeThreadId !== null && need.threadId === activeThreadId ? "page" : undefined}
+          aria-label={`${need.question}. ${name}${need.taskTitle ? `, ${need.taskTitle}` : ""}`}
+          disabled={!need.threadId}
+          onClick={() => open(need.threadId)}>
+          <span className="radar-ask-face" aria-hidden="true"><BotTaskFace bot={bot} size={isCompactViewport ? 34 : 30} state="needs-you" /></span>
+          <span className="radar-ask-who">
+            {/* Inside its bot's sheet the name is the heading already; the card names only the task. */}
+            {inSheet ? null : <span className="radar-ask-bot" dir="auto">{name}</span>}
+            {need.taskTitle && !inSheet ? <span className="radar-sep" aria-hidden="true">·</span> : null}
+            {need.taskTitle ? <bdi dir="auto" className="radar-ask-task">{need.taskTitle}</bdi> : null}
+          </span>
+          <bdi dir="auto" className="radar-ask-question">{need.question}</bdi>
+        </button>
+        {need.options.length > 0 && need.threadId ? (
+          <div className="radar-ask-answers" role="group" aria-label={`Answers: ${need.question}`}>
+            {need.options.map(option => (
+              <button key={option} type="button" className="radar-ask-answer" data-answer={option}
+                title="Opens the chat with this answer typed in. Nothing is sent."
+                aria-label={`Answer ${option}: opens the chat with it typed in`}
+                onClick={() => answer(need.threadId!, option)}>
+                <bdi dir="auto" className="radar-ask-pill">{option}</bdi>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </li>
+    );
+  };
+
+  /* ---------- Now: live work grouped by what is happening ---------- */
+  const feedTask = (bot: BotTasksBot, task: BotTaskRow, band: Band): ReactNode => {
     const target = task.conversationThreadId ?? bot.coordinatorThreadId;
     const age = rowAge(task, data.observedAt, now);
-    const label = STATE_LABEL[task.displayState] + (task.displayState === "waiting" && task.waitFor ? ` for ${task.waitFor}` : "");
+    const word = task.displayState === band.primary ? "" : rowStateWord(task, now);
     const detail = rowDetail(task, now);
+    const label = STATE_LABEL[task.displayState] + (task.displayState === "waiting" && task.waitFor ? ` for ${task.waitFor}` : "");
     const infoOpen = infoTask === task.id;
     const infoId = `radar-task-info-${task.id}`;
     return (
-      <li key={task.id} className={cn("radar-task-item", infoOpen && "radar-task-item-open")}>
-        {/* The row line wears the state's wash; the row opens the latest attempt, the end column (age, then the details toggle) opens the details. */}
-        <div className={cn("radar-task-rowline", `radar-task-${task.displayState}`)}>
-        <button
-          type="button"
-          className={cn("radar-task-row", `radar-task-${task.displayState}`)}
-          data-task-id={task.id}
-          // Only a task's own conversation marks it open: one without a worker opens the bot's chat, which is the card's.
-          aria-current={activeThreadId !== null && task.conversationThreadId === activeThreadId ? "page" : undefined}
-          aria-label={`${task.title || "Untitled task"}, ${label}, ${age}${rowLine(task, now) !== label ? `. ${rowLine(task, now)}` : ""}`}
-          title={task.conversationThreadId ? undefined : `No task conversation yet: opens ${bot.name}`}
-          onClick={() => open(target)}
-          onMouseEnter={canPeek ? (event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            if (peekTimer.current) clearTimeout(peekTimer.current);
-            peekTimer.current = setTimeout(() => setPeek({ task, bot, age, top: rect.top, left: rect.right + 8 }), PEEK_DELAY_MS);
-          } : undefined}
-          onMouseLeave={canPeek ? clearPeek : undefined}
-        >
-          <StateGlyph state={task.displayState} />
-          <span className="radar-task-body">
-            <span className="radar-task-titleline">
-              <bdi dir="auto" className="radar-task-title">{task.title || "Untitled task"}</bdi>
-              {task.tags.includes("dev") ? <span className="radar-task-chip">dev</span> : null}
+      <li key={task.id} className={cn("radar-feed-item", infoOpen && "radar-feed-item-open")}>
+        <div className={cn("radar-feed-rowline", `radar-feed-${task.displayState}`)}>
+          <button type="button" className="radar-feed-row" data-task-id={task.id} data-state={task.displayState}
+            // Only a task's own conversation marks it open: one without a worker opens the bot's chat.
+            aria-current={activeThreadId !== null && task.conversationThreadId === activeThreadId ? "page" : undefined}
+            aria-label={`${task.title || "Untitled task"}, ${shortBotName(bot.name)}, ${label}, ${age}${detail ? `. ${detail}` : ""}`}
+            title={task.conversationThreadId ? undefined : `No task conversation yet: opens ${bot.name}`}
+            onClick={() => open(target)}
+            onMouseEnter={canPeek ? (event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              if (peekTimer.current) clearTimeout(peekTimer.current);
+              peekTimer.current = setTimeout(() => setPeek({ task, bot, age, top: rect.top, left: rect.right + 8 }), PEEK_DELAY_MS);
+            } : undefined}
+            onMouseLeave={canPeek ? clearPeek : undefined}>
+            {focus ? <StateGlyph state={task.displayState} /> : <BotTaskFace bot={bot} size={26} />}
+            <span className="radar-feed-body">
+              <span className="radar-feed-titleline">
+                <bdi dir="auto" className="radar-feed-title">{task.title || "Untitled task"}</bdi>
+                {task.tags.includes("dev") ? <span className="radar-feed-chip">dev</span> : null}
+              </span>
+              <span className="radar-feed-line">
+                {joined([
+                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(bot.name)}</span>,
+                  word ? <span key="word" className={cn("radar-feed-state", `radar-feed-state-${task.displayState}`)}>{word}</span> : null,
+                  detail ? <bdi key="detail" dir="auto" className="radar-feed-detail">{detail}</bdi> : null,
+                ])}
+              </span>
             </span>
-            <span className="radar-task-line">
-              <span className={cn("radar-task-state", `radar-task-state-${task.displayState}`)}>{rowStateWord(task, now)}</span>
-              {detail ? <bdi dir="auto" className="radar-task-detail">{detail}</bdi> : null}
-            </span>
-          </span>
-        </button>
-        <button type="button" className="radar-task-info-toggle" data-info-task={task.id}
-          aria-expanded={infoOpen} aria-controls={infoOpen ? infoId : undefined}
-          aria-label={`${infoOpen ? "Hide" : "Show"} details: ${task.title || "Untitled task"}`}
-          onClick={() => { clearPeek(); setInfoTask(infoOpen ? null : task.id); }}>
-          <span className="radar-task-age" aria-hidden="true">{age}</span>
-          <Icon name="Info" aria-hidden="true" className="radar-task-info-icon" />
-        </button>
+          </button>
+          <button type="button" className="radar-feed-more" data-info-task={task.id}
+            aria-expanded={infoOpen} aria-controls={infoOpen ? infoId : undefined}
+            aria-label={`${infoOpen ? "Hide" : "Show"} details: ${task.title || "Untitled task"}`}
+            onClick={() => { clearPeek(); setInfoTask(infoOpen ? null : task.id); }}>
+            <span className="radar-feed-age" aria-hidden="true">{age}</span>
+            <Icon name="ChevronDown" aria-hidden="true" className="radar-feed-more-icon" />
+          </button>
         </div>
         {infoOpen ? <TaskInfo id={infoId} task={task} now={now} observedAt={data.observedAt} activeThreadId={activeThreadId} onOpen={open} /> : null}
       </li>
     );
   };
 
-  const foldRow = (id: string, text: string, isExpanded: boolean, onToggle: () => void, kind?: string) => (
-    <li key={id}>
-      <button type="button" className="radar-task-fold" data-fold={kind} aria-expanded={isExpanded} onClick={onToggle}>
-        <span className="radar-task-fold-chevron" aria-hidden="true"><Chevron open={isExpanded} /></span>
-        <span className="radar-task-fold-text">{text}</span>
-      </button>
-    </li>
-  );
-
-  const botGroup = (layout: BotLayout) => {
-    const { bot } = layout;
-    const groupOpen = isOpen(bot.key, !layout.quiet);
-    const waitingOpen = expanded.has(`${bot.key}:waiting`);
-    const doneOpen = expanded.has(`${bot.key}:done`);
-    const weekOpen = expanded.has(`${bot.key}:week`);
-    const done = layout.closedToday.filter(task => task.displayState === "done").length;
-    const halted = layout.closedToday.length - done;
-    // "today" once: "Done today · 2 · 1 stopped", or "1 stopped today" alone.
-    const doneLabel = [done > 0 ? `Done today · ${done}` : null, halted > 0 ? `${halted} stopped${done > 0 ? "" : " today"}` : null].filter(Boolean).join(" · ");
-    const tone = MOOD_TONE[layout.mood];
+  const feedItem = (item: FeedItem, band: Band): ReactNode => {
+    if (item.kind === "task") return feedTask(item.bot, item.task, band);
     return (
-      <section key={bot.key}
-        className={cn("radar-tasks-bot", `radar-tasks-bot-${tone}`, layout.quiet && "radar-tasks-bot-quiet", !groupOpen && "radar-tasks-bot-folded")}
-        data-mood={layout.mood} data-bot={bot.key} aria-label={bot.name}>
-        <div className="radar-tasks-bot-head">
-          <button type="button" className="radar-tasks-bot-open"
-            aria-current={activeThreadId === bot.coordinatorThreadId ? "page" : undefined}
-            aria-label={`Open ${bot.name}: ${layout.summary}`}
-            onClick={() => open(bot.coordinatorThreadId)}>
-            {/* A quiet bot has nothing to show: a smaller face keeps its card to one compact header. */}
-            <BotHero bot={bot} mood={layout.mood} size={layout.quiet ? 28 : isCompactViewport ? 44 : 40} />
-            <span className="radar-tasks-bot-text">
-              <span className="radar-tasks-bot-name" dir="auto">{shortBotName(bot.name)}</span>
-              {/* The first part is the bot's mood and wears its tone; the rest are counts. Parts wrap onto a hidden
-                  second line, so a narrow header drops whole parts, never half a word. */}
-              <span className="radar-tasks-bot-summary" aria-hidden="true">
-                {layout.summaryParts.map((part, index) => (
-                  <span key={part} className={cn("radar-tasks-bot-summary-part", index === 0 && "radar-tasks-bot-mood")}>{part}</span>
-                ))}
+      <li key={item.threadId} className="radar-feed-item">
+        <div className="radar-feed-rowline radar-feed-working">
+          <button type="button" className="radar-feed-row radar-feed-unlinked" data-state="working"
+            aria-current={item.threadId === activeThreadId ? "page" : undefined}
+            aria-label={`${item.title || "Untitled worker"}, ${shortBotName(item.bot.name)}, running, no task`}
+            onClick={() => open(item.threadId)}>
+            {focus ? <StateGlyph state="working" /> : <BotTaskFace bot={item.bot} size={26} />}
+            <span className="radar-feed-body">
+              <bdi dir="auto" className="radar-feed-title">{item.title || "Untitled worker"}</bdi>
+              <span className="radar-feed-line">
+                {joined([
+                  focus ? null : <span key="bot" className="radar-feed-bot">{shortBotName(item.bot.name)}</span>,
+                  <span key="detail" className="radar-feed-detail">worker without a task</span>,
+                ])}
               </span>
             </span>
           </button>
-          <button type="button" className="radar-tasks-chevron" aria-expanded={groupOpen}
-            aria-label={`${groupOpen ? "Fold" : "Unfold"} ${bot.name}`} onClick={() => toggle(bot.key, !layout.quiet)}>
-            <Chevron open={groupOpen} />
-          </button>
         </div>
-        {groupOpen ? (
-          <ul className="radar-task-list">
-            {layout.needs.map(task => taskRow(bot, task))}
-            {layout.active.map(task => taskRow(bot, task))}
-            {bot.unlinked.map(item => (
-              <li key={item.threadId}>
-                <button type="button" className="radar-task-row radar-task-working radar-task-unlinked"
-                  aria-current={item.threadId === activeThreadId ? "page" : undefined}
-                  aria-label={`${item.title || "Untitled worker"}, running, no task`}
-                  onClick={() => open(item.threadId)}>
-                  <StateGlyph state="working" />
-                  <span className="radar-task-body">
-                    <bdi dir="auto" className="radar-task-title">{item.title || "Untitled worker"}</bdi>
-                    <span className="radar-task-line">
-                      <span className="radar-task-state radar-task-state-working">Running</span>
-                      <span className="radar-task-detail">no task</span>
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-            {layout.waitingShown.map(task => taskRow(bot, task))}
-            {layout.waitingFolded.length > 0
-              ? foldRow(`${bot.key}:waiting`, waitingOpen ? "Fewer waiting" : `${layout.waitingFolded.length} more waiting`, waitingOpen, () => toggleExpanded(`${bot.key}:waiting`), "waiting")
-              : null}
-            {waitingOpen ? layout.waitingFolded.map(task => taskRow(bot, task)) : null}
-            {layout.closedToday.length > 0
-              ? foldRow(`${bot.key}:done`, doneLabel, doneOpen, () => toggleExpanded(`${bot.key}:done`), "done")
-              : null}
-            {doneOpen ? layout.closedToday.map(task => taskRow(bot, task)) : null}
-            {/* The week of closed work the core sends stays under its bot, folded: nothing finished vanishes (Salem, thr_g9gsfjxfyx). */}
-            {layout.closedEarlier.length > 0
-              ? foldRow(`${bot.key}:week`, `Earlier this week · ${layout.closedEarlier.length}`, weekOpen, () => toggleExpanded(`${bot.key}:week`), "week")
-              : null}
-            {weekOpen ? layout.closedEarlier.map(task => taskRow(bot, task)) : null}
-            {layout.quiet && layout.closedToday.length === 0 && layout.closedEarlier.length === 0 ? <li className="radar-task-empty">Nothing open</li> : null}
-          </ul>
-        ) : null}
-      </section>
-    );
-  };
-
-  // A phone shows every decision, so any one is two taps from anywhere: the drawer, then the row.
-  const showAllNeeds = isCompactViewport || needsAll || needs.length <= NEEDS_SHOWN;
-  const shownNeeds = showAllNeeds ? needs : needs.slice(0, NEEDS_SHOWN);
-  const needRow = (need: NeedRow) => {
-    const bot = need.bot ?? { key: need.botKey, name: need.botKey, color: undefined, faceUrl: undefined };
-    const where = [shortBotName(bot.name), need.taskTitle].filter(Boolean).join(" · ");
-    return (
-      <li key={need.key}>
-        <button type="button" className="radar-need-row" data-task-id={need.taskId} data-need-key={need.key}
-          aria-current={activeThreadId !== null && need.threadId === activeThreadId ? "page" : undefined}
-          disabled={!need.threadId}
-          onClick={() => open(need.threadId)}>
-          <BotTaskFace bot={bot} size={28} state="needs-you" />
-          <span className="radar-task-body">
-            <bdi dir="auto" className="radar-task-title">{need.question}</bdi>
-            <bdi dir="auto" className="radar-task-line">{where}</bdi>
-          </span>
-        </button>
       </li>
     );
   };
 
+  const band = (item: Band) => {
+    const fallback = bandOpenByDefault(item.key, focus !== null);
+    const foldId = `${scope}:${item.key}`;
+    const foldable = !ALWAYS_OPEN.has(item.key);
+    const shown = !foldable || isOpen(foldId, fallback);
+    const halted = item.key === "done" ? item.items.filter(entry => entry.kind === "task" && entry.task.displayState !== "done").length : 0;
+    const count = halted > 0 ? `${item.items.length - halted} · ${halted} stopped` : String(item.items.length);
+    const head = (
+      <>
+        <span className={cn("radar-band-mark", `radar-band-mark-${item.tone}`)} aria-hidden="true" />
+        <span className="radar-band-label">{item.label}</span>
+        <span className="radar-band-count">{count}</span>
+      </>
+    );
+    return (
+      <section key={item.key} className={cn("radar-band", `radar-band-${item.key}`)} aria-label={item.label} data-band={item.key}>
+        {foldable ? (
+          <button type="button" className="radar-band-head radar-band-toggle" data-fold={item.key} aria-expanded={shown} onClick={() => toggle(foldId, fallback)}>
+            {head}
+            <Chevron open={shown} />
+          </button>
+        ) : <h4 className="radar-band-head">{head}</h4>}
+        {shown ? <ul className="radar-feed-list">{item.items.map(entry => feedItem(entry, item))}</ul> : null}
+      </section>
+    );
+  };
+
+  const live = bands.filter(item => ALWAYS_OPEN.has(item.key));
+  const liveCount = live.reduce((sum, item) => sum + item.items.length, 0);
+  // The whiteboard counts the whole crew, whichever bot is focused.
+  const stuckCount = layouts.filter(layout => crewStatus(layout).tone === "trouble").length;
+  const liveAll = layouts.reduce((sum, layout) => sum + layout.active.length + layout.bot.unlinked.length, 0);
+  const focusIndex = focus ? layouts.indexOf(focus) : 0;
   const notFiledOpen = isOpen("@not-filed", false);
   const stale = state.status === "error" || state.cached;
 
@@ -530,69 +575,129 @@ function BotsList({ data, state, activeThreadId, isCompactViewport, now, onOpen,
         </p>
       ) : null}
 
-      <section className="radar-tasks-needs" aria-label="Needs you">
-        <div className="radar-tasks-section-head">
-          <h3>Needs you</h3>
-          {needs.length > NEEDS_SHOWN && !isCompactViewport ? (
-            <button type="button" className="radar-tasks-count" aria-expanded={showAllNeeds}
-              aria-label={showAllNeeds ? `Needs you: ${needs.length}, show fewer` : `Needs you: open all ${needs.length}`}
-              onClick={() => setNeedsAll(value => !value)}>
-              {needs.length}{showAllNeeds ? "" : " · open all"}
-            </button>
-          ) : <span className={cn("radar-tasks-count-static", needs.length === 0 && "radar-tasks-count-zero")}>{needs.length}</span>}
-        </div>
-        {needs.length === 0 ? <p className="radar-task-empty">Nothing needs you.</p> : (
-          <ul className="radar-task-list">
-            {shownNeeds.map(needRow)}
-            {!showAllNeeds ? foldRow("@needs", `See all ${needs.length}`, false, () => {
-              // The pressed row unmounts: focus moves to the first decision it revealed.
-              focusNeed.current = needs[NEEDS_SHOWN]?.key ?? null;
-              setNeedsAll(true);
-            }) : null}
-          </ul>
+      <section className="radar-studio" aria-label="Bots">
+        {layouts.length === 0 ? <p className="radar-bots-empty">No bots are registered.</p> : (
+          <div className="radar-room">
+            <span className="radar-room-window" aria-hidden="true"><span /><span /></span>
+            {/* The day's counts on the studio's whiteboard: what needs Salem, what is stuck, what is moving. */}
+            <p className="radar-room-board">
+              {needs.length > 0 ? <span className="radar-room-board-ask">{`${needs.length} ${needs.length === 1 ? "ask" : "asks"}`}</span> : null}
+              {stuckCount > 0 ? <span className="radar-room-board-trouble">{`${stuckCount} stuck`}</span> : null}
+              <span>{liveAll > 0 ? `${liveAll} live` : needs.length + stuckCount > 0 ? "" : "All quiet"}</span>
+            </p>
+            <ul className="radar-room-floor">
+              {layouts.map(layout => (
+                <Desk key={layout.bot.key} layout={layout} focused={focus?.bot.key === layout.bot.key} compact={isCompactViewport}
+                  chatOpen={activeThreadId === layout.bot.coordinatorThreadId}
+                  onSelect={() => { clearPeek(); setInfoTask(null); setFocusKey(focus?.bot.key === layout.bot.key ? null : layout.bot.key); }} />
+              ))}
+            </ul>
+          </div>
         )}
       </section>
 
-      <div className="radar-tasks-section-head"><h3>Bots</h3></div>
-      {layouts.length === 0 ? <p className="radar-task-empty">No bots are registered.</p> : layouts.map(botGroup)}
+      {focus ? (
+        // The focused bot's sheet opens right under the room, its notch pointing at the bot's desk.
+        <section className="radar-sheet" aria-label={`${focus.bot.name}: work`} data-column={focusIndex % 3}
+          style={{ "--radar-bot": botTint(focus.bot) } as CSSProperties}>
+          <div className="radar-section-head radar-focus-head">
+            <BotTaskFace bot={focus.bot} size={26} state={moodFace(focus.mood)} />
+            <h3 dir="auto">{shortBotName(focus.bot.name)}</h3>
+            <button type="button" className="radar-focus-chat"
+              aria-current={activeThreadId === focus.bot.coordinatorThreadId ? "page" : undefined}
+              aria-label={`Open ${focus.bot.name} chat`}
+              onClick={() => open(focus.bot.coordinatorThreadId)}>
+              <Icon name="MessageSquare" aria-hidden="true" className="radar-focus-chat-icon" />Chat
+            </button>
+            <button type="button" className="radar-focus-clear" aria-label="Show every bot" onClick={() => { setInfoTask(null); setFocusKey(null); }}>
+              <Icon name="X" aria-hidden="true" className="radar-focus-clear-icon" />
+            </button>
+          </div>
+          {ownAsks.length > 0 ? (
+            <section className="radar-asks radar-asks-own" aria-label={`${focus.bot.name}: needs you`}>
+              <ul className="radar-ask-list">{ownAsks.map(need => askCard(need, true))}</ul>
+            </section>
+          ) : null}
+          {liveCount === 0 && ownAsks.length === 0 ? <p className="radar-bots-empty">{focus.quiet ? "Nothing open. Resting." : "Nothing running."}</p> : null}
+          {bands.map(band)}
+        </section>
+      ) : null}
 
-      {/* Work a bot runs without a task now shows inside its bot's group (Salem, 2026-10-29). */}
+      {focus && asks.length === 0 ? null : (
+      <section className={cn("radar-asks", asks.length === 0 && "radar-asks-clear")} aria-label={focus ? "Other bots need you" : "Needs you"}>
+        {asks.length === 0 ? (
+          <p className="radar-asks-none"><Icon name="Check" aria-hidden="true" className="radar-asks-none-icon" />Nothing needs you</p>
+        ) : (
+          <>
+            <div className="radar-section-head">
+              <h3>{focus ? "Other bots need you" : "Needs you"}</h3>
+              <span className="radar-section-count">{asks.length}</span>
+            </div>
+            <ul className="radar-ask-list">
+              {shownNeeds.map(need => askCard(need))}
+            </ul>
+            {!showAllNeeds ? (
+              <button type="button" className="radar-more" aria-expanded={false} onClick={() => {
+                // The pressed button unmounts: focus moves to the first ask it revealed.
+                focusNeed.current = asks[NEEDS_SHOWN]?.key ?? null;
+                setNeedsAll(true);
+              }}>{`${asks.length - NEEDS_SHOWN} more ${asks.length - NEEDS_SHOWN === 1 ? "ask" : "asks"}`}</button>
+            ) : needsAll && !isCompactViewport && asks.length > NEEDS_SHOWN ? (
+              <button type="button" className="radar-more" aria-expanded onClick={() => setNeedsAll(false)}>Show fewer</button>
+            ) : null}
+          </>
+        )}
+      </section>
+      )}
 
-      <section className="radar-tasks-extra" aria-label="Not filed">
-        <button type="button" className="radar-tasks-section-toggle" aria-expanded={notFiledOpen}
-          onClick={() => toggle("@not-filed", false)}>
-          <span className="radar-tasks-section-toggle-label">Not filed</span>
-          <span className="radar-tasks-section-count">{data.notFiled.length}</span>
-          <Chevron open={notFiledOpen} />
-        </button>
-        {notFiledOpen ? (
-          data.notFiled.length === 0 ? <p className="radar-task-empty">Every thread belongs to a bot.</p> : (
-            <ul className="radar-task-list">
+      {!focus && layouts.length > 0 ? (
+        <section className="radar-now" aria-label="Now">
+          <div className="radar-section-head">
+            <h3>Now</h3>
+            <span className="radar-section-count">{liveCount > 0 ? liveCount : ""}</span>
+          </div>
+          {liveCount === 0 ? <p className="radar-bots-empty">Nothing running right now.</p> : null}
+          {bands.map(band)}
+        </section>
+      ) : null}
+
+      {!focus && data.notFiled.length > 0 ? (
+        <section className="radar-notfiled" aria-label="Not filed">
+          <button type="button" className="radar-band-head radar-band-toggle" aria-expanded={notFiledOpen} onClick={() => toggle("@not-filed", false)}>
+            <span className="radar-band-mark radar-band-mark-quiet" aria-hidden="true" />
+            <span className="radar-band-label">Not filed</span>
+            <span className="radar-band-count">{data.notFiled.length}</span>
+            <Chevron open={notFiledOpen} />
+          </button>
+          {notFiledOpen ? (
+            <ul className="radar-feed-list">
               {data.notFiled.slice(0, NOT_FILED_SHOWN).map(item => {
                 const suggested = item.suggestedBot ? botByKey.get(item.suggestedBot) : undefined;
                 return (
-                  <li key={item.threadId}>
-                    <button type="button" className="radar-task-row radar-task-notfiled"
-                      aria-current={item.threadId === activeThreadId ? "page" : undefined}
-                      onClick={() => open(item.threadId)}>
-                      <span className="radar-task-glyph radar-task-glyph-plain" aria-hidden="true" />
-                      <span className="radar-task-body">
-                        <bdi dir="auto" className="radar-task-title">{item.title || "Untitled thread"}</bdi>
-                        <span className="radar-task-line">{suggested ? `Likely ${shortBotName(suggested.name)}` : "No bot"}</span>
-                      </span>
-                    </button>
+                  <li key={item.threadId} className="radar-feed-item">
+                    <div className="radar-feed-rowline">
+                      <button type="button" className="radar-feed-row radar-feed-notfiled"
+                        aria-current={item.threadId === activeThreadId ? "page" : undefined}
+                        onClick={() => open(item.threadId)}>
+                        <span className="radar-task-glyph radar-task-glyph-plain" aria-hidden="true" />
+                        <span className="radar-feed-body">
+                          <bdi dir="auto" className="radar-feed-title">{item.title || "Untitled thread"}</bdi>
+                          <span className="radar-feed-line">{suggested ? `Likely ${shortBotName(suggested.name)}` : "No bot"}</span>
+                        </span>
+                      </button>
+                    </div>
                   </li>
                 );
               })}
               {data.notFiled.length > NOT_FILED_SHOWN ? (
-                <li><button type="button" className="radar-task-fold" onClick={onShowThreads}>
+                <li><button type="button" className="radar-more" onClick={onShowThreads}>
                   {data.notFiled.length - NOT_FILED_SHOWN} more in Threads
                 </button></li>
               ) : null}
             </ul>
-          )
-        ) : null}
-      </section>
+          ) : null}
+        </section>
+      ) : null}
 
       {peek && typeof document !== "undefined" ? createPortal(
         <div className="radar-task-peek" role="tooltip" style={{ top: Math.max(8, Math.min(peek.top, window.innerHeight - 180)), left: Math.min(peek.left, window.innerWidth - 300) }}>

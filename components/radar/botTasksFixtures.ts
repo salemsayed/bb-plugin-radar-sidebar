@@ -100,6 +100,30 @@ export function normalDay(): BotTasksOutput {
   return makeOutput(bots, { notFiled: [{ threadId: "thr_plain_1", title: "Untitled plain thread", suggestedBot: "lab" }, { threadId: "thr_plain_2", title: "Scratch: regex for invoices" }] });
 }
 
+/** A quiet day: nothing needs Salem, two bots at work, a wait, and what finished today. */
+export function quietDay(): BotTasksOutput {
+  const bots = [
+    makeBot(seed("erbareeq"), [
+      makeTask("erbareeq", "Nightly stock sync check", "working", { id: "q_sync", line: "Comparing 1,240 SKUs against Odoo", ageMs: 12 * MINUTE }),
+      makeTask("erbareeq", "Chat · Islam · login code", "waiting", { waitFor: "Islam", ageMs: 3 * HOUR }),
+      makeTask("erbareeq", "Unused company lines (Orange)", "done", { line: "62 lines matched; list with confidence levels.", completedAt: NOW - 2 * HOUR }),
+    ]),
+    makeBot(seed("bricks"), [
+      makeTask("bricks", "fe!1024 on iPhone and Android", "done", { completedAt: NOW - 3 * HOUR }),
+    ]),
+    makeBot(seed("lab"), [
+      makeTask("lab", "Bots view v4: crew board", "working", { id: "q_v4", line: "Screenshots at nine sizes", ageMs: 40 * MINUTE, tags: ["dev"] }),
+      makeTask("lab", "Pool: one stale login can't block Claude workers", "done", { line: "Released as 0.9.2", completedAt: NOW - 5 * HOUR }),
+    ]),
+    makeBot(seed("home"), [
+      makeTask("home", "Kitchen TV standby", "waiting", { waitFor: "the bot", wakeAt: NOW + 6 * HOUR, line: "Waiting for the bot: natural standby wakes with Wake on Wi-Fi off · wakes 20:30", ageMs: 2 * HOUR }),
+    ]),
+    makeBot(seed("personal"), []),
+    makeBot(seed("work"), []),
+  ];
+  return makeOutput(bots);
+}
+
 /** Peak load: 44 open tasks across six bots (the CONTRACT's figure). */
 export function peakDay(): BotTasksOutput {
   const states: DisplayState[] = ["needs", "working", "working", "queued", "waiting", "waiting", "waiting", "waiting"];

@@ -98,6 +98,8 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     actions.open(threadId);
     navigation.current();
   }, [actions]);
+  // An ask's answer opens its thread with the answer typed in; nothing is sent.
+  const replyInThread = useReplyPrefill(openThread);
   // "Show threads" unmounts the pressed button, so focus lands on the Threads segment.
   const threadsSegment = useRef<HTMLButtonElement>(null);
   const showThreads = useCallback(() => {
@@ -116,7 +118,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">
             <BotsView state={tasks} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport}
-              now={now} onOpen={openThread} onShowThreads={showThreads} />
+              now={now} onOpen={openThread} onReply={replyInThread} onShowThreads={showThreads} />
           </div>
         </div>
       )}
