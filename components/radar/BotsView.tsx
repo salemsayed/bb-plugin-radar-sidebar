@@ -143,17 +143,17 @@ const clearsWeekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "sh
 const dayMonthFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
 /**
  * When a waiting row clears, in the device's own day (Salem, 2026-10-29: "Show when it clears instead of the reason"):
- * "checks tonight 20:30", "checks tomorrow 07:00", "checks Sat 1 Nov"; a passed date reads as overdue. The reason itself is
- * in the row's details.
+ * "tonight 20:30", "tomorrow 07:00", "Sat 1 Nov" after the Waiting word, short enough for a phone row (the time was cut off
+ * with "checks" in front); a passed date reads as overdue. The reason itself is in the row's details.
  */
 export function clearsLine(at: number, now: number): string {
   const day = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const days = Math.round((day(at) - day(now)) / 86_400_000), time = clockFormatter.format(new Date(at));
-  if (at < now) return days === 0 ? `check overdue since ${time}` : `check overdue since ${dayMonthFormatter.format(new Date(at))}`;
-  if (days === 0) return `checks ${new Date(at).getHours() >= 17 ? "tonight" : "today"} ${time}`;
-  if (days === 1) return `checks tomorrow ${time}`;
-  if (days < 7) return `checks ${clearsWeekdayFormatter.format(new Date(at))} ${time}`;
-  return `checks ${dayMonthFormatter.format(new Date(at))}`;
+  if (at < now) return days === 0 ? `overdue since ${time}` : `overdue since ${dayMonthFormatter.format(new Date(at))}`;
+  if (days === 0) return `${new Date(at).getHours() >= 17 ? "tonight" : "today"} ${time}`;
+  if (days === 1) return `tomorrow ${time}`;
+  if (days < 7) return `${clearsWeekdayFormatter.format(new Date(at))} ${time}`;
+  return dayMonthFormatter.format(new Date(at));
 }
 
 export function rowDetail(task: BotTaskRow, now: number): string {
