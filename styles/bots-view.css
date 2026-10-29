@@ -124,9 +124,11 @@
 .radar-tasks-bot-text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 3px; }
 .radar-tasks-bot-name { min-width: 0; overflow: hidden; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .radar-tasks-bot-quiet .radar-tasks-bot-name { color: var(--muted-foreground); font-weight: 600; }
-/* A quiet bot is one line: its name, then "quiet". */
-.radar-tasks-bot-quiet .radar-tasks-bot-text { flex-direction: row; align-items: baseline; gap: 8px; }
-.radar-tasks-bot-quiet .radar-tasks-bot-summary { flex: 1; }
+/* A quiet bot is one line: its name, then "quiet", then its count. The parts flow with the name, so a count that does
+   not fit moves under the name whole ("ERBareeq quiet" / "8 done today"), never cut to "8 done…" in a narrow column. */
+.radar-tasks-bot-quiet .radar-tasks-bot-text { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.radar-tasks-bot-quiet .radar-tasks-bot-summary { display: contents; }
+.radar-tasks-bot-quiet .radar-tasks-bot-mood { margin-inline-end: 0; }
 /* The summary: the first part is the mood, the one solid chip, in its tone; the counts follow as plain muted
    numerals. At most two visible lines, whole parts only. Each separator dot sits in the gap before its part, so
    a part that wraps to the start of a line takes its dot outside the box, where the overflow clips it. */
