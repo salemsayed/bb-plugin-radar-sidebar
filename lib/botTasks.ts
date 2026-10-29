@@ -74,7 +74,7 @@ export const STATE_LABEL: Record<DisplayState, string> = {
   retrying: "Retrying",
   waiting: "Waiting",
   overdue: "Overdue",
-  checking: "Checking",
+  checking: "To check",
   ready: "Not started",
   stopped: "Stopped",
   done: "Done",
@@ -142,7 +142,9 @@ function summaryLine(tasks: readonly BotTaskRow[], doneToday: number): string[] 
   add(n(["needs"]), "for you");
   add(n(["overdue"]), "overdue");
   add(n(["offline"]), "offline");
-  add(n(["working", "checking", "retrying"]), "working");
+  add(n(["working", "retrying"]), "working");
+  // A result waiting for the bot's check is not work in progress (Salem's status pass, 2026-10-29).
+  add(n(["checking"]), "to check");
   add(n(["queued"]), "queued");
   // A legacy "ready" task is filed but nothing holds it in a queue.
   add(n(["ready"]), "not started");

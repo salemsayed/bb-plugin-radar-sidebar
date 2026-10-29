@@ -53,7 +53,9 @@
 /* State glyphs: shape and colour both carry the state. */
 .radar-task-glyph { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; box-sizing: border-box; }
 .radar-task-glyph-needs { background: var(--warning, #b0640f); }
-.radar-task-glyph-working, .radar-task-glyph-checking { border: 2px solid var(--primary); border-right-color: transparent; animation: radar-task-spin 1s linear infinite; }
+.radar-task-glyph-working { border: 2px solid var(--primary); border-right-color: transparent; animation: radar-task-spin 1s linear infinite; }
+/* Nothing runs: the result waits for the bot's check, so the ring stands still. */
+.radar-task-glyph-checking { border: 2px solid var(--primary); }
 .radar-task-glyph-retrying { border: 2px dashed var(--primary); animation: radar-task-spin 2s linear infinite; }
 .radar-task-glyph-queued, .radar-task-glyph-ready { border: 2px dotted var(--muted-foreground); }
 .radar-task-glyph-offline { border-radius: 2px; background: var(--muted-foreground); }
