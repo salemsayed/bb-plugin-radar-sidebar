@@ -1,36 +1,21 @@
 import {
-STATE_LABEL,
-isClosed,
-isSameLocalDay,
-localizeDoneLine,
-rowStartedAt,
-type Attempt,
-type BotMood,
-type BotTaskRow,
-type BotTasksBot
+  STATE_LABEL,
+  isClosed,
+  isSameLocalDay,
+  localizeDoneLine,
+  type BotMood,
+  type BotTaskRow,
+  type BotTasksBot,
 } from "@/lib/botTasks";
-import { useEffect,useRef,useState,type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BotFace } from "./BotFace";
-import { botStyle,shortBotName,type BotState } from "./bots";
+import { botStyle, shortBotName, type BotState } from "./bots";
 import { DispatchBoard } from "./DispatchBoard";
-import { shortAgo } from "./time";
 import type { BotTasksState } from "./useBotTasks";
-
-/** Needs rows shown on a desktop before "See all"; a phone always shows every decision. */
-export const NEEDS_SHOWN = 3;
 
 // 24-hour, like the waiting rows' "tonight 20:30" (a finished row read "5:54 PM" next to them).
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const dateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
-const DAY_MS = 86_400_000;
-
-/** A finished row's age column: its time today, its weekday earlier this week, its date beyond that. */
-export function closedAge(completedAt: number, now: number): string {
-  if (isSameLocalDay(completedAt, now)) return timeFormatter.format(new Date(completedAt));
-  return (now - completedAt < 6 * DAY_MS ? weekdayFormatter : dateFormatter).format(new Date(completedAt));
-}
 
 /** A copy from an earlier day says which day, so yesterday's tasks never read as current. */
 export function asOf(observedAt: number, now: number): string {
@@ -82,12 +67,6 @@ export function waitingLine(task: Pick<BotTaskRow, "line" | "waitFor">): string 
  */
 const DONE_DAY = /^Done (today|\d{1,2} \S+|\S+ \d{1,2})(?:\s*[·:]\s*|$)/;
 
-/** The coloured word that opens a row's second line: the state, with its local day for a finished task. */
-export function rowStateWord(task: BotTaskRow, now: number): string {
-  const day = isClosed(task.displayState) ? DONE_DAY.exec(localizeDoneLine(task, now))?.[1] : undefined;
-  return day ? `${STATE_LABEL[task.displayState]} ${day}` : STATE_LABEL[task.displayState];
-}
-
 const clockFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const clearsWeekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const dayMonthFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -123,34 +102,7 @@ export function rowDetail(task: BotTaskRow, now: number): string {
   return line.replace(new RegExp(`^${label}[:·]\\s*`, "i"), "");
 }
 
-function rowAge(task: BotTaskRow, observedAt: number, now: number): string {
-  if (task.completedAt !== undefined && isClosed(task.displayState)) return closedAge(task.completedAt, now);
-  return shortAgo(rowStartedAt(task, observedAt), now);
-}
-
-/** When an attempt ran: "Started 14:02" while it runs, "14:02 · ended 14:40" after; another day's start says its day. */
-export function attemptWhen(attempt: Pick<Attempt, "startedAt" | "endedAt" | "state">, now: number): string {
-  if (attempt.startedAt === null) return "";
-  const started = (isSameLocalDay(attempt.startedAt, now) ? timeFormatter : dateTimeFormatter).format(new Date(attempt.startedAt));
-  if (attempt.state === "running" || attempt.endedAt === null) return `Started ${started}`;
-  const ended = (isSameLocalDay(attempt.endedAt, attempt.startedAt) ? timeFormatter : dateTimeFormatter).format(new Date(attempt.endedAt));
-  return `${started} · ended ${ended}`;
-}
-
-/** The thread's status as a word: bb's "running" and "idle", anything else as the core sent it. */
-export function attemptStateWord(state: string): string {
-  if (state === "running") return "Running";
-  if (state === "idle") return "Ended";
-  if (state === "unknown") return "Unknown";
-  return state.charAt(0).toUpperCase() + state.slice(1);
-}
-
-/** The bot's own colour, for the stage its character stands on: identity, not state. */
-export function botTint(bot: Pick<BotTasksBot, "key" | "name" | "color">): string {
-  return bot.color ?? `hsl(${botStyle(bot.key, bot.name).hue} 70% 55%)`;
-}
-
-export const LONG_PRESS_MS = 650;
+export const LONG_PRESS_MS = 700;
 /** A touch that drifts further than this is a scroll, not a press. */
 const PRESS_SLOP_PX = 10;
 
@@ -168,7 +120,10 @@ export interface DeskMenuProps {
 export type DeskMenu = (props: DeskMenuProps) => ReactNode;
 
 /** Opens a desk's menu the way a right-click would, at a point on screen. */
-function openMenuAt(element: Element, x: number, y: number): void {
+export function openMenuAt(element: Element, x?: number, y?: number): void {
+  const box = element.getBoundingClientRect();
+  x ??= box.left + box.width / 2;
+  y ??= box.top + box.height / 2;
   element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2 }));
 }
 
@@ -289,5 +244,3 @@ export function BotsView({
   return <DispatchBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
     onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} deskMenu={deskMenu} />;
 }
-/** For tests: start each render with no sheet open. */
-export function resetBotSheet(): void {}

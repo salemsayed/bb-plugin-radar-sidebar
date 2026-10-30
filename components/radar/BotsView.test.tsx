@@ -1,20 +1,17 @@
 // @vitest-environment jsdom
 import { resetBotsPush } from "@/lib/botsPush";
-import { answerOptions,botMood,botTasksSchema,crewStatus,feedBands,layoutBot,needRows } from "@/lib/botTasks";
+import { answerOptions, botMood, botTasksSchema, needRows } from "@/lib/botTasks";
 import { NEEDS_CHANGED } from "@/lib/needsClient";
 import type { BotTasksOutput } from "@/lib/tasks-v2-types";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { loadPluginApp,renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { act,cleanup,fireEvent,render,screen,waitFor,within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
-import { BotsView,attemptWhen,closedAge,moodFace,rowDetail,rowStateWord,waitingLine } from "./BotsView";
-import { attemptThreads,makeTask,normalDay,taskDetails,tenDecisions } from "./botTasksFixtures";
-import { DAY,HOUR,NOW,makeThread } from "./fixtures";
+import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BotsView, moodFace, rowDetail, waitingLine } from "./BotsView";
+import { attemptThreads, makeTask, normalDay, taskDetails, tenDecisions } from "./botTasksFixtures";
+import { NOW, makeThread } from "./fixtures";
 import { LIST_MODE_KEY } from "./ListModeSwitch";
-import { recordedActions,threadActionsFixture } from "./threadActions.fixtures";
-import { resetTaskAttempts } from "./useTaskAttempts";
+import { recordedActions, threadActionsFixture } from "./threadActions.fixtures";
 
 const app = await loadPluginApp(() => import("../../app"));
 const threadList = app.threadLists[0]!;
@@ -74,13 +71,6 @@ function renderList(tasks: Tasks, options: { settings?: Record<string, boolean>;
 
 const rowIds = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-sidebar-thread-id]")).map(node => node.getAttribute("data-sidebar-thread-id"));
 const opened = (slot: ReturnType<typeof renderList>["slot"]) => recordedActions(slot).filter(call => call.method === "open").map(call => call.threadId);
-const feedTitles = (scope: ParentNode) => Array.from(scope.querySelectorAll(".radar-feed-row .radar-feed-title")).map(node => node.textContent);
-const band = (key: string) => document.querySelector<HTMLElement>(`[data-band="${key}"]`);
-/** A desk's two buttons: its plate (its work sheet) and its character (its chat); and the desk around them. */
-const plate = (name: string) => screen.getByRole("button", { name: new RegExp(`^Show ${name}'s work: `) });
-const chat = (name: string) => screen.getByRole("button", { name: `Open ${name} Bot chat` });
-const desk = (name: string) => plate(name).closest<HTMLElement>(".radar-desk")!;
-const css = () => readFileSync(resolve(import.meta.dirname ?? ".", "../../styles/bots-view.css"), "utf8");
 
 beforeEach(() => {
   // Only the clock is fixed, so "Done today" means the fixtures' day; timers and promises stay real.
@@ -90,7 +80,6 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   resetBotsPush();
-  resetTaskAttempts();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -173,32 +162,6 @@ describe("Bots view v4, the crew board (Salem, thr_2gjivwx8ea seq 1671: total re
   });
 });
 
-
-
-describe("Bots view: the crew board's rules", () => {
-  it("gives each bot one line from its most urgent open state", () => {
-    const data = botTasksSchema.parse(normalDay());
-    const status = (key: string) => crewStatus(layoutBot(data.bots.find(bot => bot.key === key)!, NOW));
-    expect(status("erbareeq")).toEqual({ tone: "ask", count: 2, label: "2 for you" });
-    expect(status("lab")).toEqual({ tone: "busy", count: 2, label: "2 working" });
-    expect(status("home")).toEqual({ tone: "trouble", count: 1, label: "1 overdue" });
-    expect(status("personal")).toEqual({ tone: "quiet", count: 0, label: "Quiet" });
-    const one = botTasksSchema.parse({ ...normalDay(), bots: [{ ...normalDay().bots[1]!, tasks: [makeTask("bricks", "a", "needs")] }] }).bots[0]!;
-    expect(crewStatus(layoutBot(one, NOW)).label).toBe("1 for you");
-  });
-
-  it("drops empty bands and keeps closed work newest first", () => {
-    const data = botTasksSchema.parse(normalDay());
-    const personal = layoutBot(data.bots.find(bot => bot.key === "personal")!, NOW);
-    expect(feedBands([personal])).toEqual([]);
-    const work = layoutBot(data.bots.find(bot => bot.key === "work")!, NOW);
-    expect(feedBands([work]).map(item => item.key)).toEqual(["earlier"]);
-  });
-});
-
-
-
-
 describe("Bots view: dates and waits", () => {
 
   it("shows what a waiting task waits for, not only whom", () => {
@@ -231,26 +194,9 @@ describe("Bots view: dates and waits", () => {
     expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28", completedAt: NOW }), NOW)).toBe("");
     expect(rowDetail(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
     expect(rowDetail(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 2026-10-28 · 62 lines matched", completedAt: NOW }), NOW)).toBe("Done today");
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "Done 29 Oct", completedAt: NOW }), NOW)).toBe("Done today");
     expect(rowDetail(makeTask("x", "a", "done", { line: "Done 29 Oct · 62 lines matched", completedAt: NOW }), NOW)).toBe("62 lines matched");
-    expect(rowStateWord(makeTask("x", "a", "done", { line: "62 lines matched", completedAt: NOW }), NOW)).toBe("Done");
-    expect(rowStateWord(makeTask("x", "a", "stopped", { line: "Stopped by Salem", completedAt: NOW }), NOW)).toBe("Stopped");
-  });
-
-  it("names a finished row's day: time today, weekday this week, date beyond; an attempt's times read as a span", () => {
-    expect(closedAge(NOW - HOUR, NOW)).toMatch(/\d/);
-    expect(closedAge(NOW - 4 * DAY, NOW)).toBe("Thu");
-    expect(closedAge(NOW - 9 * DAY, NOW)).toMatch(/Sep/);
-    expect(attemptWhen({ startedAt: null, endedAt: null, state: "idle" }, NOW)).toBe("");
-    expect(attemptWhen({ startedAt: NOW - HOUR, endedAt: null, state: "running" }, NOW)).toMatch(/^Started \S+/);
-    expect(attemptWhen({ startedAt: NOW - 2 * HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/ · ended /);
-    expect(attemptWhen({ startedAt: NOW - DAY - HOUR, endedAt: NOW - HOUR, state: "idle" }, NOW)).toMatch(/Sep/);
   });
 });
-
-
-
 
 it("Dispatch preserves bb's real coordinator menu and answer routing", async () => {
   const { slot } = renderList(normalDay());
@@ -294,4 +240,18 @@ it("retains loading, missing and error fallbacks", async () => {
   expect(screen.getByRole("status").textContent).toContain("Retrying");
   fireEvent.click(screen.getByRole("button", { name: "Show threads" }));
   expect(base.onShowThreads).toHaveBeenCalledOnce();
+});
+it("starts a fresh tap after picking an action from bb's held-touch menu", async () => {
+  const { slot } = renderList(normalDay());
+  const chat = await screen.findByRole("button", { name: "Open Bricks Bot chat" });
+  fireEvent.pointerDown(chat, { pointerType: "touch", clientX: 30, clientY: 30 });
+  await act(() => new Promise(resolve => setTimeout(resolve, 720)));
+  fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(opened(slot)).toEqual([]);
+  const menu = slot.container.querySelector<HTMLElement>('[data-thread-id="thr_coord_bricks"] [role="menu"]')!;
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "Pin" }));
+  expect(recordedActions(slot).some(action => action.method === "setPinned" && action.threadId === "thr_coord_bricks")).toBe(true);
+  fireEvent.pointerDown(chat, { pointerType: "touch", clientX: 30, clientY: 30 });
+  fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(opened(slot)).toEqual(["thr_coord_bricks"]);
 });

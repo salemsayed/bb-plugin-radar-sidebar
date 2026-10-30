@@ -100,10 +100,6 @@ export function isSameLocalDay(a: number, b: number): boolean {
 
 /** The one state a bot wears on its card: its most urgent open work, else quiet. */
 export type BotMood = "needs" | "overdue" | "offline" | "working" | "checking" | "queued" | "ready" | "waiting" | "quiet";
-/** Card tones group moods: amber asks, red trouble, the bot's own colour for motion, nothing for the rest. */
-export const MOOD_TONE: Record<BotMood, "ask" | "trouble" | "busy" | "idle" | "quiet"> = {
-  needs: "ask", overdue: "trouble", offline: "trouble", working: "busy", checking: "busy", queued: "idle", ready: "idle", waiting: "idle", quiet: "quiet",
-};
 const MOOD_ORDER: readonly Exclude<BotMood, "quiet">[] = ["needs", "overdue", "offline", "working", "checking", "queued", "ready", "waiting"];
 
 /** Most urgent open state first, in the summary's own order; work without a task counts as working. */
@@ -353,73 +349,4 @@ export function shortModel(model: string | null): string {
   if (!model) return "";
   const slash = model.lastIndexOf("/");
   return slash >= 0 ? model.slice(slash + 1) : model;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * The crew board (Bots view v4, Salem, thr_2gjivwx8ea seq 1671): asks first, then every bot as a
- * tile that says its state in one line, then one list of live work grouped by what is happening.
- * ---------------------------------------------------------------------------------------------- */
-
-export type CrewTone = "ask" | "trouble" | "busy" | "idle" | "quiet";
-
-/** A tile's one line: the bot's most urgent open state with its count ("2 for you", "1 overdue", "Quiet"). */
-export function crewStatus(layout: Pick<BotLayout, "bot" | "mood" | "closedToday">): { tone: CrewTone; label: string; count: number } {
-  const { bot, mood } = layout;
-  const n = (states: readonly DisplayState[]) => bot.tasks.filter(task => states.includes(task.displayState)).length;
-  const tone = MOOD_TONE[mood];
-  switch (mood) {
-    // Short enough for a tile three across a 280px sidebar ("2 need you" was cut to "2 nee…").
-    case "needs": { const count = n(["needs"]); return { tone, count, label: `${count} for you` }; }
-    case "overdue": { const count = n(["overdue"]); return { tone, count, label: `${count} overdue` }; }
-    case "offline": { const count = n(["offline"]); return { tone, count, label: `${count} offline` }; }
-    case "working": { const count = n(["working", "retrying"]) + bot.unlinked.length; return { tone, count, label: `${count} working` }; }
-    case "checking": { const count = n(["checking"]); return { tone, count, label: `${count} to check` }; }
-    case "queued": { const count = n(["queued"]); return { tone, count, label: `${count} queued` }; }
-    case "ready": { const count = n(["ready"]); return { tone, count, label: `${count} to start` }; }
-    case "waiting": { const count = n(["waiting"]); return { tone, count, label: `${count} waiting` }; }
-    default: return { tone, count: 0, label: "Quiet" };
-  }
-}
-
-export type FeedItem =
-  | { kind: "task"; bot: BotTasksBot; task: BotTaskRow }
-  | { kind: "unlinked"; bot: BotTasksBot; threadId: string; title: string };
-
-export type BandKey = "stuck" | "working" | "next" | "waiting" | "done" | "earlier";
-export interface Band {
-  key: BandKey;
-  label: string;
-  tone: CrewTone | "done";
-  /** The state the heading already says; a row in another state names its own. */
-  primary: DisplayState;
-  items: FeedItem[];
-}
-
-const BANDS: readonly { key: BandKey; label: string; tone: Band["tone"]; primary: DisplayState; states: readonly DisplayState[] }[] = [
-  { key: "stuck", label: "Stuck", tone: "trouble", primary: "overdue", states: ["overdue", "offline"] },
-  { key: "working", label: "Working", tone: "busy", primary: "working", states: ["working", "retrying", "checking"] },
-  { key: "next", label: "Up next", tone: "idle", primary: "queued", states: ["queued", "ready"] },
-  { key: "waiting", label: "Waiting", tone: "idle", primary: "waiting", states: ["waiting"] },
-];
-
-/**
- * Live work grouped by what is happening, across every bot (or one, when a tile is focused): stuck, working,
- * up next, waiting, then what closed today and earlier this week. Asks are not repeated here: they lead the page.
- * Within a band, bots keep roster order and each bot's tasks keep the core's urgency order.
- */
-export function feedBands(layouts: readonly BotLayout[]): Band[] {
-  const bands: Band[] = BANDS.map(({ key, label, tone, primary, states }) => ({
-    key, label, tone, primary,
-    items: layouts.flatMap(layout => {
-      const source = key === "waiting" ? [...layout.waitingShown, ...layout.waitingFolded] : layout.active;
-      const items: FeedItem[] = source.filter(task => states.includes(task.displayState)).map(task => ({ kind: "task", bot: layout.bot, task }));
-      if (key === "working") for (const item of layout.bot.unlinked) items.push({ kind: "unlinked", bot: layout.bot, threadId: item.threadId, title: item.title });
-      return items;
-    }),
-  }));
-  const closed = (pick: (layout: BotLayout) => BotTaskRow[]) => layouts.flatMap(layout => pick(layout).map(task => ({ kind: "task" as const, bot: layout.bot, task })))
-    .sort((a, b) => (b.task.completedAt ?? 0) - (a.task.completedAt ?? 0));
-  bands.push({ key: "done", label: "Done today", tone: "done", primary: "done", items: closed(layout => layout.closedToday) });
-  bands.push({ key: "earlier", label: "Earlier this week", tone: "quiet", primary: "done", items: closed(layout => layout.closedEarlier) });
-  return bands.filter(band => band.items.length > 0);
 }

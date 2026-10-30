@@ -1,9 +1,6 @@
 import { dispatchFixture, dispatchDetail, dispatchThreads } from "./dispatchFixture";
 // Visual harness: Radar's real thread-list slot, rendered through the SDK's
 // test runtime with bot_tasks fixtures, inside a bb-like shell.
-// Query: ?size=desktop|tablet|phone&fixture=normal|peak|ten|rtl|missing|loading&mode=bots|threads&theme=light|dark&active=<threadId>
-//        &sidebar=<px> (desktop/tablet sidebar width) &dir=rtl &detail=missing (a core without task_detail)
-//        &focus=<botKey> (a desk to press) &open=<waiting|done|earlier>,… (bands to unfold) &info=<taskId> (a task's details to open)
 import { NOW, makeThread } from "@/components/radar/fixtures";
 import { attemptThreads, normalDay, peakDay, quietDay, rtlAndEmpty, taskDetails, tenDecisions } from "@/components/radar/botTasksFixtures";
 import { LIST_MODE_KEY } from "@/components/radar/ListModeSwitch";

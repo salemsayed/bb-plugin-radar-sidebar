@@ -8,7 +8,7 @@ import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
 import { NOW } from "./fixtures";
 import { dispatchSection } from "./DispatchBoard";
 
-vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: {}, byBot: {}, known: new Set() }) }));
+vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }] }, byBot: {}, known: new Set() }) }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function data() { return botTasksSchema.parse(makeOutput([
   makeBot(BOT_SEEDS[0], [makeTask("erbareeq", "Sales", "working")]),
@@ -46,15 +46,18 @@ it("freezes section membership through a press and releases after pointerup", as
   fireEvent.pointerUp(window);
   await waitFor(() => expect(screen.queryByRole("region", { name: "In motion" })).toBeNull());
 });
-it("holds for 650ms, suppresses the release click and supports the menu key", () => {
+it("holds for 700ms, suppresses the release click and supports the menu key", () => {
   vi.useFakeTimers(); const p = props(); render(<BotsView {...p} />);
   const row = screen.getByRole("button", { name: "Open Bricks Bot chat" }).parentElement!;
   const menu = vi.fn(); row.addEventListener("contextmenu", menu);
   fireEvent.pointerDown(row, { pointerType: "touch", clientX: 5, clientY: 5 });
-  act(() => vi.advanceTimersByTime(649)); expect(menu).not.toHaveBeenCalled();
-  act(() => vi.advanceTimersByTime(1)); expect(LONG_PRESS_MS).toBe(650); expect(menu).toHaveBeenCalledTimes(1);
+  act(() => vi.advanceTimersByTime(699)); expect(menu).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(1)); expect(LONG_PRESS_MS).toBe(700); expect(menu).toHaveBeenCalledTimes(1);
   fireEvent.pointerUp(row); fireEvent.click(screen.getByRole("button", { name: "Open Bricks Bot chat" })); expect(p.onOpen).not.toHaveBeenCalled();
   fireEvent.keyDown(row, { key: "ContextMenu" }); expect(menu).toHaveBeenCalledTimes(2);
+  act(() => vi.advanceTimersByTime(601));
+  fireEvent.click(screen.getByRole("button", { name: "Open Bricks Bot chat" }));
+  expect(p.onOpen).toHaveBeenCalledOnce();
 });
 it("disables the only state cue under reduced motion", () => {
   const css = readFileSync("styles/dispatch.css", "utf8");
@@ -70,4 +73,66 @@ it("shows one cue when a bot changes section", () => {
   expect(document.querySelectorAll(".dispatch-cue")).toHaveLength(1);
   act(() => vi.advanceTimersByTime(551));
   expect(document.querySelector(".dispatch-cue")).toBeNull();
+});
+it.each(["Chat", "Task", "Worker", "Question", "Answer", "Answer fallback", "Unlinked", "Recent", "Menu chat"])("closes and restores focus before %s navigation", path => {
+  const d = data();
+  d.bots[1].tasks[0].id = "navtask";
+  d.bots[1].tasks[0].conversationThreadId = "task-thread";
+  d.bots[1].tasks[0].needs = { threadId: "ask-thread", interactionId: "ask", question: "Allow deploy?", options: ["Yes"] };
+  d.bots[1].unlinked = [{ threadId: "unlinked", title: "Unlinked job" }];
+  d.bots[1].tasks.push({ ...d.bots[1].tasks[0], id: "history", title: "Completed job", displayState: "done", needs: undefined, conversationThreadId: "history-thread" });
+  let work: HTMLElement;
+  const check = vi.fn(() => {
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(work);
+    expect(document.body.style.overflow).not.toBe("hidden");
+  });
+  const p = { ...props(d), onOpen: check, onReply: path === "Answer fallback" ? undefined : check };
+  render(<BotsView {...p} deskMenu={({ children, onOpenChat }) => <div>{children}<button onClick={onOpenChat}>Menu chat</button></div>} />);
+  work = screen.getByRole("button", { name: "Show Bricks's work" }); work.focus(); fireEvent.click(work);
+  expect(document.body.style.overflow).toBe("hidden");
+  const dialog = screen.getByRole("dialog");
+  const names: Record<string, string | RegExp> = { Chat: "Chat", Task: /^Connect phone\?Needs you/, Worker: "Open worker Test worker", Question: "“Allow deploy?”", Answer: "Yes", "Answer fallback": "Yes", Unlinked: /Unlinked job/, Recent: /Completed job/, "Menu chat": "Menu chat" };
+  fireEvent.click(within(dialog).getByRole("button", { name: names[path] }));
+  expect(check).toHaveBeenCalledOnce();
+  const targets: Record<string, string> = { Chat: "thr_coord_bricks", Task: "task-thread", Worker: "worker", Question: "ask-thread", Answer: "ask-thread", "Answer fallback": "ask-thread", Unlinked: "unlinked", Recent: "history-thread", "Menu chat": "thr_coord_bricks" };
+  expect(check.mock.calls[0]).toEqual(path === "Answer" ? [targets[path], "Yes"] : [targets[path]]);
+});
+it("a menu pick lets the next touch tap start fresh before the swallow timeout", () => {
+  vi.useFakeTimers(); const p = props();
+  render(<BotsView {...p} deskMenu={({ children }) => <div>{children}<button>Rename</button></div>} />);
+  const chat = screen.getByRole("button", { name: "Open Bricks Bot chat" });
+  fireEvent.pointerDown(chat, { pointerType: "touch" });
+  act(() => vi.advanceTimersByTime(700));
+  fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(p.onOpen).not.toHaveBeenCalled();
+  fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[1]);
+  fireEvent.pointerDown(chat, { pointerType: "touch" }); fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(p.onOpen).toHaveBeenCalledExactlyOnceWith("thr_coord_bricks");
+});
+it("takes Android native contextmenu once and swallows its release click", () => {
+  vi.useFakeTimers(); const p = props();
+  const menu = vi.fn();
+  render(<div onContextMenu={menu}><BotsView {...p} /></div>);
+  const chat = screen.getByRole("button", { name: "Open Bricks Bot chat" });
+  fireEvent.pointerDown(chat, { pointerType: "touch" });
+  fireEvent.contextMenu(chat);
+  act(() => vi.advanceTimersByTime(700));
+  fireEvent.contextMenu(chat);
+  expect(menu).toHaveBeenCalledOnce();
+  fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(p.onOpen).not.toHaveBeenCalled();
+  fireEvent.pointerDown(chat, { pointerType: "touch" }); fireEvent.pointerUp(chat); fireEvent.click(chat);
+  expect(p.onOpen).toHaveBeenCalledOnce();
+});
+it("says just now for a recent completion and restores scroll lock on unmount", () => {
+  const d = data(); d.bots[3].tasks.push({ ...d.bots[0].tasks[0], displayState: "done", completedAt: NOW });
+  const view = render(<BotsView {...props(d)} />);
+  expect(screen.getByText("Idle · done just now")).toBeTruthy();
+  document.body.style.overflow = "auto";
+  fireEvent.click(screen.getByRole("button", { name: "Show Personal's work" }));
+  expect(screen.getByText("Nothing running · last completed just now")).toBeTruthy();
+  expect(document.body.style.overflow).toBe("hidden");
+  view.unmount(); expect(document.body.style.overflow).toBe("auto");
+  document.body.style.overflow = "";
 });
