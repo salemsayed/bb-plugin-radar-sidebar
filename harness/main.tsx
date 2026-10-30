@@ -1,3 +1,4 @@
+import { dispatchFixture, dispatchDetail, dispatchThreads } from "./dispatchFixture";
 // Visual harness: Radar's real thread-list slot, rendered through the SDK's
 // test runtime with bot_tasks fixtures, inside a bb-like shell.
 // Query: ?size=desktop|tablet|phone&fixture=normal|peak|ten|rtl|missing|loading&mode=bots|threads&theme=light|dark&active=<threadId>
@@ -18,8 +19,8 @@ const active = params.get("active");
 document.documentElement.dataset.theme = theme;
 document.body.dataset.size = size;
 if (params.get("dir") === "rtl") document.documentElement.dir = "rtl";
-if (size === "tablet") document.documentElement.style.setProperty("--sidebar", "280px");
-if (params.get("sidebar")) document.documentElement.style.setProperty("--sidebar", `${params.get("sidebar")}px`);
+if (size === "tablet") document.documentElement.style.setProperty("--sidebar-width", "280px");
+if (params.get("sidebar")) document.documentElement.style.setProperty("--sidebar-width", `${params.get("sidebar")}px`);
 
 // ?sheet=faces: every character in every state, large and at row size, for reviewing the art alone.
 if (params.get("sheet") === "faces") {
@@ -76,7 +77,7 @@ const projects = ["proj_erbareeq", "proj_bricks", "proj_home", "proj_misc"].map(
 const sdk: Record<string, unknown> = {
   threads: {
     // Worker threads behind the attempts list answer by id; everything else lists nothing.
-    list: async (query?: { threadIds?: readonly string[] }) => query?.threadIds ? attemptThreads().filter(thread => query.threadIds!.includes(thread.id)) : [],
+    list: async (query?: { threadIds?: readonly string[] }) => query?.threadIds ? (fixture === "dispatch" ? dispatchThreads() : attemptThreads()).filter(thread => query.threadIds!.includes(thread.id)) : [],
     defaultExecutionOptions: async () => null, context: async () => ({ usage: null }),
     markRead: async () => ({ ok: true }), output: async () => ({ output: null }), timeline: async () => ({ segments: [] }),
   },
@@ -86,13 +87,13 @@ const sdk: Record<string, unknown> = {
     callRpc: async ({ method, input }: { method: string; input?: unknown }) => {
       if (method === "bot_roster") return { bots: roster };
       if (method === "bot_tasks") {
-        const source = tasks[fixture] ?? normalDay;
+        const source = fixture === "dispatch" ? dispatchFixture : tasks[fixture] ?? normalDay;
         if (source === "missing") throw new Error('HTTP 404: plugin "orchestrator-mode" has no rpc method "bot_tasks"');
         if (source === "loading") return new Promise(() => {});
         return source();
       }
       if (method === "task_detail" && params.get("detail") !== "missing") {
-        const found = taskDetails()[(input as { taskId: string }).taskId];
+        const found = fixture === "dispatch" ? dispatchDetail((input as { taskId: string }).taskId) : taskDetails()[(input as { taskId: string }).taskId];
         if (!found) throw new Error("Task not found");
         return found;
       }
