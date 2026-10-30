@@ -85,6 +85,13 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
     if (answer !== undefined && onReply) onReply(id, answer); else onOpen(id);
   };
   const root = useRef<HTMLDivElement>(null);
+  const panelPress = useDeskPress();
+  const showMenu = (key: string, x?: number, y?: number) => {
+    flushSync(() => setSheet(null));
+    opener.current?.focus();
+    const row = Array.from(root.current?.querySelectorAll<HTMLElement>(".dispatch-row") ?? []).find(node => node.dataset.bot === key);
+    if (row) openMenuAt(row, x, y);
+  };
   useEffect(() => {
     if (!sheet || !isCompactViewport) return;
     const elements = [document.documentElement, document.body, root.current?.closest<HTMLElement>(".radar-list-body")].filter((node): node is HTMLElement => !!node);
@@ -122,12 +129,19 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
     })}</section> : null)}
     <p className="dispatch-legend">Row opens chat · number opens work · hold for menu</p>
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
-    {bot ? createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}`} onClick={event => { if (event.target === event.currentTarget) close(); }}><div className="dispatch-panel" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: work`} onKeyDown={event => {
+    {bot ? createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}`} onClick={event => { if (event.target === event.currentTarget) close(); }}><div className="dispatch-panel" {...panelPress} onContextMenu={event => {
+      panelPress.onContextMenu(event);
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      showMenu(bot.key, event.clientX, event.clientY);
+    }} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: work`} onKeyDown={event => {
+      if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) { event.preventDefault(); showMenu(bot.key); }
       if (event.key === "Escape") { event.stopPropagation(); close(); }
       if (event.key === "Tab") { const buttons = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')); const first = buttons[0], last = buttons.at(-1); if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
     }}>
       <button className="dispatch-grabber" aria-label="Close work panel" onClick={close} onPointerDown={event => { drag.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { if (drag.current !== null && event.clientY - drag.current > 50) close(); drag.current = null; }}><span /></button>
-      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={moodFace(layoutBot(bot, now).mood)} /><div><h2>{shortBotName(bot.name)}</h2><p>{[workerCount ? `${workerCount} ${workerCount === 1 ? "worker" : "workers"}` : "", tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : bot.unlinked.length ? `${bot.unlinked.length} unfiled` : "Nothing running"].filter(Boolean).join(" · ")}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><MenuTarget bot={bot} Menu={deskMenu} onOpen={() => navigate(bot.coordinatorThreadId)}><button onClick={event => openMenuAt(event.currentTarget)} onKeyDown={event => { if (event.key === "ContextMenu") openMenuAt(event.currentTarget); }}>More</button></MenuTarget></header>
+      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={moodFace(layoutBot(bot, now).mood)} /><div><h2>{shortBotName(bot.name)}</h2><p>{[workerCount ? `${workerCount} ${workerCount === 1 ? "worker" : "workers"}` : "", tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : bot.unlinked.length ? `${bot.unlinked.length} unfiled` : "Nothing running"].filter(Boolean).join(" · ")}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><button onClick={() => showMenu(bot.key)}>More</button></header>
       <div className="dispatch-panel-body">{ownNeeds.map(need => <div className="dispatch-ask-card" key={need.key}><span>Needs you</span><button className="dispatch-question" dir="auto" disabled={!need.threadId} onClick={() => need.threadId && navigate(need.threadId)}>“{need.question}”</button>{need.options.map(option => <button key={option} onClick={() => { if (need.threadId) { navigate(need.threadId, option); } }}>{option}</button>)}</div>)}
       {tasks.filter(t => ["offline", "overdue", "retrying"].includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b>Blocked · {t.title}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
       {tasks.length || bot.unlinked.length ? <><h3>Tasks</h3>{tasks.map(taskRow)}{bot.unlinked.map(w => <button className="dispatch-task" key={w.threadId} onClick={() => navigate(w.threadId)}><b>{w.title || "Worker"}</b><span>Work without a task</span></button>)}</> : <p className="dispatch-idle">Nothing running{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}

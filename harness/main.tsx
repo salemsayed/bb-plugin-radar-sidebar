@@ -128,30 +128,4 @@ setInterval(() => {
   node.textContent = last ? `Opened ${last.threadId} (${calls.length} open${calls.length === 1 ? "" : "s"})` : "Nothing opened yet.";
   node.dataset.opened = last?.threadId ?? "";
 }, 100);
-// A tile, folds and a task's details the screenshot wants open: pressed once each, as a reader would.
-const wantedFocus = params.get("focus");
-const wantedFolds = (params.get("open") ?? "").split(",").filter(Boolean);
-const wantedInfo = params.get("info");
-let focused = !wantedFocus;
-const opener = setInterval(() => {
-  if (!focused) {
-    const tile = document.querySelector<HTMLButtonElement>(`.radar-desk[data-bot="${wantedFocus}"]`);
-    if (!tile) return;
-    if (tile.getAttribute("aria-pressed") !== "true") tile.click();
-    focused = true;
-    return;
-  }
-  let pending = false;
-  for (const kind of wantedFolds) {
-    const fold = document.querySelector<HTMLButtonElement>(`[data-fold="${kind}"]`);
-    if (!fold) { pending = true; continue; }
-    if (fold.getAttribute("aria-expanded") === "false") fold.click();
-  }
-  if (wantedInfo) {
-    const toggle = document.querySelector<HTMLButtonElement>(`[data-info-task="${wantedInfo}"]`);
-    if (!toggle) pending = true;
-    else if (toggle.getAttribute("aria-expanded") === "false") toggle.click();
-  }
-  if (!pending) clearInterval(opener);
-}, 100);
 (window as unknown as { harnessReady: boolean }).harnessReady = true;

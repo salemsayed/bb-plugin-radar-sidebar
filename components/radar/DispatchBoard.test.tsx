@@ -74,7 +74,7 @@ it("shows one cue when a bot changes section", () => {
   act(() => vi.advanceTimersByTime(551));
   expect(document.querySelector(".dispatch-cue")).toBeNull();
 });
-it.each(["Chat", "Task", "Worker", "Question", "Answer", "Answer fallback", "Unlinked", "Recent", "Menu chat"])("closes and restores focus before %s navigation", path => {
+it.each(["Chat", "Task", "Worker", "Question", "Answer", "Answer fallback", "Unlinked", "Recent"])("closes and restores focus before %s navigation", path => {
   const d = data();
   d.bots[1].tasks[0].id = "navtask";
   d.bots[1].tasks[0].conversationThreadId = "task-thread";
@@ -135,4 +135,26 @@ it("says just now for a recent completion and restores scroll lock on unmount", 
   expect(document.body.style.overflow).toBe("hidden");
   view.unmount(); expect(document.body.style.overflow).toBe("auto");
   document.body.style.overflow = "";
+});
+it.each(["More", "right click", "hold", "menu key"])("closes the sheet before opening the persistent row menu via %s", path => {
+  vi.useFakeTimers();
+  const menu = vi.fn(() => {
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(work);
+  });
+  const p = props();
+  render(<BotsView {...p} deskMenu={({ children }) => <div onContextMenu={menu}>{children}</div>} />);
+  const work = screen.getByRole("button", { name: "Show Bricks's work" });
+  work.focus(); fireEvent.click(work);
+  const more = within(screen.getByRole("dialog")).getByRole("button", { name: "More" });
+  if (path === "More") fireEvent.click(more);
+  if (path === "right click") fireEvent.contextMenu(more);
+  if (path === "menu key") fireEvent.keyDown(more, { key: "ContextMenu" });
+  if (path === "hold") {
+    fireEvent.pointerDown(more, { pointerType: "touch", clientX: 30, clientY: 30 });
+    act(() => vi.advanceTimersByTime(700));
+    fireEvent.pointerUp(more); fireEvent.click(more);
+  }
+  expect(menu).toHaveBeenCalledOnce();
+  expect(p.onOpen).not.toHaveBeenCalled();
 });
