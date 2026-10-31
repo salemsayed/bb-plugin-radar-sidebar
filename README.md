@@ -260,7 +260,7 @@ flowchart LR
 | Setting | Default | |
 | --- | --- | --- |
 | `botRail` | `false` | Bot shortcuts and worker filtering in the list header. Off restores the in-list deck. |
-| `botsPage` | `false` | Bots live on the Bots page (bots-page plugin): no bot shortcuts, deck, bot threads or saved bot asks in the list. Overrides `botRail` and `botsDeck`. |
+| `botsPage` | `false` | Leave bot coordinators and workers out of the whole list, with no bot shortcuts, deck or saved bot asks. Overrides `botRail` and `botsDeck`. The Bots | Threads switch already keeps bot chats on Bots. |
 | `botsSwitch` | `false` | A Bots \| Threads switch on top of the list and in the phone drawer, kept per device. Bots: Needs you, then each bot's tasks from bb-salem-bots `bot_tasks` (tasks v2); Threads: every other thread, since bot chats and their workers stay on Bots; a typed filter is kept across the switch. Off: the list exactly as before. |
 | `hideWorking` | `false` | Move threads with work in flight into a folded **Working** drawer under the list. They come back when they finish or need you; pinned threads and the open thread stay put, and search or a status filter shows them in place. On desktop, hover the drawer's header to peek at every running thread: its latest words and step, todo progress, run time, context use, and flags for stalls, failing commands, a full context or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |

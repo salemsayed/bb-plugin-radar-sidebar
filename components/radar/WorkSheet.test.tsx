@@ -63,13 +63,13 @@ it("keeps ids out of the task row and every original word, id and link in its de
 it("offers Automations beside Chat and More as a real route the host delegate can follow", () => {
   const { dialog, delegate } = sheet("radar-sidebar");
   const link = within(dialog).getByRole("link", { name: "Automations" });
-  expect(link.getAttribute("href")).toBe("/plugins/bots-page/bots/erbareeq/automations");
+  expect(link.getAttribute("href")).toBe("/plugins/orchestrator-mode/bots/erbareeq/automations");
   expect(within(dialog).getByRole("button", { name: "Chat" })).toBeTruthy();
   expect(within(dialog).getByRole("button", { name: "More" })).toBeTruthy();
   const before = delegate.mock.calls.length;
   fireEvent.click(link);
   expect(delegate).toHaveBeenCalledTimes(before + 1);
-  expect(delegate.mock.results.at(-1)!.value).toEqual({ anchor: "/plugins/bots-page/bots/erbareeq/automations", connected: true, prevented: false, overlay: "radar-sidebar" });
+  expect(delegate.mock.results.at(-1)!.value).toEqual({ anchor: "/plugins/orchestrator-mode/bots/erbareeq/automations", connected: true, prevented: false, overlay: "radar-sidebar" });
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
@@ -119,7 +119,7 @@ it("puts a dot on the Bots tab while Threads is shown and a bot has an unread re
 });
 
 it("builds per-bot automation routes for the Page plugin", () => {
-  expect(automationsHref("lab")).toBe("/plugins/bots-page/bots/lab/automations");
+  expect(automationsHref("lab")).toBe("/plugins/orchestrator-mode/bots/lab/automations");
   expect(automationsHref(null)).toBe(AUTOMATIONS_ROUTE);
 });
 

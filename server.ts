@@ -108,7 +108,7 @@ export default async function plugin(bb: BbPluginApi) {
     botsPage: {
       type: "boolean",
       label: "Bots on the Bots page",
-      description: "Bots live on the Bots page (bots-page plugin): the list leaves out their coordinators and workers, and shows no bot shortcuts, deck or saved bot asks. Off brings them back.",
+      description: "Leave bot coordinators and their workers out of the whole list, with no bot shortcuts, deck or saved bot asks. The Bots | Threads switch already keeps them on Bots.",
       default: false,
     },
     botsSwitch: {

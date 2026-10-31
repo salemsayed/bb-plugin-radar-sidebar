@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-10-31, Salem: "whatever we can fold into core will be better")
+
+- Automations links open `/plugins/orchestrator-mode/bots/<bot>/automations`: the Bots page plugin was folded into bots core.
+
 ### Fixed (2026-10-31, Salem: "we got the co ord chats showing in the pinned of threads tab again")
 
 - The switch's Threads view leaves bot chats and their workers out on its own, because the Bots tab shows them. It no longer depends on `botsPage`, which was found switched off today during a bb restart.
