@@ -1,12 +1,14 @@
 .radar-list-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--foreground); font-size: 13px; }
 .radar-list-shell > .radar-list { flex: 1; height: auto; min-height: 0; }
-.radar-mode-switch { display: flex; flex: none; gap: 2px; margin: 6px 8px 4px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--muted); }
-.radar-mode-option { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 3px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted-foreground); font: inherit; font-weight: 600; cursor: pointer; }
+.radar-mode-switch { display: inline-flex; align-self: flex-start; flex: none; gap: 2px; margin: 8px 10px 2px; padding: 2px; border-radius: 8px; background: var(--muted); }
+.radar-mode-option { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; }
 .radar-mode-option:hover { color: var(--foreground); }
 .radar-mode-option[aria-pressed="true"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .radar-mode-option:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
-.radar-mode-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--attention, var(--warning, #b0640f)); color: var(--attention-foreground, #2a1a00); font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums; text-align: center; }
-.radar-list-compact .radar-mode-option { min-height: 44px; font-size: 14px; }
+.radar-mode-count { min-width: 16px; padding: 0 4px; border-radius: 999px; background: var(--attention, var(--warning, #b0640f)); color: var(--attention-foreground, #2a1a00); font-size: 10px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.radar-list-compact .radar-mode-option { min-height: 30px; padding: 4px 14px; font-size: 13px; }
+.radar-list-compact .radar-mode-option::after { content: ""; position: absolute; inset: -7px -1px; }
+@media (pointer: coarse) { .radar-mode-option { min-height: 30px; padding: 4px 14px; font-size: 13px; } .radar-mode-option::after { content: ""; position: absolute; inset: -7px -1px; } }
 .radar-tasks-face { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; object-fit: cover; }
 .radar-tasks-face .bot-mascot { display: block; }
 .radar-tasks-face svg { display: block; }
@@ -16,7 +18,3 @@
 .radar-tasks-fallback-action { min-height: 32px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--card, transparent); color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
 .radar-tasks-fallback-action:hover { background: var(--muted); }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
-@media (pointer: coarse) { .radar-mode-option { min-height: 44px; } }
-.radar-mode-link { flex: 1.5 1 0; text-decoration: none; white-space: nowrap; }
-.radar-mode-link[aria-current="page"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
-.radar-mode-switch[data-route="automations"] .radar-mode-option[aria-pressed="true"] { background: transparent; box-shadow: none; color: var(--foreground); }

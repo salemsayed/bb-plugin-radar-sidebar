@@ -6,6 +6,11 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-10-31, Salem: "i dont want the automations tab in the sidebar, just bots and thread. that switcher looks bad and too big")
+
+- The sidebar switcher holds only Bots and Threads. A bot's automations open from its Work panel (Chat · Automations · More).
+- The switcher is a compact pill as wide as its labels: 28 px tall on desktop (was 34, full width), 34 px on phones (was 50) with an invisible margin that keeps a 44 px tap area.
+
 ### Changed
 
 - **Two taps on every desk, and a bot's menu on a hold** (Salem, thr_2gjivwx8ea: "Before a click would show a context menu with tasks and click to chat that was useful", then "I wanted that AND a click to open the bot chat directly", and seq 2358 "I'm unable to open the bot context menu at all"). Each desk now has two separate buttons, each at least 44px tall:

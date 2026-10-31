@@ -7,7 +7,7 @@ import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
 import { NOW } from "./fixtures";
 import { plainNote, splitStatus, taskHeadline } from "./workText";
 import { ListModeSwitch } from "./ListModeSwitch";
-import { AUTOMATIONS_ROUTE, automationsHref, onAutomationsRoute } from "./automationsLink";
+import { AUTOMATIONS_ROUTE, automationsHref } from "./automationsLink";
 
 const LONG_TITLE = "ERBareeq web app audited with Emil Kowalski's remove-animations skill: unnecessary animations and delays found and ranked, report first, fixes only after Salem picks, on a separate copy";
 const LONG_LINE = "Salem chose all three recommended sets with a before/after report; expo fix worker thr_ejgbgsc6v4 running, then review, then deploy/OTA decision";
@@ -99,38 +99,18 @@ it("tabs past controls inside collapsed details and into them once opened", () =
   expect(document.activeElement).toBe(first);
 });
 
-it("shows Automations as a tab beside Bots and Threads without changing the list mode", () => {
+it("holds only Bots and Threads; automations open per bot from its Work panel", () => {
   const onChange = vi.fn();
-  const delegate = vi.fn((event: React.MouseEvent) => ({ prevented: event.defaultPrevented, href: (event.target as Element).closest("a")?.getAttribute("href") }));
-  render(<div onClick={delegate}><ListModeSwitch mode="bots" onChange={onChange} needsCount={null} routePath="/t/thr_x" /></div>);
-  const tab = screen.getByRole("link", { name: "Automations" });
-  expect(tab.getAttribute("href")).toBe(AUTOMATIONS_ROUTE);
-  expect(tab.hasAttribute("aria-current")).toBe(false);
-  expect(screen.getByRole("button", { name: "Bots" }).getAttribute("aria-pressed")).toBe("true");
-  fireEvent.click(tab);
-  expect(onChange).not.toHaveBeenCalled();
-  expect(delegate.mock.results[0]!.value).toEqual({ prevented: false, href: "/plugins/bots-page/bots" });
+  render(<ListModeSwitch mode="bots" onChange={onChange} needsCount={2} />);
+  const group = screen.getByRole("group", { name: "Show bots or threads" });
+  expect(within(group).getAllByRole("button").map(button => button.textContent)).toEqual(["Bots2", "Threads"]);
+  expect(within(group).queryByRole("link")).toBeNull();
+  expect(within(group).getByRole("button", { name: "Bots, 2 need you" }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(within(group).getByRole("button", { name: "Threads" }));
+  expect(onChange).toHaveBeenCalledExactlyOnceWith("threads");
 });
 
-it("marks the Automations tab current on its route and still hands a same-route tap to the delegate", () => {
-  window.history.replaceState(null, "", "/plugins/bots-page/bots/erbareeq/automations");
-  const onChange = vi.fn();
-  const delegate = vi.fn((event: React.MouseEvent) => ({ prevented: event.defaultPrevented, href: (event.target as Element).closest("a")?.getAttribute("href") }));
-  render(<div onClick={delegate}><ListModeSwitch mode="threads" onChange={onChange} needsCount={null} /></div>);
-  const tab = screen.getByRole("link", { name: "Automations" });
-  expect(tab.getAttribute("aria-current")).toBe("page");
-  expect(tab.closest(".radar-mode-switch")!.getAttribute("data-route")).toBe("automations");
-  expect(screen.getByRole("button", { name: "Threads" }).getAttribute("aria-pressed")).toBe("true");
-  fireEvent.click(tab);
-  expect(delegate.mock.results[0]!.value).toEqual({ prevented: false, href: "/plugins/bots-page/bots" });
-  expect(onChange).not.toHaveBeenCalled();
-});
-
-it("builds automation routes for the Page plugin and recognises only its own route", () => {
+it("builds per-bot automation routes for the Page plugin", () => {
   expect(automationsHref("lab")).toBe("/plugins/bots-page/bots/lab/automations");
-  expect(automationsHref(null)).toBe("/plugins/bots-page/bots");
-  expect(onAutomationsRoute("/plugins/bots-page/bots")).toBe(true);
-  expect(onAutomationsRoute("/plugins/bots-page/bots/home/automations")).toBe(true);
-  expect(onAutomationsRoute("/plugins/bots-page/botsx")).toBe(false);
-  expect(onAutomationsRoute("/plugins/other/bots")).toBe(false);
+  expect(automationsHref(null)).toBe(AUTOMATIONS_ROUTE);
 });
