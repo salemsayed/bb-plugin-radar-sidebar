@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { isClosed, layoutBot, needRows, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
-import { BotTaskFace, openMenuAt, asOf, clockFormatter, clearsWeekdayFormatter, dayMonthFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
+import { BotTaskFace, openMenuAt, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { shortBotName } from "./bots";
 import { useDispatchWorkers } from "./useDispatchWorkers";
 import type { BotTasksState } from "./useBotTasks";
@@ -23,17 +23,19 @@ export function dispatchSection(bot: BotTasksBot, asks: number, running = 0): st
   if (asks || bot.tasks.some(t => BLOCKED.includes(t.displayState))) return "Needs attention";
   return running || bot.unlinked.length || bot.tasks.some(t => ["working", "queued"].includes(t.displayState)) ? "In motion" : "On call";
 }
-function wakeTime(at: number, now: number) {
+const dateFormatter = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+export function checksLine(at: number, now: number) {
+  if (at < now) return clearsLine(at, now);
   const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86_400_000);
   const time = clockFormatter.format(new Date(at));
-  return days === 0 ? time : days > 0 && days < 7 ? `${clearsWeekdayFormatter.format(new Date(at))} ${time}` : `${dayMonthFormatter.format(new Date(at))} ${time}`;
+  return `checks ${days === 0 ? time : days < 7 ? `${clearsWeekdayFormatter.format(new Date(at))} ${time}` : `${dateFormatter.format(new Date(at))} ${time}`}`;
 }
 export function nextStep(bot: BotTasksBot, now: number): string {
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
   if (!open.length) return "";
   const waiting = open.filter(t => t.displayState === "waiting").sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   const first = layoutBot(bot, now).active[0] ?? waiting[0] ?? open[0];
-  return [STATE_LABEL[first.displayState], first.displayState === "waiting" && first.wakeAt !== undefined ? `checks ${wakeTime(first.wakeAt, now)}` : "", open.length > 1 ? `+${open.length - 1} more` : ""].filter(Boolean).join(" · ");
+  return [STATE_LABEL[first.displayState], first.displayState === "waiting" && first.wakeAt !== undefined ? checksLine(first.wakeAt, now) : "", open.length > 1 ? `+${open.length - 1} more` : ""].filter(Boolean).join(" · ");
 }
 function MenuTarget({ bot, Menu, onOpen, children }: { bot: BotTasksBot; Menu?: DeskMenu; onOpen: () => void; children: ReactNode }) {
   return Menu ? <Menu bot={bot} onOpenChat={onOpen}>{children}</Menu> : children;
@@ -43,13 +45,14 @@ function DispatchRow({ bot, question, asks, workers, known, attempts, now, obser
 }) {
   const press = useDeskPress();
   const layout = layoutBot(bot, now);
-  const moving = bot.tasks.find(t => !isClosed(t.displayState) && attempts[t.id]?.some(a => a.state === "running")) ?? bot.tasks.find(t => ["working", "queued"].includes(t.displayState));
+  const runs = (a: Attempt) => a.state === "running" && a.threadId !== bot.coordinatorThreadId;
+  const moving = bot.tasks.find(t => !isClosed(t.displayState) && attempts[t.id]?.some(runs)) ?? bot.tasks.find(t => ["working", "queued"].includes(t.displayState));
   const task = layout.needs[0] ?? layout.active.find(t => BLOCKED.includes(t.displayState)) ?? moving ?? layout.active[0] ?? layout.waitingShown[0];
   const blocked = bot.tasks.find(t => BLOCKED.includes(t.displayState));
   const idle = dispatchSection(bot, asks, workers.length) === "On call";
   const step = idle ? nextStep(bot, now) : "";
   const tone = asks ? "ask" : blocked ? "blocked" : idle ? "idle" : "busy";
-  const worker = task ? attempts[task.id]?.find(a => a.state === "running") : workers[0];
+  const worker = task ? attempts[task.id]?.find(runs) : workers[0];
   const openCount = bot.tasks.filter(t => !isClosed(t.displayState)).length + bot.unlinked.length;
   const last = Math.max(0, ...bot.tasks.map(t => t.completedAt ?? 0));
   const retry = blocked?.retryAt;
@@ -75,16 +78,18 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const needs = needRows(data);
   const snapshot = useDispatchWorkers(data);
   const sections = ["Needs attention", "In motion", "On call"];
-  const sectionOf = (bot: BotTasksBot) => dispatchSection(bot, needs.filter(n => n.botKey === bot.key).length, snapshot.byBot[bot.key]?.length ?? 0);
+  const sectionOf = (bot: BotTasksBot, running = snapshot.byBot[bot.key]?.length ?? 0) => dispatchSection(bot, needs.filter(n => n.botKey === bot.key).length, running);
   const arranged = sections.map(name => ({ name, bots: orderedBots(data).filter(bot => sectionOf(bot) === name).map(bot => bot.key) }));
-  const loaded = data.bots.every(bot => bot.key in snapshot.byBot);
-  const signatures = Object.fromEntries(data.bots.map(bot => [bot.key, `${sectionOf(bot)}:${layoutBot(bot, now).mood}`]));
-  const previous = useRef({ loaded, signatures });
+  const signatures = Object.fromEntries(data.bots.map(bot => [bot.key, { look: `${sectionOf(bot)}:${layoutBot(bot, now).mood}`, idle: sectionOf(bot, 0), loaded: bot.key in snapshot.byBot }]));
+  const previous = useRef(signatures);
   const [cues, setCues] = useState<string[]>([]);
-  const signature = JSON.stringify({ loaded, signatures });
+  const signature = JSON.stringify(signatures);
   useEffect(() => {
-    const next: { loaded: boolean; signatures: Record<string, string> } = JSON.parse(signature);
-    const changed = previous.current.loaded === next.loaded ? Object.keys(next.signatures).filter(key => previous.current.signatures[key] !== undefined && previous.current.signatures[key] !== next.signatures[key]) : [];
+    const next: typeof signatures = JSON.parse(signature);
+    const changed = Object.keys(next).filter(key => {
+      const before = previous.current[key];
+      return before && before.look !== next[key].look && (before.loaded || !next[key].loaded || before.idle !== next[key].idle);
+    });
     previous.current = next;
     if (!changed.length) return;
     setCues(changed);

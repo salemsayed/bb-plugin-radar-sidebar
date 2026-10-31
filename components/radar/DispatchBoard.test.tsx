@@ -6,7 +6,8 @@ import { BotsView, LONG_PRESS_MS } from "./BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
 import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
 import { NOW } from "./fixtures";
-import { dispatchSection, nextStep } from "./DispatchBoard";
+import { checksLine, dispatchSection, nextStep } from "./DispatchBoard";
+import { clearsLine } from "./BotsView";
 
 const workers = vi.hoisted(() => ({ byBot: {} as Record<string, unknown[]>, byTask: {} as Record<string, unknown[]>, known: new Set<string>() }));
 vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }], ...workers.byTask }, byBot: workers.byBot, known: workers.known }) }));
@@ -178,11 +179,46 @@ it("puts a bot waiting on a timed check under On call with its next step", () =>
   fireEvent.click(screen.getByRole("button", { name: "Show Home's work" }));
   expect(screen.getByRole("dialog").textContent).toContain("Nursery camera");
 });
+const at = (day: number, hours: number, minutes = 0) => new Date(2026, 9, day, hours, minutes).getTime();
+const clock = (ms: number) => new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
+const weekday = (ms: number) => new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(ms);
+const step = (wakeAt: number, now: number) => nextStep(homeWith(makeTask("home", "Camera", "waiting", { wakeAt })).bots[1], now);
 it("drops the weekday for a check later today", () => {
-  const today = new Date(NOW); today.setHours(23, 30, 0, 0);
-  const d = homeWith(makeTask("home", "Camera", "waiting", { wakeAt: Math.max(today.getTime(), NOW + 60_000) }));
-  const line = nextStep(d.bots[1], NOW);
-  if (new Date(NOW).getHours() < 23) expect(line).toMatch(/^Waiting · checks \d\d:\d\d$/);
+  expect(step(at(31, 23, 30), at(31, 14))).toBe(`Waiting · checks ${clock(at(31, 23, 30))}`);
+});
+it("names the weekday across midnight and the date from a week out", () => {
+  expect(step(at(32, 0, 10), at(31, 23, 50))).toBe(`Waiting · checks ${weekday(at(32, 0, 10))} ${clock(at(32, 0, 10))}`);
+  expect(step(at(37, 19, 13), at(31, 14))).toBe(`Waiting · checks ${weekday(at(37, 19, 13))} ${clock(at(37, 19, 13))}`);
+  const week = at(38, 19, 13);
+  expect(step(week, at(31, 14))).toBe(`Waiting · checks ${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(week)} ${clock(week)}`);
+  expect(checksLine(week, at(31, 14))).not.toContain(weekday(week));
+});
+it("says overdue for a check whose time has passed, as the Bots view does", () => {
+  expect(step(at(31, 9), at(31, 10))).toBe(`Waiting · overdue since ${clock(at(31, 9))}`);
+  expect(step(at(24, 9), at(31, 10))).toBe(`Waiting · ${clearsLine(at(24, 9), at(31, 10))}`);
+  expect(step(at(24, 9), at(31, 10))).toMatch(/^Waiting · overdue since /);
+});
+it("does not cue bots the first worker snapshot moves, but cues a real change beside it", () => {
+  vi.useFakeTimers();
+  const d = homeWith(makeTask("home", "Camera", "waiting", { id: "wait" }));
+  const view = render(<BotsView {...props(d)} />);
+  const attempt = { threadId: "w1", title: "Worker", model: "Sol", effort: null, state: "running", startedAt: NOW, endedAt: null, latest: true };
+  workers.byBot = { home: [attempt], erbareeq: [] }; workers.byTask = { wait: [attempt] }; workers.known = new Set(["home", "erbareeq"]);
+  const changed = structuredClone(d); changed.bots[0].tasks[0].displayState = "needs";
+  view.rerender(<BotsView {...props(changed)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(Array.from(document.querySelectorAll(".dispatch-cue")).map(cue => cue.closest(".dispatch-row")!.getAttribute("data-bot"))).toEqual(["erbareeq"]);
+  act(() => vi.advanceTimersByTime(551));
+  workers.byBot = { home: [], erbareeq: [] }; workers.byTask = {};
+  view.rerender(<BotsView {...props(structuredClone(changed))} />);
+  expect(sectionOf("home")).toBe("On call");
+  expect(Array.from(document.querySelectorAll(".dispatch-cue")).map(cue => cue.closest(".dispatch-row")!.getAttribute("data-bot"))).toEqual(["home"]);
+});
+it("never takes a row's title from a task only the coordinator is running", () => {
+  const d = homeWith(makeTask("home", "Waiting on the camera", "waiting", { id: "wait" }), makeTask("home", "Fix the lights", "working", { id: "lights" }));
+  workers.byTask = { wait: [{ threadId: "thr_coord_home", title: "Home Bot", model: null, effort: null, state: "running", startedAt: NOW, endedAt: null, latest: true }] };
+  render(<BotsView {...props(d)} />);
+  expect(homeRow().querySelector(".dispatch-line")!.textContent).toBe("Fix the lights");
 });
 it("puts a waiting bot with a running worker under In motion", () => {
   const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", wakeAt: NOW + 3_600_000 }));
