@@ -98,6 +98,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     return () => clearInterval(timer);
   }, []);
   const needsCount = null;
+  const unreadBots = mode === "bots" ? 0 : (tasks.data?.bots ?? []).filter(bot => bot.coordinatorThreadId !== activeThreadId && unreadChats.has(bot.coordinatorThreadId)).length;
   const openThread = useCallback((threadId: string) => {
     actions.open(threadId);
     navigation.current();
@@ -113,7 +114,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const keepQuery = useCallback((query: string) => { threadsQuery.current = query; }, []);
   return (
     <div className={cn("radar-list-shell", isCompactViewport && "radar-list-compact")} data-radar-mode={mode}>
-      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} threadsRef={threadsSegment} />
+      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} unreadBots={unreadBots} threadsRef={threadsSegment} />
       {mode === "threads" ? (
         <RadarThreadsList {...props} everyThread initialQuery={threadsQuery.current} onQueryChange={keepQuery} />
       ) : (

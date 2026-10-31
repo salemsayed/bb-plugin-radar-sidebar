@@ -110,6 +110,14 @@ it("holds only Bots and Threads; automations open per bot from its Work panel", 
   expect(onChange).toHaveBeenCalledExactlyOnceWith("threads");
 });
 
+it("puts a dot on the Bots tab while Threads is shown and a bot has an unread reply", () => {
+  const view = render(<ListModeSwitch mode="threads" onChange={vi.fn()} needsCount={null} unreadBots={2} />);
+  const bots = screen.getByRole("button", { name: "Bots, 2 with unread replies" });
+  expect(bots.querySelector(".radar-mode-dot")).toBeTruthy();
+  view.rerender(<ListModeSwitch mode="bots" onChange={vi.fn()} needsCount={null} unreadBots={2} />);
+  expect(screen.getByRole("button", { name: "Bots" }).querySelector(".radar-mode-dot")).toBeNull();
+});
+
 it("builds per-bot automation routes for the Page plugin", () => {
   expect(automationsHref("lab")).toBe("/plugins/bots-page/bots/lab/automations");
   expect(automationsHref(null)).toBe(AUTOMATIONS_ROUTE);

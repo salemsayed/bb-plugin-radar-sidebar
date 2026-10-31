@@ -6,6 +6,7 @@
 .radar-mode-option[aria-pressed="true"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .radar-mode-option:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
 .radar-mode-count { min-width: 16px; padding: 0 4px; border-radius: 999px; background: var(--attention, var(--warning, #b0640f)); color: var(--attention-foreground, #2a1a00); font-size: 10px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.radar-mode-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
 .radar-list-compact .radar-mode-option { min-height: 30px; padding: 4px 14px; font-size: 13px; }
 .radar-list-compact .radar-mode-option::after { content: ""; position: absolute; inset: -7px -1px; }
 @media (pointer: coarse) { .radar-mode-option { min-height: 30px; padding: 4px 14px; font-size: 13px; } .radar-mode-option::after { content: ""; position: absolute; inset: -7px -1px; } }
