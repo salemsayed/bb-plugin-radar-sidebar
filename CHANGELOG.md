@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Fixed (2026-10-31, Salem: "we got the co ord chats showing in the pinned of threads tab again")
+
+- The switch's Threads view leaves bot chats and their workers out on its own, because the Bots tab shows them. It no longer depends on `botsPage`, which was found switched off today during a bb restart.
+
 ### Added (2026-10-31, Salem: "I need a way to see what bot has unread messages for me in the bots sidebar")
 
 - A bot whose own chat has a reply you haven't read shows a dot on its face and a bolder name in the Bots list; screen readers hear "unread reply". Worker threads don't count, and the chat you have open never shows as unread.

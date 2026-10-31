@@ -120,10 +120,10 @@ describe("Bots | Threads switch", () => {
     await waitFor(() => expect(rowIds(slot.container)).toEqual(["plain"]));
   });
 
-  it("shows every thread in Threads, bot chats and workers included, with botsPage off", async () => {
+  it("keeps bot chats and workers out of Threads even with botsPage off, since Bots shows them (Salem, 2026-10-31: coordinator chats back in pinned)", async () => {
     localStorage.setItem(LIST_MODE_KEY, "threads");
     const { slot } = renderList(normalDay(), { settings: { botsPage: false } });
-    await waitFor(() => expect(rowIds(slot.container).sort()).toEqual(["bricks_worker", "plain", "thr_coord_bricks"]));
+    await waitFor(() => expect(rowIds(slot.container)).toEqual(["plain"]));
   });
 
   it("keeps the open thread highlighted across the switch", async () => {

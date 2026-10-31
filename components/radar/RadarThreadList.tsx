@@ -144,8 +144,6 @@ function BotsPane(props: Omit<ComponentProps<typeof BotsView>, "onReply" | "desk
 /**
  * The thread list: composes the host's thread data, bots and settings into
  * the header, the grouped rows, the Working drawer and the bulk dock.
- * `everyThread` (the switch's Threads view) keeps bot chats and workers in
- * the list unless the Bots page owns them (`botsPage`).
  */
 function RadarThreadsList({
   activeThreadId,
@@ -211,7 +209,8 @@ function RadarThreadsList({
   const botRail = settings.botRail;
   // Shortcuts and deck share the list; only one bot control is shown.
   const deck = settings.botsDeck && !botRail;
-  const roster = useBotRoster(settings.botsDeck || botRail || settings.botsPage, rosterRefreshKey(feedThreads));
+  const tuckBots = settings.botsPage || everyThread;
+  const roster = useBotRoster(settings.botsDeck || botRail || tuckBots, rosterRefreshKey(feedThreads));
   // Activity discovery is independent of row visibility. Hidden rows join the
   // displayed list only when requested; bot summaries always use the census.
   const hiddenProjectIds = useMemo(
@@ -276,10 +275,7 @@ function RadarThreadsList({
   const missingBots = deck ? visible.bots.filter(bot => bot.rolloverBlocked && !feedThreads.some(thread => thread.id === bot.current)) : [];
   const threads = useMemo(() => {
     if (roster.length === 0) return allThreads;
-    // The switch's Threads view lists every thread unless the Bots page owns the bots (Salem, 2026-10-29: his pinned bot
-    // chats showed in Threads); only a bot chosen in the shortcuts still narrows it.
-    if (everyThread && !scopedBot && !settings.botsPage) return allThreads;
-    if (settings.botsPage) {
+    if (settings.botsPage || (tuckBots && !scopedBot)) {
       // Bots live on the Bots page: their whole families leave the list.
       const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
       return allThreads.filter(thread => !tucked.has(thread.id));
@@ -298,7 +294,7 @@ function RadarThreadsList({
     }
     const tucked = new Set(roster.flatMap(bot => [...botScopeIds(allThreads, bot)]));
     return allThreads.filter(thread => !tucked.has(thread.id));
-  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots, settings.botsPage, everyThread]);
+  }, [allThreads, scopedBot, botRail, deck, roster, visible.hiddenBots, settings.botsPage, tuckBots]);
   const actions = useRadarThreadActions();
   const sdk = useSdk();
   const { providers } = experimental_useProviders();
