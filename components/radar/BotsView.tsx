@@ -67,9 +67,9 @@ export function waitingLine(task: Pick<BotTaskRow, "line" | "waitFor">): string 
  */
 const DONE_DAY = /^Done (today|\d{1,2} \S+|\S+ \d{1,2})(?:\s*[·:]\s*|$)/;
 
-const clockFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const clearsWeekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const dayMonthFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
+export const clockFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+export const clearsWeekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+export const dayMonthFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
 /**
  * When a waiting row clears, in the device's own day (Salem, 2026-10-29: "Show when it clears instead of the reason"):
  * "tonight 20:30", "tomorrow 07:00", "Sat 1 Nov" after the Waiting word, short enough for a phone row (the time was cut off

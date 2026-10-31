@@ -6,10 +6,11 @@ import { BotsView, LONG_PRESS_MS } from "./BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
 import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
 import { NOW } from "./fixtures";
-import { dispatchSection } from "./DispatchBoard";
+import { dispatchSection, nextStep } from "./DispatchBoard";
 
-vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }] }, byBot: {}, known: new Set() }) }));
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+const workers = vi.hoisted(() => ({ byBot: {} as Record<string, unknown[]>, byTask: {} as Record<string, unknown[]>, known: new Set<string>() }));
+vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }], ...workers.byTask }, byBot: workers.byBot, known: workers.known }) }));
+afterEach(() => { cleanup(); vi.useRealTimers(); workers.byBot = {}; workers.byTask = {}; workers.known = new Set(); });
 function data() { return botTasksSchema.parse(makeOutput([
   makeBot(BOT_SEEDS[0], [makeTask("erbareeq", "Sales", "working")]),
   makeBot(BOT_SEEDS[1], [makeTask("bricks", "Connect phone?", "needs")]),
@@ -157,4 +158,55 @@ it.each(["More", "right click", "hold", "menu key"])("closes the sheet before op
   }
   expect(menu).toHaveBeenCalledOnce();
   expect(p.onOpen).not.toHaveBeenCalled();
+});
+function homeWith(...tasks: ReturnType<typeof makeTask>[]) {
+  return botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[0], [makeTask("erbareeq", "Sales", "working")]), makeBot(BOT_SEEDS[3], tasks)]));
+}
+function homeRow() { return document.querySelector<HTMLElement>('.dispatch-row[data-bot="home"]')!; }
+function sectionOf(key: string) { return document.querySelector(`.dispatch-row[data-bot="${key}"]`)!.closest("section")!.getAttribute("aria-label"); }
+it("puts a bot waiting on a timed check under On call with its next step", () => {
+  const wakeAt = NOW + 26 * 3_600_000;
+  const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", waitFor: "the bot", wakeAt }));
+  render(<BotsView {...props(d)} />);
+  const when = `${new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(wakeAt)} ${new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(wakeAt)}`;
+  expect(sectionOf("home")).toBe("On call");
+  expect(homeRow().className).toContain("dispatch-idle");
+  expect(homeRow().className).toContain("dispatch-compact");
+  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(`Waiting · checks ${when}`);
+  expect(homeRow().textContent).not.toContain("Nursery camera");
+  expect(homeRow().querySelector(".dispatch-number")!.textContent).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Show Home's work" }));
+  expect(screen.getByRole("dialog").textContent).toContain("Nursery camera");
+});
+it("drops the weekday for a check later today", () => {
+  const today = new Date(NOW); today.setHours(23, 30, 0, 0);
+  const d = homeWith(makeTask("home", "Camera", "waiting", { wakeAt: Math.max(today.getTime(), NOW + 60_000) }));
+  const line = nextStep(d.bots[1], NOW);
+  if (new Date(NOW).getHours() < 23) expect(line).toMatch(/^Waiting · checks \d\d:\d\d$/);
+});
+it("puts a waiting bot with a running worker under In motion", () => {
+  const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", wakeAt: NOW + 3_600_000 }));
+  const attempt = { threadId: "w1", title: "Worker", model: "codex/gpt-6.1-sol", effort: null, state: "running", startedAt: NOW - 5 * 60_000, endedAt: null, latest: true };
+  workers.byBot = { home: [attempt], erbareeq: [] }; workers.byTask = { wait: [attempt] }; workers.known = new Set(["home", "erbareeq"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(homeRow().className).toContain("dispatch-busy");
+  expect(homeRow().textContent).toContain("Nursery camera");
+  expect(homeRow().textContent).toContain("Sol");
+  expect(homeRow().querySelector(".dispatch-number")!.textContent).toBe("1");
+  expect(dispatchSection(d.bots[1], 0)).toBe("On call");
+  expect(dispatchSection(d.bots[1], 0, 1)).toBe("In motion");
+});
+it.each([["working", "In motion"], ["queued", "In motion"], ["retrying", "Needs attention"], ["ready", "On call"], ["checking", "On call"]] as const)("a bot whose only task is %s goes to %s", (state, section) => {
+  const d = homeWith(makeTask("home", "Camera", state));
+  expect(dispatchSection(d.bots[1], 0)).toBe(section);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe(section);
+  if (section === "On call") expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(state === "ready" ? "Not started" : "To check");
+});
+it("counts the rest of an on-call bot's open tasks", () => {
+  const d = homeWith(makeTask("home", "A", "waiting"), makeTask("home", "B", "ready"), makeTask("home", "C", "checking"), makeTask("home", "D", "done", { completedAt: NOW }));
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("On call");
+  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe("To check · +2 more");
 });
