@@ -3,6 +3,7 @@ import { createPortal, flushSync } from "react-dom";
 import { isClosed, layoutBot, needRows, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
 import { BotTaskFace, openMenuAt, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { shortBotName } from "./bots";
+import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers } from "./useDispatchWorkers";
 import type { BotTasksState } from "./useBotTasks";
 
@@ -29,6 +30,28 @@ export function checksLine(at: number, now: number) {
   const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86_400_000);
   const time = clockFormatter.format(new Date(at));
   return `checks ${days === 0 ? time : days < 7 ? `${clearsWeekdayFormatter.format(new Date(at))} ${time}` : `${dateFormatter.format(new Date(at))} ${time}`}`;
+}
+function dayAndTime(at: number, now: number) {
+  const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000);
+  return days === 0 ? `today ${clockFormatter.format(new Date(at))}` : days === 1 ? `yesterday ${clockFormatter.format(new Date(at))}` : dateFormatter.format(new Date(at));
+}
+export function taskStatus(task: BotTaskRow, now: number): string {
+  if (task.displayState === "waiting" && task.wakeAt !== undefined) return `${STATE_LABEL.waiting} · ${checksLine(task.wakeAt, now)}`;
+  const detail = rowDetail(task, now);
+  if (!isClosed(task.displayState)) return [STATE_LABEL[task.displayState], detail].filter(Boolean).join(" · ");
+  const parts = detail ? detail.split(" · ") : [];
+  const label = /^(Cancelled|Stopped)\b/.test(parts[0] ?? "") ? parts.shift()! : STATE_LABEL[task.displayState];
+  return [label, task.completedAt !== undefined ? dayAndTime(task.completedAt, now) : "", ...parts].filter(Boolean).join(" · ");
+}
+export function attemptStatus(attempt: Attempt, now: number): string {
+  if (attempt.state === "running") return attempt.startedAt != null ? `running ${elapsed(attempt.startedAt, now)}` : "running";
+  if (attempt.state === "unknown") return "";
+  return attempt.endedAt != null && elapsed(attempt.endedAt, now) !== "now" ? `${attempt.state} ${elapsed(attempt.endedAt, now)}` : attempt.state;
+}
+export function panelSummary(tasks: BotTaskRow[], workers: number | null, unfiled: number): string {
+  const counts = new Map<string, number>();
+  tasks.forEach(task => counts.set(STATE_LABEL[task.displayState].toLowerCase(), (counts.get(STATE_LABEL[task.displayState].toLowerCase()) ?? 0) + 1));
+  return [workers ? `${workers} ${workers === 1 ? "worker" : "workers"}` : "", ...[...counts].map(([state, n]) => `${n} ${state}`), unfiled ? `${unfiled} unfiled` : ""].filter(Boolean).join(" · ") || "Nothing running";
 }
 export function nextStep(bot: BotTasksBot, now: number): string {
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
@@ -57,7 +80,8 @@ function DispatchRow({ bot, question, asks, workers, known, attempts, now, obser
   const last = Math.max(0, ...bot.tasks.map(t => t.completedAt ?? 0));
   const retry = blocked?.retryAt;
   const number = asks ? String(asks) : retry ? new Date(retry).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : known && workers.length ? String(workers.length) : "";
-  const unit = asks ? asks === 1 ? "ask" : "asks" : retry ? "retry" : number ? workers.length === 1 ? "worker" : "workers" : "Work";
+  const unit = asks ? asks === 1 ? "ask" : "asks" : retry ? "retry" : workers.length === 1 ? "worker" : "workers";
+  const spoken = !number ? "" : retry && !asks ? `, retry ${number}` : `, ${number} ${unit}`;
   return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat}><div className={`dispatch-row dispatch-${tone}${idle ? " dispatch-compact" : ""}`} data-bot={bot.key} {...press}
     onKeyDown={event => { if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) { event.preventDefault(); openMenuAt(event.currentTarget); } }}>
     <button className="dispatch-chat" type="button" aria-label={`Open ${bot.name} chat`} aria-current={current ? "page" : undefined} onClick={onChat}>
@@ -69,7 +93,7 @@ function DispatchRow({ bot, question, asks, workers, known, attempts, now, obser
         </>}
       </span>
     </button>
-    <button type="button" className="dispatch-work" aria-label={`Show ${shortBotName(bot.name)}'s work`} onClick={onWork}><span className={retry && !asks ? "dispatch-number dispatch-time" : "dispatch-number"}>{number}</span><span>{unit}</span></button>
+    <button type="button" className="dispatch-work" aria-label={`Show ${shortBotName(bot.name)}'s work${spoken}`} onClick={onWork}>{number ? <><span className={retry && !asks ? "dispatch-number dispatch-time" : "dispatch-number"}>{number}</span><span>{unit}</span></> : <Icon name="ChevronRight" aria-hidden="true" className="dispatch-chevron" />}</button>
   </div></MenuTarget>;
 }
 export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onReply, onShowThreads, deskMenu }: {
@@ -139,7 +163,10 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const ownNeeds = needs.filter(n => n.botKey === sheet);
   const workerCount = bot && snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null;
   const drag = useRef<number | null>(null);
-  const taskRow = (task: BotTaskRow) => <div key={task.id} className="dispatch-task-group"><button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => navigate(task.conversationThreadId ?? bot!.coordinatorThreadId)}><b dir="auto">{task.title}</b><span>{STATE_LABEL[task.displayState]}{rowDetail(task, now) ? ` · ${rowDetail(task, now)}` : ""}</span></button>{snapshot.byTask[task.id]?.map(a => <button type="button" className="dispatch-attempt" key={a.threadId} onClick={() => navigate(a.threadId)} aria-label={`Open worker ${a.title || a.threadId}`}><span>{a.model ? <span className="dispatch-model">{dispatchModel(a.model)}</span> : "Worker"} · {a.state === "running" ? "Running" : a.state}{a.startedAt != null ? ` · ${elapsed(a.startedAt, a.endedAt ?? now)}` : ""}</span></button>)}</div>;
+  const taskRow = (task: BotTaskRow) => <div key={task.id} className="dispatch-task-group"><button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => navigate(task.conversationThreadId ?? bot!.coordinatorThreadId)}><b dir="auto">{task.title}</b><span>{taskStatus(task, now)}</span></button>{snapshot.byTask[task.id]?.map(a => {
+    const status = attemptStatus(a, now);
+    return <button type="button" className="dispatch-attempt" key={a.threadId} onClick={() => navigate(a.threadId)} aria-label={`Open worker ${a.title || a.threadId}: ${a.model ? `${dispatchModel(a.model)} worker` : "Worker"}${status ? `, ${status}` : ""}`}>{a.model ? <><span className="dispatch-model">{dispatchModel(a.model)}</span> worker</> : "Worker"}{status ? ` · ${status}` : ""}</button>;
+  })}</div>;
   return <div className="dispatch" ref={root} onPointerDownCapture={() => setFrozen(arranged)}>
     {state.cached || state.status === "error" ? <p role="status">Saved view · as of {asOf(data.observedAt, now)} · reconnecting</p> : null}
     <p className="dispatch-tally">{tally || "Nothing needs you"}</p>
@@ -163,11 +190,11 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
       if (event.key === "Tab") { const buttons = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')); const first = buttons[0], last = buttons.at(-1); if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
     }}>
       <button className="dispatch-grabber" aria-label="Close work panel" onClick={close} onPointerDown={event => { drag.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { if (drag.current !== null && event.clientY - drag.current > 50) close(); drag.current = null; }}><span /></button>
-      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={ownNeeds.length ? "needs-you" : tasks.some(t => BLOCKED.includes(t.displayState)) ? "failed" : sectionOf(bot) === "In motion" ? "working" : undefined} /><div><h2>{shortBotName(bot.name)}</h2><p>{[workerCount ? `${workerCount} ${workerCount === 1 ? "worker" : "workers"}` : "", tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : bot.unlinked.length ? `${bot.unlinked.length} unfiled` : "Nothing running"].filter(Boolean).join(" · ")}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><button onClick={() => showMenu(bot.key)}>More</button></header>
+      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={ownNeeds.length ? "needs-you" : tasks.some(t => BLOCKED.includes(t.displayState)) ? "failed" : sectionOf(bot) === "In motion" ? "working" : undefined} /><div><h2>{shortBotName(bot.name)}</h2><p>{panelSummary(tasks, workerCount, bot.unlinked.length)}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><button className="dispatch-more" onClick={() => showMenu(bot.key)}>More</button></header>
       <div className="dispatch-panel-body">{ownNeeds.map(need => <div className="dispatch-ask-card" key={need.key}><span>Needs you</span><button className="dispatch-question" dir="auto" disabled={!need.threadId} onClick={() => need.threadId && navigate(need.threadId)}>“{need.question}”</button>{need.options.map(option => <button key={option} onClick={() => { if (need.threadId) { navigate(need.threadId, option); } }}>{option}</button>)}</div>)}
       {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b>Blocked · {t.title}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
-      {tasks.length || bot.unlinked.length ? <><h3>Tasks</h3>{tasks.map(taskRow)}{bot.unlinked.map(w => <button className="dispatch-task" key={w.threadId} onClick={() => navigate(w.threadId)}><b>{w.title || "Worker"}</b><span>Work without a task</span></button>)}</> : <p className="dispatch-idle">Nothing running{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}
-      <h3>Recent</h3>{recent.length ? recent.map(taskRow) : <p className="dispatch-idle">No recent tasks</p>}
+      {tasks.length || bot.unlinked.length ? <><h3>Tasks</h3>{tasks.map(taskRow)}{bot.unlinked.map(w => <div className="dispatch-task-group" key={w.threadId}><button className="dispatch-task" onClick={() => navigate(w.threadId)}><b dir="auto">{w.title || "Worker"}</b><span>Work without a task</span></button></div>)}</> : <p className="dispatch-idle">Nothing running{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}
+      <h3>Recent</h3>{recent.length ? <div className="dispatch-recent">{recent.map(taskRow)}</div> : <p className="dispatch-idle">No recent tasks</p>}
       </div>
     </div></div>, document.body) : null}
   </div>;

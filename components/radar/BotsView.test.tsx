@@ -207,7 +207,7 @@ it("Dispatch preserves bb's real coordinator menu and answer routing", async () 
   expect(menu.textContent).toContain("Rename");
   fireEvent.click(within(menu as HTMLElement).getByRole("menuitem", { name: "Open chat" }));
   expect(opened(slot)).toContain("thr_coord_bricks");
-  fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Show Bricks's work/ }));
   expect(screen.getByRole("dialog").textContent).toContain("Is the iPhone connected to the Mac?");
   expect(screen.getByRole("dialog").textContent).toContain("Warranty QR relabel");
 });
@@ -215,7 +215,7 @@ it("Dispatch preserves all ten asks in their bots' work panels", async () => {
   renderList(tenDecisions());
   await screen.findByRole("button", { name: /^Bots, 10/ });
   let asks = 0;
-  for (const button of screen.getAllByRole("button", { name: /^Show .*'s work$/ })) {
+  for (const button of screen.getAllByRole("button", { name: /^Show .*'s work/ })) {
     fireEvent.click(button); asks += document.querySelectorAll(".dispatch-ask-card").length;
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   }
@@ -223,7 +223,7 @@ it("Dispatch preserves all ten asks in their bots' work panels", async () => {
 });
 it("Dispatch loads genuine attempt models and refreshes on push", async () => {
   const { calls } = renderList(normalDay());
-  fireEvent.click(await screen.findByRole("button", { name: "Show ERBareeq's work" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Show ERBareeq's work/ }));
   await waitFor(() => expect(calls).toContain("task_detail"));
   await waitFor(() => expect(document.querySelectorAll(".dispatch-model").length).toBeGreaterThan(0));
   const before = calls.filter(x => x === "bot_tasks").length;
