@@ -6,7 +6,7 @@ import { BotsView, LONG_PRESS_MS } from "./BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
 import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
 import { NOW } from "./fixtures";
-import { checksLine, dispatchSection, nextStep } from "./DispatchBoard";
+import { checksLine, dispatchSection, nextStep, panelSummary } from "./DispatchBoard";
 import { clearsLine } from "./BotsView";
 
 const workers = vi.hoisted(() => ({ byBot: {} as Record<string, unknown[]>, byTask: {} as Record<string, unknown[]>, known: new Set<string>() }));
@@ -169,11 +169,10 @@ it("puts a bot waiting on a timed check under On call with its next step", () =>
   const wakeAt = NOW + 26 * 3_600_000;
   const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", waitFor: "the bot", wakeAt }));
   render(<BotsView {...props(d)} />);
-  const when = `${new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(wakeAt)} ${new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(wakeAt)}`;
   expect(sectionOf("home")).toBe("On call");
   expect(homeRow().className).toContain("dispatch-idle");
   expect(homeRow().className).toContain("dispatch-compact");
-  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(`Waiting · checks ${when}`);
+  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(`Waiting · ${checksLine(wakeAt, NOW)}`);
   expect(homeRow().textContent).not.toContain("Nursery camera");
   expect(homeRow().querySelector(".dispatch-number")).toBeNull(); expect(homeRow().querySelector(".dispatch-chevron")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Show Home's work" }));
@@ -187,7 +186,8 @@ it("drops the weekday for a check later today", () => {
   expect(step(at(31, 23, 30), at(31, 14))).toBe(`Waiting · checks ${clock(at(31, 23, 30))}`);
 });
 it("names the weekday across midnight and the date from a week out", () => {
-  expect(step(at(32, 0, 10), at(31, 23, 50))).toBe(`Waiting · checks ${weekday(at(32, 0, 10))} ${clock(at(32, 0, 10))}`);
+  expect(step(at(32, 0, 10), at(31, 23, 50))).toBe(`Waiting · checks tomorrow ${clock(at(32, 0, 10))}`);
+  expect(step(at(33, 0, 10), at(31, 23, 50))).toBe(`Waiting · checks ${weekday(at(33, 0, 10))} ${clock(at(33, 0, 10))}`);
   expect(step(at(37, 19, 13), at(31, 14))).toBe(`Waiting · checks ${weekday(at(37, 19, 13))} ${clock(at(37, 19, 13))}`);
   const week = at(38, 19, 13);
   expect(step(week, at(31, 14))).toBe(`Waiting · checks ${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(week)} ${clock(week)}`);
@@ -308,15 +308,54 @@ it("keeps a task's worker inside the task with what it is doing and for how long
   expect(idle.closest(".dispatch-task-group")!.textContent).toContain("Kitchen TV colour");
   expect(within(dialog).getByRole("button", { name: "Open worker Lights worker: Worker, running 5 min" }).textContent).toBe("Worker · running 5 min");
   expect(statusOf(dialog, "Kitchen TV colour")).toBe(`Waiting · ${checksLine(wake, now)}`);
-  expect(dialog.querySelector(".dispatch-panel-head p")!.textContent).toBe("1 worker · 1 waiting · 1 working");
+  expect(dialog.querySelector(".dispatch-panel-head p")!.textContent).toBe("1 worker · 1 working · 1 waiting");
 });
 it("summarises open tasks by state in the panel header", () => {
   const d = homeWith(makeTask("home", "A", "waiting"), makeTask("home", "B", "waiting"), makeTask("home", "C", "checking"), makeTask("home", "D", "done", { completedAt: NOW }));
-  expect(panelOf(d).querySelector(".dispatch-panel-head p")!.textContent).toBe("2 waiting · 1 to check");
+  expect(panelOf(d).querySelector(".dispatch-panel-head p")!.textContent).toBe("1 to check · 2 waiting");
 });
 it("clamps long titles and gives More a visible control shape", () => {
   const css = readFileSync("styles/dispatch.css", "utf8");
   expect(css).toMatch(/\.dispatch-task b \{[^}]*-webkit-line-clamp: 3/);
   expect(css).toMatch(/\.dispatch-recent \.dispatch-task b \{[^}]*-webkit-line-clamp: 2/);
   expect(css).toMatch(/\.dispatch-more \{[^}]*border: 1px solid/);
+});
+it("says tomorrow for a check due the next day, in the row and the panel alike", () => {
+  const now = at(31, 14), wakeAt = at(32, 19, 30);
+  expect(checksLine(wakeAt, now)).toBe(`checks tomorrow ${clock(wakeAt)}`);
+  expect(checksLine(at(33, 19, 30), now)).toBe(`checks ${weekday(at(33, 19, 30))} ${clock(at(33, 19, 30))}`);
+  expect(checksLine(at(31, 19, 30), now)).toBe(`checks ${clock(at(31, 19, 30))}`);
+  const d = homeWith(makeTask("home", "Kitchen TV", "waiting", { waitFor: "the bot", wakeAt }));
+  render(<BotsView {...props(d)} now={now} />);
+  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(`Waiting · checks tomorrow ${clock(wakeAt)}`);
+  fireEvent.click(screen.getByRole("button", { name: "Show Home's work" }));
+  expect(statusOf(screen.getByRole("dialog"), "Kitchen TV")).toBe(`Waiting · checks tomorrow ${clock(wakeAt)}`);
+});
+it("orders the header counts by state, not by task order", () => {
+  const first = homeWith(makeTask("home", "A", "waiting"), makeTask("home", "B", "working"), makeTask("home", "C", "needs"));
+  const second = homeWith(makeTask("home", "C", "needs"), makeTask("home", "B", "working"), makeTask("home", "A", "waiting"));
+  expect(panelSummary(first.bots[1].tasks, 2, 0)).toBe("2 workers · 1 needs you · 1 working · 1 waiting");
+  expect(panelSummary(second.bots[1].tasks, 2, 0)).toBe(panelSummary(first.bots[1].tasks, 2, 0));
+});
+it("gives the desktop sheet a Close button that restores focus, and keeps the drag bar on phones", () => {
+  const p = { ...props(), isCompactViewport: false };
+  const view = render(<BotsView {...p} />);
+  const work = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }); work.focus(); fireEvent.click(work);
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).queryByRole("button", { name: "Close work panel" })).toBeNull();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(work);
+  view.rerender(<BotsView {...props()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }));
+  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Close work panel" })).toBeTruthy();
+  expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Close" })).toBeNull();
+});
+it("keeps 44 px tap targets on the worker row, the close button and both header pills", () => {
+  const css = readFileSync("styles/dispatch.css", "utf8");
+  expect(css).toMatch(/\.dispatch-panel \.dispatch-attempt \{[^}]*min-height: 44px/);
+  expect(css).toMatch(/button\.dispatch-close \{[^}]*min-width: 44px; min-height: 44px/);
+  expect(css).toMatch(/\.dispatch-panel-head button \{[^}]*min-height: 36px/);
+  expect(css).toMatch(/\.dispatch-panel-head button::after \{[^}]*inset: -4px 0/);
+  expect(css).toMatch(/button\.dispatch-more::after \{[^}]*inset: -5px -1px/);
 });

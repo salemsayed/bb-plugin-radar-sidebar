@@ -29,7 +29,7 @@ export function checksLine(at: number, now: number) {
   if (at < now) return clearsLine(at, now);
   const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86_400_000);
   const time = clockFormatter.format(new Date(at));
-  return `checks ${days === 0 ? time : days < 7 ? `${clearsWeekdayFormatter.format(new Date(at))} ${time}` : `${dateFormatter.format(new Date(at))} ${time}`}`;
+  return `checks ${days === 0 ? time : days === 1 ? `tomorrow ${time}` : days < 7 ? `${clearsWeekdayFormatter.format(new Date(at))} ${time}` : `${dateFormatter.format(new Date(at))} ${time}`}`;
 }
 function dayAndTime(at: number, now: number) {
   const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000);
@@ -48,10 +48,11 @@ export function attemptStatus(attempt: Attempt, now: number): string {
   if (attempt.state === "unknown") return "";
   return attempt.endedAt != null && elapsed(attempt.endedAt, now) !== "now" ? `${attempt.state} ${elapsed(attempt.endedAt, now)}` : attempt.state;
 }
+const SUMMARY_ORDER: readonly BotTaskRow["displayState"][] = ["needs", "overdue", "offline", "retrying", "working", "queued", "checking", "ready", "waiting"];
 export function panelSummary(tasks: BotTaskRow[], workers: number | null, unfiled: number): string {
-  const counts = new Map<string, number>();
-  tasks.forEach(task => counts.set(STATE_LABEL[task.displayState].toLowerCase(), (counts.get(STATE_LABEL[task.displayState].toLowerCase()) ?? 0) + 1));
-  return [workers ? `${workers} ${workers === 1 ? "worker" : "workers"}` : "", ...[...counts].map(([state, n]) => `${n} ${state}`), unfiled ? `${unfiled} unfiled` : ""].filter(Boolean).join(" · ") || "Nothing running";
+  const states = [...SUMMARY_ORDER, ...new Set(tasks.map(task => task.displayState).filter(state => !SUMMARY_ORDER.includes(state)))];
+  const counts = states.map(state => [STATE_LABEL[state].toLowerCase(), tasks.filter(task => task.displayState === state).length] as const).filter(([, n]) => n);
+  return [workers ? `${workers} ${workers === 1 ? "worker" : "workers"}` : "", ...counts.map(([state, n]) => `${n} ${state}`), unfiled ? `${unfiled} unfiled` : ""].filter(Boolean).join(" · ") || "Nothing running";
 }
 export function nextStep(bot: BotTasksBot, now: number): string {
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
@@ -189,8 +190,8 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
       if (event.key === "Escape") { event.stopPropagation(); close(); }
       if (event.key === "Tab") { const buttons = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')); const first = buttons[0], last = buttons.at(-1); if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
     }}>
-      <button className="dispatch-grabber" aria-label="Close work panel" onClick={close} onPointerDown={event => { drag.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { if (drag.current !== null && event.clientY - drag.current > 50) close(); drag.current = null; }}><span /></button>
-      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={ownNeeds.length ? "needs-you" : tasks.some(t => BLOCKED.includes(t.displayState)) ? "failed" : sectionOf(bot) === "In motion" ? "working" : undefined} /><div><h2>{shortBotName(bot.name)}</h2><p>{panelSummary(tasks, workerCount, bot.unlinked.length)}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><button className="dispatch-more" onClick={() => showMenu(bot.key)}>More</button></header>
+      {isCompactViewport ? <button className="dispatch-grabber" aria-label="Close work panel" onClick={close} onPointerDown={event => { drag.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { if (drag.current !== null && event.clientY - drag.current > 50) close(); drag.current = null; }}><span /></button> : null}
+      <header className="dispatch-panel-head"><BotTaskFace bot={bot} size={42} state={ownNeeds.length ? "needs-you" : tasks.some(t => BLOCKED.includes(t.displayState)) ? "failed" : sectionOf(bot) === "In motion" ? "working" : undefined} /><div><h2>{shortBotName(bot.name)}</h2><p>{panelSummary(tasks, workerCount, bot.unlinked.length)}</p></div><button className="dispatch-chat-pill" onClick={() => navigate(bot.coordinatorThreadId)}>Chat</button><button className="dispatch-more" onClick={() => showMenu(bot.key)}>More</button>{isCompactViewport ? null : <button className="dispatch-close" aria-label="Close" onClick={close}><Icon name="X" aria-hidden="true" /></button>}</header>
       <div className="dispatch-panel-body">{ownNeeds.map(need => <div className="dispatch-ask-card" key={need.key}><span>Needs you</span><button className="dispatch-question" dir="auto" disabled={!need.threadId} onClick={() => need.threadId && navigate(need.threadId)}>“{need.question}”</button>{need.options.map(option => <button key={option} onClick={() => { if (need.threadId) { navigate(need.threadId, option); } }}>{option}</button>)}</div>)}
       {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b>Blocked · {t.title}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
       {tasks.length || bot.unlinked.length ? <><h3>Tasks</h3>{tasks.map(taskRow)}{bot.unlinked.map(w => <div className="dispatch-task-group" key={w.threadId}><button className="dispatch-task" onClick={() => navigate(w.threadId)}><b dir="auto">{w.title || "Worker"}</b><span>Work without a task</span></button></div>)}</> : <p className="dispatch-idle">Nothing running{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}
