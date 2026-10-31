@@ -212,6 +212,7 @@ export function BotsView({
   onReply,
   onShowThreads,
   deskMenu,
+  unreadChats,
 }: {
   state: BotTasksState;
   activeThreadId: string | null;
@@ -223,6 +224,7 @@ export function BotsView({
   onShowThreads: () => void;
   /** The bot menu each desk wears (long-press, right-click, or its "⋯"); the plugin passes bb's thread menu. */
   deskMenu?: DeskMenu;
+  unreadChats?: ReadonlySet<string>;
 }) {
   const { data, status } = state;
   if (status === "missing") {
@@ -242,5 +244,5 @@ export function BotsView({
     );
   }
   return <DispatchBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
-    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} deskMenu={deskMenu} />;
+    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} deskMenu={deskMenu} unreadChats={unreadChats} />;
 }

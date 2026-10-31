@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Added (2026-10-31, Salem: "I need a way to see what bot has unread messages for me in the bots sidebar")
+
+- A bot whose own chat has a reply you haven't read shows a dot on its face and a bolder name in the Bots list; screen readers hear "unread reply". Worker threads don't count, and the chat you have open never shows as unread.
+
 ### Changed (2026-10-31, Salem: "i dont want the automations tab in the sidebar, just bots and thread. that switcher looks bad and too big")
 
 - The sidebar switcher holds only Bots and Threads. A bot's automations open from its Work panel (Chat · Automations · More).

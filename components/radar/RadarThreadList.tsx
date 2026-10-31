@@ -87,6 +87,8 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const { activeThreadId, isCompactViewport, onNavigate: hostOnNavigate } = props;
   const [mode, setMode] = useListMode();
   const tasks = useBotTasks(true);
+  const sidebar = experimental_useSidebarThreads();
+  const unreadChats = useMemo(() => new Set(sidebar.threads.filter(thread => thread.isUnread).map(thread => thread.id)), [sidebar.threads]);
   const actions = useRadarThreadActions();
   const navigation = useRef(hostOnNavigate);
   useLayoutEffect(() => { navigation.current = hostOnNavigate; }, [hostOnNavigate]);
@@ -118,7 +120,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">
             <BotsPane state={tasks} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport}
-              now={now} onOpen={openThread} onShowThreads={showThreads} />
+              now={now} onOpen={openThread} onShowThreads={showThreads} unreadChats={unreadChats} />
           </div>
         </div>
       )}

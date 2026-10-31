@@ -114,3 +114,14 @@ it("builds per-bot automation routes for the Page plugin", () => {
   expect(automationsHref("lab")).toBe("/plugins/bots-page/bots/lab/automations");
   expect(automationsHref(null)).toBe(AUTOMATIONS_ROUTE);
 });
+
+it("marks a bot whose chat has an unread reply, except the chat already open", () => {
+  const d = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[0], [])]));
+  const chat = d.bots[0]!.coordinatorThreadId;
+  const view = render(<BotsView state={{ data: d, status: "ready", cached: false }} activeThreadId={null} isCompactViewport now={NOW} onOpen={vi.fn()} onShowThreads={vi.fn()} unreadChats={new Set([chat])} />);
+  const open = screen.getByRole("button", { name: /^Open ERBareeq Bot chat, unread reply$/ });
+  expect(open.closest(".dispatch-row")!.classList.contains("dispatch-unread")).toBe(true);
+  expect(open.querySelector(".dispatch-unread-dot")).toBeTruthy();
+  view.rerender(<BotsView state={{ data: d, status: "ready", cached: false }} activeThreadId={chat} isCompactViewport now={NOW} onOpen={vi.fn()} onShowThreads={vi.fn()} unreadChats={new Set([chat])} />);
+  expect(screen.getByRole("button", { name: /^Open ERBareeq Bot chat$/ })).toBeTruthy();
+});

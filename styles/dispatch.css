@@ -11,6 +11,9 @@
 .dispatch-chat { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 0; min-width: 0; border-radius: 12px; }
 .dispatch-ask .dispatch-chat { padding-inline-start: 10px; }
 .dispatch-chat>span:first-child { flex-shrink: 0; }
+.dispatch-face { position: relative; }
+.dispatch-unread-dot { position: absolute; z-index: 2; top: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--sidebar, var(--background)); }
+.dispatch-unread .dispatch-top b { font-weight: 750; }
 .dispatch-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .dispatch-top { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted-foreground); }
 .dispatch-top b { font-size: 15px; font-weight: 600; color: var(--foreground); }
