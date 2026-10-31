@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { botTasksSchema } from "@/lib/botTasks";
 import { BOT_SEEDS, makeBot, makeOutput, makeTask } from "./botTasksFixtures";
-import { useDispatchWorkers } from "./useDispatchWorkers";
+import { COORDINATOR_REFRESH_MS, useDispatchWorkers } from "./useDispatchWorkers";
 const { sdk } = vi.hoisted(() => ({ sdk: { plugins: { callRpc: vi.fn() }, threads: { list: vi.fn() } } }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({ useSdk: () => sdk }));
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
@@ -30,4 +30,25 @@ it("includes actual unlinked workers and avoids double counting", async () => {
   const { result } = renderHook(() => useDispatchWorkers(value));
   await waitFor(() => expect(result.current.known.has("erbareeq")).toBe(true));
   expect(result.current.byBot.erbareeq).toHaveLength(1);
+});
+it("reads each bot's coordinator status into chat, never as a worker", async () => {
+  const value = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[0], []), makeBot(BOT_SEEDS[3], [])]));
+  sdk.threads.list.mockResolvedValue([{ id: "thr_coord_erbareeq", status: "active", createdAt: 100 }, { id: "thr_coord_home", status: "idle", createdAt: 100 }]);
+  const { result } = renderHook(() => useDispatchWorkers(value));
+  await waitFor(() => expect(result.current.known.has("erbareeq")).toBe(true));
+  expect([...result.current.chat]).toEqual(["erbareeq"]);
+  expect(result.current.byBot.erbareeq).toEqual([]);
+  expect(sdk.threads.list).toHaveBeenCalledWith({ threadIds: ["thr_coord_erbareeq", "thr_coord_home"], includeHidden: true });
+});
+it("refreshes coordinator status between task reloads", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const value = botTasksSchema.parse(makeOutput([makeBot(BOT_SEEDS[0], [])]));
+  sdk.threads.list.mockResolvedValue([{ id: "thr_coord_erbareeq", status: "idle", createdAt: 100 }]);
+  const { result } = renderHook(() => useDispatchWorkers(value));
+  await waitFor(() => expect(result.current.known.has("erbareeq")).toBe(true));
+  expect(result.current.chat.size).toBe(0);
+  sdk.threads.list.mockResolvedValue([{ id: "thr_coord_erbareeq", status: "active", createdAt: 100 }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(COORDINATOR_REFRESH_MS); });
+  expect(result.current.chat.has("erbareeq")).toBe(true);
+  vi.useRealTimers();
 });

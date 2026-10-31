@@ -17,3 +17,6 @@
 .radar-tasks-fallback-action:hover { background: var(--muted); }
 .radar-list-compact .radar-tasks-fallback-action { min-height: 44px; padding-inline: 16px; }
 @media (pointer: coarse) { .radar-mode-option { min-height: 44px; } }
+.radar-mode-link { flex: 1.5 1 0; text-decoration: none; white-space: nowrap; }
+.radar-mode-link[aria-current="page"] { background: var(--background, var(--card)); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.radar-mode-switch[data-route="automations"] .radar-mode-option[aria-pressed="true"] { background: transparent; box-shadow: none; color: var(--foreground); }

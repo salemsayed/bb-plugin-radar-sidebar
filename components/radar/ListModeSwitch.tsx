@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type Ref, type SetStateAction } from "react";
 import { readStored, writeStored } from "./useListSettings";
+import { AUTOMATIONS_ROUTE, onAutomationsRoute } from "./automationsLink";
 
 export type ListMode = "bots" | "threads";
 export const LIST_MODE_KEY = "radar-sidebar:list-mode:v1";
@@ -11,16 +12,12 @@ export function useListMode(): [ListMode, Dispatch<SetStateAction<ListMode>>] {
   return [mode, setMode];
 }
 
-/**
- * The Bots | Threads segmented switch at the top of the list. Switching only
- * changes what the list shows: it never navigates, so the open thread stays
- * open. The Bots half carries the Needs-you count.
- */
-export function ListModeSwitch({ mode, onChange, needsCount, threadsRef }: {
-  mode: ListMode; onChange: (mode: ListMode) => void; needsCount: number | null; threadsRef?: Ref<HTMLButtonElement>;
+export function ListModeSwitch({ mode, onChange, needsCount, threadsRef, routePath }: {
+  mode: ListMode; onChange: (mode: ListMode) => void; needsCount: number | null; threadsRef?: Ref<HTMLButtonElement>; routePath?: string;
 }) {
+  const automationsOpen = onAutomationsRoute(routePath);
   return (
-    <div className="radar-mode-switch" role="group" aria-label="Show bots or threads">
+    <div className="radar-mode-switch" role="group" aria-label="Show bots or threads, or open automations" data-route={automationsOpen ? "automations" : undefined}>
       <button type="button" className="radar-mode-option" aria-pressed={mode === "bots"}
         aria-label={needsCount ? `Bots, ${needsCount} need${needsCount === 1 ? "s" : ""} you` : "Bots"}
         onClick={() => onChange("bots")}>
@@ -30,6 +27,7 @@ export function ListModeSwitch({ mode, onChange, needsCount, threadsRef }: {
       <button ref={threadsRef} type="button" className="radar-mode-option" aria-pressed={mode === "threads"} onClick={() => onChange("threads")}>
         Threads
       </button>
+      <a className="radar-mode-option radar-mode-link" href={AUTOMATIONS_ROUTE} aria-current={automationsOpen ? "page" : undefined}>Automations</a>
     </div>
   );
 }

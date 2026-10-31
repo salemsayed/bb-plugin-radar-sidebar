@@ -95,7 +95,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const needsCount = useMemo(() => tasks.data ? needRows(tasks.data).length : null, [tasks.data]);
+  const needsCount = null;
   const openThread = useCallback((threadId: string) => {
     actions.open(threadId);
     navigation.current();

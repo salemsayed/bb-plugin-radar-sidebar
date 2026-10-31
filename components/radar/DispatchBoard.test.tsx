@@ -9,9 +9,9 @@ import { NOW } from "./fixtures";
 import { checksLine, dispatchSection, nextStep, panelSummary } from "./DispatchBoard";
 import { clearsLine } from "./BotsView";
 
-const workers = vi.hoisted(() => ({ byBot: {} as Record<string, unknown[]>, byTask: {} as Record<string, unknown[]>, known: new Set<string>() }));
-vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }], ...workers.byTask }, byBot: workers.byBot, known: workers.known }) }));
-afterEach(() => { cleanup(); vi.useRealTimers(); workers.byBot = {}; workers.byTask = {}; workers.known = new Set(); });
+const workers = vi.hoisted(() => ({ byBot: {} as Record<string, unknown[]>, byTask: {} as Record<string, unknown[]>, known: new Set<string>(), chat: new Set<string>() }));
+vi.mock("./useDispatchWorkers", () => ({ useDispatchWorkers: () => ({ byTask: { navtask: [{ threadId: "worker", title: "Test worker", model: "Sol", state: "running", startedAt: null }], ...workers.byTask }, byBot: workers.byBot, known: workers.known, chat: workers.chat }) }));
+afterEach(() => { cleanup(); vi.useRealTimers(); workers.byBot = {}; workers.byTask = {}; workers.known = new Set(); workers.chat = new Set(); });
 function data() { return botTasksSchema.parse(makeOutput([
   makeBot(BOT_SEEDS[0], [makeTask("erbareeq", "Sales", "working")]),
   makeBot(BOT_SEEDS[1], [makeTask("bricks", "Connect phone?", "needs")]),
@@ -21,9 +21,9 @@ function data() { return botTasksSchema.parse(makeOutput([
 function props(d = data()) { return { state: { data: d, status: "ready" as const, cached: false }, activeThreadId: null, isCompactViewport: true, now: NOW, onOpen: vi.fn(), onShowThreads: vi.fn() }; }
 it("groups each bot once and never calls task counts workers", () => {
   render(<BotsView {...props()} />);
-  expect(screen.getByRole("region", { name: "Needs attention" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull();
   expect(document.querySelectorAll(".dispatch-row")).toHaveLength(4);
-  expect(document.querySelector(".dispatch-tally")?.textContent).toBe("1 needs you · 1 blocked");
+  expect(document.querySelector(".dispatch-tally")?.textContent).toBe("1 blocked");
   expect(document.querySelector(".dispatch")?.textContent).not.toContain("workers");
   expect(dispatchSection(data().bots[3], 0)).toBe("On call");
 });
@@ -31,7 +31,7 @@ it("separates row chat from work, closes on escape and backdrop and restores foc
   const p = props(); render(<BotsView {...p} />);
   fireEvent.click(screen.getByRole("button", { name: "Open Bricks Bot chat" }));
   expect(p.onOpen).toHaveBeenCalledExactlyOnceWith("thr_coord_bricks");
-  const work = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }); work.focus(); fireEvent.click(work);
+  const work = screen.getByRole("button", { name: "Show Bricks's work" }); work.focus(); fireEvent.click(work);
   expect(screen.getByRole("dialog").textContent).toContain("Connect phone?");
   expect(p.onOpen).toHaveBeenCalledTimes(1);
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
@@ -46,7 +46,7 @@ it("freezes section membership through a press and releases after pointerup", as
   view.rerender(<BotsView {...props(changed)} />);
   expect(within(screen.getByRole("region", { name: "In motion" })).getByRole("button", { name: "Open ERBareeq Bot chat" })).toBeTruthy();
   fireEvent.pointerUp(window);
-  await waitFor(() => expect(screen.queryByRole("region", { name: "In motion" })).toBeNull());
+  await waitFor(() => expect(within(screen.getByRole("region", { name: "On call" })).getByRole("button", { name: "Open ERBareeq Bot chat" })).toBeTruthy());
 });
 it("holds for 700ms, suppresses the release click and supports the menu key", () => {
   vi.useFakeTimers(); const p = props(); render(<BotsView {...p} />);
@@ -76,7 +76,7 @@ it("shows one cue when a bot changes section", () => {
   act(() => vi.advanceTimersByTime(551));
   expect(document.querySelector(".dispatch-cue")).toBeNull();
 });
-it.each(["Chat", "Task", "Worker", "Question", "Answer", "Answer fallback", "Unlinked", "Recent"])("closes and restores focus before %s navigation", path => {
+it.each(["Chat", "Task", "Worker", "Unlinked", "Recent"])("closes and restores focus before %s navigation", path => {
   const d = data();
   d.bots[1].tasks[0].id = "navtask";
   d.bots[1].tasks[0].conversationThreadId = "task-thread";
@@ -91,10 +91,10 @@ it.each(["Chat", "Task", "Worker", "Question", "Answer", "Answer fallback", "Unl
   });
   const p = { ...props(d), onOpen: check, onReply: path === "Answer fallback" ? undefined : check };
   render(<BotsView {...p} deskMenu={({ children, onOpenChat }) => <div>{children}<button onClick={onOpenChat}>Menu chat</button></div>} />);
-  work = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }); work.focus(); fireEvent.click(work);
+  work = screen.getByRole("button", { name: "Show Bricks's work" }); work.focus(); fireEvent.click(work);
   expect(document.body.style.overflow).toBe("hidden");
   const dialog = screen.getByRole("dialog");
-  const names: Record<string, string | RegExp> = { Chat: "Chat", Task: /^Connect phone\?Needs you/, Worker: "Open worker Test worker: Sol worker, running", Question: "“Allow deploy?”", Answer: "Yes", "Answer fallback": "Yes", Unlinked: /Unlinked job/, Recent: /Completed job/, "Menu chat": "Menu chat" };
+  const names: Record<string, string | RegExp> = { Chat: "Chat", Task: /^Needs you.*Connect phone\?/, Worker: "Open worker Test worker: Sol worker, running", Question: "“Allow deploy?”", Answer: "Yes", "Answer fallback": "Yes", Unlinked: /Unlinked job/, Recent: /Completed job/, "Menu chat": "Menu chat" };
   fireEvent.click(within(dialog).getByRole("button", { name: names[path] }));
   expect(check).toHaveBeenCalledOnce();
   const targets: Record<string, string> = { Chat: "thr_coord_bricks", Task: "task-thread", Worker: "worker", Question: "ask-thread", Answer: "ask-thread", "Answer fallback": "ask-thread", Unlinked: "unlinked", Recent: "history-thread", "Menu chat": "thr_coord_bricks" };
@@ -146,7 +146,7 @@ it.each(["More", "right click", "hold", "menu key"])("closes the sheet before op
   });
   const p = props();
   render(<BotsView {...p} deskMenu={({ children }) => <div onContextMenu={menu}>{children}</div>} />);
-  const work = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" });
+  const work = screen.getByRole("button", { name: "Show Bricks's work" });
   work.focus(); fireEvent.click(work);
   const more = within(screen.getByRole("dialog")).getByRole("button", { name: "More" });
   if (path === "More") fireEvent.click(more);
@@ -233,7 +233,7 @@ it("puts a waiting bot with a running worker under In motion", () => {
   expect(dispatchSection(d.bots[1], 0)).toBe("On call");
   expect(dispatchSection(d.bots[1], 0, 1)).toBe("In motion");
 });
-it.each([["working", "In motion"], ["queued", "In motion"], ["retrying", "Needs attention"], ["ready", "On call"], ["checking", "On call"]] as const)("a bot whose only task is %s goes to %s", (state, section) => {
+it.each([["working", "In motion"], ["queued", "In motion"], ["retrying", "In motion"], ["ready", "On call"], ["checking", "On call"]] as const)("a bot whose only task is %s goes to %s", (state, section) => {
   const d = homeWith(makeTask("home", "Camera", state));
   expect(dispatchSection(d.bots[1], 0)).toBe(section);
   render(<BotsView {...props(d)} />);
@@ -265,8 +265,8 @@ it("names the count a work column shows in its accessible label", () => {
   const d = data(); d.bots[2].tasks[0].retryAt = new Date(2026, 9, 31, 14, 5).getTime(); d.bots[2].tasks[0].displayState = "retrying";
   workers.byBot = { erbareeq: [{ threadId: "w", title: "W", model: "Sol", effort: null, state: "running", startedAt: NOW, endedAt: null, latest: true }] }; workers.known = new Set(["erbareeq"]);
   render(<BotsView {...props(d)} />);
-  const bricks = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" });
-  expect(bricks.textContent).toBe("1ask");
+  const bricks = screen.getByRole("button", { name: "Show Bricks's work" });
+  expect(bricks.querySelector(".dispatch-number")).toBeNull();
   expect(screen.getByRole("button", { name: "Show ERBareeq's work, 1 worker" }).textContent).toBe("1worker");
   const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d.bots[2].tasks[0].retryAt!);
   expect(screen.getByRole("button", { name: `Show Home's work, retry ${time}` }).textContent).toBe(`${time}retry`);
@@ -303,10 +303,13 @@ it("keeps a task's worker inside the task with what it is doing and for how long
   };
   workers.byBot = { home: [workers.byTask.lights[0]] }; workers.known = new Set(["home"]);
   const dialog = panelOf(d, now);
-  const idle = within(dialog).getByRole("button", { name: "Open worker Colour worker: Sol worker, idle 2 d" });
-  expect(idle.textContent).toBe("Sol worker · idle 2 d");
+  const idle = within(dialog).getByRole("button", { name: "Open worker Colour worker: Sol worker, idle 2 d (idle-worker)" });
+  expect(idle.querySelector(".dispatch-attempt-head")!.textContent).toBe("Sol worker · idle 2 d");
+  expect(idle.textContent).toContain("Colour worker");
   expect(idle.closest(".dispatch-task-group")!.textContent).toContain("Kitchen TV colour");
+  expect(idle.closest("details")!.querySelector("summary")!.textContent).toBe("Details · 1 idle");
   expect(within(dialog).getByRole("button", { name: "Open worker Lights worker: Worker, running 5 min" }).textContent).toBe("Worker · running 5 min");
+  expect(within(dialog).getByRole("button", { name: "Open worker Lights worker: Worker, running 5 min (busy-worker)" }).closest("details")).toBeTruthy();
   expect(statusOf(dialog, "Kitchen TV colour")).toBe(`Waiting · ${checksLine(wake, now)}`);
   expect(dialog.querySelector(".dispatch-panel-head p")!.textContent).toBe("1 worker · 1 working · 1 waiting");
 });
@@ -340,22 +343,96 @@ it("orders the header counts by state, not by task order", () => {
 it("gives the desktop sheet a Close button that restores focus, and keeps the drag bar on phones", () => {
   const p = { ...props(), isCompactViewport: false };
   const view = render(<BotsView {...p} />);
-  const work = screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }); work.focus(); fireEvent.click(work);
+  const work = screen.getByRole("button", { name: "Show Bricks's work" }); work.focus(); fireEvent.click(work);
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).queryByRole("button", { name: "Close work panel" })).toBeNull();
   fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(work);
   view.rerender(<BotsView {...props()} />);
-  fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work, 1 ask" }));
+  fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work" }));
   expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Close work panel" })).toBeTruthy();
   expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Close" })).toBeNull();
 });
-it("keeps 44 px tap targets on the worker row, the close button and both header pills", () => {
+it("keeps 44 px tap targets on workers, details, the close button and every header action", () => {
   const css = readFileSync("styles/dispatch.css", "utf8");
   expect(css).toMatch(/\.dispatch-panel \.dispatch-attempt \{[^}]*min-height: 44px/);
+  expect(css).not.toMatch(/^\.dispatch-panel \.dispatch-worker-chip \{[^}]*min-height/m);
+  expect(css).toMatch(/@media \(pointer: fine\) \{ \.dispatch-panel \.dispatch-worker-chip \{ min-height: 34px; \} \}/);
+  expect(css).toMatch(/\.dispatch-details>summary \{[^}]*min-height: 44px/);
   expect(css).toMatch(/button\.dispatch-close \{[^}]*min-width: 44px; min-height: 44px/);
-  expect(css).toMatch(/\.dispatch-panel-head button \{[^}]*min-height: 36px/);
-  expect(css).toMatch(/\.dispatch-panel-head button::after \{[^}]*inset: -4px 0/);
-  expect(css).toMatch(/button\.dispatch-more::after \{[^}]*inset: -5px -1px/);
+  expect(css).toMatch(/\.dispatch-panel-actions>\* \{[^}]*min-height: 44px/);
+});
+it("puts a bot whose coordinator is working in chat with no task under In motion", () => {
+  const d = homeWith(makeTask("home", "Daily check", "done", { completedAt: NOW - 13 * 3_600_000 }));
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(homeRow().className).toContain("dispatch-busy");
+  expect(homeRow().querySelector(".dispatch-line")!.textContent).toBe("Working in chat");
+  expect(homeRow().textContent).not.toContain("Idle");
+  expect(homeRow().querySelector(".dispatch-model")).toBeNull();
+  expect(homeRow().querySelector(".dispatch-number")).toBeNull();
+  expect(homeRow().querySelector(".dispatch-chevron")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Show Home's work" }));
+  expect(document.querySelector(".dispatch-panel-head p")!.textContent).toBe("Working in chat");
+  expect(panelSummary([], 0, 0, true)).toBe("Working in chat");
+  expect(panelSummary([], 0, 0)).toBe("Nothing running");
+});
+it("puts a coordinator in chat beside a waiting task under In motion, without the waiting title", () => {
+  const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", wakeAt: NOW + 3_600_000 }));
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(homeRow().querySelector(".dispatch-line")!.textContent).toBe("Working in chat");
+  expect(homeRow().querySelector(".dispatch-sub")!.textContent).toMatch(/^Waiting · checks /);
+  expect(dispatchSection(d.bots[1], 0, 0, true)).toBe("In motion");
+});
+it("shows the task a coordinator in chat is executing", () => {
+  const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait" }), makeTask("home", "Check the router", "ready", { id: "router" }));
+  workers.byTask = { router: [{ threadId: "thr_coord_home", title: "Home Bot", model: null, effort: null, state: "running", startedAt: NOW, endedAt: null, latest: true }] };
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(homeRow().querySelector(".dispatch-line")!.textContent).toBe("Check the router");
+  expect(homeRow().querySelector(".dispatch-model")).toBeNull();
+});
+it("keeps a bot whose coordinator is idle with only a waiting task under On call", () => {
+  const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait", wakeAt: NOW + 3_600_000 }));
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["erbareeq"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("On call");
+  expect(homeRow().textContent).not.toContain("Working in chat");
+  expect(dispatchSection(d.bots[1], 0)).toBe("On call");
+});
+it("keeps coordinator activity in the work list without a second attention badge", () => {
+  const d = homeWith(makeTask("home", "Reset the camera?", "needs", { id: "ask" }));
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home"]);
+  render(<BotsView {...props(d)} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(homeRow().className).not.toContain("dispatch-ask");
+  expect(dispatchSection(d.bots[1], 1, 0, true)).toBe("In motion");
+});
+it("does not count a coordinator in chat as a worker", () => {
+  const d = homeWith();
+  const attempt = { threadId: "w1", title: "Worker", model: "Sol", effort: null, state: "running", startedAt: NOW, endedAt: null, latest: true };
+  workers.byBot = { home: [], erbareeq: [attempt] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home", "erbareeq"]);
+  render(<BotsView {...props(d)} />);
+  expect(homeRow().querySelector(".dispatch-number")).toBeNull();
+  expect(screen.getByRole("button", { name: "Show Home's work" })).toBeTruthy();
+  expect(document.querySelector('.dispatch-row[data-bot="erbareeq"] .dispatch-number')!.textContent).toBe("1");
+  expect(document.querySelector(".dispatch-tally")!.textContent).toBe("1 worker");
+});
+it("does not cue a coordinator status that arrives with the first snapshot, but cues one that changes later", () => {
+  vi.useFakeTimers();
+  const d = homeWith();
+  const view = render(<BotsView {...props(d)} />);
+  workers.byBot = { home: [], erbareeq: [] }; workers.known = new Set(["home", "erbareeq"]); workers.chat = new Set(["home"]);
+  view.rerender(<BotsView {...props(structuredClone(d))} />);
+  expect(sectionOf("home")).toBe("In motion");
+  expect(document.querySelectorAll(".dispatch-cue")).toHaveLength(0);
+  workers.chat = new Set();
+  view.rerender(<BotsView {...props(structuredClone(d))} />);
+  expect(sectionOf("home")).toBe("On call");
+  expect(Array.from(document.querySelectorAll(".dispatch-cue")).map(cue => cue.closest(".dispatch-row")!.getAttribute("data-bot"))).toEqual(["home"]);
 });

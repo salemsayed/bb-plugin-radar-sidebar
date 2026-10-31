@@ -100,9 +100,9 @@ describe("botsSwitch off (the default)", () => {
 });
 
 describe("Bots | Threads switch", () => {
-  it("opens on Bots with the Needs-you count, and remembers Threads per device", async () => {
+  it("opens on Bots without a duplicate notification count, and remembers Threads per device", async () => {
     const { slot } = renderList(normalDay());
-    const bots = await screen.findByRole("button", { name: "Bots, 4 need you" });
+    const bots = await screen.findByRole("button", { name: "Bots" });
     expect(bots.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Threads" }));
     expect(localStorage.getItem(LIST_MODE_KEY)).toBe("threads");
@@ -137,7 +137,7 @@ describe("Bots | Threads switch", () => {
 
   it("works in the phone drawer with 40px+ controls", async () => {
     const { slot } = renderList(normalDay(), { compact: true });
-    await screen.findByRole("button", { name: "Bots, 4 need you" });
+    await screen.findByRole("button", { name: "Bots" });
     expect(slot.container.querySelector(".radar-list-shell.radar-list-compact")).toBeTruthy();
   });
 });
@@ -211,21 +211,21 @@ it("Dispatch preserves bb's real coordinator menu and answer routing", async () 
   expect(screen.getByRole("dialog").textContent).toContain("Is the iPhone connected to the Mac?");
   expect(screen.getByRole("dialog").textContent).toContain("Warranty QR relabel");
 });
-it("Dispatch preserves all ten asks in their bots' work panels", async () => {
+it("Dispatch leaves questions and their count to the notification center", async () => {
   renderList(tenDecisions());
-  await screen.findByRole("button", { name: /^Bots, 10/ });
-  let asks = 0;
-  for (const button of screen.getAllByRole("button", { name: /^Show .*'s work/ })) {
-    fireEvent.click(button); asks += document.querySelectorAll(".dispatch-ask-card").length;
+  await screen.findByRole("button", { name: "Bots" });
+  expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull();
+  for (const work of screen.getAllByRole("button", { name: /^Show .+'s work/ })) {
+    fireEvent.click(work);
+    expect(screen.getByRole("dialog").querySelector(".dispatch-ask-card")).toBeNull();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   }
-  expect(asks).toBe(10);
 });
 it("Dispatch loads genuine attempt models and refreshes on push", async () => {
   const { calls } = renderList(normalDay());
   fireEvent.click(await screen.findByRole("button", { name: /^Show ERBareeq's work/ }));
   await waitFor(() => expect(calls).toContain("task_detail"));
-  await waitFor(() => expect(document.querySelectorAll(".dispatch-model").length).toBeGreaterThan(0));
+  await waitFor(() => expect(Array.from(document.querySelectorAll(".dispatch-panel .dispatch-worker-model")).some(node => /^(Sol|Terra|Astra|Opus|Fable)\b/.test(node.textContent ?? ""))).toBe(true));
   const before = calls.filter(x => x === "bot_tasks").length;
   act(() => window.dispatchEvent(new Event(NEEDS_CHANGED)));
   await waitFor(() => expect(calls.filter(x => x === "bot_tasks").length).toBeGreaterThan(before));

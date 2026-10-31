@@ -23,6 +23,7 @@ export function dispatchDetail(id: string) {
 export function dispatchThreads() {
   return [
     ...RUNNING.map(id => ({ id: `worker_${id}`, title: "Worker", status: "running", createdAt: NOW - (id === "dispatch_sales" ? 4 : 18) * MINUTE, updatedAt: NOW })),
+    { id: "thr_coord_personal", title: "Personal Bot", status: "active", createdAt: NOW - 30 * DAY, updatedAt: NOW },
     { id: "worker_dispatch_waiting", title: "Kitchen TV colour fault", status: "idle", createdAt: NOW - 2 * DAY, updatedAt: NOW - 2 * DAY + 31 * MINUTE },
   ];
 }
