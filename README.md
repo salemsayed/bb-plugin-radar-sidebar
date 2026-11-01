@@ -13,7 +13,7 @@ needs a decision hides at the bottom of the list.
 
 ![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)
 ![bb ≥ 0.46](https://img.shields.io/badge/bb-%E2%89%A5%200.46-22d3ee)
-![Plugin SDK ≥ 0.6.37](https://img.shields.io/badge/plugin%20sdk-%E2%89%A5%200.6.37-0369a1)
+![Plugin SDK ≥ 0.6.79](https://img.shields.io/badge/plugin%20sdk-%E2%89%A5%200.6.79-0369a1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 
 [Features](#features) · [Install](#install) · [Bot shortcuts](#navigation-and-bot-shortcuts) · [How it works](#how-it-works) · [Settings](#settings) · [Development](#development)
@@ -50,6 +50,10 @@ quiet get out of the way.
 | Spot a thread waiting for your input | ❌ | ✅ amber wash, bar and slow pulse |
 | Tell which provider and model a thread runs | ❌ | ✅ icon, model and thinking on the row |
 | Arrange the nav once for both surfaces | ❌ | ✅ shared with BB's own sidebar settings |
+
+## Reading and notifications
+
+Opening the displayed thread in a focused, visible client marks it read and reports presence. Radar never changes notification preferences. The matching bots core release uses steady coordinator input-only levels and sends finished-reply pushes itself, skipping open destinations while BB keeps questions, approvals and errors. See [behavior, mobile evidence and live checks](docs/thread-presence.md).
 
 ## Features
 

@@ -28,11 +28,9 @@ A thread list you can read at a glance, for BB.
 
 ## How it works
 
-The plugin is frontend-only. It reads BB's live sidebar state and routes every
-mutation through BB's own flows, so pins, archives and deletions behave exactly
-as they do in the stock list, and nothing about your threads changes — only how
-the sidebar presents them. It makes no network requests of its own, keeps no
-database, and stores no secrets.
+Radar reads BB's live sidebar state and routes mutations through the supported SDK. An always-mounted app overlay marks the displayed, focused, visible thread read and sends presence heartbeats. The server tracks short monotonic leases in memory, without reading or writing native notification preferences.
+
+Bots core and Brrr query presence before explicit pushes/buzzes. Coordinator native levels stay input-only so BB can deliver questions, approvals and errors, including on children. Core owns the finished-reply pushes. See [details and mobile evidence](docs/thread-presence.md).
 
 Pick it under **Settings → Appearance → Sidebar**; choosing
 BB there, or disabling the plugin, restores the stock sidebar immediately.

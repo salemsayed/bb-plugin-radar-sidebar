@@ -6,6 +6,7 @@
 // turn down anything they find noisy without editing code, whether each bot is
 // waiting on Salem (from its saved Needs You items), and the Working peek's
 // per-thread digests.
+import { registerPresence } from "./lib/presenceServer";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
@@ -140,6 +141,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  await registerPresence(bb);
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
   // The bot's open questions, for the "@" mention in a coordinator reply. Only

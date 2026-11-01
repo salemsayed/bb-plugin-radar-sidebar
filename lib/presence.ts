@@ -1,0 +1,15 @@
+import { z } from "zod";
+
+export const LEASE_MS = 60_000;
+export const HEARTBEAT_MS = 20_000;
+export const presenceContract = {
+  presence_heartbeat: {
+    input: z.object({ clientId: z.string().min(1).max(100), sequence: z.number().int().nonnegative(), threadId: z.string().min(1).max(200).nullable(), visible: z.boolean() }).strict(),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  presence_open: {
+    input: z.object({ threadId: z.string().min(1).max(200) }).strict(),
+    output: z.object({ open: z.boolean() }),
+  },
+};
+export type Heartbeat = z.infer<typeof presenceContract.presence_heartbeat.input>;

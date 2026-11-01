@@ -6,8 +6,8 @@ description: Use the Radar Sidebar plugin's thread list and its Needs-you lane f
 # Radar Sidebar
 
 Replaces BB’s sidebar thread list. BB owns the native navigation rail. There is no
-CLI and no server state: everything below is UI in the BB app, and thread mutations go
-through BB's own flows (pins, reads, renames, archives, deletes).
+CLI. Thread mutations use BB's SDK flows. The server tracks short-lived presence
+leases in memory and never changes notification preferences.
 
 ## Surfaces
 
@@ -294,3 +294,12 @@ In the All view (no bot selected) the lane folds to one row, "Needs you · N" (o
 Reading the lane is read-only: no model call, no acknowledgement. A bot's open decision on the list is its ask everywhere in Radar until someone closes or snoozes it.
 
 Badge policy: chat unread and saved attention are projected by `botAttention` for shortcuts, deck cards and hover details. A zero saved-alert count never overrides a real unread chat. Failed attention fetches display an unavailable status, never an empty-list claim.
+
+
+## Open threads and notifications
+
+The overlay runs independently of the selected sidebar. Only the displayed thread route matching the focused pane in a visible, focused client is marked read on open and new attention. Retained splits on Skills/settings routes do not count. Immediate heartbeats plus 20-second renewals hold 60-second leases, measured with a monotonic server clock. Restart starts with no presence and never touches notification preferences.
+
+Read-only RPC `presence_open({threadId})` returns `{open}`. Bots core uses steady coordinator native input-only levels, preserves their original own values once, and sends native-format finished replies itself unless open. BB retains questions, approvals and errors, including on unseen children. Core reminder buzzes and direct Brrr sends also check presence. Critical baby delivery is unchanged.
+
+Ordinary non-coordinator native mobile pushes remain BB's behavior. Mobile source shells load the shared app and plugin apps; Android/iOS installed-build focus behavior remains unverified. PC presence suppresses coordinator finished pushes server-side. See `docs/thread-presence.md` for boundaries, rollback and live checks. Do not change live levels to diagnose presence.
