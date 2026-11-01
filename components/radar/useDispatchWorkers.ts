@@ -14,14 +14,22 @@ async function chatting(sdk: Sdk, bots: BotTasksData["bots"]): Promise<Set<strin
     return new Set(bots.filter(bot => live.has(bot.coordinatorThreadId)).map(bot => bot.key));
   } catch { return null; }
 }
+const empty = (): WorkerSnapshot => ({ byTask: {}, byBot: {}, known: new Set(), chat: new Set() });
+let lastSnapshot: WorkerSnapshot | null = null;
+export function resetWorkerSnapshotCache() { lastSnapshot = null; }
 const same = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(key => b.has(key));
 export function useDispatchWorkers(data: BotTasksData): WorkerSnapshot {
   const sdk = useSdk();
-  const [snapshot, setSnapshot] = useState<WorkerSnapshot>({ byTask: {}, byBot: {}, known: new Set(), chat: new Set() });
+  const [snapshot, setState] = useState<WorkerSnapshot>(() => lastSnapshot ?? empty());
+  const setSnapshot = (update: WorkerSnapshot | ((previous: WorkerSnapshot) => WorkerSnapshot)) => setState(previous => {
+    const next = typeof update === "function" ? update(previous) : update;
+    lastSnapshot = next;
+    return next;
+  });
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const next: WorkerSnapshot = { byTask: {}, byBot: {}, known: new Set(), chat: new Set() };
+      const next = empty();
       const chat = chatting(sdk, data.bots);
       await Promise.all(data.bots.map(async bot => {
         let known = true;
