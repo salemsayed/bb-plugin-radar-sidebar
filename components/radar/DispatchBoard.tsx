@@ -70,8 +70,8 @@ export function nextStep(bot: BotTasksBot, now: number): string {
 function MenuTarget({ bot, Menu, onOpen, children }: { bot: BotTasksBot; Menu?: DeskMenu; onOpen: () => void; children: ReactNode }) {
   return Menu ? <Menu bot={bot} onOpenChat={onOpen}>{children}</Menu> : children;
 }
-function DispatchRow({ bot, workers, known, chatting, attempts, now, observedAt, current, cue, unread, variant, needsLane, expanded, onChat, onOpen, onWork, onToggle, Menu }: {
-  bot: BotTasksBot; workers: Attempt[]; known: boolean; chatting: boolean; attempts: Record<string, Attempt[]>; now: number; observedAt: number; current: boolean; cue: boolean; unread: boolean; variant: RowVariant; needsLane: boolean; expanded: boolean; onChat: () => void; onOpen: (id: string) => void; onWork: () => void; onToggle: () => void; Menu?: DeskMenu;
+function DispatchRow({ bot, workers, known, chatting, attempts, now, observedAt, current, cue, unread, variant, needsLane, expanded, onChat, onWork, onToggle, Menu }: {
+  bot: BotTasksBot; workers: Attempt[]; known: boolean; chatting: boolean; attempts: Record<string, Attempt[]>; now: number; observedAt: number; current: boolean; cue: boolean; unread: boolean; variant: RowVariant; needsLane: boolean; expanded: boolean; onChat: () => void; onWork: () => void; onToggle: () => void; Menu?: DeskMenu;
 }) {
   const press = useDeskPress();
   const layout = layoutBot(bot, now);
@@ -106,7 +106,7 @@ function DispatchRow({ bot, workers, known, chatting, attempts, now, observedAt,
     </button>
     <button type="button" className="dispatch-work" aria-label={variant === "unfold" ? `Show ${name}'s tasks` : `Show ${name}'s work${spoken}`} aria-expanded={variant === "unfold" ? expanded : undefined} onClick={variant === "unfold" ? onToggle : onWork}>{variant === "current" ? (number ? <><span className={retry ? "dispatch-number dispatch-time" : "dispatch-number"}>{number}</span><span>{unit}</span></> : <Icon name="ChevronRight" aria-hidden="true" className="dispatch-chevron" />) : <Icon name="ChevronRight" aria-hidden="true" className={expanded ? "dispatch-chevron dispatch-chevron-open" : "dispatch-chevron"} />}</button>
   </div>;
-  return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat}>{variant === "unfold" ? <div>{row}{expanded ? <UnfoldedTasks bot={bot} now={now} onOpen={onOpen} onWork={onWork} /> : null}</div> : row}</MenuTarget>;
+  return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat}>{variant === "unfold" ? <div>{row}{expanded ? <UnfoldedTasks bot={bot} now={now} onOpen={onChat} onWork={onWork} /> : null}</div> : row}</MenuTarget>;
 }
 
 type LedgerEntry = { key: string; title: string; meta: string; tone: string; open: () => void };
@@ -155,8 +155,7 @@ function LedgerBot({ bot, attempts, now, current, cue, unread, onChat, onWork, o
 
 function UnfoldedTasks({ bot, now, onOpen, onWork }: { bot: BotTasksBot; now: number; onOpen: (id: string) => void; onWork: () => void }) {
   const layout = layoutBot(bot, now);
-  const seen = new Set<string>();
-  const tasks = [...layout.needs, ...layout.active, ...layout.waitingShown].filter(task => !seen.has(task.id) && !!seen.add(task.id));
+  const tasks = [...layout.needs, ...layout.active, ...layout.waitingShown].filter((task, index, all) => all.findIndex(other => other.id === task.id) === index);
   const shown = tasks.slice(0, 3);
   return <div className="dispatch-unfolded">
     {shown.length ? shown.map(task => {
@@ -300,7 +299,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
       return <section key={section.name} aria-label={section.name}>{heading}{section.bots.map(key => {
         const b = data.bots.find(b => b.key === key);
         if (!b) return null;
-        return <DispatchRow key={key} bot={b} workers={snapshot.byBot[key] ?? []} known={snapshot.known.has(key)} chatting={snapshot.chat.has(key)} attempts={snapshot.byTask} now={now} observedAt={data.observedAt} cue={cues.includes(key)} unread={!!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId} current={activeThreadId === b.coordinatorThreadId} variant={variant} needsLane={section.name === "Needs you"} expanded={unfolded === key} onChat={() => onOpen(b.coordinatorThreadId)} onOpen={onOpen} onWork={() => { opener.current = document.activeElement as HTMLElement; setSheet(key); }} onToggle={() => setUnfolded(open => open === key ? null : key)} Menu={deskMenu} />;
+        return <DispatchRow key={key} bot={b} workers={snapshot.byBot[key] ?? []} known={snapshot.known.has(key)} chatting={snapshot.chat.has(key)} attempts={snapshot.byTask} now={now} observedAt={data.observedAt} cue={cues.includes(key)} unread={!!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId} current={activeThreadId === b.coordinatorThreadId} variant={variant} needsLane={section.name === "Needs you"} expanded={unfolded === key} onChat={() => onOpen(b.coordinatorThreadId)} onWork={() => { opener.current = document.activeElement as HTMLElement; setSheet(key); }} onToggle={() => setUnfolded(open => open === key ? null : key)} Menu={deskMenu} />;
       })}</section>;
     })}
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}

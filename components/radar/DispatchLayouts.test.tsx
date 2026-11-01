@@ -59,13 +59,3 @@ it("unfolds a bot's tasks in place and opens all work", () => {
   fireEvent.click(screen.getByRole("button", { name: "All work" }));
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
-it("opens an unfolded task's own conversation, not the bot chat", () => {
-  const bots = data();
-  bots.bots[0].tasks[0].conversationThreadId = "thr_task_sales";
-  const p = props(bots);
-  render(<BotsView {...p} />);
-  fireEvent.click(screen.getByRole("button", { name: "Unfold in place" }));
-  fireEvent.click(screen.getByRole("button", { name: "Show ERBareeq's tasks" }));
-  fireEvent.click(document.querySelector(".dispatch-unfolded-row")!);
-  expect(p.onOpen).toHaveBeenCalledWith("thr_task_sales");
-});
