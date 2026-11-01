@@ -24,7 +24,7 @@ export function ThreadPresence() {
     window.addEventListener("blur", changed);
     const send = (closing = false) => {
       const current = latest.current;
-      void current.rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId: closing ? null : current.threadId, visible: !closing && document.visibilityState === "visible" && document.hasFocus(), through: !closing && boundary.current?.threadId === current.threadId ? boundary.current.through : null, messageSeq: !closing && boundary.current?.threadId === current.threadId ? boundary.current.messageSeq : null }).catch(() => {});
+      void current.rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId: closing ? null : current.threadId, visible: !closing && document.visibilityState === "visible" && document.hasFocus(), through: !closing && boundary.current?.threadId === current.threadId ? boundary.current.through : null, messageSeq: !closing && boundary.current?.threadId === current.threadId ? boundary.current.messageSeq : null, confirmed: !closing && current.threadId !== null && boundary.current?.threadId === current.threadId && displayedMessageSeq(current.threadId) === boundary.current.messageSeq }).catch(() => {});
     };
     const leaving = () => send(true);
     window.addEventListener("pagehide", leaving);
@@ -42,7 +42,7 @@ export function ThreadPresence() {
     };
   }, []);
   useEffect(() => {
-    void rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId, visible: active, through: active && boundary.current?.threadId === threadId ? boundary.current.through : null, messageSeq: active && boundary.current?.threadId === threadId ? boundary.current.messageSeq : null }).catch(() => {});
+    void rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId, visible: active, through: active && boundary.current?.threadId === threadId ? boundary.current.through : null, messageSeq: active && boundary.current?.threadId === threadId ? boundary.current.messageSeq : null, confirmed: active && threadId !== null && boundary.current?.threadId === threadId && displayedMessageSeq(threadId) === boundary.current.messageSeq }).catch(() => {});
   }, [rpc, threadId, active]);
   useEffect(() => {
     if (!active || !threadId) return;
@@ -53,7 +53,7 @@ export function ThreadPresence() {
     const confirm = async () => {
       if (busy || performance.now() < retryAt) return;
       const seq = displayedMessageSeq(threadId);
-      if (seq === null || seq <= confirmedSeq) return;
+      if (seq === null || seq === confirmedSeq) return;
       busy = true;
       try {
         const [event] = await sdk.threads.events.list({ threadId, afterSeq: String(seq - 1), beforeSeq: String(seq + 1), order: "asc", limit: "1", signal: controller.signal });
@@ -62,7 +62,7 @@ export function ThreadPresence() {
         confirmedSeq = seq; failures = 0; retryAt = 0;
         const through = event.createdAt;
         boundary.current = { threadId, through, messageSeq: seq };
-        await latest.current.rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId, visible: true, through, messageSeq: seq });
+        await latest.current.rpc.call("presence_heartbeat", { clientId: client.current.id, sequence: ++client.current.sequence, threadId, visible: true, through, messageSeq: seq, confirmed: true });
       } catch { if (!disposed) backoff(); } finally { busy = false; }
     };
     void confirm();

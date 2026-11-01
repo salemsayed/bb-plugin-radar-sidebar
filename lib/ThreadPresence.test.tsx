@@ -206,3 +206,33 @@ it.each(["missing", "error"])("backs off %s event lookups and resumes confirmati
   await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
   expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(count);
 });
+
+it("reconfirms the actual displayed message on focus and heartbeat without confirming cached occluded boundaries", async () => {
+  const element = renderedMessage(42);
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 42, createdAt: 1000 }]);
+  render(<ThreadPresence />);
+  await act(async () => {});
+  expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 42 });
+  act(() => { focused = false; window.dispatchEvent(new Event("blur")); });
+  expect(lastHeartbeat()).toMatchObject({ confirmed: false });
+  act(() => { focused = true; window.dispatchEvent(new Event("focus")); });
+  expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 42 });
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => document.body });
+  await act(async () => { vi.advanceTimersByTime(20_000); });
+  expect(lastHeartbeat()).toMatchObject({ confirmed: false, messageSeq: 42 });
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+  await act(async () => { vi.advanceTimersByTime(20_000); });
+  expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 42 });
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(1);
+});
+
+it("confirms viewing an older rendered message without treating the cached newer boundary as visible", async () => {
+  const element = renderedMessage(42);
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 42, createdAt: 1000 }]);
+  render(<ThreadPresence />);
+  await act(async () => {});
+  element.dataset.notificationMessage = "41";
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 41, createdAt: 500 }]);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 41, through: 500 });
+});

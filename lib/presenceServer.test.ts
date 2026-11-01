@@ -67,10 +67,10 @@ it("restart restores confirmed boundaries while leases start empty and no other 
     await harness.behavior.callRpc("presence_heartbeat", { clientId: "one", sequence: 1, visible: true, threadId: "thread", through: 1000, messageSeq: 42 });
     expect(await harness.behavior.callRpc("presence_open", { threadId: "thread" })).toEqual({ open: true });
     expect(createPresenceServer().open("thread")).toBe(false);
-    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42 });
-    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "unknown" })).toEqual({ through: null, messageSeq: null });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: null });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "unknown" })).toEqual({ through: null, messageSeq: null, confirmedAt: null });
     const next = await harness.lifecycle.reload(registerPresence);
-    expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42 });
+    expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: null });
     expect(await next.harness.behavior.callRpc("presence_open", { threadId: "thread" })).toEqual({ open: false });
     await next.harness.lifecycle.dispose();
     expect(harness.inspection.sdk.calls).toEqual([]);
@@ -113,15 +113,15 @@ it("equal-timestamp message boundaries persist their sequence and ignore timesta
     await registerPresence(bb);
     await harness.behavior.callRpc("presence_heartbeat", { clientId: "client", sequence: 1, threadId: "thread", visible: true, through: 1000 });
     expect(await harness.behavior.callRpc("presence_open", { threadId: "thread" })).toEqual({ open: true });
-    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: null, messageSeq: null });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: null, messageSeq: null, confirmedAt: null });
     await harness.behavior.callRpc("presence_heartbeat", { clientId: "client", sequence: 2, threadId: "thread", visible: true, through: 1000, messageSeq: 42 });
     const next = await harness.lifecycle.reload(registerPresence);
     try {
-      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42 });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: null });
       await next.harness.behavior.callRpc("presence_heartbeat", { clientId: "client", sequence: 3, threadId: "thread", visible: true, through: 1000, messageSeq: 43 });
-      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 43 });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 43, confirmedAt: null });
       await next.harness.behavior.callRpc("presence_heartbeat", { clientId: "client", sequence: 4, threadId: "thread", visible: true, through: 99999, messageSeq: 42 });
-      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 43 });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000, messageSeq: 43, confirmedAt: null });
     } finally { await next.harness.lifecycle.dispose(); }
   } finally { await harness.lifecycle.dispose(); }
 });
@@ -131,4 +131,47 @@ it("keeps sequence and timestamp from the same observation instead of combining 
   p.heartbeat({ clientId: "one", sequence: 1, threadId: "thread", visible: true, through: 2000, messageSeq: 42 });
   p.heartbeat({ clientId: "two", sequence: 1, threadId: "thread", visible: true, through: 1000, messageSeq: 43 });
   expect(p.readPoint("thread")).toEqual({ through: 1000, messageSeq: 43 });
+});
+
+it("timestamps only fresh visible confirmations and never upgrades saved points or cached heartbeats", () => {
+  let wall = 1500;
+  const p = createPresenceServer(() => wall, new Map(), new Map(), () => wall);
+  const boundary = { clientId: "client", threadId: "replacement", visible: true, through: 1000, messageSeq: 42 };
+  p.heartbeat({ ...boundary, sequence: 1, confirmed: true });
+  expect(p.confirmedAt("replacement")).toBe(1500);
+  wall = 1800;
+  p.heartbeat({ ...boundary, sequence: 2, visible: false });
+  wall = 2500;
+  p.heartbeat({ ...boundary, sequence: 3 });
+  expect(p.confirmedAt("replacement")).toBe(1500);
+  p.heartbeat({ ...boundary, sequence: 2, confirmed: true });
+  p.heartbeat({ ...boundary, sequence: 4, confirmed: true, visible: false });
+  p.heartbeat({ ...boundary, sequence: 5, confirmed: true, messageSeq: undefined });
+  expect(p.confirmedAt("replacement")).toBe(1500);
+  p.heartbeat({ ...boundary, sequence: 6, confirmed: true });
+  expect(p.confirmedAt("replacement")).toBe(2500);
+  expect(p.readPoint("replacement")).toEqual({ through: 1000, messageSeq: 42 });
+  wall += LEASE_MS * 3;
+  p.sweep();
+  expect(p.open("replacement")).toBe(false);
+  expect(p.confirmedAt("replacement")).toBe(2500);
+});
+
+it("persists server receipt time across reload and renews it for the same or an older displayed message", async () => {
+  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar" });
+  const wall = vi.spyOn(Date, "now").mockReturnValue(1500);
+  try {
+    await registerPresence(bb);
+    const boundary = { clientId: "client", threadId: "replacement", visible: true, through: 1000, messageSeq: 42 };
+    await harness.behavior.callRpc("presence_heartbeat", { ...boundary, sequence: 1 });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: null });
+    await harness.behavior.callRpc("presence_heartbeat", { ...boundary, sequence: 2, confirmed: true });
+    const next = await harness.lifecycle.reload(registerPresence);
+    try {
+      wall.mockReturnValue(2500);
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 1500 });
+      await next.harness.behavior.callRpc("presence_heartbeat", { ...boundary, sequence: 3, confirmed: true, through: 500, messageSeq: 41 });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 2500 });
+    } finally { await next.harness.lifecycle.dispose(); }
+  } finally { await harness.lifecycle.dispose(); }
 });
