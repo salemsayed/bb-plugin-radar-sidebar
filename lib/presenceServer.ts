@@ -1,9 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { LEASE_MS, presenceContract, type Heartbeat } from "./presence";
+import { LEASE_MS, presenceContract, type Heartbeat, type ReadPoint } from "./presence";
 
-type ReadPoints = { get: (threadId: string) => number | undefined; set: (threadId: string, through: number) => unknown };
+type ReadPoints = { get: (threadId: string) => ReadPoint | undefined; set: (threadId: string, point: ReadPoint) => unknown };
 
-export function createPresenceServer(now = () => performance.now(), points: ReadPoints = new Map<string, number>()) {
+export function createPresenceServer(now = () => performance.now(), points: ReadPoints = new Map<string, ReadPoint>()) {
   const clients = new Map<string, Heartbeat & { expires: number }>();
   let closed = false;
   const sweep = () => {
@@ -18,7 +18,7 @@ export function createPresenceServer(now = () => performance.now(), points: Read
         const previous = clients.get(input.clientId);
         if (!previous || input.sequence > previous.sequence) {
           clients.set(input.clientId, { ...input, expires: now() + LEASE_MS });
-          if (input.visible && input.threadId && input.through != null && Number.isFinite(input.through) && input.through >= 0 && input.through > (points.get(input.threadId) ?? -Infinity)) points.set(input.threadId, input.through);
+          if (input.visible && input.threadId && input.through != null && Number.isFinite(input.through) && input.through >= 0 && input.messageSeq != null && Number.isSafeInteger(input.messageSeq) && input.messageSeq > 0 && input.messageSeq > (points.get(input.threadId)?.messageSeq ?? 0)) points.set(input.threadId, { through: input.through, messageSeq: input.messageSeq });
         }
       }
       return { ok: true as const };
@@ -29,14 +29,17 @@ export function createPresenceServer(now = () => performance.now(), points: Read
 
 export async function registerPresence(bb: BbPluginApi) {
   const db = bb.storage.database();
-  db.exec("CREATE TABLE IF NOT EXISTS presence_read_points(thread_id TEXT PRIMARY KEY,through INTEGER NOT NULL)");
+  db.exec("CREATE TABLE IF NOT EXISTS presence_display_points(thread_id TEXT PRIMARY KEY,through INTEGER NOT NULL,message_seq INTEGER NOT NULL)");
   const presence = createPresenceServer(() => performance.now(), {
-    get: threadId => (db.prepare("SELECT through FROM presence_read_points WHERE thread_id=?").get(threadId) as { through: number } | undefined)?.through,
-    set: (threadId, through) => db.prepare("INSERT INTO presence_read_points VALUES(?,?) ON CONFLICT(thread_id) DO UPDATE SET through=MAX(through,excluded.through)").run(threadId, through),
+    get: threadId => {
+      const row = db.prepare("SELECT through,message_seq AS messageSeq FROM presence_display_points WHERE thread_id=?").get(threadId) as ReadPoint | undefined;
+      return row;
+    },
+    set: (threadId, point) => db.prepare("INSERT INTO presence_display_points VALUES(?,?,?) ON CONFLICT(thread_id) DO UPDATE SET through=excluded.through,message_seq=excluded.message_seq WHERE message_seq<excluded.message_seq").run(threadId, point.through, point.messageSeq),
   });
   bb.rpc.register(presenceContract, {
     presence_heartbeat: async input => presence.heartbeat(input),
-    presence_read_point: async ({ threadId }) => ({ through: presence.readPoint(threadId) }),
+    presence_read_point: async ({ threadId }) => presence.readPoint(threadId) ?? { through: null, messageSeq: null },
     presence_open: async ({ threadId }) => ({ open: presence.open(threadId) }),
   });
   const timer = setInterval(presence.sweep, 5_000);

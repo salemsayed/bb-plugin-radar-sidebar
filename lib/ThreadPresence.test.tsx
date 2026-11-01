@@ -123,7 +123,7 @@ it("heartbeats carry the displayed message boundary and never turn later sidebar
   host.sdk.threads.events.list.mockResolvedValue([{ seq: 10, createdAt: 1000 }]);
   const view = render(<ThreadPresence />);
   await act(async () => {});
-  expect(lastHeartbeat()).toMatchObject({ threadId: "one", visible: true, through: 1000 });
+  expect(lastHeartbeat()).toMatchObject({ threadId: "one", visible: true, through: 1000, messageSeq: 10 });
   expect(host.sdk.threads.events.list).toHaveBeenCalledWith({ threadId: "one", afterSeq: "9", beforeSeq: "11", order: "asc", limit: "1", signal: expect.any(AbortSignal) });
   host.threads = [{ ...host.threads[0]!, latestAttentionAt: 10000 }];
   view.rerender(<ThreadPresence />);
@@ -167,10 +167,42 @@ it("missing event anchors fail closed and a displayed boundary never crosses thr
   await act(async () => {});
   expect(lastHeartbeat().through).toBeNull();
   host.sdk.threads.events.list.mockResolvedValue([{ seq: 10, createdAt: 1000 }]);
-  await act(async () => { vi.advanceTimersByTime(400); });
+  await act(async () => { vi.advanceTimersByTime(1200); });
   expect(lastHeartbeat().through).toBe(1000);
   host.context.threadId = "two";
   view.rerender(<ThreadPresence />);
   await act(async () => { vi.advanceTimersByTime(400); });
   expect(lastHeartbeat()).toMatchObject({ threadId: "two", through: null });
+});
+
+
+it("transmits a newly displayed sequence even when its event shares the preceding timestamp", async () => {
+  const element = renderedMessage(42);
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 42, createdAt: 1000 }]);
+  render(<ThreadPresence />);
+  await act(async () => {});
+  expect(lastHeartbeat()).toMatchObject({ through: 1000, messageSeq: 42 });
+  element.dataset.notificationMessage = "43";
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 43, createdAt: 1000 }]);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat()).toMatchObject({ through: 1000, messageSeq: 43 });
+});
+
+it.each(["missing", "error"])("backs off %s event lookups and resumes confirmation after recovery", async failure => {
+  renderedMessage(42);
+  if (failure === "error") host.sdk.threads.events.list.mockRejectedValue(new Error("Unavailable"));
+  render(<ThreadPresence />);
+  await act(async () => {});
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(59_200); });
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(6);
+  expect(lastHeartbeat().messageSeq).toBeNull();
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 42, createdAt: 1000 }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+  expect(lastHeartbeat()).toMatchObject({ through: 1000, messageSeq: 42 });
+  const count = host.sdk.threads.events.list.mock.calls.length;
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(count);
 });
