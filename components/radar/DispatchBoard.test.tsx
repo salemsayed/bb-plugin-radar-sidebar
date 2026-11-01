@@ -421,7 +421,7 @@ it("does not count a coordinator in chat as a worker", () => {
   expect(homeRow().querySelector(".dispatch-number")).toBeNull();
   expect(screen.getByRole("button", { name: "Show Home's work" })).toBeTruthy();
   expect(document.querySelector('.dispatch-row[data-bot="erbareeq"] .dispatch-number')!.textContent).toBe("1");
-  expect(document.querySelector(".dispatch-tally")!.textContent).toBe("1 worker");
+  expect(document.querySelector(".dispatch-tally")).toBeNull();
 });
 it("does not cue a coordinator status that arrives with the first snapshot, but cues one that changes later", () => {
   vi.useFakeTimers();

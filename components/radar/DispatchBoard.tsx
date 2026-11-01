@@ -159,8 +159,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) close(); }, [data.bots, sheet]);
   const bot = data.bots.find(b => b.key === sheet);
   const blockedCount = data.bots.filter(b => b.tasks.some(t => BLOCKED.includes(t.displayState))).length;
-  const totalWorkers = Object.values(snapshot.byBot).reduce((n, rows) => n + rows.length, 0);
-  const tally = [blockedCount ? `${blockedCount} blocked` : "", snapshot.known.size === data.bots.length && totalWorkers ? `${totalWorkers} ${totalWorkers === 1 ? "worker" : "workers"}` : ""].filter(Boolean).join(" · ");
+  const tally = blockedCount ? `${blockedCount} blocked` : "";
   const tasks = bot?.tasks.filter(t => !isClosed(t.displayState)) ?? [];
   const recent = bot?.tasks.filter(t => isClosed(t.displayState)).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)) ?? [];
   const workerCount = bot && snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null;
@@ -207,7 +206,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const pluginScope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   return <div className="dispatch" ref={root} onPointerDownCapture={() => setFrozen(arranged)}>
     {state.cached || state.status === "error" ? <p role="status">Saved view · as of {asOf(data.observedAt, now)} · reconnecting</p> : null}
-    <p className="dispatch-tally">{tally || "No workers running"}</p>
+    {tally ? <p className="dispatch-tally">{tally}</p> : null}
     {(frozen ?? arranged).map(section => section.bots.length ? <section key={section.name} aria-label={section.name}><header className="dispatch-heading"><h3>{section.name}</h3><span>{section.bots.length}</span></header>{section.bots.map(key => {
       const b = data.bots.find(b => b.key === key);
       if (!b) return null;
