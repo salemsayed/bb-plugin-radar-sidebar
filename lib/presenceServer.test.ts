@@ -175,3 +175,55 @@ it("persists server receipt time across reload and renews it for the same or an 
     } finally { await next.harness.lifecycle.dispose(); }
   } finally { await harness.lifecycle.dispose(); }
 });
+
+it("rejects replay after lease cleanup without renewing confirmation or restoring presence", async () => {
+  vi.useFakeTimers();
+  let elapsed = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => elapsed);
+  const wall = vi.spyOn(Date, "now").mockReturnValue(1500);
+  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar" });
+  try {
+    await registerPresence(bb);
+    const packet = { clientId: "client", sequence: 1, threadId: "replacement", visible: true, through: 1000, messageSeq: 42, confirmed: true };
+    await harness.behavior.callRpc("presence_heartbeat", packet);
+    wall.mockReturnValue(1600); elapsed = 100;
+    await harness.behavior.callRpc("presence_heartbeat", { ...packet, sequence: 2, visible: false });
+    elapsed = LEASE_MS * 3;
+    await vi.advanceTimersByTimeAsync(5000);
+    wall.mockReturnValue(2500);
+    await harness.behavior.callRpc("presence_heartbeat", packet);
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 1500 });
+    expect(await harness.behavior.callRpc("presence_open", { threadId: "replacement" })).toEqual({ open: false });
+    expect(bb.storage.database().prepare("SELECT sequence FROM presence_client_sequences WHERE client_id='client'").get()).toEqual({ sequence: 2 });
+    wall.mockReturnValue(2600);
+    await harness.behavior.callRpc("presence_heartbeat", { ...packet, sequence: 3 });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 2600 });
+    expect(await harness.behavior.callRpc("presence_open", { threadId: "replacement" })).toEqual({ open: true });
+  } finally { await harness.lifecycle.dispose(); vi.useRealTimers(); }
+});
+
+it("rejects replay across plugin reload and keeps each client's durable sequence independent", async () => {
+  const wall = vi.spyOn(Date, "now").mockReturnValue(1500);
+  const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar" });
+  try {
+    await registerPresence(bb);
+    const packet = { clientId: "client", sequence: 1, threadId: "replacement", visible: true, through: 1000, messageSeq: 42, confirmed: true };
+    await harness.behavior.callRpc("presence_heartbeat", packet);
+    wall.mockReturnValue(1600);
+    await harness.behavior.callRpc("presence_heartbeat", { ...packet, sequence: 2, visible: false });
+    const next = await harness.lifecycle.reload(registerPresence);
+    try {
+      wall.mockReturnValue(2500);
+      for (const sequence of [1, 2]) await next.harness.behavior.callRpc("presence_heartbeat", { ...packet, sequence });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 1500 });
+      expect(await next.harness.behavior.callRpc("presence_open", { threadId: "replacement" })).toEqual({ open: false });
+      expect(next.bb.storage.database().prepare("SELECT sequence FROM presence_client_sequences WHERE client_id='client'").get()).toEqual({ sequence: 2 });
+      wall.mockReturnValue(2600);
+      await next.harness.behavior.callRpc("presence_heartbeat", { ...packet, clientId: "other-client" });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 2600 });
+      wall.mockReturnValue(2700);
+      await next.harness.behavior.callRpc("presence_heartbeat", { ...packet, sequence: 3 });
+      expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "replacement" })).toEqual({ through: 1000, messageSeq: 42, confirmedAt: 2700 });
+    } finally { await next.harness.lifecycle.dispose(); }
+  } finally { await harness.lifecycle.dispose(); }
+});
