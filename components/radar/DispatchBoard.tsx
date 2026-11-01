@@ -51,11 +51,9 @@ export function attemptStatus(attempt: Attempt, now: number): string {
   if (attempt.state === "unknown") return "";
   return attempt.endedAt != null && elapsed(attempt.endedAt, now) !== "now" ? `${attempt.state} ${elapsed(attempt.endedAt, now)}` : attempt.state;
 }
-const SUMMARY_ORDER: readonly BotTaskRow["displayState"][] = ["needs", "overdue", "offline", "retrying", "working", "queued", "checking", "ready", "waiting"];
 export function panelSummary(tasks: BotTaskRow[], workers: number | null, unfiled: number, chatting = false): string {
-  const states = [...SUMMARY_ORDER, ...new Set(tasks.map(task => task.displayState).filter(state => !SUMMARY_ORDER.includes(state)))];
-  const counts = states.map(state => [STATE_LABEL[state].toLowerCase(), tasks.filter(task => task.displayState === state).length] as const).filter(([, n]) => n);
-  return [workers ? `${workers} ${workers === 1 ? "worker" : "workers"}` : "", ...counts.map(([state, n]) => `${n} ${state}`), unfiled ? `${unfiled} unfiled` : ""].filter(Boolean).join(" · ") || (chatting ? IN_CHAT : "Nothing running");
+  const needs = tasks.filter(task => task.displayState === "needs").length;
+  return [workers ? `${workers} ${workers === 1 ? "worker" : "workers"}` : "", tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : "", needs ? `${needs} ${STATE_LABEL.needs.toLowerCase()}` : "", unfiled ? `${unfiled} unfiled` : ""].filter(Boolean).join(" · ") || (chatting ? IN_CHAT : "Nothing running");
 }
 export function nextStep(bot: BotTasksBot, now: number): string {
   const open = bot.tasks.filter(t => !isClosed(t.displayState));

@@ -311,11 +311,11 @@ it("keeps a task's worker inside the task with what it is doing and for how long
   expect(within(dialog).getByRole("button", { name: "Open worker Lights worker: Worker, running 5 min" }).textContent).toBe("Worker · running 5 min");
   expect(within(dialog).getByRole("button", { name: "Open worker Lights worker: Worker, running 5 min (busy-worker)" }).closest("details")).toBeTruthy();
   expect(statusOf(dialog, "Kitchen TV colour")).toBe(`Waiting · ${checksLine(wake, now)}`);
-  expect(dialog.querySelector(".dispatch-panel-head p")!.textContent).toBe("1 worker · 1 working · 1 waiting");
+  expect(dialog.querySelector(".dispatch-panel-head p")!.textContent).toBe("1 worker · 2 tasks");
 });
-it("summarises open tasks by state in the panel header", () => {
+it("counts open tasks in the panel header", () => {
   const d = homeWith(makeTask("home", "A", "waiting"), makeTask("home", "B", "waiting"), makeTask("home", "C", "checking"), makeTask("home", "D", "done", { completedAt: NOW }));
-  expect(panelOf(d).querySelector(".dispatch-panel-head p")!.textContent).toBe("1 to check · 2 waiting");
+  expect(panelOf(d).querySelector(".dispatch-panel-head p")!.textContent).toBe("3 tasks");
 });
 it("clamps long titles and gives More a visible control shape", () => {
   const css = readFileSync("styles/dispatch.css", "utf8");
@@ -337,7 +337,7 @@ it("says tomorrow for a check due the next day, in the row and the panel alike",
 it("orders the header counts by state, not by task order", () => {
   const first = homeWith(makeTask("home", "A", "waiting"), makeTask("home", "B", "working"), makeTask("home", "C", "needs"));
   const second = homeWith(makeTask("home", "C", "needs"), makeTask("home", "B", "working"), makeTask("home", "A", "waiting"));
-  expect(panelSummary(first.bots[1].tasks, 2, 0)).toBe("2 workers · 1 needs you · 1 working · 1 waiting");
+  expect(panelSummary(first.bots[1].tasks, 2, 0)).toBe("2 workers · 3 tasks · 1 needs you");
   expect(panelSummary(second.bots[1].tasks, 2, 0)).toBe(panelSummary(first.bots[1].tasks, 2, 0));
 });
 it("gives the desktop sheet a Close button that restores focus, and keeps the drag bar on phones", () => {
@@ -435,4 +435,8 @@ it("does not cue a coordinator status that arrives with the first snapshot, but 
   view.rerender(<BotsView {...props(structuredClone(d))} />);
   expect(sectionOf("home")).toBe("On call");
   expect(Array.from(document.querySelectorAll(".dispatch-cue")).map(cue => cue.closest(".dispatch-row")!.getAttribute("data-bot"))).toEqual(["home"]);
+});
+it("names workers and tasks in the bot panel header", () => {
+  const d = homeWith(makeTask("home", "iOS location tracking", "working", { id: "ios" }));
+  expect(panelSummary(d.bots[1].tasks, 2, 0)).toBe("2 workers · 1 task");
 });
