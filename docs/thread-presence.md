@@ -12,8 +12,16 @@ Leases use the server's monotonic `performance.now()`, so wall-clock corrections
 
 Authenticated RPCs:
 
-- `presence_heartbeat`: `{clientId, sequence, threadId: string|null, visible}` → `{ok:true}`.
+- `presence_heartbeat`: `{clientId, sequence, threadId: string|null, visible, through?: number|null}` → `{ok:true}`.
 - `presence_open`: `{threadId}` → `{open:boolean}`. Checks expiry immediately, without waiting for the housekeeping sweep.
+
+## Display-confirmed read boundary
+
+`presence_read_point` accepts `{threadId}` and returns `{through: number|null}`. This boundary is independent of the open lease. Only an accepted, newer heartbeat with a visible thread and a nonnull boundary can increase it. Missing close heartbeats, polling, expiry and server clock changes never increase it. Each thread's maximum is stored in SQLite and survives restart, while open leases still start empty.
+
+The overlay samples BB's existing `[data-notification-thread][data-notification-message]` rendered message anchors every 400 ms while focused. A message must intersect the viewport and pass a hit test, so unrendered, hidden, occluded and offscreen messages provide no evidence. It resolves the newest visible sequence with one bounded SDK event query, rechecks the route, visibility and anchor after the asynchronous response, then carries that event's `createdAt` on the heartbeat. Already confirmed sequences need no repeated query. Sidebar activity times and local wall-clock times are never read boundaries. Missing host anchors or event lookup failures leave the boundary unchanged.
+
+Core uses this boundary for automatic notification reads. `presence_open` retains its existing lease contract for Brrr and push suppression. Older clients may omit `through`; they continue to hold open leases without establishing read evidence. This integration requires the corresponding core release and host message anchors. Live desktop/mobile behavior still needs post-deploy verification.
 
 Radar never reads or writes native notification preferences, never mutes a thread, and stores no restore records. Navigation, leases, restart, expiry, and focus changes cannot change any thread's notification level.
 

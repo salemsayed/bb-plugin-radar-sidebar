@@ -60,15 +60,47 @@ it("wall-clock changes cannot extend leases using the production monotonic clock
   expect(p.open("thread")).toBe(false);
 });
 
-it("restart starts empty and the RPC lifecycle never touches storage or another plugin", async () => {
+it("restart restores confirmed boundaries while leases start empty and no other plugin is called", async () => {
   const { bb, harness } = createFakePluginHost({ pluginId: "radar-sidebar" });
-  const storage = vi.spyOn(bb.storage, "database");
   try {
     await registerPresence(bb);
-    await harness.behavior.callRpc("presence_heartbeat", { clientId: "one", sequence: 1, visible: true, threadId: "thread" });
+    await harness.behavior.callRpc("presence_heartbeat", { clientId: "one", sequence: 1, visible: true, threadId: "thread", through: 1000 });
     expect(await harness.behavior.callRpc("presence_open", { threadId: "thread" })).toEqual({ open: true });
     expect(createPresenceServer().open("thread")).toBe(false);
-    expect(storage).not.toHaveBeenCalled();
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000 });
+    expect(await harness.behavior.callRpc("presence_read_point", { threadId: "unknown" })).toEqual({ through: null });
+    const next = await harness.lifecycle.reload(registerPresence);
+    expect(await next.harness.behavior.callRpc("presence_read_point", { threadId: "thread" })).toEqual({ through: 1000 });
+    expect(await next.harness.behavior.callRpc("presence_open", { threadId: "thread" })).toEqual({ open: false });
+    await next.harness.lifecycle.dispose();
     expect(harness.inspection.sdk.calls).toEqual([]);
   } finally { await harness.lifecycle.dispose(); }
+});
+
+
+it("a lost close leaves the lease open but never moves the confirmed display boundary", () => {
+  let now = 1000;
+  const presence = createPresenceServer(() => now);
+  presence.heartbeat({ clientId: "one", sequence: 1, visible: true, threadId: "thread", through: 1000 });
+  now = 15000;
+  expect(presence.open("thread")).toBe(true);
+  expect(presence.readPoint("thread")).toBe(1000);
+  presence.heartbeat({ clientId: "one", sequence: 2, visible: true, threadId: "thread" });
+  expect(presence.readPoint("thread")).toBe(1000);
+  now += LEASE_MS * 3; presence.sweep();
+  expect(presence.open("thread")).toBe(false);
+  expect(presence.readPoint("thread")).toBe(1000);
+});
+
+it("only newer visible heartbeats with a boundary advance the per-thread maximum", () => {
+  const p = createPresenceServer();
+  p.heartbeat({ clientId: "one", sequence: 2, visible: true, threadId: "thread", through: 1000 });
+  p.heartbeat({ clientId: "one", sequence: 1, visible: true, threadId: "thread", through: 10000 });
+  p.heartbeat({ clientId: "one", sequence: 3, visible: false, threadId: "thread", through: 10000 });
+  p.heartbeat({ clientId: "two", sequence: 1, visible: true, threadId: "thread", through: 500 });
+  p.heartbeat({ clientId: "one", sequence: 4, visible: true, threadId: null, through: 10000 });
+  expect(p.readPoint("thread")).toBe(1000);
+  p.heartbeat({ clientId: "two", sequence: 2, visible: true, threadId: "thread", through: 2000 });
+  expect(p.readPoint("thread")).toBe(2000);
+  expect(p.readPoint("unseen")).toBeNull();
 });

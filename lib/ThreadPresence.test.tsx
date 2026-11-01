@@ -8,7 +8,7 @@ const host = vi.hoisted(() => ({
   layout: null as PluginSidebarSplitLayout | null,
   threads: [] as PluginSidebarThread[],
   rpc: { call: vi.fn().mockResolvedValue({ ok: true }) },
-  sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }) } },
+  sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }), events: { list: vi.fn().mockResolvedValue([]) } } },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   useBbContext: () => host.context,
@@ -26,12 +26,13 @@ beforeEach(() => {
   host.threads = [{ id: "one", latestAttentionAt: 1, isUnread: false }] as PluginSidebarThread[];
   host.rpc.call.mockClear();
   host.sdk.threads.markRead.mockClear();
+  host.sdk.threads.events.list.mockReset().mockResolvedValue([]);
   focused = true;
   visibility = "visible";
   vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
   vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility as DocumentVisibilityState);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
+afterEach(() => { document.querySelectorAll("[data-notification-message]").forEach(el => el.remove()); cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 const lastHeartbeat = () => host.rpc.call.mock.calls.at(-1)![1];
 
 it("marks read on open and every newer attention event while visible, including when already read", () => {
@@ -104,4 +105,72 @@ it("does not report a retained split whose focused thread differs from the displ
   render(<ThreadPresence />);
   expect(lastHeartbeat()).toMatchObject({ threadId: null });
   expect(host.sdk.threads.markRead).not.toHaveBeenCalled();
+});
+
+
+function renderedMessage(seq: number, threadId = "one") {
+  const element = document.createElement("div");
+  element.dataset.notificationThread = threadId;
+  element.dataset.notificationMessage = String(seq);
+  document.body.append(element);
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ x: 100, y: 100, left: 100, right: 300, top: 100, bottom: 200, width: 200, height: 100, toJSON() {} });
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+  return element;
+}
+
+it("heartbeats carry the displayed message boundary and never turn later sidebar activity or elapsed time into viewing", async () => {
+  const element = renderedMessage(10);
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 10, createdAt: 1000 }]);
+  const view = render(<ThreadPresence />);
+  await act(async () => {});
+  expect(lastHeartbeat()).toMatchObject({ threadId: "one", visible: true, through: 1000 });
+  expect(host.sdk.threads.events.list).toHaveBeenCalledWith({ threadId: "one", afterSeq: "9", beforeSeq: "11", order: "asc", limit: "1", signal: expect.any(AbortSignal) });
+  host.threads = [{ ...host.threads[0]!, latestAttentionAt: 10000 }];
+  view.rerender(<ThreadPresence />);
+  await act(async () => { vi.advanceTimersByTime(20_000); });
+  expect(lastHeartbeat().through).toBe(1000);
+  expect(host.sdk.threads.events.list).toHaveBeenCalledTimes(1);
+  element.dataset.notificationMessage = "11";
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 11, createdAt: 10000 }]);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat().through).toBe(10000);
+});
+
+it("unrendered, occluded and offscreen messages provide no read boundary", async () => {
+  host.threads = [{ ...host.threads[0]!, latestAttentionAt: 10000 }];
+  render(<ThreadPresence />);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat().through).toBeNull();
+  const element = renderedMessage(10);
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => document.body });
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(host.sdk.threads.events.list).not.toHaveBeenCalled();
+  vi.mocked(element.getBoundingClientRect).mockReturnValue({ x: 0, y: 10000, left: 0, right: 200, top: 10000, bottom: 10100, width: 200, height: 100, toJSON() {} });
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(host.sdk.threads.events.list).not.toHaveBeenCalled();
+});
+
+it("a message lookup completing after focus is lost cannot establish a displayed boundary", async () => {
+  renderedMessage(10);
+  let complete!: (rows: { seq: number; createdAt: number }[]) => void;
+  host.sdk.threads.events.list.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+  render(<ThreadPresence />);
+  act(() => { focused = false; window.dispatchEvent(new Event("blur")); });
+  await act(async () => { complete([{ seq: 10, createdAt: 1000 }]); });
+  expect(lastHeartbeat()).toMatchObject({ visible: false, through: null });
+  expect(host.rpc.call.mock.calls.some(([, input]) => input.through !== null)).toBe(false);
+});
+
+it("missing event anchors fail closed and a displayed boundary never crosses thread routes", async () => {
+  renderedMessage(10);
+  const view = render(<ThreadPresence />);
+  await act(async () => {});
+  expect(lastHeartbeat().through).toBeNull();
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 10, createdAt: 1000 }]);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat().through).toBe(1000);
+  host.context.threadId = "two";
+  view.rerender(<ThreadPresence />);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(lastHeartbeat()).toMatchObject({ threadId: "two", through: null });
 });
