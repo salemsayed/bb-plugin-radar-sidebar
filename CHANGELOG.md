@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Fixed (2026-11-02, Salem: "i still see the bots thread under the thread tab in the sidebar")
+
+- Bot chats and their workers stay out of Threads while bots core is crashed or restarting. The sidebar keeps the last bot list until bots core says it is uninstalled or off, instead of dropping it after two minutes of errors.
+
 ### Changed (2026-10-31, Salem: "whatever we can fold into core will be better")
 
 - Automations links open `/plugins/orchestrator-mode/bots/<bot>/automations`: the Bots page plugin was folded into bots core.

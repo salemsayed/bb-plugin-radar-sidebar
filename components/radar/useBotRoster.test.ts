@@ -20,22 +20,17 @@ beforeEach(() => { localStorage.setItem(CACHE_KEY, JSON.stringify({ bots: [bot] 
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.useRealTimers(); localStorage.clear(); });
 
 describe("bot roster cache", () => {
-  it("keeps the cached roster through transient failures and drops it after three in a row", async () => {
+  it("keeps the cached roster while bots core keeps failing (Salem, 2026-11-02: bot chats showed in Threads during a core crash)", async () => {
     vi.useFakeTimers();
-    callRpc.mockRejectedValue(new Error("fetch failed"));
+    callRpc.mockRejectedValue(new Error('HTTP 503: plugin "orchestrator-mode" is not running (status: error — Conflicting notification source revision)'));
     const { result } = renderHook(() => useBotRoster(true));
     expect(result.current).toEqual([bot]);
     await act(async () => { await Promise.resolve(); });
     expect(result.current).toEqual([bot]);
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(result.current).toEqual([bot]);
-    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-    expect(callRpc.mock.calls.length).toBeGreaterThanOrEqual(3);
-    expect(result.current).toEqual([]);
-    expect(localStorage.getItem(CACHE_KEY)).toBeNull();
-    // A later success restores the roster and the cache.
-    callRpc.mockResolvedValue({ bots: [bot] });
-    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60_000); });
+    expect(callRpc.mock.calls.length).toBeGreaterThanOrEqual(10);
     expect(result.current).toEqual([bot]);
     expect(localStorage.getItem(CACHE_KEY)).not.toBeNull();
   });
@@ -51,6 +46,7 @@ describe("bot roster cache", () => {
     expect(isPluginAbsentError(new Error('HTTP 404: plugin "x" has no rpc method "bot_roster"'))).toBe(true);
     expect(isPluginAbsentError(new Error("HTTP 500: boom"))).toBe(false);
     expect(isPluginAbsentError(new TypeError("Failed to fetch"))).toBe(false);
+    expect(isPluginAbsentError(new Error('HTTP 503: plugin "x" is not running (status: error — boom)'))).toBe(false);
   });
 });
 

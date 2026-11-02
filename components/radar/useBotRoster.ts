@@ -8,8 +8,6 @@ const ROSTER_PLUGIN = "orchestrator-mode";
 /** A fallback: bb-salem-bots pushes each change (bb 0.47), which reloads through radar:needs-changed. */
 const REFRESH_MS = 60_000;
 const CACHE_KEY = "radar.botRoster.v1";
-/** Consecutive failures after which the cached roster is dropped: a failed reload must not erase the roster immediately. */
-const STALE_MS = 120_000;
 
 function readCache(): RosterBot[] {
   try {
@@ -42,8 +40,8 @@ export function isPluginAbsentError(error: unknown): boolean {
 /**
  * The registered coordinators, from bb-salem-bots. An absent or failing plugin
  * yields an empty roster on a fresh client; a validated cached roster survives
- * transient reloads and errors, but is dropped once the plugin reports itself
- * absent or the RPC has failed two minutes in a row.
+ * reloads, errors and a crashed plugin, and is dropped only once the plugin
+ * reports itself absent.
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   const sdk = useSdk();
@@ -57,13 +55,11 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
     }
     let cancelled = false;
     let request = 0;
-    let failedSince: number | null = null;
     const load = async () => {
       const current = ++request;
       try {
         const result = await sdk.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
         if (cancelled || current !== request) return;
-        failedSince = null;
         const specialists = result.bots.filter(bot => bot.key !== "crew");
         // Polls return fresh objects. Equal facts must not invalidate the
         // sidebar's family filtering, grouping and row projections.
@@ -71,9 +67,7 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
         writeCache(specialists);
       } catch (error) {
         if (cancelled || current !== request) return;
-        // Keep a previously validated roster during transient reload/RPC failures.
-        failedSince ??= Date.now();
-        if (Date.now() - failedSince >= STALE_MS || isPluginAbsentError(error)) {
+        if (isPluginAbsentError(error)) {
           setBots([]);
           clearCache();
         }
