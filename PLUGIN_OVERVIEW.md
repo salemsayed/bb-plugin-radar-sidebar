@@ -28,7 +28,7 @@ A thread list you can read at a glance, for BB.
 
 ## How it works
 
-Radar reads BB's live sidebar state and routes mutations through the supported SDK. An always-mounted app overlay marks the displayed, focused, visible thread read and sends presence heartbeats. The server tracks short monotonic leases in memory, without reading or writing native notification preferences.
+Radar reads BB's live sidebar state and routes mutations through the supported SDK. An always-mounted app overlay marks the displayed, focused, visible thread read and sends presence heartbeats. The server tracks short monotonic leases in memory and each thread's confirmed read point in plugin SQLite, without reading or writing native notification preferences.
 
 Bots core and Brrr query presence before explicit pushes/buzzes. Coordinator native levels stay input-only so BB can deliver questions, approvals and errors, including on children. Core owns the finished-reply pushes. See [details and mobile evidence](docs/thread-presence.md).
 

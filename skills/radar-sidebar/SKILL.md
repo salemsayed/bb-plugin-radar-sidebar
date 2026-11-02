@@ -7,7 +7,8 @@ description: Use the Radar Sidebar plugin's thread list and its Needs-you lane f
 
 Replaces BB’s sidebar thread list. BB owns the native navigation rail. There is no
 CLI. Thread mutations use BB's SDK flows. The server tracks short-lived presence
-leases in memory and never changes notification preferences.
+leases in memory, keeps each thread's confirmed read point in plugin SQLite
+(`presence_read_point`), and never changes notification preferences.
 
 ## Surfaces
 
@@ -20,7 +21,7 @@ leases in memory and never changes notification preferences.
   toggles, and Collapse all / Expand all. Active filters show as removable pills under the
   search; a bot scope is the first pill. BB owns New thread in its native header.
   Preferences persist per client in `localStorage` (`radar-sidebar:*:v1` keys).
-- **Needs-you lane** (setting `needsYouLane`, default on): the one place for what waits on Salem. The bots' saved Needs items (decisions, reminders, deadlines, alerts, with the bot's recommended reply as the first action) sit above the threads waiting for an answer or approval. There is no Attention panel, no "Bot attention" header action and no Crew page; alerts are plain Needs rows that the bot plugin resolves itself.
+- **Needs-you lane** (setting `needsYouLane`, default on; Salem's setup turns it off, with `botsSwitch` on and `botsPage`, `botsDeck`, `botRail` off, per Bots Core's `bot-automations` skill): the one place in the list for what waits on Salem. The bots' saved Needs items (decisions, reminders, deadlines, alerts, with the bot's recommended reply as the first action) sit above the threads waiting for an answer or approval. There is no Attention panel, no "Bot attention" header action and no Crew page; alerts are plain Needs rows that the bot plugin resolves itself.
 - **Remind me** (`threadPanelAction`, id `remind-when`, and a message action): saves a reminder about a message as a Needs item.
 - **Thread actions**: row More and context/long-press menus use BB's shared registry, including Notifications and other plugins' actions. Mobile choices open native drawers. Keyboard, swipe and bulk archive/delete actions keep BB's confirmation and Undo flows. Requires SDK 0.6.37.
 
@@ -250,7 +251,11 @@ last saw, so the list paints at its final layout.
 | --- | --- | --- |
 | `botRail` | `false` | Bot faces, family state and worker filtering above the list. |
 | `botsPage` | `false` | Leave bot coordinators and workers out of the whole list, with no bot shortcuts, deck or saved bot asks. Overrides `botRail` and `botsDeck`. The Bots | Threads switch already keeps bot chats on Bots. |
-| `botsSwitch` | `false` | A Bots \| Threads switch on top of the list and in the phone drawer, kept per device. Bots: a studio from bb-salem-bots `bot_tasks` (tasks v2): every bot at its own desk acting out its state, with its state in words on its plate and a whiteboard of the day's counts; then Needs you (every ask, with suggested answers that open the thread with the answer typed in, unsent); then Now (live work across bots grouped Stuck / Working / Up next, with Waiting, Done today and Earlier this week folded). Each desk has two taps: the character opens that bot's chat, the name plate opens and closes its sheet under the room (its asks, tasks and a Chat button); a long-press (700ms, touch) or right-click on either opens bb's thread menu for the bot's coordinator with Open chat on top, and opens neither the chat nor the sheet; Threads: every other thread, since bot chats and their workers stay on Bots; a typed filter is kept across the switch. Off: the list exactly as before. |
+| `botsSwitch` | `false` | A Bots \| Threads switch on top of the list and in the phone drawer, kept per device. Bots: a dispatch board from Bots Core's `bot_tasks` (tasks v2), refreshed every 60 s, on focus and after Needs changes. A "N blocked" line shows only when a task is blocked. Bots sit in **In motion** (running workers, a chat turn, unfiled work, or a working, queued or blocked task) or **On call** (compact idle rows with the next step or last completion). Each row has two taps: the face and name open the bot's chat (a dot marks an unread reply), and the right side (worker count, a blocked task's retry time, or a chevron) opens the bot's work panel: Chat · Automations · More, blocked cards, Tasks with running worker chips and folded attempts, and Recent. A long-press (700ms, touch) or right-click opens bb's thread menu for the bot's coordinator with Open chat on top. "N not filed · Threads" switches to Threads. Asks are not listed here; they reach Salem through Bots Core's notification bell and the bot chat. Threads: every other thread, since bot chats and their workers stay on Bots; a typed filter is kept across the switch. Off: the list exactly as before. |
+| `botsDeck` | `true` | Registered bot coordinators as cards at the top of the list, with their workers folded beneath. Used while `botRail` is off. |
+| `needsYouLane` | `true` | The Needs-you lane described below. |
+| `nestByOwner` | `true` | A thread without a parent nests under the thread that owns its lifecycle, so plugin-run workers sit under their coordinator. |
+| `hideEmptySections` | `false` | In section view, leave out sections with nothing shown. |
 | `hideWorking` | `false` | Families with any live work (turn running, follow-up queued, background agents, commands, workflows, goals or plan mode — anything with a spinner) and nothing waiting on the user leave their group for a **Working** drawer pinned under the list, folded by default (open state: `radar-sidebar:working-open:v1`). Needs-you, pinned, bot coordinators and the open thread's family stay put; search or a status filter shows them in place. Hovering the drawer's header (mouse only) opens the Working peek (`RadarWorkingPeek.tsx`): every live thread in the drawer with a server-side digest from its latest timeline segment (`working_digest` RPC, `lib/workingDigest.ts`, cached 4s, polled every 6s while open) — latest words, newest step, phase, steps, todos, goal, context, and flags for quiet 5m+, 2+ failing commands, 80%+ context, a model fallback, background work or a waiting question. |
 | `hoverCard` | `true` | Show the hover peek card. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
@@ -285,7 +290,7 @@ filter, lifecycle, project-order and collapse keys.
 
 ## Needs-you lane
 
-The lane is the one bot surface in Radar; the others are the bot's own thread and phone pushes. Items come from bb-plugin-saelmbot (`crew_needs_list`, polled every 30 seconds, refreshed on focus and after each action) and are ordered by due date. Kinds: Decision, Urgent, Reminder, Deadline and Alert. Done (tick or swipe right) and Snooze (clock or swipe left) call `crew_needs_update`; Done offers six seconds of Undo (reopen). Open goes to the item's source thread.
+The lane is the one bot surface in Radar; the others are the bot's own thread and phone pushes. Items come from Radar's `crew_needs_list` RPC, which reads Bots Core's (`orchestrator-mode`) `needs_list`; the lane refreshes on focus and after each action, with a two-minute fallback poll, and orders items by due date. Kinds: Decision, Urgent, Reminder, Deadline and Alert. Done (tick or swipe right) and Snooze (clock or swipe left) call `crew_needs_update` (Bots Core `needs_update`); Done offers six seconds of Undo (reopen). Open goes to the item's source thread.
 
 An **alert** is an important report the bot resolves on its own; nothing waits for a human to close it. It leads with an exclamation badge, is labelled Alert, and offers **Seen** (the same `done` update, also a rightward swipe) and **Open**. When an item carries `recommend`, that suggested reply is the first, primary button, truncated to about 24 characters: it opens the item's thread (or the bot's current coordinator when the item has no thread) and, if that thread's composer is on screen and empty, places the full text in the draft. It never sends. `subject` is the bot plugin's dedupe key and is not shown. Both fields and the alert kind are optional in the schema, so older bot servers still parse.
 
