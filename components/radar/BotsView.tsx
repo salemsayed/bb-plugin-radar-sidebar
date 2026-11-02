@@ -209,7 +209,6 @@ export function BotsView({
   isCompactViewport,
   now,
   onOpen,
-  onReply,
   onShowThreads,
   deskMenu,
   unreadChats,
@@ -219,8 +218,6 @@ export function BotsView({
   isCompactViewport: boolean;
   now: number;
   onOpen: (threadId: string) => void;
-  /** Open a thread with a reply typed into its composer, unsent. Without it an answer just opens the thread. */
-  onReply?: (threadId: string, text: string) => void;
   onShowThreads: () => void;
   /** The bot menu each desk wears (long-press, right-click, or its "⋯"); the plugin passes bb's thread menu. */
   deskMenu?: DeskMenu;
@@ -244,5 +241,5 @@ export function BotsView({
     );
   }
   return <DispatchBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
-    onOpen={onOpen} onReply={onReply} onShowThreads={onShowThreads} deskMenu={deskMenu} unreadChats={unreadChats} />;
+    onOpen={onOpen} onShowThreads={onShowThreads} deskMenu={deskMenu} unreadChats={unreadChats} />;
 }

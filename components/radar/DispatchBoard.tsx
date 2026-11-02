@@ -23,7 +23,7 @@ export function ago(at: number, now: number) {
 }
 const BLOCKED = ["offline", "overdue", "retrying"];
 export const IN_CHAT = "Working in chat";
-export function dispatchSection(bot: BotTasksBot, _asks: number, running = 0, chatting = false): string {
+export function dispatchSection(bot: BotTasksBot, running = 0, chatting = false): string {
   if (bot.tasks.some(t => BLOCKED.includes(t.displayState))) return "In motion";
   return running || chatting || bot.unlinked.length || bot.tasks.some(t => ["working", "queued"].includes(t.displayState)) ? "In motion" : "On call";
 }
@@ -76,7 +76,7 @@ function DispatchRow({ bot, workers, known, chatting, attempts, now, observedAt,
   const inChat = chatting && !moving && !bot.unlinked.length;
   const task = layout.needs[0] ?? layout.active.find(t => BLOCKED.includes(t.displayState)) ?? moving ?? (inChat ? coordinating : layout.active[0] ?? layout.waitingShown[0]);
   const blocked = bot.tasks.find(t => BLOCKED.includes(t.displayState));
-  const idle = dispatchSection(bot, 0, workers.length, chatting) === "On call";
+  const idle = dispatchSection(bot, workers.length, chatting) === "On call";
   const step = idle ? nextStep(bot, now) : "";
   const tone = blocked ? "blocked" : idle ? "idle" : "busy";
   const worker = task ? attempts[task.id]?.find(runs) : workers[0];
@@ -100,12 +100,12 @@ function DispatchRow({ bot, workers, known, chatting, attempts, now, observedAt,
     <button type="button" className="dispatch-work" aria-label={`Show ${shortBotName(bot.name)}'s work${spoken}`} onClick={onWork}>{number ? <><span className={retry ? "dispatch-number dispatch-time" : "dispatch-number"}>{number}</span><span>{unit}</span></> : <Icon name="ChevronRight" aria-hidden="true" className="dispatch-chevron" />}</button>
   </div></MenuTarget>;
 }
-export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onReply, onShowThreads, deskMenu, unreadChats }: {
-  data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onReply?: (id: string, text: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
+export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, deskMenu, unreadChats }: {
+  data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
   const snapshot = useDispatchWorkers(data);
   const sections = ["In motion", "On call"];
-  const sectionOf = (bot: BotTasksBot, running = snapshot.byBot[bot.key]?.length ?? 0, chatting = snapshot.chat.has(bot.key)) => dispatchSection(bot, 0, running, chatting);
+  const sectionOf = (bot: BotTasksBot, running = snapshot.byBot[bot.key]?.length ?? 0, chatting = snapshot.chat.has(bot.key)) => dispatchSection(bot, running, chatting);
   const arranged = sections.map(name => ({ name, bots: orderedBots(data).filter(bot => sectionOf(bot) === name).map(bot => bot.key) }));
   const signatures = Object.fromEntries(data.bots.map(bot => [bot.key, { look: `${sectionOf(bot)}:${layoutBot(bot, now).mood}`, idle: sectionOf(bot, 0, false), loaded: bot.key in snapshot.byBot }]));
   const previous = useRef(signatures);
@@ -128,10 +128,10 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const opener = useRef<HTMLElement | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const close = () => { setSheet(null); opener.current?.focus(); };
-  const navigate = (id: string, answer?: string) => {
+  const navigate = (id: string) => {
     flushSync(() => setSheet(null));
     opener.current?.focus();
-    if (answer !== undefined && onReply) onReply(id, answer); else onOpen(id);
+    onOpen(id);
   };
   const root = useRef<HTMLDivElement>(null);
   const panelPress = useDeskPress();

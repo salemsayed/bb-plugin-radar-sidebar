@@ -25,7 +25,7 @@ it("groups each bot once and never calls task counts workers", () => {
   expect(document.querySelectorAll(".dispatch-row")).toHaveLength(4);
   expect(document.querySelector(".dispatch-tally")?.textContent).toBe("1 blocked");
   expect(document.querySelector(".dispatch")?.textContent).not.toContain("workers");
-  expect(dispatchSection(data().bots[3], 0)).toBe("On call");
+  expect(dispatchSection(data().bots[3])).toBe("On call");
 });
 it("separates row chat from work, closes on escape and backdrop and restores focus", () => {
   const p = props(); render(<BotsView {...p} />);
@@ -89,15 +89,15 @@ it.each(["Chat", "Task", "Worker", "Unlinked", "Recent"])("closes and restores f
     expect(document.activeElement).toBe(work);
     expect(document.body.style.overflow).not.toBe("hidden");
   });
-  const p = { ...props(d), onOpen: check, onReply: path === "Answer fallback" ? undefined : check };
+  const p = { ...props(d), onOpen: check };
   render(<BotsView {...p} deskMenu={({ children, onOpenChat }) => <div>{children}<button onClick={onOpenChat}>Menu chat</button></div>} />);
   work = screen.getByRole("button", { name: "Show Bricks's work" }); work.focus(); fireEvent.click(work);
   expect(document.body.style.overflow).toBe("hidden");
   const dialog = screen.getByRole("dialog");
-  const names: Record<string, string | RegExp> = { Chat: "Chat", Task: /^Needs you.*Connect phone\?/, Worker: "Open worker Test worker: Sol worker, running", Question: "“Allow deploy?”", Answer: "Yes", "Answer fallback": "Yes", Unlinked: /Unlinked job/, Recent: /Completed job/, "Menu chat": "Menu chat" };
+  const names: Record<string, string | RegExp> = { Chat: "Chat", Task: /^Needs you.*Connect phone\?/, Worker: "Open worker Test worker: Sol worker, running", Unlinked: /Unlinked job/, Recent: /Completed job/, "Menu chat": "Menu chat" };
   fireEvent.click(within(dialog).getByRole("button", { name: names[path] }));
   expect(check).toHaveBeenCalledOnce();
-  const targets: Record<string, string> = { Chat: "thr_coord_bricks", Task: "task-thread", Worker: "worker", Question: "ask-thread", Answer: "ask-thread", "Answer fallback": "ask-thread", Unlinked: "unlinked", Recent: "history-thread", "Menu chat": "thr_coord_bricks" };
+  const targets: Record<string, string> = { Chat: "thr_coord_bricks", Task: "task-thread", Worker: "worker", Unlinked: "unlinked", Recent: "history-thread", "Menu chat": "thr_coord_bricks" };
   expect(check.mock.calls[0]).toEqual(path === "Answer" ? [targets[path], "Yes"] : [targets[path]]);
 });
 it("a menu pick lets the next touch tap start fresh before the swallow timeout", () => {
@@ -230,12 +230,12 @@ it("puts a waiting bot with a running worker under In motion", () => {
   expect(homeRow().textContent).toContain("Nursery camera");
   expect(homeRow().textContent).toContain("Sol");
   expect(homeRow().querySelector(".dispatch-number")!.textContent).toBe("1");
-  expect(dispatchSection(d.bots[1], 0)).toBe("On call");
-  expect(dispatchSection(d.bots[1], 0, 1)).toBe("In motion");
+  expect(dispatchSection(d.bots[1])).toBe("On call");
+  expect(dispatchSection(d.bots[1], 1)).toBe("In motion");
 });
 it.each([["working", "In motion"], ["queued", "In motion"], ["retrying", "In motion"], ["ready", "On call"], ["checking", "On call"]] as const)("a bot whose only task is %s goes to %s", (state, section) => {
   const d = homeWith(makeTask("home", "Camera", state));
-  expect(dispatchSection(d.bots[1], 0)).toBe(section);
+  expect(dispatchSection(d.bots[1])).toBe(section);
   render(<BotsView {...props(d)} />);
   expect(sectionOf("home")).toBe(section);
   if (section === "On call") expect(homeRow().querySelector(".dispatch-sub")!.textContent).toBe(state === "ready" ? "Not started" : "To check");
@@ -386,7 +386,7 @@ it("puts a coordinator in chat beside a waiting task under In motion, without th
   expect(sectionOf("home")).toBe("In motion");
   expect(homeRow().querySelector(".dispatch-line")!.textContent).toBe("Working in chat");
   expect(homeRow().querySelector(".dispatch-sub")!.textContent).toMatch(/^Waiting · checks /);
-  expect(dispatchSection(d.bots[1], 0, 0, true)).toBe("In motion");
+  expect(dispatchSection(d.bots[1], 0, true)).toBe("In motion");
 });
 it("shows the task a coordinator in chat is executing", () => {
   const d = homeWith(makeTask("home", "Nursery camera", "waiting", { id: "wait" }), makeTask("home", "Check the router", "ready", { id: "router" }));
@@ -403,7 +403,7 @@ it("keeps a bot whose coordinator is idle with only a waiting task under On call
   render(<BotsView {...props(d)} />);
   expect(sectionOf("home")).toBe("On call");
   expect(homeRow().textContent).not.toContain("Working in chat");
-  expect(dispatchSection(d.bots[1], 0)).toBe("On call");
+  expect(dispatchSection(d.bots[1])).toBe("On call");
 });
 it("keeps coordinator activity in the work list without a second attention badge", () => {
   const d = homeWith(makeTask("home", "Reset the camera?", "needs", { id: "ask" }));
@@ -411,7 +411,7 @@ it("keeps coordinator activity in the work list without a second attention badge
   render(<BotsView {...props(d)} />);
   expect(sectionOf("home")).toBe("In motion");
   expect(homeRow().className).not.toContain("dispatch-ask");
-  expect(dispatchSection(d.bots[1], 1, 0, true)).toBe("In motion");
+  expect(dispatchSection(d.bots[1], 0, true)).toBe("In motion");
 });
 it("does not count a coordinator in chat as a worker", () => {
   const d = homeWith();

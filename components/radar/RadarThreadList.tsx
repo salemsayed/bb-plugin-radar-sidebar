@@ -129,16 +129,9 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   );
 }
 
-/**
- * The Bots view with answers and desk menus wired: an ask's answer opens its thread with the answer typed in,
- * nothing sent.
- * The prefill watches the on-screen composers, so it lives here, under the Bots switch, rather than at the
- * list root, where every composer change would re-render the Threads list too.
- */
-function BotsPane(props: Omit<ComponentProps<typeof BotsView>, "onReply" | "deskMenu">) {
-  const reply = useReplyPrefill(props.onOpen);
+function BotsPane(props: Omit<ComponentProps<typeof BotsView>, "deskMenu">) {
   // Each desk wears bb's thread menu for its bot's coordinator: long-press, right-click or its "⋯".
-  return <BotDeskMenuProvider><BotsView {...props} onReply={reply} deskMenu={BotDeskMenu} /></BotDeskMenuProvider>;
+  return <BotDeskMenuProvider><BotsView {...props} deskMenu={BotDeskMenu} /></BotDeskMenuProvider>;
 }
 
 /**
