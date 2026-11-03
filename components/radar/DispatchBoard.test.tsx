@@ -361,7 +361,7 @@ it("keeps 44 px tap targets on workers, details, the close button and every head
   expect(css).toMatch(/@media \(pointer: fine\) \{ \.dispatch-panel \.dispatch-worker-chip \{ min-height: 34px; \} \}/);
   expect(css).toMatch(/\.dispatch-details>summary \{[^}]*min-height: 44px/);
   expect(css).toMatch(/button\.dispatch-close \{[^}]*min-width: 44px; min-height: 44px/);
-  expect(css).toMatch(/\.dispatch-panel-actions>\* \{[^}]*min-height: 44px/);
+  expect(css).toMatch(/\.dispatch-panel-actions>\*[^\{]*\{[^}]*min-height: 44px/);
 });
 it("puts a bot whose coordinator is working in chat with no task under In motion", () => {
   const d = homeWith(makeTask("home", "Daily check", "done", { completedAt: NOW - 13 * 3_600_000 }));
@@ -451,4 +451,24 @@ it("leads phone task rows with the ask and keeps its source and outcome smaller"
   expect(within(dialog).getByText("You asked, 3 Nov 12:00").className).toBe("dispatch-ask-source");
   expect(within(dialog).getByText("Make tasks recognizable and easy to resume").className).toBe("dispatch-ask-outcome");
   if (process.env.BB_THREAD_STORAGE) writeFileSync(`${process.env.BB_THREAD_STORAGE}/screens/rows.html`, `<style>${readFileSync("styles/bots.css", "utf8")}${readFileSync("styles/dispatch.css", "utf8")}</style>${document.body.innerHTML}`);
+});
+
+it("puts Continue on each task card outside Details and hands off the exact task to its coordinator", () => {
+  const p = props(); p.state.data.bots[1].tasks.push(makeTask("bricks", "Earlier task", "done") as any); const handoff = vi.fn();
+  window.addEventListener("bb:orchestrator-mode:continue-task", handoff);
+  try {
+    render(<BotsView {...p} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work" }));
+    const cards = document.querySelectorAll(".dispatch-task-group");
+    expect(cards).toHaveLength(2);
+    for (const row of cards) expect(within(row as HTMLElement).getByRole("button", { name: "Continue" }).closest("details")).toBeNull();
+    const card = cards[0];
+    const button = within(card as HTMLElement).getByRole("button", { name: "Continue" });
+    expect(button.closest("details")).toBeNull();
+    fireEvent.click(button);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(p.onOpen).toHaveBeenCalledWith("thr_coord_bricks");
+    expect(handoff).toHaveBeenCalledOnce();
+    expect(handoff.mock.calls[0][0].detail).toEqual({ threadId: "thr_coord_bricks", taskId: p.state.data.bots[1].tasks[0].id, label: "Connect phone?" });
+  } finally { window.removeEventListener("bb:orchestrator-mode:continue-task", handoff); }
 });

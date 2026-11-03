@@ -59,7 +59,7 @@
 .dispatch-close [data-icon-root],.dispatch-close svg { width: 16px; height: 16px; }
 .dispatch-panel-head button.dispatch-close:hover { background: var(--state-hover); color: var(--foreground); }
 .dispatch-panel-actions { flex: none; display: flex; gap: 8px; padding: 0 16px 16px; border-bottom: 1px solid var(--border); }
-.dispatch-panel-actions>* { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 22px; font-size: 14px; font-weight: 550; text-decoration: none; white-space: nowrap; }
+.dispatch-panel-actions>*,.dispatch-panel button.dispatch-task-continue { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 22px; font-size: 14px; font-weight: 550; text-decoration: none; white-space: nowrap; }
 .dispatch-panel-actions [data-icon-root],.dispatch-panel-actions svg { width: 17px; height: 17px; flex: none; }
 .dispatch-panel .dispatch-panel-actions button { text-align: center; }
 .dispatch-panel button.dispatch-chat-pill { background: light-dark(hsl(var(--bot-hue) 62% 30%), hsl(var(--bot-hue) 80% 72%)); color: light-dark(#fff, #16121f); }
@@ -131,3 +131,6 @@
 .dispatch-phone { touch-action: none; }
 .dispatch-phone .dispatch-panel,.dispatch-phone .dispatch-panel-body { touch-action: pan-y; overscroll-behavior: contain; }
 @media (pointer: fine) { .dispatch-panel .dispatch-worker-chip { min-height: 34px; } }
+
+.dispatch-panel button.dispatch-task-continue { flex: none; margin: 2px 0 12px; border: 1px solid var(--border); background: var(--popover, var(--background)); color: var(--foreground); }
+.dispatch-panel button.dispatch-task-continue:hover { background: var(--state-hover); }

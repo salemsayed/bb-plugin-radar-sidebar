@@ -185,6 +185,10 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
         {task.outcome ? <span className="dispatch-ask-outcome" dir="auto">{task.outcome}</span> : null}
         {shortNote ? <span className="dispatch-note" dir="auto">{shortNote}</span> : null}
       </button>
+      <button type="button" className="dispatch-task-continue" onClick={() => {
+        window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot!.coordinatorThreadId, taskId: task.id, label: task.title.slice(0, 80) } }));
+        navigate(bot!.coordinatorThreadId);
+      }}>Continue</button>
       {running.length ? <div className="dispatch-workers">{running.map(a => {
         const s = attemptStatus(a, now);
         return <button type="button" className="dispatch-attempt dispatch-worker-chip" key={a.threadId} onClick={() => navigate(a.threadId)} aria-label={workerLabel(a, s)}><i aria-hidden="true" /><span className="dispatch-worker-model">{a.model ? dispatchModel(a.model) : "Worker"}</span>{s ? ` · ${s}` : ""}</button>;
