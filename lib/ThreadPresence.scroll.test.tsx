@@ -74,3 +74,14 @@ it("restores again on focus return and does not sample background activity", asy
   await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
   expect(box.scrollTop).toBe(530);
 });
+it("requests older messages through the host router when the saved anchor is not rendered", async () => {
+  const anchor = box.firstElementChild as HTMLElement;
+  anchor.dataset.notificationMessage = "99";
+  const route = vi.fn();
+  window.addEventListener("popstate", route);
+  render(<ThreadPresence />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(40); });
+  expect(location.hash).toBe("#msg=42");
+  expect(route).toHaveBeenCalled();
+  window.removeEventListener("popstate", route);
+});
