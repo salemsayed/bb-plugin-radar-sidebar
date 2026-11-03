@@ -34,6 +34,7 @@ const app = await loadPluginApp(() => import("../app"));
 const slot = renderSlot(app.appOverlays[0]!, {}, {
   context: { threadId, projectId: "proj_lab" },
   sidebarSplitLayout: { panes: [{ paneId: "chat", threadId, isFocused: true, rect: { x: innerWidth > 700 ? 260 : 0, y: 0, width: innerWidth > 700 ? innerWidth - 260 : innerWidth, height: innerHeight } }] },
+  settings: { rememberScroll: true },
   rpc: {
     scroll_get: () => JSON.parse(localStorage.getItem("radar-preview-position") ?? '{"atBottom":false,"messageSeq":51,"offset":-24}'),
     scroll_set: ({ position }: { position: unknown }) => { localStorage.setItem("radar-preview-position", JSON.stringify(position)); return { ok: true }; },
