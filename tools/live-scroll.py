@@ -25,7 +25,14 @@ rows = []
 results = {'mode': 'preflight' if args.preflight else ('subset' if args.only else 'full'), 'rows': rows, 'postPolicy': 'At most three LONG posts for the whole matrix: both widths share one post per stimulus.', 'limitations': ['Phone is real Chrome mobile emulation, not native iOS. Background uses the visibility/focus event route.']}
 
 def cli(*cmd):
-    return subprocess.check_output(['bb', *cmd], text=True)
+    for attempt in range(3):
+        result = subprocess.run(['bb', *cmd], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode == 0:
+            return result.stdout
+        if attempt < 2 and cmd[:2] != ('thread', 'tell') and 'Host is not connected' in result.stdout + result.stderr:
+            time.sleep(5)
+            continue
+        raise subprocess.CalledProcessError(result.returncode, ['bb', *cmd], output=result.stdout, stderr=result.stderr)
 
 def run(label, body):
     script = out / (label + '.js')
@@ -209,8 +216,8 @@ try:
             two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/projects/proj_jfxygzbhcr/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);const ev=await measure("none",b,"thr_wfhsqd493j");console.log(JSON.stringify({result:{a,b,aa,bb,...ev}}));')
             row(width, 5, two, all(two[k+'a' if k=='a' else 'bb']['offset'] is not None for k in ['a','b']) and abs(two['a']['offset']-two['aa']['offset'])<=8 and abs(two['b']['offset']-two['bb']['offset'])<=8)
         if 6 in selected:
-            action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);const ev=await measure("none",a);const saved=await middle();await p.reload({waitUntil:"domcontentloaded"});await p.waitForFunction(seq=>location.hash==="#msg="+seq&&!document.querySelector(`[data-notification-thread="thr_yaa3n3kk73"][data-notification-message="${seq}"]`)&&document.querySelector(".thread-scrollbar"),{timeout:10000},saved.seq);const normal=await state();await p.mouse.move(normal.rect.x,normal.rect.y);await p.mouse.wheel({deltaY:-300});await pause(300);const user=await state();const cold=await measure("none",user);console.log(JSON.stringify({result:{a,b,...ev,cold:{saved,...cold}}}));')
-            row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8 and position_ok(action['cold']))
+            action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);const ev=await measure("none",a);const saved=await middle();await p.reload({waitUntil:"domcontentloaded"});await p.waitForFunction(seq=>location.hash==="#msg="+seq&&!document.querySelector(`[data-notification-thread="thr_yaa3n3kk73"][data-notification-message="${seq}"]`)&&document.querySelector(".thread-scrollbar"),{timeout:10000},saved.seq);const normal=await state();await p.mouse.move(normal.rect.x,normal.rect.y);await p.mouse.wheel({deltaY:-300});await pause(300);const user=await state();const cold=await measure("none",user);console.log(JSON.stringify({result:{a,b,warm:ev,...cold,cold:{saved,...cold}}}));')
+            row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8 and position_ok(action['cold']) and action['cold']['expected']['bottomGap']>200)
         if 7 in selected:
             timings = {}
             for mode in [False, True]:

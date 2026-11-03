@@ -103,3 +103,5 @@ Salem chose “Show bb's view at once, then jump” for full reload (thr_exqyeqr
 The installed matrix now allows the normal bottom view on reload. It requires no more than 150ms additional blank time versus feature-off, exactly one visible transition to the saved spot, and a final error no greater than 8px. The recorder checks later blank intervals too, rather than only the first visible content. Other transitions retain the no-bottom-flash requirement. Jump counts come from captured compositor frames matched to timestamped anchor geometry, with the raw frames retained.
 
 The user-action scenario also scrolls while a cold reload is still loading the saved older anchor. Radar cancels its owned native message route on takeover before landing, so the host cannot perform its pending jump later. After landing and on ordinary returns, existing scrolling is unchanged.
+
+The recorder retries idempotent CLI operations on a transient disconnected-host error. It never retries a thread post. Warm and cold user-action measurements retain separate geometry; the displayed action frames belong to the cold takeover.
