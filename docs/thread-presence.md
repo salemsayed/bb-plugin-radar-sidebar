@@ -105,3 +105,5 @@ The installed matrix now allows the normal bottom view on reload. It requires no
 The user-action scenario also scrolls while a cold reload is still loading the saved older anchor. Radar cancels its owned native message route on takeover before landing, so the host cannot perform its pending jump later. After landing and on ordinary returns, existing scrolling is unchanged.
 
 The recorder retries idempotent CLI operations on a transient disconnected-host error. It never retries a thread post. Warm and cold user-action measurements retain separate geometry; the displayed action frames belong to the cold takeover.
+
+The two-chat fixture switches within the current app document and waits up to nine seconds for each saved anchor to render before checking its independent offset. It does not test an unloaded anchor at an arbitrary fixed delay or reset the app cache by hard-navigating the second chat. The 8px position requirement is unchanged.

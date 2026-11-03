@@ -15,9 +15,11 @@ async function state(t = thread, seq = null) {
     return { active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, bounds: b ? (()=>{const r=b.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})() : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
   }, t, seq);
 }
-async function middle(t = thread) {
+async function middle(t = thread, newDocument = true) {
   await p.evaluate(() => { delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
-  await p.goto(`${base}/projects/proj_jfxygzbhcr/threads/${t}${t === thread ? '#msg=20' : ''}`);
+  const destination = `/projects/proj_jfxygzbhcr/threads/${t}${t === thread ? '#msg=20' : ''}`;
+  if (newDocument) await p.goto(base + destination);
+  else await route(destination);
   await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), { timeout: 30000 }, t);
   await pause(1500);
   await p.evaluate(() => { history.replaceState(history.state, '', location.pathname); dispatchEvent(new PopStateEvent('popstate')); });
