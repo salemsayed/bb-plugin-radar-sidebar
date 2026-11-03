@@ -30,6 +30,9 @@ async function middle(t = thread) {
 }
 async function away() { await route('/settings/mobile'); }
 function startFrames(t, expected) {
+  window.__radarScrollDebug = true;
+  window.scrollTrace = [];
+  window.addEventListener('radar-scroll-trace', e => window.scrollTrace.push(e.detail));
   window.matrixFrames = [];
   window.matrixStart = performance.now();
   function sample() {
@@ -53,7 +56,13 @@ async function measure(action, expected, t = thread) {
     if (action === 'return') await p.goBack();
     if (action === 'resume') await p.evaluate(() => { delete document.visibilityState; window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   }
-  for (let i = 0; i < 3; i++) { await p.shot(); await pause(i === 2 ? 0 : 100); }
+  const remoteFrameImages = [];
+  for (let i = 0; i < 6; i++) {
+    const path = `/tmp/radar-matrix-${Date.now()}-${i}.jpg`;
+    await p.screenshot({ path, type: 'jpeg', quality: 55, fullPage: false, captureBeyondViewport: false, timeout: 5000 });
+    remoteFrameImages.push(path);
+    await pause(100);
+  }
   await pause(2800);
-  return { expected, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []) };
+  return { expected, remoteFrameImages, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => window.scrollTrace || []) };
 }

@@ -12,6 +12,10 @@ export function chatScroller(threadId: string): HTMLElement | null {
   return null;
 }
 export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
+  const trace = (event: string, data: unknown = null) => {
+    if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), hash: location.hash } }));
+  };
+  trace("begin", store.cached);
   let disposed = false, restoring = true, loaded = store.cached != null, interacted = false, failed = false;
   let position = store.cached ?? null;
   let container: HTMLElement | null = null;
@@ -41,11 +45,13 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     const next = capturePosition(container.scrollTop, container.clientHeight, container.scrollHeight, rect.top + container.clientTop, messageAnchors(threadId).filter(e => container!.contains(e)).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!next || JSON.stringify(next) === lastSaved) return;
     lastSaved = JSON.stringify(next);
+    trace("capture", next);
     store.save(next);
   };
-  const finish = () => { restoring = false; reveal(); };
+  const finish = () => { trace("finish", { position, matched, failed, interacted }); restoring = false; reveal(); };
   const input = (event: Event) => {
     if (event instanceof KeyboardEvent && !["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Tab"].includes(event.key)) return;
+    trace("input", event.type);
     interacted = true;
     failed = false;
     finish();
@@ -62,6 +68,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       const anchor = messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === position!.messageSeq && container?.contains(e));
       if (anchor && container) {
         container.style.scrollBehavior = "auto";
+        trace("adjust", { position, top: container.scrollTop });
         container.scrollTop += restoreDelta(anchor.getBoundingClientRect().top, container.getBoundingClientRect().top + container.clientTop, position.offset);
         matched = true;
         if (!releasedRoute) { releasedRoute = true; store.anchorReady?.(); }
@@ -89,6 +96,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   const timer = setInterval(() => capture(), 400);
   return () => {
     capture(true);
+    trace("dispose");
     disposed = true;
     observer.disconnect();
     cancelAnimationFrame(frame);

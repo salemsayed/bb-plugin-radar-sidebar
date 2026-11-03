@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -23,7 +24,7 @@ def cli(*cmd):
 
 def run(label, body):
     script = out / (label + '.js')
-    script.write_text(helper + '\n' + body + ('' if 'measure(' in body else '\nawait p.shot();'))
+    script.write_text(helper + '\n' + body)
     proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     raw = proc.stdout
     if proc.returncode:
@@ -37,14 +38,17 @@ def run(label, body):
             value = json.loads(line)
             if isinstance(value, dict) and 'result' in value:
                 if isinstance(value['result'], dict):
-                    value['result']['frameImages'] = [str(out / f'{label}-{n}.jpg') for n, _ in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M))]
+                    for n, remote in enumerate(value['result'].get('remoteFrameImages', [])):
+                        with (out / f'{label}-remote-{n}.jpg').open('wb') as target:
+                            subprocess.run(['ssh', '-o', 'BatchMode=yes', 'salem-pc', 'cat ' + shlex.quote(remote)], stdout=target, check=True)
+                    value['result']['frameImages'] = [str(out / f'{label}-remote-{n}.jpg') for n, _ in enumerate(value['result'].get('remoteFrameImages', []))] + [str(out / f'{label}-{n}.jpg') for n, _ in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M))]
                 return value['result']
         except ValueError:
             pass
     raise RuntimeError('No result in ' + label)
 
 def save():
-    results['outcome'] = 'pass' if len(rows) == 18 and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail'
+    results['outcome'] = ('pass' if len(rows) == 18 and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
 
 def row(width, scenario, data, ok, **extra):
@@ -131,6 +135,7 @@ finally:
     setting(original['rememberScroll'])
     results['settingsRestored'] = json.loads(cli('plugin','config','radar-sidebar','--json'))['values']==original
     results['release'] = cli('own-chrome','release')
+    results['finished'] = True
     save()
 print(out/'results.json')
 raise SystemExit(0 if results['outcome']=='pass' else 1)
