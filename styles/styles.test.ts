@@ -219,17 +219,19 @@ describe("plugin stylesheet", () => {
 });
 
 describe("current bot chat", () => {
-  const current = rules().find(rule => rule.selector === '.dispatch button.dispatch-chat[aria-current="page"]')?.body;
+  const current = rules().find(rule => rule.selector === '.dispatch-row:has(> .dispatch-chat[aria-current="page"])')?.body;
 
-  it("marks the whole chat target with theme fill and an inset outline", () => {
-    expect(current).toMatch(/background:\s*color-mix\(in oklab, var\(--primary\) 20%, var\(--sidebar, var\(--background\)\)\)/);
-    expect(current).toMatch(/box-shadow:\s*inset 0 0 0 2px color-mix\(in oklab, var\(--primary\) 65%, transparent\)/);
-    expect(current).not.toMatch(/padding|margin|height|width|border:|font-weight/);
+  it("uses a borderless whole-row fill for the current bot", () => {
+    expect(current).toMatch(/background:\s*var\(--state-active,/);
+    expect(current).toMatch(/border-radius:\s*12px/);
+    expect(current).not.toMatch(/box-shadow|outline|padding|margin|height|width|border:|font-weight/);
   });
 
-  it("keeps selection distinct from hover, underline and status colours", () => {
-    expect(css).not.toContain('.dispatch-chat[aria-current] b');
+  it("keeps current chat transparent so hover and status remain separate", () => {
+    const target = rules().find(rule => rule.selector === '.dispatch button.dispatch-chat[aria-current="page"]')?.body;
+    expect(target).toMatch(/background:\s*transparent/);
     expect(current).not.toMatch(/--attention|--warning|--destructive/);
+    expect(css).not.toContain('.dispatch-chat[aria-current] b');
     expect(rules().find(rule => rule.selector.includes('.dispatch-chat:not([aria-current="page"]):hover'))?.body)
       .toMatch(/background:\s*var\(--state-hover/);
   });

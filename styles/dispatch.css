@@ -33,7 +33,8 @@
 .dispatch-busy .dispatch-number { color: light-dark(#285ca3, #8ab8f5); }
 .dispatch-compact .dispatch-chat { min-height: 60px; padding-block: 4px; }
 .dispatch-compact .dispatch-chat>span:first-child { margin-inline: 5px; }
-.dispatch button.dispatch-chat[aria-current="page"] { background: color-mix(in oklab, var(--primary) 20%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--primary) 65%, transparent); }
+.dispatch-row:has(> .dispatch-chat[aria-current="page"]) { background: var(--state-active, color-mix(in oklab, var(--foreground) 12%, transparent)); border-radius: 12px; }
+.dispatch button.dispatch-chat[aria-current="page"] { background: transparent; }
 @media (hover: hover) and (pointer: fine) {
   .dispatch .dispatch-chat:not([aria-current="page"]):hover,
   .dispatch .dispatch-work:hover { background: var(--state-hover, var(--muted)); }
