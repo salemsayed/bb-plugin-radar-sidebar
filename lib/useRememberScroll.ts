@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
 import { scrollContract, positionSchema } from "./scrollPosition";
-import { coldReloadThreadId } from "./primeScrollRoute";
+import { coldReloadThreadId, requestScrollAnchor } from "./primeScrollRoute";
 import { rememberScroll } from "./scrollController";
 
 function browserId() {
@@ -26,9 +26,10 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     if (!enabled) {
       try {
         const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-        if (marker?.hash === location.hash && location.pathname.endsWith(`/threads/${marker.threadId}`)) {
+        if (marker && (marker.hash === location.hash || !location.hash) && location.pathname.endsWith(`/threads/${marker.threadId}`)) {
           history.replaceState(history.state, "", `${location.pathname}${location.search}`);
           sessionStorage.removeItem("radar-scroll-route");
+          window.dispatchEvent(new PopStateEvent("popstate"));
         }
       } catch {}
       return;
@@ -42,9 +43,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       if (point.atBottom) return;
       const hash = `#msg=${point.messageSeq}`;
       autoHash.current = { threadId: routeId, hash };
-      sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId: routeId, hash, at: Date.now() }));
-      history.replaceState(history.state, "", `${location.pathname}${hash}`);
-      window.dispatchEvent(new PopStateEvent("popstate"));
+      requestScrollAnchor(routeId, point.messageSeq);
     } catch {}
   }, [configured, enabled, active, threadId]);
   useLayoutEffect(() => {
@@ -64,16 +63,23 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       cancelAnchor: () => {
         try {
           const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-          if (marker?.threadId !== threadId || marker.hash !== location.hash) return;
+          if (marker?.threadId !== threadId || location.hash && marker.hash !== location.hash || !location.pathname.endsWith(`/threads/${threadId}`)) return;
           history.replaceState(history.state, "", `${location.pathname}${location.search}`);
           sessionStorage.removeItem("radar-scroll-route");
           autoHash.current = null;
           window.dispatchEvent(new PopStateEvent("popstate"));
         } catch {}
       },
-      loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` };
-        try { sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash: `#msg=${seq}`, at: Date.now() })); } catch {} history.replaceState(history.state, "", `${location.pathname}#msg=${seq}`);
-        window.dispatchEvent(new PopStateEvent("popstate")); },
+      anchorReady: () => {
+        try {
+          const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
+          if (marker?.threadId !== threadId) return;
+          if (marker.hash === location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+          sessionStorage.removeItem("radar-scroll-route");
+          autoHash.current = null;
+        } catch {}
+      },
+      loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` }; requestScrollAnchor(threadId, seq); },
       load: () => explicitLink ? Promise.resolve(null) : rpc.call("scroll_get", { threadId, deviceId }),
       save: position => {
         try {

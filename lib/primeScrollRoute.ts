@@ -2,6 +2,17 @@ import { positionSchema } from "./scrollPosition";
 
 export const coldReloadThreadId = performance.getEntriesByType("navigation").some(entry => (entry as PerformanceNavigationTiming).type === "reload") ? location.pathname.match(/\/threads\/([^/]+)/)?.[1] ?? null : null;
 
+export function requestScrollAnchor(threadId: string, messageSeq: number) {
+  if (!location.pathname.endsWith(`/threads/${threadId}`)) return;
+  const hash = `#msg=${messageSeq}`;
+  try { sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash, at: Date.now() })); } catch {}
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+  try { window.dispatchEvent(new PopStateEvent("popstate")); }
+  finally {
+    if (location.pathname.endsWith(`/threads/${threadId}`) && location.hash === hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+  }
+}
+
 export function primeScrollRoute() {
   try {
     if (coldReloadThreadId) {
@@ -18,9 +29,6 @@ export function primeScrollRoute() {
     if (!threadId) return;
     const point = positionSchema.parse(JSON.parse(localStorage.getItem(`radar-scroll:${threadId}`) ?? "null"));
     if (point.atBottom) return;
-    const hash = `#msg=${point.messageSeq}`;
-    sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash, at: Date.now() }));
-    history.replaceState(history.state, "", `${location.pathname}${hash}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    requestScrollAnchor(threadId, point.messageSeq);
   } catch {}
 }

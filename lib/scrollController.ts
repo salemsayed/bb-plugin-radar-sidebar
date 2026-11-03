@@ -64,14 +64,14 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     trace("capture", next);
     store.save(next);
   };
-  const finish = () => { trace("finish", { position, matched, failed, interacted }); restoring = false; reveal(); };
+  const finish = () => { trace("finish", { position, matched, failed, interacted }); restoring = false; reveal(); if (failed) store.cancelAnchor?.(); };
   const input = (event: Event) => {
     if (event instanceof KeyboardEvent && !["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Tab"].includes(event.key)) return;
     trace("input", event.type);
     interacted = true;
     failed = false;
     finish();
-    if (store.deferUntilVisible && !matched) store.cancelAnchor?.();
+    if (!matched) store.cancelAnchor?.();
   };
   const onScroll = () => {
     capture();
