@@ -33,7 +33,11 @@
 .dispatch-busy .dispatch-number { color: light-dark(#285ca3, #8ab8f5); }
 .dispatch-compact .dispatch-chat { min-height: 60px; padding-block: 4px; }
 .dispatch-compact .dispatch-chat>span:first-child { margin-inline: 5px; }
-.dispatch-chat[aria-current] b { text-decoration: underline; text-underline-offset: 4px; }
+.dispatch button.dispatch-chat[aria-current="page"] { background: color-mix(in oklab, var(--primary) 20%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--primary) 65%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .dispatch .dispatch-chat:not([aria-current="page"]):hover,
+  .dispatch .dispatch-work:hover { background: var(--state-hover, var(--muted)); }
+}
 .dispatch button:active { background: var(--state-hover); }
 .dispatch-legend { margin-top: 20px; text-align: center; text-wrap: balance; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
 .dispatch-unfiled { font-size: 12px!important; }
