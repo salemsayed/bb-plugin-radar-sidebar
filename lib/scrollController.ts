@@ -82,7 +82,11 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (disposed || !restoring) return;
     bind();
     if (loaded && (!position || position.atBottom)) { finish(); return; }
-    if (store.deferUntilVisible && position && !position.atBottom && container) {
+    if (store.deferUntilVisible && position && !position.atBottom) {
+      if (!container) {
+        if (performance.now() - started > 10000) { failed = true; finish(); }
+        return;
+      }
       const bounds = container.getBoundingClientRect();
       const visible = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95].some(fraction => {
         const hit = document.elementFromPoint((bounds.left + bounds.right) / 2, bounds.top + bounds.height * fraction);
