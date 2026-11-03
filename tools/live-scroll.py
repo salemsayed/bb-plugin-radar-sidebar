@@ -23,7 +23,7 @@ def cli(*cmd):
 
 def run(label, body):
     script = out / (label + '.js')
-    script.write_text(helper + '\n' + body + '\nawait p.shot();')
+    script.write_text(helper + '\n' + body + ('' if 'measure(' in body else '\nawait p.shot();'))
     proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     raw = proc.stdout
     if proc.returncode:

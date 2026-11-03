@@ -11,12 +11,12 @@ export function chatScroller(threadId: string): HTMLElement | null {
   }
   return null;
 }
-export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; loadAnchor?: (seq: number) => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
+export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
   let disposed = false, restoring = true, loaded = store.cached != null, interacted = false, failed = false;
   let position = store.cached ?? null;
   let container: HTMLElement | null = null;
   let previousBehavior = "";
-  let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false;
+  let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, releasedRoute = false;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
     if (container) { container.style.scrollBehavior = previousBehavior; }
@@ -64,6 +64,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         container.style.scrollBehavior = "auto";
         container.scrollTop += restoreDelta(anchor.getBoundingClientRect().top, container.getBoundingClientRect().top + container.clientTop, position.offset);
         matched = true;
+        if (!releasedRoute) { releasedRoute = true; store.anchorReady?.(); }
       } else if (!requestedAnchor && store.loadAnchor) {
         requestedAnchor = true;
         store.loadAnchor(position.messageSeq);

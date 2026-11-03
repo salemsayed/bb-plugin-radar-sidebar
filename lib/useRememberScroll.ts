@@ -21,6 +21,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     if (!enabled || !active || location.hash) return;
     const routeId = location.pathname.match(/\/threads\/([^/]+)/)?.[1];
     if (!routeId) return;
+    try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); if (marker?.threadId === routeId && Date.now() - marker.at < 5000) return; } catch {}
     try {
       const point = positionSchema.parse(JSON.parse(localStorage.getItem(`radar-scroll:${routeId}`) ?? "null"));
       if (point.atBottom) return;
@@ -44,6 +45,12 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     let pending = Promise.resolve();
     return rememberScroll(threadId, {
       cached: explicitLink ? null : cached,
+      anchorReady: () => {
+        if (!explicitLink && /^#msg=/.test(location.hash)) {
+          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
+      },
       loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` };
         try { sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash: `#msg=${seq}`, at: Date.now() })); } catch {} history.replaceState(history.state, "", `${location.pathname}#msg=${seq}`);
         window.dispatchEvent(new PopStateEvent("popstate")); },
