@@ -315,11 +315,10 @@ it returns the sidebar to BB's own list immediately.
 
 ```sh
 npm install
-npm test
 npm run typecheck
-bb plugin build
-bb plugin install path:$PWD --yes
-bb plugin dev                      # rebuild and reload on every save
+npm run build
+# Then prove it live with a failing-before/working-after reproduction and raw evidence.
+# Release from committed main with bb-deploy radar-sidebar.
 ```
 
 ```

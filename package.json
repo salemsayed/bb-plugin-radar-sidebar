@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Radar Sidebar",
-    "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB’s native navigation.",
+    "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB\u2019s native navigation.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
@@ -37,8 +37,6 @@
     "@radix-ui/react-popover": "^1.1.19",
     "@radix-ui/react-select": "^2.3.3",
     "@radix-ui/react-tooltip": "^1.2.12",
-    "@testing-library/dom": "^10.4.2",
-    "@testing-library/react": "^16.3.3",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
@@ -48,21 +46,17 @@
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
-    "jsdom": "^29.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.4.0",
     "typescript": "^5.7.0",
-    "vaul": "^1.1.2",
-    "vitest": "^4.1.11"
+    "vaul": "^1.1.2"
   },
   "scripts": {
     "build": "bb plugin build",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
-  "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB’s native navigation."
+  "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB\u2019s native navigation."
 }
