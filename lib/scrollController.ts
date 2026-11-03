@@ -13,7 +13,7 @@ export function chatScroller(threadId: string): HTMLElement | null {
 }
 export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; deferUntilVisible?: boolean; cancelAnchor?: () => void; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
   const trace = (event: string, data: unknown = null) => {
-    if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), hash: location.hash } }));
+    if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), wallTime: performance.timeOrigin + performance.now(), hash: location.hash } }));
   };
   trace("begin", store.cached);
   trace("mode", { cold: store.deferUntilVisible === true });
@@ -95,7 +95,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         return true;
       });
       if (!visible) { if (performance.now() - started > 10000) { failed = true; finish(); } return; }
-      visibleAt ??= performance.now();
+      if (visibleAt === null) { visibleAt = performance.now(); trace("native-visible"); }
       if (performance.now() - visibleAt < 40) return;
     }
     if (position && !position.atBottom) {
@@ -109,6 +109,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         if (!releasedRoute) { releasedRoute = true; store.anchorReady?.(); }
       } else if (!requestedAnchor && store.loadAnchor) {
         requestedAnchor = true;
+        trace("load-anchor", position.messageSeq);
         store.loadAnchor(position.messageSeq);
       }
     }
