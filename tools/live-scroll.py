@@ -7,7 +7,6 @@ import base64
 import os
 import subprocess
 import time
-import statistics
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -70,7 +69,7 @@ if(matrixResult){
                         transfer = """
 const p=await browser.getPage(__PAGE__);
 const paths=await p.evaluate(async config=>{
-  const frames=JSON.parse(sessionStorage.getItem('radar-matrix-images')||'[]');
+  const frames=window.__radarMatrixImages||[];
   const paths=[];
   for(let start=0;start<frames.length;start+=4){
     await Promise.all(frames.slice(start,start+4).map(async(data,j)=>{
@@ -85,11 +84,12 @@ const paths=await p.evaluate(async config=>{
   }
   return paths;
 },__CONFIG__);
-console.log(JSON.stringify({paths}));
+console.log(JSON.stringify({count:paths.length}));
 """.replace('__PAGE__',json.dumps(page_name)).replace('__CONFIG__',json.dumps(dict(root=str(out),label=label)))
-                        output=cli('own-chrome','run','--script',transfer)
+                        output=cli('own-chrome','run','--timeout','90s','--script',transfer)
                         (out/(label+'-transfer.log')).write_text(output)
-                        local_images=next(json.loads(l)['paths'] for l in output.splitlines() if l.startswith('{"paths":'))
+                        count=next(json.loads(l)['count'] for l in output.splitlines() if l.startswith('{"count":'))
+                        local_images=[str(out/(label+'-cast-'+str(index)+'.jpg')) for index in range(count)]
                     value['result']['frameImages'] = local_images
                 return value['result']
         except ValueError:

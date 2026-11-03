@@ -70,7 +70,7 @@ async function measure(action, expected, t = thread) {
   const images = [];
   const started = Date.now();
   cdp.on('Page.screencastFrame', frame => {
-    if (images.length < 40 && (images.length === 0 || Date.now() - images[images.length - 1].at >= (images.length < 20 ? 100 : 500))) images.push({ at: Date.now(), data: frame.data, metadata: frame.metadata });
+    if (images.length < 1500 && (images.length === 0 || Date.now() - started < 6000 || Date.now() - images[images.length - 1].at >= 100)) images.push({ at: Date.now(), data: frame.data, metadata: frame.metadata });
     void cdp.send('Page.screencastFrameAck', { sessionId: frame.sessionId });
   });
   await cdp.send('Page.enable');
@@ -88,7 +88,8 @@ async function measure(action, expected, t = thread) {
   await pause(9000);
   await cdp.send('Page.stopScreencast');
   await cdp.detach();
-  await p.evaluate(data => sessionStorage.setItem('radar-matrix-images', JSON.stringify(data)), images.map(x => x.data));
-  const imageInfo = images.map((x, i) => ({ index: i, ms: x.metadata.timestamp * 1000 - triggerAt, receivedMs: x.at-started, deviceWidth: x.metadata.deviceWidth, deviceHeight: x.metadata.deviceHeight, length: x.data.length }));
+  await p.evaluate(() => { window.__radarMatrixImages = []; });
+  for (let start = 0; start < images.length; start += 40) await p.evaluate(data => window.__radarMatrixImages.push(...data), images.slice(start, start + 40).map(x => x.data));
+  const imageInfo = images.map((x, i) => ({ index: i, ms: Math.round(x.metadata.timestamp * 1000 - triggerAt), deviceWidth: x.metadata.deviceWidth, deviceHeight: x.metadata.deviceHeight }));
   return { diagnostics: await p.evaluate(() => ({ navigation: performance.getEntriesByType('navigation').map(e => ({ startTime:e.startTime,requestStart:e.requestStart,responseStart:e.responseStart,responseEnd:e.responseEnd,domContentLoadedEventEnd:e.domContentLoadedEventEnd })), resources: performance.getEntriesByType('resource').filter(e => /timeline|plugin-app-assets/.test(e.name)).map(e => ({ path:new URL(e.name).pathname,startTime:e.startTime,responseEnd:e.responseEnd,duration:e.duration })) })), action, expected, triggerAt, imageInfo, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => { window.__radarScrollDebug = false; return window.scrollTrace || []; }) };
 }
