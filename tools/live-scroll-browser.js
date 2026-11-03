@@ -42,7 +42,7 @@ function startFrames(t, expected) {
     const a = aa.find(e => Number(e.dataset.notificationMessage) === expected.seq);
     const painted = !!b && getComputedStyle(b).visibility === 'visible' && aa.some(e => e.getBoundingClientRect().bottom > b.getBoundingClientRect().top && e.getBoundingClientRect().top < b.getBoundingClientRect().bottom);
     window.matrixFrames.push({ ms: performance.now() - window.matrixStart, painted, hidden: !!b && getComputedStyle(b).visibility === 'hidden', offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null });
-    if (performance.now() - window.matrixStart < 3500) requestAnimationFrame(sample);
+    if (performance.now() - window.matrixStart < 10000) requestAnimationFrame(sample);
   }
   requestAnimationFrame(sample);
 }
@@ -63,6 +63,6 @@ async function measure(action, expected, t = thread) {
     remoteFrameImages.push(path);
     await pause(100);
   }
-  await pause(2800);
+  await pause(8000);
   return { expected, remoteFrameImages, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => window.scrollTrace || []) };
 }

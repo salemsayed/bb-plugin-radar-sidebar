@@ -45,12 +45,6 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     let pending = Promise.resolve();
     return rememberScroll(threadId, {
       cached: explicitLink ? null : cached,
-      anchorReady: () => {
-        if (!explicitLink && /^#msg=/.test(location.hash)) {
-          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-          window.dispatchEvent(new PopStateEvent("popstate"));
-        }
-      },
       loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` };
         try { sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash: `#msg=${seq}`, at: Date.now() })); } catch {} history.replaceState(history.state, "", `${location.pathname}#msg=${seq}`);
         window.dispatchEvent(new PopStateEvent("popstate")); },

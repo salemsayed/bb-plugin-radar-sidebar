@@ -103,16 +103,14 @@ try:
             off, on = first(timings['False'][action]), first(timings['True'][action])
             data = timings['True'][action]
             wrong = [f for f in data['frames'] if f['painted'] and f['bottomGap'] is not None and f['bottomGap']<=24 and data['expected']['bottomGap']>40]
-            comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,wrongFrames=len(wrong))
-        row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['wrongFrames'] for d in comparisons.values()))
+            shifted = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
+            settling = max((f['ms'] for f in shifted), default=on or 0)-(on or 0)
+            comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted))
+        row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['bottomFlashFrames'] and d['settlingMs']<=150 for d in comparisons.values()))
         setting(False)
         off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames}}));')
         row(width, 8, off, off['cache']==off['after'] and off['bottomGap'] is not None and off['bottomGap']<=24)
         setting(True)
-        if any(r['status']=='fail' for r in rows):
-            rows.append(dict(width=width,scenario=9,status='skip',reason='Natural observation deferred until automated checks pass'))
-            save()
-            continue
         natural = run(width+'-natural-before', 'console.log(JSON.stringify({result:await middle("thr_exqyeqrqpy")}));')
         started = time.monotonic()
         initial = cli('thread','log','thr_exqyeqrqpy','--format','minimal','--limit','1')
