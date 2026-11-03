@@ -26,6 +26,27 @@ export function splitStatus(status: string): { state: string; meta: string; note
   return { state, meta: meta.join(" · "), note: note.join(" · ") };
 }
 
+export function youWords(text: string): string {
+  const out = text.replace(/\bSalem's\b/g, "your").replace(/\bSalem\b/g, "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
+  return out ? out[0]!.toUpperCase() + out.slice(1) : out;
+}
+
+const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+
+export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number): string {
+  const who = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
+  const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
+  const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
+  const excerpt = ask.excerpt.replace(/\s+/g, " ").trim();
+  return excerpt ? `${who} ${when}: \u201c${excerpt}\u201d` : `${who} ${when}`;
+}
+
+const CARD_RANK: Record<string, number> = { needs: 0, overdue: 1, offline: 1, retrying: 1, working: 2, queued: 3, checking: 3 };
+export function cardOrder<T extends { displayState: string }>(tasks: T[]): T[] {
+  return tasks.map((task, i) => ({ task, i })).sort((a, b) => (CARD_RANK[a.task.displayState] ?? 4) - (CARD_RANK[b.task.displayState] ?? 4) || a.i - b.i).map(x => x.task);
+}
+
 export type StateTone = "needs" | "blocked" | "busy" | "quiet" | "done" | "ended";
 
 export function stateTone(state: string): StateTone {

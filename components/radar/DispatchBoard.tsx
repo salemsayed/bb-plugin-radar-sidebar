@@ -4,7 +4,7 @@ import { isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL
 import { BotTaskFace, openMenuAt, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle, shortBotName } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { plainNote, splitStatus, stateTone, taskHeadline } from "./workText";
+import { askLine, cardOrder, plainNote, stateTone, taskHeadline, youWords } from "./workText";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers } from "./useDispatchWorkers";
 import type { BotTasksState } from "./useBotTasks";
@@ -45,6 +45,38 @@ export function taskStatus(task: BotTaskRow, now: number): string {
   const parts = detail ? detail.split(" · ") : [];
   const label = /^(Cancelled|Stopped)\b/.test(parts[0] ?? "") ? parts.shift()! : STATE_LABEL[task.displayState];
   return [label, task.completedAt !== undefined ? dayAndTime(task.completedAt, now) : "", ...parts].filter(Boolean).join(" · ");
+}
+const CHECKING = /not checked|checks needed|check failed|hasn't (?:checked|closed|finished)|evidence needs review|owner review/i;
+export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): string {
+  const state = task.displayState;
+  if (state === "needs") {
+    const ask = youWords(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, "");
+    return ask ? `Waiting on you: ${ask}` : "Waiting on you";
+  }
+  if (state === "working" || state === "retrying" && running.length) {
+    const first = [...running].sort((a, b) => (a.startedAt ?? now) - (b.startedAt ?? now))[0];
+    if (!first) return "Bot working";
+    const who = first.model ? dispatchModel(first.model) : "Worker";
+    return [`${who} working`, first.startedAt != null ? elapsed(first.startedAt, now) : "", running.length > 1 ? `+${running.length - 1} more` : ""].filter(Boolean).join(" · ");
+  }
+  if (isClosed(state)) return taskStatus(task, now).split(" · ").slice(0, 2).join(" · ");
+  if (state === "waiting" && task.wakeAt !== undefined) {
+    const when = checksLine(task.wakeAt, now);
+    const line = when.startsWith("checks ") ? `Checks ${when.slice(7)}` : `Check ${when}`;
+    return task.waitFor === "someone else" ? `Waiting on others · ${line.toLowerCase()}` : line;
+  }
+  const line = task.line;
+  if (/^Its machine is off/.test(line)) return "Machine off · resumes when it is back";
+  if (/^Queued/.test(line)) return task.retryAt ? `Queued · retry ${clockFormatter.format(new Date(task.retryAt))}` : "Queued";
+  if (/^Retrying/.test(line)) return "Retrying after an error";
+  if (/^Wake was due/.test(line) || state === "overdue") return "Check overdue";
+  if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
+  if (/^With the bot/.test(line)) return "With the bot";
+  if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
+  if (task.waitFor === "someone else") return "Waiting on others · no date";
+  if (state === "offline") return "Machine off";
+  if (state === "queued") return "Queued";
+  return "Waiting · no date";
 }
 export function attemptStatus(attempt: Attempt, now: number): string {
   if (attempt.state === "running") return attempt.startedAt != null ? `running ${elapsed(attempt.startedAt, now)}` : "running";
@@ -160,51 +192,48 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const bot = data.bots.find(b => b.key === sheet);
   const blockedCount = data.bots.filter(b => b.tasks.some(t => BLOCKED.includes(t.displayState))).length;
   const tally = blockedCount ? `${blockedCount} blocked` : "";
-  const tasks = bot?.tasks.filter(t => !isClosed(t.displayState)) ?? [];
+  const tasks = cardOrder(bot?.tasks.filter(t => !isClosed(t.displayState)) ?? []);
   const recent = bot?.tasks.filter(t => isClosed(t.displayState)).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)) ?? [];
   const workerCount = bot && snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null;
   const drag = useRef<number | null>(null);
+  const [openAsks, setOpenAsks] = useState<ReadonlySet<string>>(() => new Set());
   const workerName = (a: Attempt) => a.model ? `${dispatchModel(a.model)} worker` : "Worker";
   const workerLabel = (a: Attempt, status: string) => `Open worker ${a.title || a.threadId}: ${workerName(a)}${status ? `, ${status}` : ""}`;
   const taskRow = (task: BotTaskRow) => {
-    const status = taskStatus(task, now);
-    const { state, meta, note } = splitStatus(status);
-    const tone = /^(Cancelled|Stopped)\b/.test(state) ? "ended" : stateTone(task.displayState);
-    const headline = taskHeadline(task.title);
+    const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : stateTone(task.displayState);
+    const name = taskHeadline(task.title);
     const attempts = snapshot.byTask[task.id] ?? [];
-    const running = attempts.filter(a => a.state === "running");
-    const resting = attempts.filter(a => a.state !== "running");
-    const restingSummary = Object.entries(resting.reduce<Record<string, number>>((n, a) => ({ ...n, [a.state === "unknown" ? "other" : a.state]: (n[a.state === "unknown" ? "other" : a.state] ?? 0) + 1 }), {})).map(([word, n]) => `${n} ${word}`).join(" · ");
-    const clipped = headline !== task.title.trim().replace(/\s+/g, " ");
-    const shortNote = note ? plainNote(note) : "";
-    return <article key={task.id} className="dispatch-task-group" data-tone={tone}>
-      <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => navigate(task.conversationThreadId ?? bot!.coordinatorThreadId)}>
-        <span className="dispatch-status-line"><i aria-hidden="true" />{state}{meta ? ` · ${meta}` : ""}</span>
-        <b dir="auto">{headline}</b>
-        {task.ask ? <span className="dispatch-ask-source">{task.ask.label}</span> : null}
-        {task.outcome ? <span className="dispatch-ask-outcome" dir="auto">{task.outcome}</span> : null}
-        {shortNote ? <span className="dispatch-note" dir="auto">{shortNote}</span> : null}
-      </button>
-      <button type="button" className="dispatch-task-continue" onClick={() => {
-        window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot!.coordinatorThreadId, taskId: task.id, label: task.title.slice(0, 80) } }));
-        navigate(bot!.coordinatorThreadId);
-      }}>Continue</button>
-      {running.length ? <div className="dispatch-workers">{running.map(a => {
-        const s = attemptStatus(a, now);
-        return <button type="button" className="dispatch-attempt dispatch-worker-chip" key={a.threadId} onClick={() => navigate(a.threadId)} aria-label={workerLabel(a, s)}><i aria-hidden="true" /><span className="dispatch-worker-model">{a.model ? dispatchModel(a.model) : "Worker"}</span>{s ? ` · ${s}` : ""}</button>;
-      })}</div> : null}
-      {clipped || note || attempts.length ? <details className="dispatch-details">
-        <summary>Details{restingSummary ? <span> · {restingSummary}</span> : null}<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {clipped ? <p className="dispatch-full" dir="auto">{task.title}</p> : null}
-        {note ? <p className="dispatch-full-status" dir="auto">{status}</p> : null}
+    const running = attempts.filter(a => a.state === "running" && a.threadId !== bot!.coordinatorThreadId);
+    const status = cardStatus(task, running, now);
+    const reason = plainNote(youWords(task.needs?.question ?? task.line));
+    const ask = task.ask ? askLine(task.ask, now) : "";
+    const askOpen = openAsks.has(task.id);
+    const outcome = task.outcome && task.outcome !== task.title ? task.outcome : "";
+    const extra = reason && !status.includes(reason) ? reason : "";
+    return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone}>
+      <div className="dispatch-card-head">
+        <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => navigate(task.conversationThreadId ?? bot!.coordinatorThreadId)}>
+          <b dir="auto">{name}</b>
+          <span className="dispatch-status-line"><i aria-hidden="true" /><span dir="auto">{status}</span></span>
+        </button>
+        <button type="button" className="dispatch-task-continue" aria-label={`Continue ${name}`} title="Continue in the bot's chat" onClick={() => {
+          window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot!.coordinatorThreadId, taskId: task.id, label: name.slice(0, 80) } }));
+          navigate(bot!.coordinatorThreadId);
+        }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Continue</span></button>
+      </div>
+      {ask ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} onClick={() => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; })}>{ask}</button> : null}
+      {outcome || extra || attempts.length ? <details className="dispatch-details">
+        <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
+        {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span>{youWords(outcome)}</p> : null}
+        {extra ? <p className="dispatch-full-status" dir="auto">{extra}</p> : null}
         {attempts.length ? <ul className="dispatch-worker-list">{attempts.map(a => {
           const s = attemptStatus(a, now);
           return <li key={a.threadId}><button type="button" className="dispatch-attempt" onClick={() => navigate(a.threadId)} aria-label={`${workerLabel(a, s)} (${a.threadId})`}>
             <span className="dispatch-attempt-head"><i aria-hidden="true" data-running={a.state === "running" || undefined} /><span className="dispatch-worker-model">{workerName(a)}</span>{s ? ` · ${s}` : ""}</span>
             {a.title ? <span className="dispatch-attempt-title" dir="auto">{a.title}</span> : null}
-            <code>{a.threadId}</code>
           </button></li>;
         })}</ul> : null}
+        {task.ask ? <button type="button" className="dispatch-ask-open" onClick={() => navigate(task.ask!.ref.threadId)}>Open your ask in chat</button> : null}
       </details> : null}
     </article>;
   };
