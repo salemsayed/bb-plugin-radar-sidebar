@@ -120,6 +120,11 @@ def visible_frame_time(data):
     data['compositorFrames'] = checks
     return next((frame['ms'] for frame in checks if frame['content']), None)
 
+def reload_jump_count(data):
+    visible_frame_time(data)
+    correct = [frame.get('offset') is not None and abs(frame['offset']-data['expected']['offset'])<=8 for frame in data['compositorFrames'] if frame['content']]
+    return sum(value and (index == 0 or not correct[index-1]) for index, value in enumerate(correct))
+
 def later_blank_ms(data):
     seen = False
     started = None
@@ -202,15 +207,13 @@ try:
             wrong=[f for f in visible if f['offset'] is None or abs(f['offset']-before['offset'])>8]
             d['settlingMs']=max((f['ms'] for f in wrong),default=visible[0]['ms'] if visible else 0)-(visible[0]['ms'] if visible else 0)
             d['bottomFlashFrames']=sum(f['bottomGap'] is not None and f['bottomGap']<=24 for f in visible)
-            row(width,4,d,position_ok(d) and not d['bottomFlashFrames'] and d['settlingMs']<=150)
+            d['jumpCount']=reload_jump_count(d)
+            row(width,4,d,position_ok(d) and d['jumpCount']==1)
             continue
         if 4 in selected:
             before = run(width+'-reload-before', 'console.log(JSON.stringify({result:await middle()}));')
             data = run(width+'-reload', 'console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
-            visible_frame_time(data)
-            states=[f for f in data['compositorFrames'] if f['content']]
-            correct=[f.get('offset') is not None and abs(f['offset']-before['offset'])<=8 for f in states]
-            data['jumpCount']=sum(value and (i==0 or not correct[i-1]) for i,value in enumerate(correct))
+            data['jumpCount']=reload_jump_count(data)
             row(width, 4, data, position_ok(data) and data['jumpCount']==1)
         if 5 in selected:
             two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j",false);await route("/projects/proj_jfxygzbhcr/threads/"+thread);await p.waitForFunction((t,seq)=>document.querySelector(`[data-notification-thread="${t}"][data-notification-message="${seq}"]`),{timeout:9000},thread,a.seq);await pause(200);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await p.waitForFunction((t,seq)=>document.querySelector(`[data-notification-thread="${t}"][data-notification-message="${seq}"]`),{timeout:9000},"thr_wfhsqd493j",b.seq);await pause(200);const bb=await state("thr_wfhsqd493j",b.seq);const ev=await measure("none",b,"thr_wfhsqd493j");console.log(JSON.stringify({result:{a,b,aa,bb,...ev}}));')
