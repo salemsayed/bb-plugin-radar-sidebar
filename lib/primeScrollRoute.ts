@@ -7,6 +7,7 @@ export function primeScrollRoute() {
     if (marker?.hash === location.hash && location.pathname.endsWith(`/threads/${marker.threadId}`)) {
       history.replaceState(history.state, "", `${location.pathname}${location.search}`);
       sessionStorage.removeItem("radar-scroll-route");
+      window.dispatchEvent(new PopStateEvent("popstate"));
     }
   } catch {}
 }
