@@ -109,7 +109,7 @@ def visible_frame_time(data):
         height = max(1, round(min(bounds['height'] * 0.75, bounds['height'] - 120) * scale))
         fraction = float(subprocess.check_output(['magick', path, '-crop', f'{width}x{height}+{left}+{top}', '-colorspace', 'Gray', '-threshold', '62%', '-format', '%[fx:1-mean]', 'info:'], text=True))
         content = fraction * width * height >= 150
-        checks.append(dict(index=frame['index'], ms=elapsed, darkPixelFraction=fraction, content=content))
+        checks.append(dict(index=frame['index'], ms=elapsed, darkPixelFraction=fraction, content=content, offset=sample['offset'], bottomGap=sample['bottomGap']))
     data['compositorFrames'] = checks
     return next((frame['ms'] for frame in checks if frame['content']), None)
 
@@ -184,7 +184,11 @@ try:
         if 4 in selected:
             before = run(width+'-reload-before', 'console.log(JSON.stringify({result:await middle()}));')
             data = run(width+'-reload', 'console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
-            row(width, 4, data, position_ok(data))
+            visible_frame_time(data)
+            states=[f for f in data['compositorFrames'] if f['content']]
+            correct=[f.get('offset') is not None and abs(f['offset']-before['offset'])<=8 for f in states]
+            data['jumpCount']=sum(value and (i==0 or not correct[i-1]) for i,value in enumerate(correct))
+            row(width, 4, data, position_ok(data) and data['jumpCount']==1)
         if 5 in selected:
             two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/projects/proj_jfxygzbhcr/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);const ev=await measure("none",b,"thr_wfhsqd493j");console.log(JSON.stringify({result:{a,b,aa,bb,...ev}}));')
             row(width, 5, two, all(two[k+'a' if k=='a' else 'bb']['offset'] is not None for k in ['a','b']) and abs(two['a']['offset']-two['aa']['offset'])<=8 and abs(two['b']['offset']-two['bb']['offset'])<=8)
@@ -213,8 +217,10 @@ try:
                 shifted = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
                 first_dom = next((f['ms'] for f in data['frames'] if f['painted']), 0)
                 settling = max((f['ms'] for f in shifted), default=first_dom)-first_dom
-                comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
-            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['bottomFlashFrames'] and d['settlingMs']<=150 for d in comparisons.values()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
+                correct=[f.get('offset') is not None and abs(f['offset']-data['expected']['offset'])<=8 for f in data['compositorFrames'] if f['content']]
+                jumps=sum(value and (i==0 or not correct[i-1]) for i,value in enumerate(correct))
+                comparisons[action] = dict(jumpCount=jumps,landingErrorPx=None if data['final']['offset'] is None else abs(data['final']['offset']-data['expected']['offset']),offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
+            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and (d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
         if 8 in selected:
             setting(False)
             off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames,imageInfo:d.imageInfo}}));')

@@ -11,7 +11,7 @@ export function chatScroller(threadId: string): HTMLElement | null {
   }
   return null;
 }
-export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
+export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; deferUntilVisible?: boolean; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
   const trace = (event: string, data: unknown = null) => {
     if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), hash: location.hash } }));
   };
@@ -22,6 +22,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let resize: ResizeObserver | null = null;
   let previousBehavior = "";
   let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, matchedAt: number | null = null, releasedRoute = false;
+  let visibleAt: number | null = null;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
     if (container) { container.style.scrollBehavior = previousBehavior; }
@@ -79,6 +80,20 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (disposed || !restoring) return;
     bind();
     if (loaded && (!position || position.atBottom)) { finish(); return; }
+    if (store.deferUntilVisible && position && !position.atBottom && container) {
+      const bounds = container.getBoundingClientRect();
+      const visible = messageAnchors(threadId).some(anchor => {
+        for (let node: HTMLElement | null = anchor; node; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          if (style.visibility === "hidden" || style.display === "none" || style.opacity === "0") return false;
+        }
+        const rect = anchor.getBoundingClientRect();
+        return rect.bottom > bounds.top && rect.top < bounds.bottom;
+      });
+      if (!visible) { if (performance.now() - started > 10000) { failed = true; finish(); } return; }
+      visibleAt ??= performance.now();
+      if (performance.now() - visibleAt < 40) return;
+    }
     if (position && !position.atBottom) {
       const anchor = messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === position!.messageSeq && container?.contains(e));
       if (anchor && container) {

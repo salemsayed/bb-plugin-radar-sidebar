@@ -135,3 +135,26 @@ it("continues through the native initial scroll when an older anchor arrives lat
   await vi.advanceTimersByTimeAsync(32);
   expect(box.scrollTop).toBe(530);
 });
+
+it("cold reload leaves the native view visible before requesting older pages", async () => {
+  anchor.dataset.notificationMessage = "99";
+  vi.mocked(anchor.getBoundingClientRect).mockImplementation(() => ({ top: 200, bottom: 400, height: 200 }) as DOMRect);
+  const loadAnchor = vi.fn();
+  stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn(), deferUntilVisible: true, loadAnchor }, () => true);
+  expect(box.scrollTop).toBe(1600);
+  expect(box.style.visibility).toBe("");
+  expect(loadAnchor).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(32);
+  expect(loadAnchor).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(32);
+  expect(loadAnchor).toHaveBeenCalledExactlyOnceWith(42);
+  expect(box.scrollTop).toBe(1600);
+});
+it("user input during the cold native-view interval cancels the later jump", async () => {
+  const loadAnchor = vi.fn();
+  stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn(), deferUntilVisible: true, loadAnchor }, () => true);
+  box.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(loadAnchor).not.toHaveBeenCalled();
+  expect(box.scrollTop).toBe(1600);
+});
