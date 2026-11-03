@@ -99,3 +99,18 @@ it("does not replace the last reading place with teardown geometry", async () =>
   stop!(); stop = undefined;
   expect(save.mock.calls.length).toBe(calls);
 });
+it("corrects layout reflow before the next animation frame", async () => {
+  let reflow: (() => void) | undefined;
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { reflow = callback; }
+    observe() {}
+    disconnect() {}
+  });
+  fixture();
+  await vi.advanceTimersByTimeAsync(30);
+  vi.mocked(anchor.getBoundingClientRect).mockImplementation(() => ({ top: 650-box.scrollTop, bottom: 850-box.scrollTop, height: 200 }) as DOMRect);
+  expect(reflow).toBeTypeOf("function");
+  reflow!();
+  expect(box.scrollTop).toBe(630);
+  vi.unstubAllGlobals();
+});

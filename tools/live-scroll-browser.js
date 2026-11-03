@@ -12,7 +12,7 @@ async function state(t = thread, seq = null) {
     let b;
     for (let e = aa[0]?.parentElement; e && e !== document.body; e = e.parentElement) if (/^(auto|scroll)$/.test(getComputedStyle(e).overflowY) && e.clientHeight > 0) { b = e; break; }
     const a = seq ? aa.find(e => Number(e.dataset.notificationMessage) === seq) : aa.find(e => e.getBoundingClientRect().bottom > b?.getBoundingClientRect().top && e.getBoundingClientRect().top < b?.getBoundingClientRect().bottom);
-    return { active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
+    return { active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b && targetVisible ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
   }, t, seq);
 }
 async function middle(t = thread) {
@@ -43,16 +43,22 @@ function startFrames(t, expected) {
     let b;
     for (let e = aa[0]?.parentElement; e && e !== document.body; e = e.parentElement) if (/^(auto|scroll)$/.test(getComputedStyle(e).overflowY) && e.clientHeight > 0) { b = e; break; }
     const a = aa.find(e => Number(e.dataset.notificationMessage) === expected.seq);
-    const painted = !!b && getComputedStyle(b).visibility === 'visible' && aa.some(e => {
-      const r=e.getBoundingClientRect(), box=b.getBoundingClientRect();
-      const top=Math.max(r.top,box.top,0), bottom=Math.min(r.bottom,box.bottom,innerHeight);
-      const left=Math.max(r.left,box.left,0), right=Math.min(r.right,box.right,innerWidth);
-      if(bottom-top<4 || right-left<10)return false;
-      for(let node=e;node;node=node.parentElement){const style=getComputedStyle(node);if(style.display==='none'||style.visibility!=='visible'||Number(style.opacity)===0)return false;}
-      const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);
-      return !!hit && e.contains(hit);
-    });
-    window.matrixFrames.push({ ms: performance.now() - window.matrixStart, painted, hidden: !!b && getComputedStyle(b).visibility === 'hidden', offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null });
+    let painted=false;
+    if (b) {
+      const bounds=b.getBoundingClientRect();
+      for(const fraction of [0.05,0.25,0.5,0.75,0.95]) {
+        const hit=document.elementFromPoint((bounds.left+bounds.right)/2,bounds.top+bounds.height*fraction);
+        const message=hit?.closest('[data-notification-thread][data-notification-message]');
+        if(message?.dataset.notificationThread!==t)continue;
+        let visible=true;
+        for(let node=message;node;node=node.parentElement){const style=getComputedStyle(node);if(style.display==='none'||style.visibility!=='visible'||Number(style.opacity)===0){visible=false;break;}}
+        if(visible){painted=true;break;}
+      }
+    }
+    const targetRow=a?.closest('[data-timeline-row-id]')??a;
+    const targetBounds=targetRow?.getBoundingClientRect();
+    const targetVisible=!!b&&!!targetBounds&&targetBounds.bottom>b.getBoundingClientRect().top&&targetBounds.top<b.getBoundingClientRect().bottom;
+    window.matrixFrames.push({ ms: performance.now() - window.matrixStart, painted, hidden: !!b && getComputedStyle(b).visibility === 'hidden', offset: a && b && targetVisible ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null });
     if (performance.now() - window.matrixStart < 10000) requestAnimationFrame(sample);
   }
   requestAnimationFrame(sample);

@@ -19,6 +19,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let disposed = false, restoring = true, loaded = store.cached != null, interacted = false, failed = false;
   let position = store.cached ?? null;
   let container: HTMLElement | null = null;
+  let resize: ResizeObserver | null = null;
   let previousBehavior = "";
   let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, releasedRoute = false;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -26,14 +27,21 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (container) { container.style.scrollBehavior = previousBehavior; }
   };
   const bind = () => {
+    if (container?.isConnected) return;
     const found = chatScroller(threadId);
     if (found !== container) {
       reveal();
+      resize?.disconnect();
       container?.removeEventListener("scroll", onScroll);
       container = found;
       if (container) {
         previousBehavior = container.style.scrollBehavior;
         container.addEventListener("scroll", onScroll, { passive: true });
+        if (typeof ResizeObserver !== "undefined") {
+          resize = new ResizeObserver(() => apply());
+          resize.observe(container);
+          if (container.firstElementChild) resize.observe(container.firstElementChild);
+        }
       }
     }
   };
@@ -42,7 +50,12 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     bind();
     if (!container?.isConnected) return;
     const rect = container.getBoundingClientRect();
-    const next = capturePosition(container.scrollTop, container.clientHeight, container.scrollHeight, rect.top + container.clientTop, messageAnchors(threadId).filter(e => container!.contains(e)).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
+    const next = capturePosition(container.scrollTop, container.clientHeight, container.scrollHeight, rect.top + container.clientTop, messageAnchors(threadId).filter(e => {
+      if (!container!.contains(e)) return false;
+      const row = e.closest<HTMLElement>("[data-timeline-row-id]") ?? e;
+      const bounds = row.getBoundingClientRect();
+      return bounds.bottom > rect.top && bounds.top < rect.bottom;
+    }).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!next || JSON.stringify(next) === lastSaved) return;
     lastSaved = JSON.stringify(next);
     trace("capture", next);
@@ -99,6 +112,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     trace("dispose");
     disposed = true;
     observer.disconnect();
+    resize?.disconnect();
     cancelAnimationFrame(frame);
     clearInterval(timer);
     clearTimeout(saveTimer);
