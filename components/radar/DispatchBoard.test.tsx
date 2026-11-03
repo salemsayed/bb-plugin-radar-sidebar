@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { BotsView, LONG_PRESS_MS } from "./BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
 import { makeBot, makeOutput, makeTask, BOT_SEEDS } from "./botTasksFixtures";
@@ -439,4 +439,16 @@ it("does not cue a coordinator status that arrives with the first snapshot, but 
 it("names workers and tasks in the bot panel header", () => {
   const d = homeWith(makeTask("home", "iOS location tracking", "working", { id: "ios" }));
   expect(panelSummary(d.bots[1].tasks, 2, 0)).toBe("2 workers · 1 task");
+});
+
+it("leads phone task rows with the ask and keeps its source and outcome smaller", () => {
+  const d = data();
+  d.bots[1].tasks[0] = { ...d.bots[1].tasks[0], title: "help me remember the task i gave", ask: { excerpt: "help me remember the task i gave", label: "You asked, 3 Nov 12:00", ref: { threadId: "owner", seq: 4 } }, outcome: "Make tasks recognizable and easy to resume" };
+  render(<BotsView {...props(d)} />);
+  fireEvent.click(screen.getByRole("button", { name: "Show Bricks's work" }));
+  const dialog = screen.getByRole("dialog");
+  if (process.env.BB_THREAD_STORAGE) writeFileSync(`${process.env.BB_THREAD_STORAGE}/screens/rows-render.html`, `<style>${readFileSync("styles/bots.css", "utf8")}${readFileSync("styles/dispatch.css", "utf8")}</style>${document.body.innerHTML}`);
+  expect(within(dialog).getByText("You asked, 3 Nov 12:00").className).toBe("dispatch-ask-source");
+  expect(within(dialog).getByText("Make tasks recognizable and easy to resume").className).toBe("dispatch-ask-outcome");
+  if (process.env.BB_THREAD_STORAGE) writeFileSync(`${process.env.BB_THREAD_STORAGE}/screens/rows.html`, `<style>${readFileSync("styles/bots.css", "utf8")}${readFileSync("styles/dispatch.css", "utf8")}</style>${document.body.innerHTML}`);
 });

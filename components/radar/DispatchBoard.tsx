@@ -181,6 +181,8 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
       <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => navigate(task.conversationThreadId ?? bot!.coordinatorThreadId)}>
         <span className="dispatch-status-line"><i aria-hidden="true" />{state}{meta ? ` · ${meta}` : ""}</span>
         <b dir="auto">{headline}</b>
+        {task.ask ? <span className="dispatch-ask-source">{task.ask.label}</span> : null}
+        {task.outcome ? <span className="dispatch-ask-outcome" dir="auto">{task.outcome}</span> : null}
         {shortNote ? <span className="dispatch-note" dir="auto">{shortNote}</span> : null}
       </button>
       {running.length ? <div className="dispatch-workers">{running.map(a => {

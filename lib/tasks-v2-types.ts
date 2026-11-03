@@ -1,6 +1,7 @@
 export type DisplayState = "needs" | "working" | "queued" | "offline" | "retrying" | "waiting" | "overdue" | "checking" | "ready" | "stopped" | "done" | "cancelled";
 export type MessageKind = "decision" | "question" | "info" | "steer" | "new-task" | "chat";
 export interface TaskRow {
+  ask?: { excerpt: string; label: string; ref: { threadId: string; seq: number }; at?: number }; outcome?: string;
   id: string; bot: string; title: string; displayState: DisplayState; line: string;
   waitFor?: string; ageMs: number; completedAt?: number; conversationThreadId: string | null;
   /** Timestamps behind the line's times (a wake, a queued start's retry), for clients that format them locally. */

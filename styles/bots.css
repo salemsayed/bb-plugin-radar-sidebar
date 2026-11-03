@@ -209,3 +209,6 @@
   color: var(--muted-foreground);
   white-space: normal;
 }
+
+.dispatch-ask-source { font-size: 11px; color: var(--muted-foreground); }
+.dispatch-ask-outcome { font-size: 12px; font-weight: 400; color: var(--muted-foreground); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
