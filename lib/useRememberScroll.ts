@@ -34,9 +34,8 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       return;
     }
     if (!active || location.hash) return;
-    if (coldThread.current === threadId) return;
     const routeId = location.pathname.match(/\/threads\/([^/]+)/)?.[1];
-    if (!routeId) return;
+    if (!routeId || coldThread.current === routeId) return;
     try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); if (marker?.threadId === routeId && Date.now() - marker.at < 5000) return; } catch {}
     try {
       const point = positionSchema.parse(JSON.parse(localStorage.getItem(`radar-scroll:${routeId}`) ?? "null"));

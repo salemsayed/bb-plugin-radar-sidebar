@@ -4,6 +4,7 @@ import { ThreadPresence } from "./ThreadPresence";
 
 const host = vi.hoisted(() => ({
   enabled: true,
+  threadId: "one" as string | null,
   navigate: { openUrl: vi.fn() },
   rpc: { call: vi.fn() },
   sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }), events: { list: vi.fn().mockResolvedValue([]) } } },
@@ -11,7 +12,7 @@ const host = vi.hoisted(() => ({
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   useSettings: () => ({ values: { rememberScroll: host.enabled } }),
   useBbNavigate: () => host.navigate,
-  useBbContext: () => ({ threadId: "one" }),
+  useBbContext: () => ({ threadId: host.threadId }),
   useSidebarSplitLayout: () => null,
   experimental_useSidebarThreads: () => ({ threads: [] }),
   useRpc: () => host.rpc,
@@ -22,7 +23,9 @@ let box: HTMLDivElement;
 beforeEach(() => {
   vi.useFakeTimers();
   host.enabled = true;
+  host.threadId = "one";
   localStorage.clear();
+  sessionStorage.clear();
   host.rpc.call.mockReset().mockImplementation(async (method: string) => method === "scroll_get" ? { atBottom: false, messageSeq: 42, offset: -30 } : method === "presence_read_point" ? { messageSeq: null } : { ok: true });
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
@@ -108,4 +111,12 @@ it("preserves the owned route while settings are still loading", () => {
   render(<ThreadPresence />);
   expect(location.hash).toBe("#msg=42");
   expect(localStorage.getItem("radar-scroll-enabled")).toBe("true");
+});
+
+it("primes an ordinary return before the host thread context is ready", () => {
+  host.threadId = null;
+  history.replaceState(null, "", "/threads/one");
+  localStorage.setItem("radar-scroll:one", JSON.stringify({ atBottom: false, messageSeq: 42, offset: -30 }));
+  render(<ThreadPresence />);
+  expect(location.hash).toBe("#msg=42");
 });
