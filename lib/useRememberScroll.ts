@@ -17,6 +17,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
   const { values } = useSettings();
   const enabled = values?.rememberScroll !== false;
   useLayoutEffect(() => {
+    try { localStorage.setItem("radar-scroll-enabled", String(enabled)); } catch {}
     if (!enabled || !active || location.hash) return;
     const routeId = location.pathname.match(/\/threads\/([^/]+)/)?.[1];
     if (!routeId) return;

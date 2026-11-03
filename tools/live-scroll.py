@@ -23,7 +23,7 @@ def cli(*cmd):
 
 def run(label, body):
     script = out / (label + '.js')
-    script.write_text(helper + '\n' + body)
+    script.write_text(helper + '\n' + body + '\nawait p.shot();')
     proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     raw = proc.stdout
     if proc.returncode:
@@ -36,6 +36,8 @@ def run(label, body):
         try:
             value = json.loads(line)
             if isinstance(value, dict) and 'result' in value:
+                if isinstance(value['result'], dict):
+                    value['result']['frameImages'] = [str(out / f'{label}-{n}.jpg') for n, _ in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M))]
                 return value['result']
         except ValueError:
             pass
@@ -100,8 +102,8 @@ try:
             comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,wrongFrames=len(wrong))
         row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['wrongFrames'] for d in comparisons.values()))
         setting(False)
-        off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;await away();await measure("return",a);console.log(JSON.stringify({result:{cache,after:(await state()).cache}}));')
-        row(width, 8, off, off['cache']==off['after'])
+        off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames}}));')
+        row(width, 8, off, off['cache']==off['after'] and off['bottomGap'] is not None and off['bottomGap']<=24)
         setting(True)
         if any(r['status']=='fail' for r in rows):
             rows.append(dict(width=width,scenario=9,status='skip',reason='Natural observation deferred until automated checks pass'))

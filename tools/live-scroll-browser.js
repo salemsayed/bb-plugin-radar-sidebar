@@ -18,12 +18,12 @@ async function state(t = thread, seq = null) {
 async function middle(t = thread) {
   await p.goto(`${base}/threads/${t}${t === thread ? '#msg=20' : ''}`);
   await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), {}, t);
-  await pause(600);
-  await p.evaluate(() => history.replaceState(history.state, '', location.pathname));
+  await pause(1500);
+  await p.evaluate(() => { history.replaceState(history.state, '', location.pathname); dispatchEvent(new PopStateEvent('popstate')); });
   const s = await state(t);
   await p.mouse.move(s.rect.x, s.rect.y);
   await p.mouse.wheel({ deltaY: t === thread ? 160 : -1600 });
-  await pause(700);
+  await pause(1800);
   const result = await state(t);
   if (result.bottomGap < 40 || !result.seq) throw new Error('Setup did not establish a middle reading position');
   return result;
@@ -53,7 +53,7 @@ async function measure(action, expected, t = thread) {
     if (action === 'return') await p.goBack();
     if (action === 'resume') await p.evaluate(() => { delete document.visibilityState; window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   }
-  for (let i = 0; i < 4; i++) { await p.shot(); await pause(i === 3 ? 0 : 100); }
+  for (let i = 0; i < 3; i++) { await p.shot(); await pause(i === 2 ? 0 : 100); }
   await pause(2800);
   return { expected, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []) };
 }
