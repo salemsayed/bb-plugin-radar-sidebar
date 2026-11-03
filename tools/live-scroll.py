@@ -286,13 +286,15 @@ try:
             for sample in trials['True']['reload']:
                 native = next((e['wallTime'] for e in sample['trace'] if e['event']=='native-visible'), None)
                 operation = next((e['wallTime'] for e in sample['trace'] if e['event'] in ['load-anchor','adjust']), None)
+                first_adjust = next((e['wallTime'] for e in sample['trace'] if e['event']=='adjust'), None)
                 first_dom = next((f['wallTime'] for f in sample['frames'] if f['painted']), None)
                 jumps = reload_jump_count(sample)
                 error = None if sample['final']['offset'] is None else abs(sample['final']['offset']-sample['expected']['offset'])
                 first_landing = next((f['offset'] for f in sample['compositorFrames'] if f['content'] and f.get('offset') is not None), None)
                 first_landing_error = None if first_landing is None else abs(first_landing-sample['expected']['offset'])
-                ordering = native is not None and operation is not None and first_dom is not None and operation-native>=35 and first_dom<=operation and sample['firstCompositorMs'] is not None and sample['triggerAt']+sample['firstCompositorMs']<=operation+120
-                reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,requestAfterNativeView=ordering,firstLandingErrorPx=first_landing_error,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
+                first_pixel = None if sample['firstCompositorMs'] is None else sample['triggerAt']+sample['firstCompositorMs']
+                ordering = native is not None and operation is not None and first_adjust is not None and first_dom is not None and operation-native>=35 and first_dom<=first_adjust and first_pixel is not None and first_pixel<=min(first_adjust,operation+120)
+                reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,firstAdjustWallTime=first_adjust,domSampleBeforeRequest=first_dom is not None and operation is not None and first_dom<=operation,requestAfterNativeView=ordering,firstLandingErrorPx=first_landing_error,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
             comparisons['reload']['samplesOffMs'] = [d['firstCompositorMs'] for d in trials['False']['reload']]
             comparisons['reload']['samplesOnMs'] = [d['firstCompositorMs'] for d in trials['True']['reload']]
             comparisons['reload']['sampling'] = f'Median of {args.reload_trials} interleaved end-to-end reloads per mode; every enabled reload must satisfy ordering, one jump, landing and later-blank requirements.'
