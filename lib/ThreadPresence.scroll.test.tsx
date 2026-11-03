@@ -85,3 +85,11 @@ it("requests older messages through the host router when the saved anchor is not
   expect(route).toHaveBeenCalled();
   window.removeEventListener("popstate", route);
 });
+it("clears its owned message route when the saved place is at bottom", async () => {
+  history.replaceState(null, "", "/threads/one#msg=42");
+  sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId: "one", hash: "#msg=42", at: Date.now() }));
+  localStorage.setItem("radar-scroll:one", JSON.stringify({ atBottom: true, messageSeq: null, offset: 0 }));
+  render(<ThreadPresence />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+  expect(location.hash).toBe("");
+});

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import gzip
+import base64
 import os
-import re
-import shutil
-import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -12,43 +11,63 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True)
 parser.add_argument('--natural-wait', type=int, default=600)
+parser.add_argument('--preflight', action='store_true')
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 helper = Path(__file__).with_name('live-scroll-browser.js').read_text()
 rows = []
-results = {'rows': rows, 'postPolicy': 'Each width is one round with at most three LONG posts, one each for return, bottom and background.', 'limitations': ['Phone is real Chrome mobile emulation, not native iOS. Background uses the visibility/focus event route.']}
+results = {'mode': 'preflight' if args.preflight else 'full', 'rows': rows, 'postPolicy': 'Each width is one round with at most three LONG posts, one each for return, bottom and background.', 'limitations': ['Phone is real Chrome mobile emulation, not native iOS. Background uses the visibility/focus event route.']}
 
 def cli(*cmd):
     return subprocess.check_output(['bb', *cmd], text=True)
 
 def run(label, body):
     script = out / (label + '.js')
-    script.write_text(helper + '\n' + body)
+    prefix, payload = body.rsplit('console.log(JSON.stringify(', 1)
+    if not payload.endswith('));'):
+        raise ValueError('Live browser operation must end with its result')
+    body = prefix + 'matrixResult=' + payload[:-3] + ';'
+    bridge = 'let matrixResult;\n'
+    emit = """
+if(matrixResult){
+ const compressed=await p.evaluate(async d=>{const bytes=new TextEncoder().encode(JSON.stringify(d));const data=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());let s='';for(const b of data)s+=String.fromCharCode(b);return btoa(s)},matrixResult);
+ console.log(JSON.stringify({packed:compressed}));
+}
+"""
+    script.write_text(helper + '\n' + bridge + body + emit)
     proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     raw = proc.stdout
     if proc.returncode:
         (out / (label + '.log')).write_text(raw)
         raise RuntimeError(raw)
     (out / (label + '.log')).write_text(raw)
-    for n, path in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M)):
-        shutil.copy2(path, out / f'{label}-{n}.jpg')
     for line in reversed(raw.splitlines()):
         try:
             value = json.loads(line)
+            if isinstance(value, dict) and 'packed' in value:
+                value=json.loads(gzip.decompress(base64.b64decode(value['packed'])))
             if isinstance(value, dict) and 'result' in value:
+                (out / (label + '-data.json')).write_text(json.dumps(value['result'],indent=2))
                 if isinstance(value['result'], dict):
-                    for n, remote in enumerate(value['result'].get('remoteFrameImages', [])):
-                        with (out / f'{label}-remote-{n}.jpg').open('wb') as target:
-                            subprocess.run(['ssh', '-o', 'BatchMode=yes', 'salem-pc', 'cat ' + shlex.quote(remote)], stdout=target, check=True)
-                    value['result']['frameImages'] = [str(out / f'{label}-remote-{n}.jpg') for n, _ in enumerate(value['result'].get('remoteFrameImages', []))] + [str(out / f'{label}-{n}.jpg') for n, _ in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M))]
+                    local_images=[]
+                    for image in value['result'].get('imageInfo', []):
+                        chunks=[]
+                        for start in range(0,image['length'],20000):
+                            command='const p=await browser.getPage("radar-matrix");console.log(JSON.stringify({chunk:await p.evaluate(x=>JSON.parse(sessionStorage.getItem("radar-matrix-images"))[x.index].slice(x.start,x.start+20000),'+json.dumps(dict(index=image['index'],start=start))+')}));'
+                            output=cli('own-chrome','run','--script',command)
+                            chunks.append(next(json.loads(l)['chunk'] for l in output.splitlines() if l.startswith('{"chunk":')))
+                        target=out / f"{label}-cast-{image['index']}.jpg"
+                        target.write_bytes(base64.b64decode(''.join(chunks)))
+                        local_images.append(str(target))
+                    value['result']['frameImages'] = local_images
                 return value['result']
         except ValueError:
             pass
     raise RuntimeError('No result in ' + label)
 
 def save():
-    results['outcome'] = ('pass' if len(rows) == 18 and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
+    results['outcome'] = ('pass' if len(rows) == (2 if args.preflight else 18) and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
 
 def row(width, scenario, data, ok, **extra):
@@ -66,6 +85,7 @@ def post(label):
 def setting(value):
     cli('plugin', 'config', 'radar-sidebar', 'set', 'rememberScroll', json.dumps(value))
 
+cli('own-chrome','run','--wait','5m','--script','console.log("scroll matrix hold acquired")')
 original = json.loads(cli('plugin', 'config', 'radar-sidebar', '--json'))['values']
 results['originalSettings'] = original
 results['installed'] = json.loads(cli('plugin', 'list', '--json'))
@@ -73,6 +93,15 @@ try:
     for width, viewport in [('phone', dict(width=390, height=844, isMobile=True, hasTouch=True)), ('desktop', dict(width=1280, height=900, isMobile=False, hasTouch=False))]:
         run(width+'-viewport', 'await p.setViewport('+json.dumps(viewport)+'); console.log(JSON.stringify({result:{ok:true}}));')
         setting(True)
+        if args.preflight:
+            before=run(width+'-preflight-before','console.log(JSON.stringify({result:await middle()}));')
+            d=run(width+'-preflight','console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
+            visible=[f for f in d['frames'] if f['painted']]
+            wrong=[f for f in visible if f['offset'] is None or abs(f['offset']-before['offset'])>8]
+            d['settlingMs']=max((f['ms'] for f in wrong),default=visible[0]['ms'] if visible else 0)-(visible[0]['ms'] if visible else 0)
+            d['bottomFlashFrames']=sum(f['bottomGap'] is not None and f['bottomGap']<=24 for f in visible)
+            row(width,4,d,position_ok(d) and not d['bottomFlashFrames'] and d['settlingMs']<=150)
+            continue
         for scenario, phase in [(1, 'return'), (2, 'bottom'), (3, 'background')]:
             before = run(width+'-'+phase+'-before', "const before=await middle();" + ("await p.evaluate(()=>{const b=document.querySelector('.thread-scrollbar');b.scrollTop=b.scrollHeight;});await pause(700);" if scenario == 2 else '') + ("await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});" if scenario == 3 else 'await away();') + 'console.log(JSON.stringify({result:before}));')
             post(width+'-'+phase)
@@ -118,6 +147,7 @@ try:
         observed = False
         while time.monotonic()-started < args.natural_wait:
             time.sleep(min(30, args.natural_wait))
+            cli('own-chrome','run','--script','console.log("scroll matrix observation heartbeat")')
             if cli('thread','log','thr_exqyeqrqpy','--format','minimal','--limit','1') != initial:
                 observed = True
                 break

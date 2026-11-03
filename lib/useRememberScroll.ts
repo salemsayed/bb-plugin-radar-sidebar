@@ -52,6 +52,11 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       save: position => {
         try {
           localStorage.setItem(key, JSON.stringify(position));
+          const owned = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
+          if (position.atBottom && owned?.threadId === threadId && owned.hash === location.hash) {
+            history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+            sessionStorage.removeItem("radar-scroll-route");
+          }
           if (!position.atBottom && location.pathname.endsWith(`/threads/${threadId}`)) {
             const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
             if (!location.hash || marker?.threadId === threadId && marker.hash === location.hash) {

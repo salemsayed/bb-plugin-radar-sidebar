@@ -32,7 +32,9 @@ async function away() { await route('/settings/mobile'); }
 function startFrames(t, expected) {
   window.__radarScrollDebug = true;
   window.scrollTrace = [];
-  window.addEventListener('radar-scroll-trace', e => window.scrollTrace.push(e.detail));
+  if (window.__radarScrollTraceHandler) window.removeEventListener('radar-scroll-trace', window.__radarScrollTraceHandler);
+  window.__radarScrollTraceHandler = e => window.scrollTrace.push(e.detail);
+  window.addEventListener('radar-scroll-trace', window.__radarScrollTraceHandler);
   window.matrixFrames = [];
   window.matrixStart = performance.now();
   function sample() {
@@ -47,6 +49,15 @@ function startFrames(t, expected) {
   requestAnimationFrame(sample);
 }
 async function measure(action, expected, t = thread) {
+  const cdp = await p.target().createCDPSession();
+  const images = [];
+  const started = Date.now();
+  cdp.on('Page.screencastFrame', frame => {
+    if (images.length < 40 && (images.length === 0 || Date.now() - images[images.length - 1].at >= (images.length < 20 ? 100 : 500))) images.push({ at: Date.now(), data: frame.data, metadata: frame.metadata });
+    void cdp.send('Page.screencastFrameAck', { sessionId: frame.sessionId });
+  });
+  await cdp.send('Page.enable');
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 45, maxWidth: 1280, maxHeight: 900, everyNthFrame: 1 });
   if (action === 'reload') {
     const injection = await p.evaluateOnNewDocument(startFrames, t, expected);
     await p.reload({ waitUntil: 'domcontentloaded' });
@@ -56,13 +67,10 @@ async function measure(action, expected, t = thread) {
     if (action === 'return') await p.goBack();
     if (action === 'resume') await p.evaluate(() => { delete document.visibilityState; window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   }
-  const remoteFrameImages = [];
-  for (let i = 0; i < 6; i++) {
-    const path = `/tmp/radar-matrix-${Date.now()}-${i}.jpg`;
-    await p.screenshot({ path, type: 'jpeg', quality: 55, fullPage: false, captureBeyondViewport: false, waitForFonts: false, timeout: 5000 });
-    remoteFrameImages.push(path);
-    await pause(100);
-  }
-  await pause(8000);
-  return { expected, remoteFrameImages, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => window.scrollTrace || []) };
+  await pause(9000);
+  await cdp.send('Page.stopScreencast');
+  await cdp.detach();
+  await p.evaluate(data => sessionStorage.setItem('radar-matrix-images', JSON.stringify(data)), images.map(x => x.data));
+  const imageInfo = images.map((x, i) => ({ index: i, ms: x.at-started, length: x.data.length }));
+  return { expected, imageInfo, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => { window.__radarScrollDebug = false; return window.scrollTrace || []; }) };
 }
