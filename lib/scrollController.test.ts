@@ -91,3 +91,11 @@ it("restores cached coordinates before paint without concealing the chat", async
   await vi.advanceTimersByTimeAsync(150);
   expect(box.style.visibility).toBe("");
 });
+it("does not replace the last reading place with teardown geometry", async () => {
+  const save = fixture();
+  await vi.advanceTimersByTimeAsync(2000);
+  const calls = save.mock.calls.length;
+  box.scrollTop = 0;
+  stop!(); stop = undefined;
+  expect(save.mock.calls.length).toBe(calls);
+});

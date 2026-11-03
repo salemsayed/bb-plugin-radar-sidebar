@@ -57,6 +57,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     finish();
   };
   const onScroll = () => {
+    capture();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(capture, 120);
   };
@@ -95,7 +96,6 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   tick();
   const timer = setInterval(() => capture(), 400);
   return () => {
-    capture(true);
     trace("dispose");
     disposed = true;
     observer.disconnect();

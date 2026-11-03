@@ -59,7 +59,7 @@ async function measure(action, expected, t = thread) {
   const remoteFrameImages = [];
   for (let i = 0; i < 6; i++) {
     const path = `/tmp/radar-matrix-${Date.now()}-${i}.jpg`;
-    await p.screenshot({ path, type: 'jpeg', quality: 55, fullPage: false, captureBeyondViewport: false, timeout: 5000 });
+    await p.screenshot({ path, type: 'jpeg', quality: 55, fullPage: false, captureBeyondViewport: false, waitForFonts: false, timeout: 5000 });
     remoteFrameImages.push(path);
     await pause(100);
   }
