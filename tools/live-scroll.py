@@ -260,6 +260,7 @@ try:
                 rows[-1]['status']='skip'
                 rows[-1]['reason']='No natural Lab post within observation window'
             save()
+        run(width+'-finished-freeze',"await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});console.log(JSON.stringify({result:{ok:true}}));")
 except Exception as e:
     results['error'] = str(e)
 finally:
