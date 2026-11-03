@@ -201,7 +201,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const workerLabel = (a: Attempt, status: string) => `Open worker ${a.title || a.threadId}: ${workerName(a)}${status ? `, ${status}` : ""}`;
   const taskRow = (task: BotTaskRow) => {
     const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : stateTone(task.displayState);
-    const name = taskHeadline(task.title);
+    const name = youWords(taskHeadline(task.title));
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot!.coordinatorThreadId);
     const status = cardStatus(task, running, now);
