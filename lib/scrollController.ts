@@ -21,7 +21,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let container: HTMLElement | null = null;
   let resize: ResizeObserver | null = null;
   let previousBehavior = "";
-  let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, releasedRoute = false;
+  let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, matchedAt: number | null = null, releasedRoute = false;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
     if (container) { container.style.scrollBehavior = previousBehavior; }
@@ -49,9 +49,10 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (disposed || restoring || failed || !force && !isActive()) return;
     bind();
     if (!container?.isConnected) return;
+    const anchors = messageAnchors(threadId).filter(e => container!.contains(e));
+    if (!anchors.length) return;
     const rect = container.getBoundingClientRect();
-    const next = capturePosition(container.scrollTop, container.clientHeight, container.scrollHeight, rect.top + container.clientTop, messageAnchors(threadId).filter(e => {
-      if (!container!.contains(e)) return false;
+    const next = capturePosition(container.scrollTop, container.clientHeight, container.scrollHeight, rect.top + container.clientTop, anchors.filter(e => {
       const row = e.closest<HTMLElement>("[data-timeline-row-id]") ?? e;
       const bounds = row.getBoundingClientRect();
       return bounds.bottom > rect.top && bounds.top < rect.bottom;
@@ -85,6 +86,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         trace("adjust", { position, top: container.scrollTop });
         container.scrollTop += restoreDelta(anchor.getBoundingClientRect().top, container.getBoundingClientRect().top + container.clientTop, position.offset);
         matched = true;
+        matchedAt ??= performance.now();
         if (!releasedRoute) { releasedRoute = true; store.anchorReady?.(); }
       } else if (!requestedAnchor && store.loadAnchor) {
         requestedAnchor = true;
@@ -92,7 +94,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       }
     }
     if (container) firstContainerAt ??= performance.now();
-    if (firstContainerAt !== null && performance.now() - firstContainerAt >= (matched ? 6000 : 8000) || performance.now() - started > 10000) {
+    if (matchedAt !== null && performance.now() - matchedAt >= 6000 || !matched && firstContainerAt !== null && performance.now() - firstContainerAt >= 8000 || performance.now() - started > 10000) {
       failed = !matched && position?.atBottom !== true;
       finish();
     }

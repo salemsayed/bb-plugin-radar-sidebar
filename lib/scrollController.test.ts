@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.spyOn(box, "getBoundingClientRect").mockImplementation(() => ({ top: 50, bottom: 450, left: 0, right: 400, height: 400, width: 400 }) as DOMRect);
   vi.spyOn(anchor, "getBoundingClientRect").mockImplementation(() => ({ top: 550 - box.scrollTop, bottom: 750 - box.scrollTop, height: 200 }) as DOMRect);
 });
-afterEach(() => { stop?.(); stop = undefined; box.remove(); vi.restoreAllMocks(); vi.useRealTimers(); });
+afterEach(() => { stop?.(); stop = undefined; box.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 it("restores immediately and survives a late initial scroll within the first frames", async () => {
   fixture();
   expect(box.style.visibility).toBe("");
@@ -113,4 +113,25 @@ it("corrects layout reflow before the next animation frame", async () => {
   reflow!();
   expect(box.scrollTop).toBe(630);
   vi.unstubAllGlobals();
+});
+it("does not record bottom for a retained container after its thread anchors disappear", async () => {
+  const save = fixture();
+  await vi.advanceTimersByTimeAsync(30);
+  box.dispatchEvent(new Event("touchstart", { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(500);
+  save.mockClear();
+  anchor.remove();
+  box.scrollTop = 1600;
+  await vi.advanceTimersByTimeAsync(500);
+  expect(save).not.toHaveBeenCalled();
+});
+it("continues through the native initial scroll when an older anchor arrives late", async () => {
+  anchor.dataset.notificationMessage = "99";
+  stop = rememberScroll("one", { load: async () => saved, save: vi.fn(), loadAnchor: vi.fn() }, () => true);
+  await vi.advanceTimersByTimeAsync(7000);
+  anchor.dataset.notificationMessage = "42";
+  await vi.advanceTimersByTimeAsync(32);
+  box.scrollTop = 1600;
+  await vi.advanceTimersByTimeAsync(32);
+  expect(box.scrollTop).toBe(530);
 });
