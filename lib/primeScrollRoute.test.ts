@@ -7,3 +7,9 @@ it("leaves a cold document on the native latest view instead of seeding a messag
   primeScrollRoute();
   expect(location.hash).toBe("");
 });
+it("preserves an explicit message link on an ordinary navigation", () => {
+  history.replaceState(null, "", "/threads/one#msg=42");
+  sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId: "one", hash: "#msg=42", at: Date.now() }));
+  primeScrollRoute();
+  expect(location.hash).toBe("#msg=42");
+});

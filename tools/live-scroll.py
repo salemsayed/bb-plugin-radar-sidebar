@@ -113,6 +113,22 @@ def visible_frame_time(data):
     data['compositorFrames'] = checks
     return next((frame['ms'] for frame in checks if frame['content']), None)
 
+def later_blank_ms(data):
+    seen = False
+    started = None
+    total = 0
+    for frame in data['compositorFrames']:
+        if frame['content']:
+            seen = True
+            if started is not None:
+                total += frame['ms'] - started
+                started = None
+        elif seen and started is None:
+            started = frame['ms']
+    if started is not None:
+        total += data['compositorFrames'][-1]['ms'] - started
+    return total
+
 def save():
     results['outcome'] = ('pass' if len(rows) == (2 if args.preflight else len(selected)*2) and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
@@ -219,8 +235,8 @@ try:
                 settling = max((f['ms'] for f in shifted), default=first_dom)-first_dom
                 correct=[f.get('offset') is not None and abs(f['offset']-data['expected']['offset'])<=8 for f in data['compositorFrames'] if f['content']]
                 jumps=sum(value and (i==0 or not correct[i-1]) for i,value in enumerate(correct))
-                comparisons[action] = dict(jumpCount=jumps,landingErrorPx=None if data['final']['offset'] is None else abs(data['final']['offset']-data['expected']['offset']),offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
-            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and (d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
+                comparisons[action] = dict(laterBlankOffMs=later_blank_ms(timings['False'][action]),laterBlankOnMs=later_blank_ms(data),jumpCount=jumps,landingErrorPx=None if data['final']['offset'] is None else abs(data['final']['offset']-data['expected']['offset']),offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
+            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']+max(0,d['laterBlankOnMs']-d['laterBlankOffMs'])<=150 and (d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
         if 8 in selected:
             setting(False)
             off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames,imageInfo:d.imageInfo}}));')
