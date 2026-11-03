@@ -175,6 +175,7 @@ it("cancels the host's pending cold message jump when the user takes over", asyn
 
 it("waits for native messages to be hit-testable rather than covered by a loading surface", async () => {
   anchor.dataset.notificationMessage = "99";
+  vi.mocked(anchor.getBoundingClientRect).mockImplementation(() => ({ top: 200, bottom: 400, height: 200 }) as DOMRect);
   vi.mocked(document.elementFromPoint).mockReturnValue(document.body);
   const loadAnchor = vi.fn();
   stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn(), deferUntilVisible: true, loadAnchor }, () => true);
