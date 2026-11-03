@@ -35,7 +35,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
   useLayoutEffect(() => {
     if (!enabled || !threadId || !active) return;
     let generated = false;
-    try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); generated = marker?.threadId === threadId && marker.hash === location.hash && Date.now() - marker.at < 5000; } catch {}
+    try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); generated = marker?.threadId === threadId && marker.hash === location.hash; } catch {}
     const explicitLink = /^#msg=/.test(location.hash) && !generated && !(autoHash.current?.threadId === threadId && autoHash.current.hash === location.hash);
     const deviceId = browserId();
     if (!deviceId) return;
@@ -56,7 +56,17 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
         window.dispatchEvent(new PopStateEvent("popstate")); },
       load: () => explicitLink ? Promise.resolve(null) : rpc.call("scroll_get", { threadId, deviceId }),
       save: position => {
-        try { localStorage.setItem(key, JSON.stringify(position)); } catch {}
+        try {
+          localStorage.setItem(key, JSON.stringify(position));
+          if (!position.atBottom && location.pathname.endsWith(`/threads/${threadId}`)) {
+            const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
+            if (!location.hash || marker?.threadId === threadId && marker.hash === location.hash) {
+              const hash = `#msg=${position.messageSeq}`;
+              sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash, at: Date.now() }));
+              history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+            }
+          }
+        } catch {}
         pending = pending.then(() => rpc.call("scroll_set", { threadId, deviceId, position })).then(() => {}, () => {});
       },
     });

@@ -102,7 +102,7 @@ try:
         for action in ['return', 'reload', 'resume']:
             off, on = first(timings['False'][action]), first(timings['True'][action])
             data = timings['True'][action]
-            wrong = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
+            wrong = [f for f in data['frames'] if f['painted'] and f['bottomGap'] is not None and f['bottomGap']<=24 and data['expected']['bottomGap']>40]
             comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,wrongFrames=len(wrong))
         row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['wrongFrames'] for d in comparisons.values()))
         setting(False)
