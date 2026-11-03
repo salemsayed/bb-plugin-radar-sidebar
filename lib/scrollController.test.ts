@@ -158,3 +158,16 @@ it("user input during the cold native-view interval cancels the later jump", asy
   expect(loadAnchor).not.toHaveBeenCalled();
   expect(box.scrollTop).toBe(1600);
 });
+it("cancels the host's pending cold message jump when the user takes over", async () => {
+  anchor.dataset.notificationMessage = "99";
+  vi.mocked(anchor.getBoundingClientRect).mockImplementation(() => ({ top: 200, bottom: 400, height: 200 }) as DOMRect);
+  let pending: ReturnType<typeof setTimeout>;
+  const cancelAnchor = vi.fn(() => clearTimeout(pending));
+  stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn(), deferUntilVisible: true, loadAnchor: () => { pending = setTimeout(() => { box.scrollTop = 530; }, 700); }, cancelAnchor }, () => true);
+  await vi.advanceTimersByTimeAsync(100);
+  box.dispatchEvent(new Event("wheel", { bubbles: true }));
+  box.scrollTop = 1300;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(box.scrollTop).toBe(1300);
+  expect(cancelAnchor).toHaveBeenCalledOnce();
+});

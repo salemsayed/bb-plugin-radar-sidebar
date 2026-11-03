@@ -11,7 +11,7 @@ export function chatScroller(threadId: string): HTMLElement | null {
   }
   return null;
 }
-export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; deferUntilVisible?: boolean; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
+export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; deferUntilVisible?: boolean; cancelAnchor?: () => void; loadAnchor?: (seq: number) => void; anchorReady?: () => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
   const trace = (event: string, data: unknown = null) => {
     if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), hash: location.hash } }));
   };
@@ -70,6 +70,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     interacted = true;
     failed = false;
     finish();
+    if (store.deferUntilVisible && !matched) store.cancelAnchor?.();
   };
   const onScroll = () => {
     capture();

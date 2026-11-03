@@ -61,6 +61,16 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     const stop = rememberScroll(threadId, {
       cached: explicitLink ? null : cached,
       deferUntilVisible: coldThread.current === threadId,
+      cancelAnchor: () => {
+        try {
+          const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
+          if (marker?.threadId !== threadId || marker.hash !== location.hash) return;
+          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+          sessionStorage.removeItem("radar-scroll-route");
+          autoHash.current = null;
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        } catch {}
+      },
       loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` };
         try { sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId, hash: `#msg=${seq}`, at: Date.now() })); } catch {} history.replaceState(history.state, "", `${location.pathname}#msg=${seq}`);
         window.dispatchEvent(new PopStateEvent("popstate")); },
