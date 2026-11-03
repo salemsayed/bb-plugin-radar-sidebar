@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import html
 import json
 import gzip
 import base64
@@ -71,6 +72,14 @@ if(matrixResult){
 def save():
     results['outcome'] = ('pass' if len(rows) == (2 if args.preflight else 18) and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
+    sections=[]
+    for r in rows:
+        d=r['data']
+        detail={k:v for k,v in d.items() if k not in ['frames','trace','frameImages','remoteFrameImages','imageInfo']}
+        images=d.get('frameImages',r.get('frameImages',[]))
+        gallery=''.join('<a href="'+html.escape(Path(i).name)+'"><img loading="lazy" src="'+html.escape(Path(i).name)+'"></a>' for i in images)
+        sections.append('<details><summary>'+html.escape(f"{r['width']} / {r['scenario']}: {r['status']}")+'</summary><pre>'+html.escape(json.dumps(detail,indent=2))+'</pre><div>'+gallery+'</div></details>')
+    (out/'frames.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Installed scroll matrix</title><style>body{font:16px system-ui;margin:24px}summary{padding:12px;cursor:pointer}pre{white-space:pre-wrap}img{max-width:300px;max-height:450px;margin:4px}details{border-bottom:1px solid #ccc}</style><h1>Installed scroll matrix</h1><p>'+html.escape(results['outcome'])+'</p>'+''.join(sections))
 
 def row(width, scenario, data, ok, **extra):
     rows.append(dict(width=width, scenario=scenario, status='pass' if ok else 'fail', data=data, **extra))
@@ -129,9 +138,9 @@ try:
         before = run(width+'-reload-before', 'console.log(JSON.stringify({result:await middle()}));')
         data = run(width+'-reload', 'console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
         row(width, 4, data, position_ok(data))
-        two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/projects/proj_jfxygzbhcr/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);console.log(JSON.stringify({result:{a,b,aa,bb}}));')
+        two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/projects/proj_jfxygzbhcr/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);const ev=await measure("none",b,"thr_wfhsqd493j");console.log(JSON.stringify({result:{a,b,aa,bb,...ev}}));')
         row(width, 5, two, all(two[k+'a' if k=='a' else 'bb']['offset'] is not None for k in ['a','b']) and abs(two['a']['offset']-two['aa']['offset'])<=8 and abs(two['b']['offset']-two['bb']['offset'])<=8)
-        action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);console.log(JSON.stringify({result:{a,b}}));')
+        action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);const ev=await measure("none",a);console.log(JSON.stringify({result:{a,b,...ev}}));')
         row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8)
         timings = {}
         for mode in [False, True]:
@@ -154,9 +163,9 @@ try:
             shifted = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
             settling = max((f['ms'] for f in shifted), default=on or 0)-(on or 0)
             comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted))
-        row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['bottomFlashFrames'] and d['settlingMs']<=150 for d in comparisons.values()))
+        row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['bottomFlashFrames'] and d['settlingMs']<=150 for d in comparisons.values()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
         setting(False)
-        off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames}}));')
+        off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames,imageInfo:d.imageInfo}}));')
         row(width, 8, off, off['cache']==off['after'] and off['bottomGap'] is not None and off['bottomGap']<=24)
         setting(True)
         natural = run(width+'-natural-before', 'console.log(JSON.stringify({result:await middle("thr_exqyeqrqpy")}));')

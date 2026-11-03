@@ -12,10 +12,11 @@ async function state(t = thread, seq = null) {
     let b;
     for (let e = aa[0]?.parentElement; e && e !== document.body; e = e.parentElement) if (/^(auto|scroll)$/.test(getComputedStyle(e).overflowY) && e.clientHeight > 0) { b = e; break; }
     const a = seq ? aa.find(e => Number(e.dataset.notificationMessage) === seq) : aa.find(e => e.getBoundingClientRect().bottom > b?.getBoundingClientRect().top && e.getBoundingClientRect().top < b?.getBoundingClientRect().bottom);
-    return { seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
+    return { active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
   }, t, seq);
 }
 async function middle(t = thread) {
+  await p.evaluate(() => { delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
   await p.goto(`${base}/projects/proj_jfxygzbhcr/threads/${t}${t === thread ? '#msg=20' : ''}`);
   await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), { timeout: 30000 }, t);
   await pause(1500);
@@ -25,7 +26,7 @@ async function middle(t = thread) {
   await p.mouse.wheel({ deltaY: t === thread ? 160 : -1600 });
   await pause(1800);
   const result = await state(t);
-  if (result.bottomGap < 40 || !result.seq) throw new Error('Setup did not establish a middle reading position');
+  if (!result.active || result.bottomGap < 40 || !result.seq) throw new Error('Setup did not establish a middle reading position');
   return result;
 }
 async function away() { await route('/settings/mobile'); }
