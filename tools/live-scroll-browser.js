@@ -48,7 +48,7 @@ function startFrames(t, expected) {
     let painted=false;
     if (b) {
       const bounds=b.getBoundingClientRect();
-      for(const fraction of [0.05,0.25,0.5,0.75,0.95]) {
+      for(const fraction of [0.05,0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85,0.95]) {
         const hit=document.elementFromPoint((bounds.left+bounds.right)/2,bounds.top+bounds.height*fraction);
         const message=hit?.closest('[data-notification-thread][data-notification-message]');
         if(message?.dataset.notificationThread!==t)continue;

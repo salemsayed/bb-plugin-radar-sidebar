@@ -7,6 +7,7 @@ import base64
 import os
 import subprocess
 import time
+import statistics
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -223,18 +224,28 @@ try:
             row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8 and position_ok(action['cold']) and action['cold']['expected']['bottomGap']>200)
         if 7 in selected:
             timings = {}
+            trials = {}
             for mode in [False, True]:
                 setting(mode)
                 timings[str(mode)] = {}
+                trials[str(mode)] = {}
                 for action in ['return', 'reload', 'resume']:
-                    setup = 'const a=await middle();'
-                    if action=='return':
-                        setup += 'await away();'
-                    if action=='resume':
-                        setup += "await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});await pause(500);"
-                    before = run(width+'-flicker-'+str(mode)+'-'+action+'-before', setup+'console.log(JSON.stringify({result:a}));')
-                    timings[str(mode)][action] = run(width+'-flicker-'+str(mode)+'-'+action, 'console.log(JSON.stringify({result:await measure('+json.dumps(action)+','+json.dumps(before)+')}));')
-            first = visible_frame_time
+                    samples = []
+                    for trial in range(3 if action == 'reload' else 1):
+                        label = width+'-flicker-'+str(mode)+'-'+action+('' if trial == 0 else '-trial-'+str(trial+1))
+                        setup = 'const a=await middle();'
+                        if action=='return':
+                            setup += 'await away();'
+                        if action=='resume':
+                            setup += "await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});await pause(500);"
+                        before = run(label+'-before', setup+'console.log(JSON.stringify({result:a}));')
+                        sample = run(label, 'console.log(JSON.stringify({result:await measure('+json.dumps(action)+','+json.dumps(before)+')}));')
+                        sample['firstCompositorMs'] = visible_frame_time(sample)
+                        sample['source'] = str(out/(label+'-data.json'))
+                        samples.append(sample)
+                    trials[str(mode)][action] = samples
+                    timings[str(mode)][action] = sorted(samples, key=lambda d: d['firstCompositorMs'] if d['firstCompositorMs'] is not None else float('inf'))[len(samples)//2]
+            first = lambda data: data['firstCompositorMs']
             comparisons = {}
             for action in ['return', 'reload', 'resume']:
                 off, on = first(timings['False'][action]), first(timings['True'][action])
@@ -246,7 +257,21 @@ try:
                 correct=[f.get('offset') is not None and abs(f['offset']-data['expected']['offset'])<=8 for f in data['compositorFrames'] if f['content']]
                 jumps=sum(value and (i==0 or not correct[i-1]) for i,value in enumerate(correct))
                 comparisons[action] = dict(laterBlankOffMs=later_blank_ms(timings['False'][action]),laterBlankOnMs=later_blank_ms(data),jumpCount=jumps,landingErrorPx=None if data['final']['offset'] is None else abs(data['final']['offset']-data['expected']['offset']),offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
-            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']+max(0,d['laterBlankOnMs']-d['laterBlankOffMs'])<=150 and (d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
+            reload_trials = []
+            for sample in trials['True']['reload']:
+                native = next((e['wallTime'] for e in sample['trace'] if e['event']=='native-visible'), None)
+                operation = next((e['wallTime'] for e in sample['trace'] if e['event'] in ['load-anchor','adjust']), None)
+                first_dom = next((f['wallTime'] for f in sample['frames'] if f['painted']), None)
+                jumps = reload_jump_count(sample)
+                error = None if sample['final']['offset'] is None else abs(sample['final']['offset']-sample['expected']['offset'])
+                ordering = native is not None and operation is not None and first_dom is not None and operation-native>=35 and first_dom<=operation and sample['firstCompositorMs'] is not None and sample['triggerAt']+sample['firstCompositorMs']<=operation+120
+                reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,requestAfterNativeView=ordering,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
+            comparisons['reload']['samplesOffMs'] = [d['firstCompositorMs'] for d in trials['False']['reload']]
+            comparisons['reload']['samplesOnMs'] = [d['firstCompositorMs'] for d in trials['True']['reload']]
+            comparisons['reload']['sampling'] = 'Median of three end-to-end reloads per mode; every enabled reload must satisfy ordering, one jump, landing and later-blank requirements.'
+            comparisons['reload']['enabledTrials'] = reload_trials
+            comparisons['reload']['allTrialsPass'] = all(d['requestAfterNativeView'] and d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 and d['laterBlankMs']<=150 for d in reload_trials)
+            row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']+max(0,d['laterBlankOnMs']-d['laterBlankOffMs'])<=150 and (d['allTrialsPass'] if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for samples in trials['True'].values() for d in samples for i in d.get('frameImages',[])])
         if 8 in selected:
             setting(False)
             off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;const d=await measure("reload",a);console.log(JSON.stringify({result:{cache,after:d.final.cache,bottomGap:d.final.bottomGap,frames:d.frames,imageInfo:d.imageInfo}}));')

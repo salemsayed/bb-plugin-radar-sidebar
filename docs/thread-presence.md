@@ -107,3 +107,5 @@ The user-action scenario also scrolls while a cold reload is still loading the s
 The recorder retries idempotent CLI operations on a transient disconnected-host error. It never retries a thread post. Warm and cold user-action measurements retain separate geometry; the displayed action frames belong to the cold takeover.
 
 The two-chat fixture switches within the current app document and waits up to nine seconds for each saved anchor to render before checking its independent offset. It does not test an unloaded anchor at an arbitrary fixed delay or reset the app cache by hard-navigating the second chat. The 8px position requirement is unchanged.
+
+Reload first-view timing uses the median of three complete reloads in each mode, retaining every raw sample because native timeline-request latency varies. Every enabled reload must independently request restoration only after hit-testable native content is exposed, record one visible jump, land within 8px and have no later blank exceeding 150ms. The 150ms median extra-blank limit remains. Warm return and resume keep their existing single comparisons.
