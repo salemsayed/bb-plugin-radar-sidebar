@@ -88,6 +88,30 @@ console.log(JSON.stringify({paths}));
             pass
     raise RuntimeError('No result in ' + label)
 
+def visible_frame_time(data):
+    samples = data['frames']
+    checks = []
+    for frame, path in zip(data['imageInfo'], data.get('frameImages', [])):
+        if frame['ms'] < 0:
+            continue
+        stamp = data['triggerAt'] + frame['ms']
+        sample = min(samples, key=lambda item: abs(item['wallTime'] - stamp)) if samples else None
+        bounds = data['expected'].get('bounds')
+        if not sample or not sample['painted'] or not bounds:
+            checks.append(dict(index=frame['index'], ms=frame['ms'], content=False))
+            continue
+        dimensions = subprocess.check_output(['magick', 'identify', '-format', '%w %h', path], text=True).split()
+        scale = int(dimensions[0]) / frame['deviceWidth']
+        left = round((bounds['left'] + 4) * scale)
+        top = round((bounds['top'] + 8) * scale)
+        width = max(1, round((bounds['width'] - 8) * scale))
+        height = max(1, round(min(bounds['height'] * 0.75, bounds['height'] - 120) * scale))
+        fraction = float(subprocess.check_output(['magick', path, '-crop', f'{width}x{height}+{left}+{top}', '-colorspace', 'Gray', '-threshold', '62%', '-format', '%[fx:1-mean]', 'info:'], text=True))
+        content = fraction * width * height >= 150
+        checks.append(dict(index=frame['index'], ms=frame['ms'], darkPixelFraction=fraction, content=content))
+    data['compositorFrames'] = checks
+    return next((frame['ms'] for frame in checks if frame['content']), None)
+
 def save():
     results['outcome'] = ('pass' if len(rows) == (2 if args.preflight else len(selected)*2) and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
@@ -108,7 +132,7 @@ def position_ok(d):
     return d['final']['offset'] is not None and abs(d['final']['offset'] - d['expected']['offset']) <= 8
 
 def post(label):
-    raw = cli('thread', 'tell', 'thr_yaa3n3kk73', 'LONG scroll matrix ' + label)
+    raw = cli('thread', 'tell', 'thr_yaa3n3kk73', 'Reply only ok. LONG scroll matrix ' + label + '\n' + '\n'.join(f'{i}. Reading position verification paragraph {label}: preserve the message and its pixel offset while new messages arrive.' for i in range(1, 61)))
     raw += cli('thread', 'wait', 'thr_yaa3n3kk73', '--timeout', '60s', '--json')
     (out / (label + '-post.log')).write_text(raw)
 
@@ -179,15 +203,16 @@ try:
                         setup += "await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});await pause(500);"
                     before = run(width+'-flicker-'+str(mode)+'-'+action+'-before', setup+'console.log(JSON.stringify({result:a}));')
                     timings[str(mode)][action] = run(width+'-flicker-'+str(mode)+'-'+action, 'console.log(JSON.stringify({result:await measure('+json.dumps(action)+','+json.dumps(before)+')}));')
-            first = lambda d: next((x['ms'] for x in d['frames'] if x['painted']), None)
+            first = visible_frame_time
             comparisons = {}
             for action in ['return', 'reload', 'resume']:
                 off, on = first(timings['False'][action]), first(timings['True'][action])
                 data = timings['True'][action]
                 wrong = [f for f in data['frames'] if f['painted'] and f['bottomGap'] is not None and f['bottomGap']<=24 and data['expected']['bottomGap']>40]
                 shifted = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
-                settling = max((f['ms'] for f in shifted), default=on or 0)-(on or 0)
-                comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted))
+                first_dom = next((f['ms'] for f in data['frames'] if f['painted']), 0)
+                settling = max((f['ms'] for f in shifted), default=first_dom)-first_dom
+                comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,bottomFlashFrames=len(wrong),settlingMs=settling,wrongPositionFrames=len(shifted),offFrames=timings['False'][action]['compositorFrames'],onFrames=data['compositorFrames'])
             row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['bottomFlashFrames'] and d['settlingMs']<=150 for d in comparisons.values()),frameImages=[i for d in timings['True'].values() for i in d.get('frameImages',[])])
         if 8 in selected:
             setting(False)
