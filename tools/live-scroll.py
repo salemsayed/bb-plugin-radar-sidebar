@@ -264,13 +264,15 @@ try:
                 first_dom = next((f['wallTime'] for f in sample['frames'] if f['painted']), None)
                 jumps = reload_jump_count(sample)
                 error = None if sample['final']['offset'] is None else abs(sample['final']['offset']-sample['expected']['offset'])
+                first_landing = next((f['offset'] for f in sample['compositorFrames'] if f['content'] and f.get('offset') is not None), None)
+                first_landing_error = None if first_landing is None else abs(first_landing-sample['expected']['offset'])
                 ordering = native is not None and operation is not None and first_dom is not None and operation-native>=35 and first_dom<=operation and sample['firstCompositorMs'] is not None and sample['triggerAt']+sample['firstCompositorMs']<=operation+120
-                reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,requestAfterNativeView=ordering,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
+                reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,requestAfterNativeView=ordering,firstLandingErrorPx=first_landing_error,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
             comparisons['reload']['samplesOffMs'] = [d['firstCompositorMs'] for d in trials['False']['reload']]
             comparisons['reload']['samplesOnMs'] = [d['firstCompositorMs'] for d in trials['True']['reload']]
             comparisons['reload']['sampling'] = 'Median of three end-to-end reloads per mode; every enabled reload must satisfy ordering, one jump, landing and later-blank requirements.'
             comparisons['reload']['enabledTrials'] = reload_trials
-            comparisons['reload']['allTrialsPass'] = all(d['requestAfterNativeView'] and d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 and d['laterBlankMs']<=150 for d in reload_trials)
+            comparisons['reload']['allTrialsPass'] = all(d['requestAfterNativeView'] and d['firstLandingErrorPx'] is not None and d['firstLandingErrorPx']<=8 and d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 and d['laterBlankMs']<=150 for d in reload_trials)
             row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']+max(0,d['laterBlankOnMs']-d['laterBlankOffMs'])<=150 and (d['allTrialsPass'] if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for samples in trials['True'].values() for d in samples for i in d.get('frameImages',[])])
         if 8 in selected:
             setting(False)
