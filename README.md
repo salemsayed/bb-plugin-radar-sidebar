@@ -348,14 +348,7 @@ assets/icon.svg         the plugin icon BB shows (bb.branding.icon)
 docs/                   logo and screenshots
 ```
 
-**Tests** cover time bucketing and nav placement as plain functions, the
-rendered list through BB's plugin test harness (`renderSlot` with seeded
-sidebar threads), saved-view validation, preference migration, execution-cache
-refreshes, completion timers, and render counts, so a sidebar update re-renders
-only the rows that changed. Static guards over the stylesheet (`styles/styles.test.ts`, which
-inlines `app.css`'s imports in order) cover cascade mistakes jsdom cannot reproduce.
-The test setup uses jsdom's `localStorage` explicitly, including on Node 26,
-whose native storage global otherwise shadows it without a backing file.
+No unit tests. Prove it live in the installed sidebar with real threads, a reproduction failing before and working after, and raw evidence with the commit.
 
 `PLUGIN_OVERVIEW.md` is the store listing. Keep it in step with
 `bb.description` in `package.json`.

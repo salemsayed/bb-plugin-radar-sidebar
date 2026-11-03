@@ -138,8 +138,7 @@ back to BB's list automatically.
   compact density and the forced-compact touch layout.
   It uses `margin-block` rather than `margin`, since the shorthand also
   zeroes `margin-left` and wipes `.radar-row-child` / `.radar-row-deep`.
-  `styles/styles.test.ts` guards both as static assertions (jsdom does not resolve the
-  real cascade).
+  Verify both against the installed sidebar and its real cascade.
 - Pinned rows carry a small pin marker at the start of the title, so
   pinned children nested under unpinned parents stay recognisable (and
   `pinned` joins the row's accessible name).
