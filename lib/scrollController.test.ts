@@ -24,13 +24,13 @@ beforeEach(() => {
   vi.spyOn(anchor, "getBoundingClientRect").mockImplementation(() => ({ top: 550 - box.scrollTop, bottom: 750 - box.scrollTop, height: 200 }) as DOMRect);
 });
 afterEach(() => { stop?.(); stop = undefined; box.remove(); vi.restoreAllMocks(); vi.useRealTimers(); });
-it("conceals native bottom, survives its late initial scroll, then reveals the exact offset", async () => {
+it("restores immediately and survives a late initial scroll within the first frames", async () => {
   fixture();
-  expect(box.style.visibility).toBe("hidden");
-  await vi.advanceTimersByTimeAsync(100);
+  expect(box.style.visibility).toBe("");
+  await vi.advanceTimersByTimeAsync(30);
   expect(box.scrollTop).toBe(530);
   box.scrollTop = 1600;
-  await vi.advanceTimersByTimeAsync(100);
+  await vi.advanceTimersByTimeAsync(30);
   expect(box.scrollTop).toBe(530);
   await vi.advanceTimersByTimeAsync(1600);
   expect(box.style.visibility).toBe("");
@@ -52,7 +52,7 @@ it("a missing older anchor triggers native scroll loading but times out without 
   box.addEventListener("scroll", scroll);
   const save = fixture();
   await vi.advanceTimersByTimeAsync(9000);
-  expect(scroll).toHaveBeenCalled();
+  expect(scroll).not.toHaveBeenCalled();
   expect(box.style.visibility).toBe("");
   expect(save).not.toHaveBeenCalled();
 });
@@ -77,10 +77,17 @@ it("asks the native message route once for an older unloaded anchor", async () =
   anchor.dataset.notificationMessage = "99";
   const loadAnchor = vi.fn();
   stop = rememberScroll("one", { load: async () => saved, save: vi.fn(), loadAnchor }, () => true);
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(40);
   expect(loadAnchor).toHaveBeenCalledExactlyOnceWith(42);
   anchor.dataset.notificationMessage = "42";
   await vi.advanceTimersByTimeAsync(1800);
   expect(box.style.visibility).toBe("");
   expect(box.scrollTop).toBe(530);
+});
+it("restores cached coordinates before paint without concealing the chat", async () => {
+  stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn() }, () => true);
+  expect(box.style.visibility).toBe("");
+  expect(box.scrollTop).toBe(530);
+  await vi.advanceTimersByTimeAsync(150);
+  expect(box.style.visibility).toBe("");
 });

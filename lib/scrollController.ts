@@ -12,14 +12,14 @@ export function chatScroller(threadId: string): HTMLElement | null {
   return null;
 }
 export function rememberScroll(threadId: string, store: { load: () => Promise<ScrollPosition | null>; save: (position: ScrollPosition) => void; cached?: ScrollPosition | null; loadAnchor?: (seq: number) => void }, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
-  let disposed = false, restoring = true, loaded = false, interacted = false, failed = false;
+  let disposed = false, restoring = true, loaded = store.cached != null, interacted = false, failed = false;
   let position = store.cached ?? null;
   let container: HTMLElement | null = null;
-  let previousVisibility = "", previousBehavior = "";
-  let frame = 0, started = performance.now(), stableSince = started, lastShape = "", requestedAnchor = false, anchorSince: number | null = null;
+  let previousBehavior = "";
+  let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
-    if (container) { container.style.visibility = previousVisibility; container.style.scrollBehavior = previousBehavior; }
+    if (container) { container.style.scrollBehavior = previousBehavior; }
   };
   const bind = () => {
     const found = chatScroller(threadId);
@@ -28,7 +28,6 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       container?.removeEventListener("scroll", onScroll);
       container = found;
       if (container) {
-        previousVisibility = container.style.visibility;
         previousBehavior = container.style.scrollBehavior;
         container.addEventListener("scroll", onScroll, { passive: true });
       }
@@ -55,43 +54,42 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     clearTimeout(saveTimer);
     saveTimer = setTimeout(capture, 120);
   };
-  const tick = () => {
-    if (disposed) return;
+  const apply = () => {
+    if (disposed || !restoring) return;
     bind();
-    if (restoring && container) {
-      if (!loaded || position && !position.atBottom) {
-        container.style.visibility = "hidden";
+    if (loaded && (!position || position.atBottom)) { finish(); return; }
+    if (position && !position.atBottom) {
+      const anchor = messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === position!.messageSeq && container?.contains(e));
+      if (anchor && container) {
         container.style.scrollBehavior = "auto";
-      }
-      if (loaded && (!position || position.atBottom)) finish();
-      else if (loaded && position && !position.atBottom) {
-        const anchor = messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === position!.messageSeq && container!.contains(e));
-        if (anchor) {
-          anchorSince ??= performance.now();
-          const delta = restoreDelta(anchor.getBoundingClientRect().top, container.getBoundingClientRect().top + container.clientTop, position.offset);
-          const shape = `${container.scrollHeight}:${anchor.getBoundingClientRect().height}`;
-          if (Math.abs(delta) > 1 || shape !== lastShape) stableSince = performance.now();
-          lastShape = shape;
-          container.scrollTop += delta;
-          if (performance.now() - anchorSince > 1200 && performance.now() - stableSince > 500) finish();
-        } else {
-          anchorSince = null;
-          if (!requestedAnchor && store.loadAnchor) { requestedAnchor = true; store.loadAnchor(position.messageSeq); }
-          else if (!store.loadAnchor) { container.scrollTop = 0; container.dispatchEvent(new Event("scroll")); }
-          stableSince = performance.now();
-        }
+        container.scrollTop += restoreDelta(anchor.getBoundingClientRect().top, container.getBoundingClientRect().top + container.clientTop, position.offset);
+        matched = true;
+      } else if (!requestedAnchor && store.loadAnchor) {
+        requestedAnchor = true;
+        store.loadAnchor(position.messageSeq);
       }
     }
-    if (restoring && performance.now() - started > 8000) { failed = true; finish(); }
+    if (container) firstContainerAt ??= performance.now();
+    if (firstContainerAt !== null && performance.now() - firstContainerAt >= 150 || performance.now() - started > 2000) {
+      failed = !matched && position?.atBottom !== true;
+      finish();
+    }
+  };
+  const observer = new MutationObserver(apply);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  const tick = () => {
+    apply();
     if (restoring) frame = requestAnimationFrame(tick);
+    else observer.disconnect();
   };
   for (const type of ["wheel", "touchstart", "pointerdown", "keydown"]) document.addEventListener(type, input, { capture: true, passive: true });
-  void store.load().then(value => { if (!disposed && !interacted) position = value; loaded = true; }).catch(() => { loaded = true; });
+  void store.load().then(value => { if (!disposed && !interacted && !loaded) { position = value; loaded = true; apply(); } }).catch(() => { loaded = true; });
   tick();
   const timer = setInterval(() => capture(), 400);
   return () => {
     capture(true);
     disposed = true;
+    observer.disconnect();
     cancelAnimationFrame(frame);
     clearInterval(timer);
     clearTimeout(saveTimer);
