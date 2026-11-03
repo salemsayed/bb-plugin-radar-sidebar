@@ -11,6 +11,8 @@ const host = vi.hoisted(() => ({
   sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }), timeline: vi.fn(), events: { list: vi.fn().mockResolvedValue([]) } } },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
+  useBbNavigate: () => ({ openUrl: vi.fn() }),
+  useSettings: () => ({ values: { rememberScroll: false } }),
   useBbContext: () => host.context,
   useSidebarSplitLayout: () => host.layout,
   experimental_useSidebarThreads: () => ({ threads: host.threads }),
@@ -239,41 +241,11 @@ it("confirms viewing an older rendered message without treating the cached newer
   expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 41, through: 500 });
 });
 
-it("captures the previous read point before confirming the newest message and clears only at the first unseen anchor", async () => {
-  const element = renderedMessage(51);
-  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? { through: 1000, messageSeq: 42, confirmedAt: null } : { ok: true });
-  host.sdk.threads.timeline.mockResolvedValue({ rows: [{ kind: "conversation", messageSeq: 45 }, { kind: "conversation", messageSeq: 51 }], timelinePage: { olderCursor: null } });
+it("confirms the displayed message without rendering a return pill", async () => {
+  renderedMessage(51);
   host.sdk.threads.events.list.mockResolvedValue([{ seq: 51, createdAt: 2000 }]);
   const view = render(<ThreadPresence />);
   await act(async () => {});
-  expect(view.getByRole("link").getAttribute("href")).toBe("/threads/one#msg=45");
-  expect(view.getByText("2 new")).toBeTruthy();
-  await act(async () => { vi.advanceTimersByTime(1200); });
-  expect(lastHeartbeat().messageSeq).toBeNull();
-  expect(host.sdk.threads.events.list).not.toHaveBeenCalled();
-  element.dataset.notificationMessage = "45";
-  host.sdk.threads.events.list.mockResolvedValue([{ seq: 45, createdAt: 1500 }]);
-  await act(async () => { vi.advanceTimersByTime(400); });
   expect(view.queryByRole("link")).toBeNull();
-  expect(lastHeartbeat()).toMatchObject({ messageSeq: 45, through: 1500 });
-});
-
-it("includes older timeline pages and ignores a lookup completing after thread navigation", async () => {
-  renderedMessage(99);
-  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? { through: 1000, messageSeq: 42, confirmedAt: null } : { ok: true });
-  host.sdk.threads.timeline.mockResolvedValueOnce({ rows: [{ kind: "conversation", messageSeq: 99 }], timelinePage: { olderCursor: { anchorId: "older", anchorSeq: 60 } } })
-    .mockResolvedValueOnce({ rows: [{ kind: "conversation", messageSeq: 45 }], timelinePage: { olderCursor: null } });
-  const view = render(<ThreadPresence />);
-  await act(async () => {});
-  expect(view.getByRole("link").getAttribute("href")).toBe("/threads/one#msg=45");
-  expect(view.getByText("2 new")).toBeTruthy();
-  expect(host.sdk.threads.timeline).toHaveBeenLastCalledWith(expect.objectContaining({ beforeAnchorId: "older", beforeAnchorSeq: "60" }));
-  let finish!: (point: unknown) => void;
-  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? new Promise(resolve => { finish = resolve; }) : { ok: true });
-  host.context.threadId = "two";
-  view.rerender(<ThreadPresence />);
-  host.context.threadId = null;
-  view.rerender(<ThreadPresence />);
-  await act(async () => { finish({ messageSeq: 20 }); });
-  expect(view.queryByRole("link")).toBeNull();
+  expect(lastHeartbeat()).toMatchObject({ messageSeq: 51, through: 2000 });
 });

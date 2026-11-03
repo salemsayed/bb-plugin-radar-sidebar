@@ -35,6 +35,8 @@ const slot = renderSlot(app.appOverlays[0]!, {}, {
   context: { threadId, projectId: "proj_lab" },
   sidebarSplitLayout: { panes: [{ paneId: "chat", threadId, isFocused: true, rect: { x: innerWidth > 700 ? 260 : 0, y: 0, width: innerWidth > 700 ? innerWidth - 260 : innerWidth, height: innerHeight } }] },
   rpc: {
+    scroll_get: () => JSON.parse(localStorage.getItem("radar-preview-position") ?? '{"atBottom":false,"messageSeq":51,"offset":-24}'),
+    scroll_set: ({ position }: { position: unknown }) => { localStorage.setItem("radar-preview-position", JSON.stringify(position)); return { ok: true }; },
     presence_read_point: () => ({ through: 1000, messageSeq: 42, confirmedAt: 1000 }),
     presence_heartbeat: () => ({ ok: true }),
   },

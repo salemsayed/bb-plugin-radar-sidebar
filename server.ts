@@ -6,6 +6,7 @@
 // turn down anything they find noisy without editing code, whether each bot is
 // waiting on Salem (from its saved Needs You items), and the Working peek's
 // per-thread digests.
+import { registerScroll } from "./lib/scrollServer";
 import { registerPresence } from "./lib/presenceServer";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
@@ -26,6 +27,7 @@ export default async function plugin(bb: BbPluginApi) {
   // Read in the frontend through useSettings(); every value has a default,
   // so the sidebar keeps working before the first load resolves.
   bb.settings.define({
+    rememberScroll: { type: "boolean", label: "Remember reading position", description: "Return each browser to the message and offset you left. Turn off to use BB’s normal scroll behaviour.", default: true },
     botsDeck: {
       type: "boolean",
       label: "Bots deck",
@@ -142,6 +144,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   await registerPresence(bb);
+  registerScroll(bb);
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
   // The bot's open questions, for the "@" mention in a coordinator reply. Only
