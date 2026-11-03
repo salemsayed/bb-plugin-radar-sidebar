@@ -16,6 +16,7 @@ beforeEach(() => {
   anchor = document.createElement("div");
   anchor.dataset.notificationThread = "one";
   anchor.dataset.notificationMessage = "42";
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: vi.fn(() => anchor) });
   box.append(anchor);
   document.body.append(box);
   Object.defineProperties(box, { clientHeight: { value: 400 }, scrollHeight: { value: 2000 } });
@@ -23,7 +24,7 @@ beforeEach(() => {
   vi.spyOn(box, "getBoundingClientRect").mockImplementation(() => ({ top: 50, bottom: 450, left: 0, right: 400, height: 400, width: 400 }) as DOMRect);
   vi.spyOn(anchor, "getBoundingClientRect").mockImplementation(() => ({ top: 550 - box.scrollTop, bottom: 750 - box.scrollTop, height: 200 }) as DOMRect);
 });
-afterEach(() => { stop?.(); stop = undefined; box.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint; stop?.(); stop = undefined; box.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 it("restores immediately and survives a late initial scroll within the first frames", async () => {
   fixture();
   expect(box.style.visibility).toBe("");
@@ -170,4 +171,17 @@ it("cancels the host's pending cold message jump when the user takes over", asyn
   await vi.advanceTimersByTimeAsync(1000);
   expect(box.scrollTop).toBe(1300);
   expect(cancelAnchor).toHaveBeenCalledOnce();
+});
+
+it("waits for native messages to be hit-testable rather than covered by a loading surface", async () => {
+  anchor.dataset.notificationMessage = "99";
+  vi.mocked(document.elementFromPoint).mockReturnValue(document.body);
+  const loadAnchor = vi.fn();
+  stop = rememberScroll("one", { cached: saved, load: async () => saved, save: vi.fn(), deferUntilVisible: true, loadAnchor }, () => true);
+  await vi.advanceTimersByTimeAsync(500);
+  expect(loadAnchor).not.toHaveBeenCalled();
+  expect(box.scrollTop).toBe(1600);
+  vi.mocked(document.elementFromPoint).mockReturnValue(anchor);
+  await vi.advanceTimersByTimeAsync(80);
+  expect(loadAnchor).toHaveBeenCalledExactlyOnceWith(42);
 });

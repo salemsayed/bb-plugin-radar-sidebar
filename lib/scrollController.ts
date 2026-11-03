@@ -16,6 +16,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), hash: location.hash } }));
   };
   trace("begin", store.cached);
+  trace("mode", { cold: store.deferUntilVisible === true });
   let disposed = false, restoring = true, loaded = store.cached != null, interacted = false, failed = false;
   let position = store.cached ?? null;
   let container: HTMLElement | null = null;
@@ -83,13 +84,15 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (loaded && (!position || position.atBottom)) { finish(); return; }
     if (store.deferUntilVisible && position && !position.atBottom && container) {
       const bounds = container.getBoundingClientRect();
-      const visible = messageAnchors(threadId).some(anchor => {
-        for (let node: HTMLElement | null = anchor; node; node = node.parentElement) {
+      const visible = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95].some(fraction => {
+        const hit = document.elementFromPoint((bounds.left + bounds.right) / 2, bounds.top + bounds.height * fraction);
+        const message = hit?.closest<HTMLElement>("[data-notification-thread][data-notification-message]");
+        if (!message || message.dataset.notificationThread !== threadId || !container!.contains(message)) return false;
+        for (let node: HTMLElement | null = message; node; node = node.parentElement) {
           const style = getComputedStyle(node);
-          if (style.visibility === "hidden" || style.display === "none" || style.opacity === "0") return false;
+          if (style.visibility !== "visible" || style.display === "none" || style.opacity === "0") return false;
         }
-        const rect = anchor.getBoundingClientRect();
-        return rect.bottom > bounds.top && rect.top < bounds.bottom;
+        return true;
       });
       if (!visible) { if (performance.now() - started > 10000) { failed = true; finish(); } return; }
       visibleAt ??= performance.now();
