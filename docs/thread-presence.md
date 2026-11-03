@@ -115,3 +115,5 @@ The recorder retains compositor frames at native cadence for the first six secon
 Automatic message requests publish a temporary fragment to the native router and clear the browser URL immediately without a second route event. The host continues its request from its captured location while a subsequent reload starts on the normal view. Explicit message links remain persistent. A session marker tracks an unfinished owned request and is removed on landing or cancellation.
 
 An owned native request is cancelled when the user takes over before landing or the recovery deadline expires. The old stored position is retained on timeout; the native loader cannot jump later after Radar has given up.
+
+The natural-activity case resolves Lab's current pinned coordinator from the live bot configuration at run start, so rollover cannot leave it watching a retired chat. If that new chat fits the viewport, the case is explicitly skipped because there is no scrolled-up reading point to preserve. It never sends a message to Lab to create activity.

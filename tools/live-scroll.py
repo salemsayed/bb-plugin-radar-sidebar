@@ -174,6 +174,8 @@ original = json.loads(cli('plugin', 'config', 'radar-sidebar', '--json'))['value
 results['originalSettings'] = original
 results['installed'] = json.loads(cli('plugin', 'list', '--json'))
 try:
+    natural_thread = json.loads(cli('saelmbot','bot','list','--json'))['lab']['current'] if 9 in selected else None
+    results['naturalThreadId'] = natural_thread
     widths = [('phone', dict(width=390, height=844, isMobile=True, hasTouch=True)), ('desktop', dict(width=1280, height=900, isMobile=False, hasTouch=False))]
     if not args.preflight:
         setting(True)
@@ -280,23 +282,31 @@ try:
             row(width, 8, off, off['cache']==off['after'] and off['bottomGap'] is not None and off['bottomGap']<=24)
         if 9 in selected:
             setting(True)
-            natural = run(width+'-natural-before', 'console.log(JSON.stringify({result:await middle("thr_exqyeqrqpy")}));')
-            started = time.monotonic()
-            initial = cli('thread','log','thr_exqyeqrqpy','--format','minimal','--limit','1')
-            run(width+'-natural-away', 'await away();console.log(JSON.stringify({result:{ok:true}}));')
-            observed = False
-            while time.monotonic()-started < args.natural_wait:
-                time.sleep(min(30, args.natural_wait))
-                cli('own-chrome','run','--script','console.log("scroll matrix observation heartbeat")')
-                if cli('thread','log','thr_exqyeqrqpy','--format','minimal','--limit','1') != initial:
-                    observed = True
-                    break
-            d = run(width+'-natural-after', 'console.log(JSON.stringify({result:await measure("return",'+json.dumps(natural)+',"thr_exqyeqrqpy")}));')
-            row(width,9,d,position_ok(d),naturalPostObserved=observed,waitedSeconds=round(time.monotonic()-started))
-            if not observed:
-                rows[-1]['status']='skip'
-                rows[-1]['reason']='No natural Lab post within observation window'
-            save()
+            natural = None
+            try:
+                natural = run(width+'-natural-before', 'console.log(JSON.stringify({result:await middle('+json.dumps(natural_thread)+')}));')
+            except RuntimeError as error:
+                if 'No scrollable reading point in current chat' not in str(error): raise
+                geometry = run(width+'-natural-short', 'console.log(JSON.stringify({result:await state('+json.dumps(natural_thread)+')}));')
+                rows.append(dict(width=width,scenario=9,status='skip',data=geometry,reason='Current pinned Lab chat has no scrolled-up reading point'))
+                save()
+            if natural is not None:
+                started = time.monotonic()
+                initial = cli('thread','log',natural_thread,'--format','minimal','--limit','1')
+                run(width+'-natural-away', 'await away();console.log(JSON.stringify({result:{ok:true}}));')
+                observed = False
+                while time.monotonic()-started < args.natural_wait:
+                    time.sleep(min(30, args.natural_wait))
+                    cli('own-chrome','run','--script','console.log("scroll matrix observation heartbeat")')
+                    if cli('thread','log',natural_thread,'--format','minimal','--limit','1') != initial:
+                        observed = True
+                        break
+                d = run(width+'-natural-after', 'console.log(JSON.stringify({result:await measure("return",'+json.dumps(natural)+','+json.dumps(natural_thread)+')}));')
+                row(width,9,d,position_ok(d),naturalPostObserved=observed,waitedSeconds=round(time.monotonic()-started))
+                if not observed:
+                    rows[-1]['status']='skip'
+                    rows[-1]['reason']='No natural Lab post within observation window'
+                save()
         run(width+'-finished-freeze',"await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});console.log(JSON.stringify({result:{ok:true}}));")
 except Exception as e:
     results['error'] = str(e)

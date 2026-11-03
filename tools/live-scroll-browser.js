@@ -12,7 +12,7 @@ async function state(t = thread, seq = null) {
     let b;
     for (let e = aa[0]?.parentElement; e && e !== document.body; e = e.parentElement) if (/^(auto|scroll)$/.test(getComputedStyle(e).overflowY) && e.clientHeight > 0) { b = e; break; }
     const a = seq ? aa.find(e => Number(e.dataset.notificationMessage) === seq) : aa.find(e => e.getBoundingClientRect().bottom > b?.getBoundingClientRect().top && e.getBoundingClientRect().top < b?.getBoundingClientRect().bottom);
-    return { hash: location.hash, active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, bounds: b ? (()=>{const r=b.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})() : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
+    return { hash: location.hash, active: document.visibilityState === 'visible' && document.hasFocus(), seq: a ? Number(a.dataset.notificationMessage) : seq, offset: a && b ? a.getBoundingClientRect().top - b.getBoundingClientRect().top : null, scrollRange: b ? b.scrollHeight - b.clientHeight : null, bottomGap: b ? b.scrollHeight - b.clientHeight - b.scrollTop : null, cache: JSON.parse(localStorage.getItem(`radar-scroll:${t}`) || 'null'), visibility: b ? getComputedStyle(b).visibility : null, bounds: b ? (()=>{const r=b.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})() : null, rect: b ? { x: b.getBoundingClientRect().left + b.clientWidth / 2, y: b.getBoundingClientRect().top + b.clientHeight / 2 } : null };
   }, t, seq);
 }
 async function middle(t = thread, newDocument = true) {
@@ -28,7 +28,9 @@ async function middle(t = thread, newDocument = true) {
   await p.mouse.wheel({ deltaY: t === thread ? 160 : -1600 });
   await pause(1800);
   const result = await state(t);
-  if (!result.active || result.bottomGap < 40 || !result.seq) throw new Error('Setup did not establish a middle reading position');
+  if (!result.active || !result.seq) throw new Error('Setup did not establish an active thread');
+  if (result.scrollRange < 40) throw new Error('No scrollable reading point in current chat');
+  if (result.bottomGap < 40) throw new Error('Setup did not establish a middle reading position');
   return result;
 }
 async function away() { await route('/settings/mobile'); }
