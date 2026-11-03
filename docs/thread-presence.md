@@ -117,3 +117,5 @@ Automatic message requests publish a temporary fragment to the native router and
 An owned native request is cancelled when the user takes over before landing or the recovery deadline expires. The old stored position is retained on timeout; the native loader cannot jump later after Radar has given up.
 
 The natural-activity case resolves Lab's current pinned coordinator from the live bot configuration at run start, so rollover cannot leave it watching a retired chat. If that new chat fits the viewport, the case is explicitly skipped because there is no scrolled-up reading point to preserve. It never sends a message to Lab to create activity.
+
+During recovery, native programmatic scroll events are corrected synchronously before paint. The host emits a scroll event after its message alignment, so its default alignment cannot create a visible second movement after Radar has restored the saved offset. User input ends recovery before its own scroll event.

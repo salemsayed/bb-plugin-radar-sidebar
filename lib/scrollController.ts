@@ -24,6 +24,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let previousBehavior = "";
   let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, matchedAt: number | null = null, releasedRoute = false;
   let visibleAt: number | null = null;
+  let handlingScroll = false;
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
     if (container) { container.style.scrollBehavior = previousBehavior; }
@@ -74,6 +75,13 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (!matched) store.cancelAnchor?.();
   };
   const onScroll = () => {
+    if (restoring) {
+      if (!handlingScroll) {
+        handlingScroll = true;
+        try { apply(); } finally { handlingScroll = false; }
+      }
+      return;
+    }
     capture();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(capture, 120);
@@ -87,19 +95,21 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         if (performance.now() - started > 10000) { failed = true; finish(); }
         return;
       }
-      const bounds = container.getBoundingClientRect();
-      const visible = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95].some(fraction => {
-        const hit = document.elementFromPoint((bounds.left + bounds.right) / 2, bounds.top + bounds.height * fraction);
-        const message = hit?.closest<HTMLElement>("[data-notification-thread][data-notification-message]");
-        if (!message || message.dataset.notificationThread !== threadId || !container!.contains(message)) return false;
-        for (let node: HTMLElement | null = message; node; node = node.parentElement) {
-          const style = getComputedStyle(node);
-          if (style.visibility !== "visible" || style.display === "none" || style.opacity === "0") return false;
-        }
-        return true;
-      });
-      if (!visible) { if (performance.now() - started > 10000) { failed = true; finish(); } return; }
-      if (visibleAt === null) { visibleAt = performance.now(); trace("native-visible"); }
+      if (visibleAt === null) {
+        const bounds = container.getBoundingClientRect();
+        const visible = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95].some(fraction => {
+          const hit = document.elementFromPoint((bounds.left + bounds.right) / 2, bounds.top + bounds.height * fraction);
+          const message = hit?.closest<HTMLElement>("[data-notification-thread][data-notification-message]");
+          if (!message || message.dataset.notificationThread !== threadId || !container!.contains(message)) return false;
+          for (let node: HTMLElement | null = message; node; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.visibility !== "visible" || style.display === "none" || style.opacity === "0") return false;
+          }
+          return true;
+        });
+        if (!visible) { if (performance.now() - started > 10000) { failed = true; finish(); } return; }
+        visibleAt = performance.now(); trace("native-visible");
+      }
       if (performance.now() - visibleAt < 40) return;
     }
     if (position && !position.atBottom) {
