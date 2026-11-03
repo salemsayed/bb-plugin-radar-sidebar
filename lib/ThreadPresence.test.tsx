@@ -8,7 +8,7 @@ const host = vi.hoisted(() => ({
   layout: null as PluginSidebarSplitLayout | null,
   threads: [] as PluginSidebarThread[],
   rpc: { call: vi.fn().mockResolvedValue({ ok: true }) },
-  sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }), events: { list: vi.fn().mockResolvedValue([]) } } },
+  sdk: { threads: { markRead: vi.fn().mockResolvedValue({ ok: true }), timeline: vi.fn(), events: { list: vi.fn().mockResolvedValue([]) } } },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   useBbContext: () => host.context,
@@ -16,6 +16,7 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({
   experimental_useSidebarThreads: () => ({ threads: host.threads }),
   useRpc: () => host.rpc,
   useSdk: () => host.sdk,
+  UrlLink: (props: React.ComponentProps<"a">) => <a {...props} />,
 }));
 let focused = true;
 let visibility = "visible";
@@ -24,7 +25,7 @@ beforeEach(() => {
   host.context.threadId = "one";
   host.layout = null;
   host.threads = [{ id: "one", latestAttentionAt: 1, isUnread: false }] as PluginSidebarThread[];
-  host.rpc.call.mockClear();
+  host.rpc.call.mockReset().mockImplementation(async (method: string) => method === "presence_read_point" ? { through: null, messageSeq: null, confirmedAt: null } : { ok: true });
   host.sdk.threads.markRead.mockClear();
   host.sdk.threads.events.list.mockReset().mockResolvedValue([]);
   focused = true;
@@ -33,7 +34,7 @@ beforeEach(() => {
   vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility as DocumentVisibilityState);
 });
 afterEach(() => { document.querySelectorAll("[data-notification-message]").forEach(el => el.remove()); cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
-const lastHeartbeat = () => host.rpc.call.mock.calls.at(-1)![1];
+const lastHeartbeat = () => host.rpc.call.mock.calls.filter(([method]) => method === "presence_heartbeat").at(-1)![1];
 
 it("marks read on open and every newer attention event while visible, including when already read", () => {
   const view = render(<ThreadPresence />);
@@ -67,7 +68,7 @@ it("uses only the focused split pane and releases on navigation and unmount", ()
 it("heartbeats every 20s, stops while hidden, and immediately releases on pagehide", () => {
   render(<ThreadPresence />);
   act(() => { vi.advanceTimersByTime(20_000); });
-  expect(host.rpc.call).toHaveBeenCalledTimes(2);
+  expect(host.rpc.call.mock.calls.filter(([method]) => method === "presence_heartbeat")).toHaveLength(2);
   expect(lastHeartbeat().sequence).toBe(2);
   act(() => { visibility = "hidden"; document.dispatchEvent(new Event("visibilitychange")); });
   expect(lastHeartbeat()).toMatchObject({ visible: false });
@@ -155,10 +156,11 @@ it("a message lookup completing after focus is lost cannot establish a displayed
   let complete!: (rows: { seq: number; createdAt: number }[]) => void;
   host.sdk.threads.events.list.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
   render(<ThreadPresence />);
+  await act(async () => {});
   act(() => { focused = false; window.dispatchEvent(new Event("blur")); });
   await act(async () => { complete([{ seq: 10, createdAt: 1000 }]); });
   expect(lastHeartbeat()).toMatchObject({ visible: false, through: null });
-  expect(host.rpc.call.mock.calls.some(([, input]) => input.through !== null)).toBe(false);
+  expect(host.rpc.call.mock.calls.some(([method, input]) => method === "presence_heartbeat" && input.through !== null)).toBe(false);
 });
 
 it("missing event anchors fail closed and a displayed boundary never crosses thread routes", async () => {
@@ -235,4 +237,43 @@ it("confirms viewing an older rendered message without treating the cached newer
   host.sdk.threads.events.list.mockResolvedValue([{ seq: 41, createdAt: 500 }]);
   await act(async () => { vi.advanceTimersByTime(400); });
   expect(lastHeartbeat()).toMatchObject({ confirmed: true, messageSeq: 41, through: 500 });
+});
+
+it("captures the previous read point before confirming the newest message and clears only at the first unseen anchor", async () => {
+  const element = renderedMessage(51);
+  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? { through: 1000, messageSeq: 42, confirmedAt: null } : { ok: true });
+  host.sdk.threads.timeline.mockResolvedValue({ rows: [{ kind: "conversation", messageSeq: 45 }, { kind: "conversation", messageSeq: 51 }], timelinePage: { olderCursor: null } });
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 51, createdAt: 2000 }]);
+  const view = render(<ThreadPresence />);
+  await act(async () => {});
+  expect(view.getByRole("link").getAttribute("href")).toBe("/threads/one#msg=45");
+  expect(view.getByText("2 new")).toBeTruthy();
+  await act(async () => { vi.advanceTimersByTime(1200); });
+  expect(lastHeartbeat().messageSeq).toBeNull();
+  expect(host.sdk.threads.events.list).not.toHaveBeenCalled();
+  element.dataset.notificationMessage = "45";
+  host.sdk.threads.events.list.mockResolvedValue([{ seq: 45, createdAt: 1500 }]);
+  await act(async () => { vi.advanceTimersByTime(400); });
+  expect(view.queryByRole("link")).toBeNull();
+  expect(lastHeartbeat()).toMatchObject({ messageSeq: 45, through: 1500 });
+});
+
+it("includes older timeline pages and ignores a lookup completing after thread navigation", async () => {
+  renderedMessage(99);
+  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? { through: 1000, messageSeq: 42, confirmedAt: null } : { ok: true });
+  host.sdk.threads.timeline.mockResolvedValueOnce({ rows: [{ kind: "conversation", messageSeq: 99 }], timelinePage: { olderCursor: { anchorId: "older", anchorSeq: 60 } } })
+    .mockResolvedValueOnce({ rows: [{ kind: "conversation", messageSeq: 45 }], timelinePage: { olderCursor: null } });
+  const view = render(<ThreadPresence />);
+  await act(async () => {});
+  expect(view.getByRole("link").getAttribute("href")).toBe("/threads/one#msg=45");
+  expect(view.getByText("2 new")).toBeTruthy();
+  expect(host.sdk.threads.timeline).toHaveBeenLastCalledWith(expect.objectContaining({ beforeAnchorId: "older", beforeAnchorSeq: "60" }));
+  let finish!: (point: unknown) => void;
+  host.rpc.call.mockImplementation(async (method: string) => method === "presence_read_point" ? new Promise(resolve => { finish = resolve; }) : { ok: true });
+  host.context.threadId = "two";
+  view.rerender(<ThreadPresence />);
+  host.context.threadId = null;
+  view.rerender(<ThreadPresence />);
+  await act(async () => { finish({ messageSeq: 20 }); });
+  expect(view.queryByRole("link")).toBeNull();
 });

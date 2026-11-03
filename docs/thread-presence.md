@@ -70,3 +70,13 @@ The source mobile shell therefore loads plugin apps. Salem's installed Android/i
 ## Read-only baseline (2026-11-01)
 
 Earlier read-only checks found all six current coordinators effective `all`. Own values were Personal/Work/Lab `inherit`, Home/Bricks/ERBareeq `all`. Nothing was changed during implementation. Capture the current values again before deployment because coordinators can roll over.
+
+## Back to where I left off
+
+The presence overlay shows a 44-pixel-tall link below the focused chat header on desktop and phone. On entry or return from a hidden/unfocused window, it loads the existing SQLite `presence_read_point` before confirming any newly displayed message. It pages the SDK timeline after that sequence, including nested conversation rows, and counts unique `messageSeq` values. Work rows do not count. With no saved point or no later conversation messages there is no button.
+
+The button uses the SDK `UrlLink` with BB's `/threads/<id>#msg=<seq>` message route. The host owns navigation, history, loading older messages and scrolling. Radar does not move the chat scroller. While the return point is pending, display confirmation pauses so BB opening at the bottom cannot erase the saved place. Open leases and native thread read marking continue. The button clears once the first unseen message passes the existing viewport/hit-test check, whether reached by the link or manual scrolling. It does not claim that every later message has been read. Focus loss or leaving a thread cancels the pending lookup; lookup failures retry after five seconds without advancing the display boundary.
+
+The SDK has no exact scroll-position API. This restores a message boundary, not a pixel position, and requires BB's message anchors. It works for any Radar-tracked thread, not just coordinators. Other devices may advance the shared read point. The count is a snapshot when the view opens, refreshed on the next entry/focus, rather than a live message counter. No new database tables or notification settings are introduced.
+
+Preview: `npx vite --config harness/vite.config.ts --port 5188`, then `/left-off.html`. This mounts the actual registered overlay through the SDK plugin harness with a synthetic chat and a simulated host message-link handler. It verifies the plugin's rendering, read boundary and visibility lifecycle; installed BB routing still requires a post-install live check. Nothing in this branch installs or reloads Radar.

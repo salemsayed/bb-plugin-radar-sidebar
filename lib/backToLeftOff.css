@@ -1,0 +1,5 @@
+.radar-return-place { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 40; width: max-content; max-width: calc(100vw - 24px); pointer-events: none; }
+.radar-return-button { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px solid var(--border, #454545); border-radius: 24px; background: var(--background, #202020); color: var(--foreground, #eee); box-shadow: 0 2px 8px #0003; font-size: 13px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+.radar-return-button:hover { background: var(--accent, #303030); }
+.radar-return-button:focus-visible { outline: 2px solid var(--ring, #aaa); outline-offset: 3px; }
+.radar-return-count { color: var(--muted-foreground, #aaa); padding-left: 10px; border-left: 1px solid var(--border, #454545); font-variant-numeric: tabular-nums; }

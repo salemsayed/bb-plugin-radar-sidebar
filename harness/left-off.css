@@ -1,0 +1,17 @@
+body { display: flex; font-size: 14px; }
+aside { width: 260px; flex-shrink: 0; padding: 24px 14px; background: var(--sidebar); border-right: 1px solid var(--border); }
+aside p { padding: 12px; color: var(--muted-foreground); }
+aside .selected { background: var(--muted); border-radius: 8px; color: var(--foreground); }
+main { flex: 1; min-width: 0; height: 100vh; display: flex; flex-direction: column; }
+header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+header span { margin-left: auto; }
+#chat { flex: 1; overflow: auto; padding: 70px max(24px, calc((100% - 740px) / 2)) 24px; }
+article { padding: 20px 0; line-height: 1.65; }
+article b { font-size: 12px; color: var(--muted-foreground); }
+article p { margin: 8px 0; }
+article.user { margin: 0 0 20px 48px; padding: 14px 18px; background: var(--muted); border-radius: 14px; }
+article:target { outline: 1px solid var(--border); outline-offset: 10px; border-radius: 6px; }
+footer { padding: 14px 24px 24px; }
+footer div { max-width: 740px; margin: auto; padding: 20px; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: 16px; }
+footer span { float: right; }
+@media(max-width: 700px) { aside { display: none; } #chat { padding: 70px 20px 20px; } footer { padding: 12px; } }

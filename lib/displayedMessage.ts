@@ -1,9 +1,10 @@
-export function displayedMessageSeq(threadId: string): number | null {
+export function displayedMessageSeq(threadId: string, onlySeq?: number): number | null {
   if (document.visibilityState !== "visible" || !document.hasFocus()) return null;
   let latest: number | null = null;
   for (const element of Array.from(document.querySelectorAll<HTMLElement>("[data-notification-thread][data-notification-message]"))) {
     if (element.dataset.notificationThread !== threadId) continue;
     const seq = Number(element.dataset.notificationMessage);
+    if (onlySeq !== undefined && seq !== onlySeq) continue;
     if (!Number.isSafeInteger(seq) || seq < 1 || latest !== null && seq <= latest) continue;
     const rect = element.getBoundingClientRect();
     const left = Math.max(0, rect.left), right = Math.min(innerWidth, rect.right);

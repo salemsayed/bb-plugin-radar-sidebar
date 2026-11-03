@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { experimental_useSidebarThreads, useBbContext, useRpc, useSdk, useSidebarSplitLayout } from "@get-bb/plugin-sdk/app";
 import { displayedMessageSeq } from "./displayedMessage";
+import { BackToLeftOff } from "./BackToLeftOff";
+import { unseenBoundary, type UnseenBoundary, type MessageRow } from "./unseenBoundary";
 import { HEARTBEAT_MS, presenceContract } from "./presence";
 
 export function ThreadPresence() {
@@ -13,6 +15,7 @@ export function ThreadPresence() {
   const rpc = useRpc<typeof presenceContract>();
   const sdk = useSdk();
   const [active, setActive] = useState(() => document.visibilityState === "visible" && document.hasFocus());
+  const [returnPlace, setReturnPlace] = useState<{ threadId: string; boundary: UnseenBoundary } | null>(null);
   const boundary = useRef<{ threadId: string; through: number; messageSeq: number } | null>(null);
   const client = useRef({ id: crypto.randomUUID(), sequence: 0 });
   const latest = useRef({ threadId, active, rpc });
@@ -46,12 +49,47 @@ export function ThreadPresence() {
   }, [rpc, threadId, active]);
   useEffect(() => {
     if (!active || !threadId) return;
+    let cancelled = false;
+    const visit = { threadId, ready: false, pending: null as UnseenBoundary | null };
+    setReturnPlace(null);
+    const load = async () => {
+      try {
+        const point = await rpc.call("presence_read_point", { threadId });
+        if (cancelled) return;
+        const rows: MessageRow[] = [];
+        if (point.messageSeq != null) {
+          let cursor: { anchorId: string; anchorSeq: number } | null = null;
+          do {
+            const page = await sdk.threads.timeline({ threadId, afterSequence: String(point.messageSeq), includeNestedRows: "true", segmentLimit: "100", ...(cursor ? { beforeAnchorId: cursor.anchorId, beforeAnchorSeq: String(cursor.anchorSeq) } : {}) });
+            if (cancelled) return;
+            rows.push(...page.rows);
+            const next = page.timelinePage.olderCursor;
+            if (!next || next.anchorSeq <= point.messageSeq || cursor && next.anchorSeq >= cursor.anchorSeq) break;
+            cursor = next;
+          } while (!cancelled);
+        }
+        if (cancelled) return;
+        visit.pending = unseenBoundary(point.messageSeq ?? null, rows);
+        visit.ready = true;
+        setReturnPlace(visit.pending ? { threadId, boundary: visit.pending } : null);
+        void confirm();
+      } catch {
+        if (!cancelled) retryLoad = setTimeout(() => { void load(); }, 5000);
+      }
+    };
+    let retryLoad: ReturnType<typeof setTimeout> | undefined;
+    void load();
     let disposed = false, busy = false, confirmedSeq = boundary.current?.threadId === threadId ? boundary.current.messageSeq : 0;
     let failures = 0, retryAt = 0;
     const backoff = () => { retryAt = performance.now() + Math.min(60_000, 1000 * 2 ** Math.min(failures++, 6)); };
     const controller = new AbortController();
     const confirm = async () => {
-      if (busy || performance.now() < retryAt) return;
+      if (busy || performance.now() < retryAt || !visit.ready) return;
+      if (visit.pending) {
+        if (displayedMessageSeq(threadId, visit.pending.firstSeq) === null) return;
+        visit.pending = null;
+        setReturnPlace(null);
+      }
       const seq = displayedMessageSeq(threadId);
       if (seq === null || seq === confirmedSeq) return;
       busy = true;
@@ -67,10 +105,10 @@ export function ThreadPresence() {
     };
     void confirm();
     const timer = setInterval(() => { void confirm(); }, 400);
-    return () => { disposed = true; controller.abort(); clearInterval(timer); };
-  }, [sdk, active, threadId]);
+    return () => { cancelled = true; clearTimeout(retryLoad); disposed = true; controller.abort(); clearInterval(timer); };
+  }, [sdk, rpc, active, threadId]);
   useEffect(() => {
     if (active && threadId) void sdk.threads.markRead({ threadId }).catch(() => {});
   }, [sdk, active, threadId, thread?.latestAttentionAt, thread?.isUnread]);
-  return null;
+  return active && returnPlace?.threadId === threadId ? <BackToLeftOff threadId={threadId} boundary={returnPlace.boundary} rect={layout?.panes.find(p => p.isFocused)?.rect} /> : null;
 }
