@@ -93,3 +93,19 @@ it("clears its owned message route when the saved place is at bottom", async () 
   await act(async () => { await vi.advanceTimersByTimeAsync(500); });
   expect(location.hash).toBe("");
 });
+it("disabling scroll memory removes only its owned fragment", () => {
+  host.enabled = false;
+  history.replaceState(null, "", "/threads/one#msg=42");
+  sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId: "one", hash: "#msg=42", at: Date.now() }));
+  render(<ThreadPresence />);
+  expect(location.hash).toBe("");
+});
+it("preserves the owned route while settings are still loading", () => {
+  (host as { enabled: boolean | undefined }).enabled = undefined;
+  history.replaceState(null, "", "/threads/one#msg=42");
+  sessionStorage.setItem("radar-scroll-route", JSON.stringify({ threadId: "one", hash: "#msg=42", at: Date.now() }));
+  localStorage.setItem("radar-scroll-enabled", "true");
+  render(<ThreadPresence />);
+  expect(location.hash).toBe("#msg=42");
+  expect(localStorage.getItem("radar-scroll-enabled")).toBe("true");
+});

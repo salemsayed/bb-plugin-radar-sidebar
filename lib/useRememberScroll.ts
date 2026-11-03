@@ -15,10 +15,22 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
   const autoHash = useRef<{ threadId: string; hash: string } | null>(null);
   const rpc = useRpc<typeof scrollContract>();
   const { values } = useSettings();
+  const configured = typeof values?.rememberScroll === "boolean";
   const enabled = values?.rememberScroll === true;
   useLayoutEffect(() => {
+    if (!configured) return;
     try { localStorage.setItem("radar-scroll-enabled", String(enabled)); } catch {}
-    if (!enabled || !active || location.hash) return;
+    if (!enabled) {
+      try {
+        const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
+        if (marker?.hash === location.hash && location.pathname.endsWith(`/threads/${marker.threadId}`)) {
+          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+          sessionStorage.removeItem("radar-scroll-route");
+        }
+      } catch {}
+      return;
+    }
+    if (!active || location.hash) return;
     const routeId = location.pathname.match(/\/threads\/([^/]+)/)?.[1];
     if (!routeId) return;
     try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); if (marker?.threadId === routeId && Date.now() - marker.at < 5000) return; } catch {}
@@ -31,7 +43,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       history.replaceState(history.state, "", `${location.pathname}${hash}`);
       window.dispatchEvent(new PopStateEvent("popstate"));
     } catch {}
-  }, [enabled, active, threadId]);
+  }, [configured, enabled, active, threadId]);
   useLayoutEffect(() => {
     if (!enabled || !threadId || !active) return;
     let generated = false;
