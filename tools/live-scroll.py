@@ -24,7 +24,11 @@ def cli(*cmd):
 def run(label, body):
     script = out / (label + '.js')
     script.write_text(helper + '\n' + body)
-    raw = cli('own-chrome', 'run', '--timeout', '90s', '--script-file', str(script))
+    proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    raw = proc.stdout
+    if proc.returncode:
+        (out / (label + '.log')).write_text(raw)
+        raise RuntimeError(raw)
     (out / (label + '.log')).write_text(raw)
     for n, path in enumerate(re.findall(r'^  (/.+\.jpg)$', raw, re.M)):
         shutil.copy2(path, out / f'{label}-{n}.jpg')
@@ -78,16 +82,31 @@ try:
         timings = {}
         for mode in [False, True]:
             setting(mode)
-            before = run(width+'-flicker-'+str(mode)+'-before', 'const a=await middle();await away();console.log(JSON.stringify({result:a}));')
-            timings[str(mode)] = run(width+'-flicker-'+str(mode), 'console.log(JSON.stringify({result:await measure("return",'+json.dumps(before)+')}));')
+            timings[str(mode)] = {}
+            for action in ['return', 'reload', 'resume']:
+                setup = 'const a=await middle();'
+                if action=='return':
+                    setup += 'await away();'
+                if action=='resume':
+                    setup += "await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});await pause(500);"
+                before = run(width+'-flicker-'+str(mode)+'-'+action+'-before', setup+'console.log(JSON.stringify({result:a}));')
+                timings[str(mode)][action] = run(width+'-flicker-'+str(mode)+'-'+action, 'console.log(JSON.stringify({result:await measure('+json.dumps(action)+','+json.dumps(before)+')}));')
         first = lambda d: next((x['ms'] for x in d['frames'] if x['painted']), None)
-        off, on = first(timings['False']), first(timings['True'])
-        wrong = [f for f in timings['True']['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-timings['True']['expected']['offset'])>8)]
-        row(width, 7, dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,wrongFrames=len(wrong)), off is not None and on is not None and on-off<=150 and not wrong)
+        comparisons = {}
+        for action in ['return', 'reload', 'resume']:
+            off, on = first(timings['False'][action]), first(timings['True'][action])
+            data = timings['True'][action]
+            wrong = [f for f in data['frames'] if f['painted'] and (f['offset'] is None or abs(f['offset']-data['expected']['offset'])>8)]
+            comparisons[action] = dict(offMs=off,onMs=on,extraMs=None if off is None or on is None else on-off,wrongFrames=len(wrong))
+        row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']<=150 and not d['wrongFrames'] for d in comparisons.values()))
         setting(False)
         off = run(width+'-switch-off', 'const a=await middle();const cache=a.cache;await away();await measure("return",a);console.log(JSON.stringify({result:{cache,after:(await state()).cache}}));')
         row(width, 8, off, off['cache']==off['after'])
         setting(True)
+        if any(r['status']=='fail' for r in rows):
+            rows.append(dict(width=width,scenario=9,status='skip',reason='Natural observation deferred until automated checks pass'))
+            save()
+            continue
         natural = run(width+'-natural-before', 'console.log(JSON.stringify({result:await middle("thr_exqyeqrqpy")}));')
         started = time.monotonic()
         initial = cli('thread','log','thr_exqyeqrqpy','--format','minimal','--limit','1')

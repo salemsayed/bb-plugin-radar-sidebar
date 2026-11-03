@@ -17,7 +17,7 @@ async function state(t = thread, seq = null) {
 }
 async function middle(t = thread) {
   await p.goto(`${base}/threads/${t}${t === thread ? '#msg=20' : ''}`);
-  await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]`), {}, t);
+  await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), {}, t);
   await pause(600);
   await p.evaluate(() => history.replaceState(history.state, '', location.pathname));
   const s = await state(t);

@@ -70,7 +70,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       }
     }
     if (container) firstContainerAt ??= performance.now();
-    if (firstContainerAt !== null && performance.now() - firstContainerAt >= 150 || performance.now() - started > 2000) {
+    if (firstContainerAt !== null && performance.now() - firstContainerAt >= (matched ? 1200 : 1500) || performance.now() - started > 4000) {
       failed = !matched && position?.atBottom !== true;
       finish();
     }
