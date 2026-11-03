@@ -92,13 +92,14 @@ def visible_frame_time(data):
     samples = data['frames']
     checks = []
     for frame, path in zip(data['imageInfo'], data.get('frameImages', [])):
-        if frame['ms'] < 0:
+        if frame['ms'] < 0 and data.get('action') != 'resume':
             continue
-        stamp = data['triggerAt'] + frame['ms']
+        elapsed = max(0, frame['ms'])
+        stamp = data['triggerAt'] + elapsed
         sample = min(samples, key=lambda item: abs(item['wallTime'] - stamp)) if samples else None
         bounds = data['expected'].get('bounds')
         if not sample or not sample['painted'] or not bounds:
-            checks.append(dict(index=frame['index'], ms=frame['ms'], content=False))
+            checks.append(dict(index=frame['index'], ms=elapsed, content=False))
             continue
         dimensions = subprocess.check_output(['magick', 'identify', '-format', '%w %h', path], text=True).split()
         scale = int(dimensions[0]) / frame['deviceWidth']
@@ -108,7 +109,7 @@ def visible_frame_time(data):
         height = max(1, round(min(bounds['height'] * 0.75, bounds['height'] - 120) * scale))
         fraction = float(subprocess.check_output(['magick', path, '-crop', f'{width}x{height}+{left}+{top}', '-colorspace', 'Gray', '-threshold', '62%', '-format', '%[fx:1-mean]', 'info:'], text=True))
         content = fraction * width * height >= 150
-        checks.append(dict(index=frame['index'], ms=frame['ms'], darkPixelFraction=fraction, content=content))
+        checks.append(dict(index=frame['index'], ms=elapsed, darkPixelFraction=fraction, content=content))
     data['compositorFrames'] = checks
     return next((frame['ms'] for frame in checks if frame['content']), None)
 

@@ -88,5 +88,5 @@ async function measure(action, expected, t = thread) {
   await cdp.detach();
   await p.evaluate(data => sessionStorage.setItem('radar-matrix-images', JSON.stringify(data)), images.map(x => x.data));
   const imageInfo = images.map((x, i) => ({ index: i, ms: x.metadata.timestamp * 1000 - triggerAt, receivedMs: x.at-started, deviceWidth: x.metadata.deviceWidth, deviceHeight: x.metadata.deviceHeight, length: x.data.length }));
-  return { expected, triggerAt, imageInfo, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => { window.__radarScrollDebug = false; return window.scrollTrace || []; }) };
+  return { action, expected, triggerAt, imageInfo, final: await state(t, expected.seq), frames: await p.evaluate(() => window.matrixFrames || []), trace: await p.evaluate(() => { window.__radarScrollDebug = false; return window.scrollTrace || []; }) };
 }
