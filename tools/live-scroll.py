@@ -17,13 +17,15 @@ out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 helper = Path(__file__).with_name('live-scroll-browser.js').read_text()
 rows = []
-results = {'mode': 'preflight' if args.preflight else 'full', 'rows': rows, 'postPolicy': 'Each width is one round with at most three LONG posts, one each for return, bottom and background.', 'limitations': ['Phone is real Chrome mobile emulation, not native iOS. Background uses the visibility/focus event route.']}
+results = {'mode': 'preflight' if args.preflight else 'full', 'rows': rows, 'postPolicy': 'At most three LONG posts for the whole matrix: both widths share one post per stimulus.', 'limitations': ['Phone is real Chrome mobile emulation, not native iOS. Background uses the visibility/focus event route.']}
 
 def cli(*cmd):
     return subprocess.check_output(['bb', *cmd], text=True)
 
 def run(label, body):
     script = out / (label + '.js')
+    page_name = 'radar-matrix-' + label.split('-')[0]
+    page_helper = helper.replace("'radar-matrix'",json.dumps(page_name),1)
     prefix, payload = body.rsplit('console.log(JSON.stringify(', 1)
     if not payload.endswith('));'):
         raise ValueError('Live browser operation must end with its result')
@@ -35,7 +37,7 @@ if(matrixResult){
  console.log(JSON.stringify({packed:compressed}));
 }
 """
-    script.write_text(helper + '\n' + bridge + body + emit)
+    script.write_text(page_helper + '\n' + bridge + body + emit)
     proc = subprocess.run(['bb', 'own-chrome', 'run', '--timeout', '90s', '--script-file', str(script)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     raw = proc.stdout
     if proc.returncode:
@@ -54,7 +56,7 @@ if(matrixResult){
                     for image in value['result'].get('imageInfo', []):
                         chunks=[]
                         for start in range(0,image['length'],20000):
-                            command='const p=await browser.getPage("radar-matrix");console.log(JSON.stringify({chunk:await p.evaluate(x=>JSON.parse(sessionStorage.getItem("radar-matrix-images"))[x.index].slice(x.start,x.start+20000),'+json.dumps(dict(index=image['index'],start=start))+')}));'
+                            command='const p=await browser.getPage('+json.dumps(page_name)+');console.log(JSON.stringify({chunk:await p.evaluate(x=>JSON.parse(sessionStorage.getItem("radar-matrix-images"))[x.index].slice(x.start,x.start+20000),'+json.dumps(dict(index=image['index'],start=start))+')}));'
                             output=cli('own-chrome','run','--script',command)
                             chunks.append(next(json.loads(l)['chunk'] for l in output.splitlines() if l.startswith('{"chunk":')))
                         target=out / f"{label}-cast-{image['index']}.jpg"
@@ -90,6 +92,28 @@ original = json.loads(cli('plugin', 'config', 'radar-sidebar', '--json'))['value
 results['originalSettings'] = original
 results['installed'] = json.loads(cli('plugin', 'list', '--json'))
 try:
+    widths = [('phone', dict(width=390, height=844, isMobile=True, hasTouch=True)), ('desktop', dict(width=1280, height=900, isMobile=False, hasTouch=False))]
+    if not args.preflight:
+        setting(True)
+        for scenario, phase in [(1,'return'),(2,'bottom'),(3,'background')]:
+            prepared = {}
+            for width, viewport in widths:
+                run(width+'-'+phase+'-viewport','await p.setViewport('+json.dumps(viewport)+');console.log(JSON.stringify({result:{ok:true}}));')
+                body="const initial=await middle();await p.mouse.move(initial.rect.x,initial.rect.y);await p.mouse.wheel({deltaY:initial.offset});await pause(700);const before=await state();"
+                if scenario==2:
+                    body+='await p.evaluate(()=>{const b=document.querySelector(".thread-scrollbar");b.scrollTop=b.scrollHeight;});await pause(700);'
+                body += "await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});"
+                if scenario!=3:
+                    body+='await away();'
+                body+='console.log(JSON.stringify({result:before}));'
+                prepared[width]=run(width+'-'+phase+'-before',body)
+            if prepared['phone']['seq']!=prepared['desktop']['seq'] or abs(prepared['phone']['offset']-prepared['desktop']['offset'])>8:
+                raise RuntimeError('Shared stimulus requires the same aligned message on both widths')
+            post('both-'+phase)
+            for width, _ in widths:
+                data=run(width+'-'+phase+'-after','console.log(JSON.stringify({result:await measure('+json.dumps('resume' if scenario==3 else 'return')+','+json.dumps(prepared[width])+')}));')
+                row(width,scenario,data,data['final']['bottomGap']<=24 if scenario==2 else position_ok(data))
+                run(width+'-'+phase+'-freeze',"await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});console.log(JSON.stringify({result:{ok:true}}));")
     for width, viewport in [('phone', dict(width=390, height=844, isMobile=True, hasTouch=True)), ('desktop', dict(width=1280, height=900, isMobile=False, hasTouch=False))]:
         run(width+'-viewport', 'await p.setViewport('+json.dumps(viewport)+'); console.log(JSON.stringify({result:{ok:true}}));')
         setting(True)
@@ -102,11 +126,6 @@ try:
             d['bottomFlashFrames']=sum(f['bottomGap'] is not None and f['bottomGap']<=24 for f in visible)
             row(width,4,d,position_ok(d) and not d['bottomFlashFrames'] and d['settlingMs']<=150)
             continue
-        for scenario, phase in [(1, 'return'), (2, 'bottom'), (3, 'background')]:
-            before = run(width+'-'+phase+'-before', "const before=await middle();" + ("await p.evaluate(()=>{const b=document.querySelector('.thread-scrollbar');b.scrollTop=b.scrollHeight;});await pause(700);" if scenario == 2 else '') + ("await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('blur'));});" if scenario == 3 else 'await away();') + 'console.log(JSON.stringify({result:before}));')
-            post(width+'-'+phase)
-            data = run(width+'-'+phase+'-after', 'console.log(JSON.stringify({result:await measure('+json.dumps('resume' if scenario == 3 else 'return')+','+json.dumps(before)+')}));')
-            row(width, scenario, data, data['final']['bottomGap'] <= 24 if scenario == 2 else position_ok(data))
         before = run(width+'-reload-before', 'console.log(JSON.stringify({result:await middle()}));')
         data = run(width+'-reload', 'console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
         row(width, 4, data, position_ok(data))

@@ -64,7 +64,7 @@ async function measure(action, expected, t = thread) {
     await p.removeScriptToEvaluateOnNewDocument(injection.identifier);
   } else {
     await p.evaluate(startFrames, t, expected);
-    if (action === 'return') await p.goBack();
+    if (action === 'return') { await p.evaluate(() => { delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); }); await p.goBack(); }
     if (action === 'resume') await p.evaluate(() => { delete document.visibilityState; window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
   }
   await pause(9000);
