@@ -16,8 +16,8 @@ async function state(t = thread, seq = null) {
   }, t, seq);
 }
 async function middle(t = thread) {
-  await p.goto(`${base}/threads/${t}${t === thread ? '#msg=20' : ''}`);
-  await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), {}, t);
+  await p.goto(`${base}/projects/proj_jfxygzbhcr/threads/${t}${t === thread ? '#msg=20' : ''}`);
+  await p.waitForFunction(t => document.querySelector(`[data-notification-thread="${t}"]${t === "thr_yaa3n3kk73" ? '[data-notification-message="20"]' : ""}`), { timeout: 30000 }, t);
   await pause(1500);
   await p.evaluate(() => { history.replaceState(history.state, '', location.pathname); dispatchEvent(new PopStateEvent('popstate')); });
   const s = await state(t);

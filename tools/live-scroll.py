@@ -77,7 +77,7 @@ try:
         before = run(width+'-reload-before', 'console.log(JSON.stringify({result:await middle()}));')
         data = run(width+'-reload', 'console.log(JSON.stringify({result:await measure("reload",'+json.dumps(before)+')}));')
         row(width, 4, data, position_ok(data))
-        two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);console.log(JSON.stringify({result:{a,b,aa,bb}}));')
+        two = run(width+'-two', 'const a=await middle();const b=await middle("thr_wfhsqd493j");await route("/projects/proj_jfxygzbhcr/threads/"+thread);await pause(1300);const aa=await state(thread,a.seq);await route("/projects/proj_jfxygzbhcr/threads/thr_wfhsqd493j");await pause(1300);const bb=await state("thr_wfhsqd493j",b.seq);console.log(JSON.stringify({result:{a,b,aa,bb}}));')
         row(width, 5, two, all(two[k+'a' if k=='a' else 'bb']['offset'] is not None for k in ['a','b']) and abs(two['a']['offset']-two['aa']['offset'])<=8 and abs(two['b']['offset']-two['bb']['offset'])<=8)
         action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);console.log(JSON.stringify({result:{a,b}}));')
         row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8)

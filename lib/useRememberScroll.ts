@@ -15,7 +15,7 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
   const autoHash = useRef<{ threadId: string; hash: string } | null>(null);
   const rpc = useRpc<typeof scrollContract>();
   const { values } = useSettings();
-  const enabled = values?.rememberScroll !== false;
+  const enabled = values?.rememberScroll === true;
   useLayoutEffect(() => {
     try { localStorage.setItem("radar-scroll-enabled", String(enabled)); } catch {}
     if (!enabled || !active || location.hash) return;
