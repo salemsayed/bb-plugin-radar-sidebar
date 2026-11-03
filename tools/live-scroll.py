@@ -15,8 +15,11 @@ parser.add_argument('--natural-wait', type=int, default=600)
 parser.add_argument('--preflight', action='store_true')
 parser.add_argument('--only', nargs='+', type=int, choices=range(1,10))
 parser.add_argument('--resume', action='store_true')
+parser.add_argument('--reload-trials', type=int, default=7)
 args = parser.parse_args()
 selected=set(args.only or range(1,10))
+if args.reload_trials < 3 or args.reload_trials % 2 == 0:
+    parser.error('--reload-trials must be an odd number of at least three')
 if args.preflight and args.only:
     parser.error('--preflight and --only are mutually exclusive')
 out = Path(args.output).resolve()
@@ -155,6 +158,8 @@ def later_blank_ms(data):
     return total
 
 def save():
+    results['counts'] = {status: sum(r['status']==status for r in rows) for status in ['pass','fail','skip']}
+    results['counts']['total'] = len(rows)
     results['outcome'] = ('pass' if len(rows) == (2 if args.preflight else len(selected)*2) and not results.get('error') and results.get('settingsRestored') is True and all(r['status'] in ['pass', 'skip'] for r in rows) else 'fail') if results.get('finished') else 'running'
     (out / 'results.json').write_text(json.dumps(results, indent=2))
     sections=[]
@@ -243,15 +248,14 @@ try:
             action = run(width+'-action', 'await middle();await away();await p.goBack();await p.waitForFunction(()=>document.querySelector(".thread-scrollbar"));const s=await state();await p.mouse.move(s.rect.x,s.rect.y);await p.mouse.wheel({deltaY:300});await pause(300);const a=await state();await pause(1600);const b=await state(thread,a.seq);const ev=await measure("none",a);const saved=await middle();await p.reload({waitUntil:"domcontentloaded"});await p.waitForFunction(seq=>JSON.parse(sessionStorage.getItem("radar-scroll-route")||"null")?.hash==="#msg="+seq&&!document.querySelector(`[data-notification-thread="thr_yaa3n3kk73"][data-notification-message="${seq}"]`)&&document.querySelector(".thread-scrollbar"),{timeout:10000},saved.seq);const normal=await state();await p.mouse.move(normal.rect.x,normal.rect.y);await p.mouse.wheel({deltaY:-300});await pause(300);const user=await state();const cold=await measure("none",user);console.log(JSON.stringify({result:{a,b,warm:ev,...cold,cold:{saved,...cold}}}));')
             row(width, 6, action, action['b']['offset'] is not None and abs(action['a']['offset']-action['b']['offset'])<=8 and position_ok(action['cold']) and action['cold']['expected']['bottomGap']>200)
         if 7 in selected and not completed(width,7):
-            timings = {}
-            trials = {}
-            for mode in [False, True]:
-                setting(mode)
-                timings[str(mode)] = {}
-                trials[str(mode)] = {}
-                for action in ['return', 'reload', 'resume']:
-                    samples = []
-                    for trial in range(3 if action == 'reload' else 1):
+            timings = {str(mode): {} for mode in [False, True]}
+            trials = {str(mode): {} for mode in [False, True]}
+            for action in ['return', 'reload', 'resume']:
+                for mode in [False, True]:
+                    trials[str(mode)][action] = []
+                for trial in range(args.reload_trials if action == 'reload' else 1):
+                    for mode in ([False, True] if trial % 2 == 0 else [True, False]):
+                        setting(mode)
                         label = width+'-flicker-'+str(mode)+'-'+action+('' if trial == 0 else '-trial-'+str(trial+1))
                         setup = 'const a=await middle();'
                         if action=='return':
@@ -262,8 +266,9 @@ try:
                         sample = run(label, 'console.log(JSON.stringify({result:await measure('+json.dumps(action)+','+json.dumps(before)+')}));')
                         sample['firstCompositorMs'] = visible_frame_time(sample)
                         sample['source'] = str(out/(label+'-data.json'))
-                        samples.append(sample)
-                    trials[str(mode)][action] = samples
+                        trials[str(mode)][action].append(sample)
+                for mode in [False, True]:
+                    samples = trials[str(mode)][action]
                     timings[str(mode)][action] = sorted(samples, key=lambda d: d['firstCompositorMs'] if d['firstCompositorMs'] is not None else float('inf'))[len(samples)//2]
             first = lambda data: data['firstCompositorMs']
             comparisons = {}
@@ -290,7 +295,7 @@ try:
                 reload_trials.append(dict(source=sample['source'],firstCompositorMs=sample['firstCompositorMs'],nativeVisibleWallTime=native,firstDomWallTime=first_dom,requestWallTime=operation,requestAfterNativeView=ordering,firstLandingErrorPx=first_landing_error,jumpCount=jumps,landingErrorPx=error,laterBlankMs=later_blank_ms(sample)))
             comparisons['reload']['samplesOffMs'] = [d['firstCompositorMs'] for d in trials['False']['reload']]
             comparisons['reload']['samplesOnMs'] = [d['firstCompositorMs'] for d in trials['True']['reload']]
-            comparisons['reload']['sampling'] = 'Median of three end-to-end reloads per mode; every enabled reload must satisfy ordering, one jump, landing and later-blank requirements.'
+            comparisons['reload']['sampling'] = f'Median of {args.reload_trials} interleaved end-to-end reloads per mode; every enabled reload must satisfy ordering, one jump, landing and later-blank requirements.'
             comparisons['reload']['enabledTrials'] = reload_trials
             comparisons['reload']['allTrialsPass'] = all(d['requestAfterNativeView'] and d['firstLandingErrorPx'] is not None and d['firstLandingErrorPx']<=8 and d['jumpCount']==1 and d['landingErrorPx'] is not None and d['landingErrorPx']<=8 and d['laterBlankMs']<=150 for d in reload_trials)
             row(width, 7, comparisons, all(d['extraMs'] is not None and d['extraMs']+max(0,d['laterBlankOnMs']-d['laterBlankOffMs'])<=150 and (d['allTrialsPass'] if action=='reload' else not d['bottomFlashFrames'] and d['settlingMs']<=150) for action,d in comparisons.items()),frameImages=[i for samples in trials['True'].values() for d in samples for i in d.get('frameImages',[])])
