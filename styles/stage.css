@@ -1,4 +1,6 @@
 .stage {
+  --stage-selection: light-dark(#3b6cf6, #82a5ff);
+  --stage-selection-fill: light-dark(#e8efff, #202e50);
   --stage-ask: light-dark(#7a5200, #ffd36b);
   --stage-blocked: light-dark(#b42318, #ff9a8f);
   --stage-news: light-dark(#2f4fc4, #8fb0ff);
@@ -48,8 +50,8 @@
 .stage-chat:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .stage-row:has(.stage-chat[aria-current="page"]) {
   position: relative;
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  outline: 2px solid var(--primary);
+  background: var(--stage-selection-fill);
+  outline: 2px solid var(--stage-selection);
   outline-offset: 1px;
 }
 .stage-row:has(.stage-chat[aria-current="page"])::before {
@@ -60,7 +62,7 @@
   height: 50%;
   width: 3px;
   border-radius: 3px;
-  background: var(--primary);
+  background: var(--stage-selection);
   pointer-events: none;
 }
 .stage-row[data-tone="busy"] .stage-line::before {
@@ -70,7 +72,7 @@
   height: 6px;
   margin-inline-end: 5px;
   border-radius: 50%;
-  background: currentColor;
+  background: light-dark(#c58a00, #ffd36b);
   vertical-align: 1px;
   animation: stage-status-pulse 1.8s ease-in-out infinite;
 }
@@ -125,8 +127,6 @@
 .stage-row[data-tone="busy"] .stage-line { color: var(--stage-busy); }
 .stage-row[data-tone="news"] .stage-line { color: var(--stage-news); }
 .stage-row[data-tone="good"] .stage-line { color: var(--stage-good); }
-.stage-dots { display: flex; gap: 4px; margin-top: 4px; }
-.stage-dots i { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--bot-hue) 65% 50%); }
 @container (max-width: 200px) {
   .stage-row:not([data-kind="calm"]) .stage-figure { width: 56px; }
   .stage-row:not([data-kind="calm"]) .stage-figure .stage-face { width: 54px; height: 52px; }
@@ -136,9 +136,6 @@
   .stage-face[data-pose="working"] .stage-busy-lines { animation: stage-blink 0.9s steps(2) infinite; }
   .stage-face[data-pose="asking"] .stage-ask { animation: stage-bob 1.6s ease-in-out infinite; transform-origin: 38px 16px; }
   .bot-hero .stage-face[data-pose="idle"] .stage-body { animation: stage-breathe 4s ease-in-out infinite; transform-origin: 22px 40px; }
-  .stage-dots i { animation: stage-pulse 1.4s ease-in-out infinite; }
-  .stage-dots i:nth-child(2) { animation-delay: .2s; }
-  .stage-dots i:nth-child(3) { animation-delay: .4s; }
   .stage-face[data-pose="blocked"] .stage-smoke { animation: stage-rise 2.4s ease-out infinite; }
 }
 @keyframes stage-type { 50% { transform: translateY(0.6px); } }

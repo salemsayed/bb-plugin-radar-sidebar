@@ -134,8 +134,7 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
         </span>
         <span className="stage-copy">
           <span className="stage-head"><b>{name}</b>{look.time ? <span className="stage-time">{look.time}</span> : null}</span>
-          <span className="stage-line"><bdi>{look.line}</bdi>{look.extra && !(look.kind === "live" && look.helpers) ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
-          {look.kind === "live" && look.helpers ? <span className="stage-dots" aria-hidden="true">{Array.from({ length: Math.min(look.helpers, 6) }, (_, i) => <i key={i} />)}</span> : null}
+          <span className="stage-line"><bdi>{look.line}</bdi>{look.extra ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
         </span>
       </button>
     </div>;
