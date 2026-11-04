@@ -27,7 +27,7 @@ export function splitStatus(status: string): { state: string; meta: string; note
 }
 
 export function youWords(text: string): string {
-  const out = text.replace(/\bSalem's\b/g, "your").replace(/\bSalem\b/g, "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
+  const out = text.replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
   return out ? out[0]!.toUpperCase() + out.slice(1) : out;
 }
 

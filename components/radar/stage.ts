@@ -56,7 +56,7 @@ export function stageText(text: string): string {
 }
 
 function title(raw: string): string {
-  return plainNote(secondPerson(flatten(taskHeadline(raw)).replace(/\bSalem's\b/g, "your").replace(/\bSalem\b/g, "you")));
+  return plainNote(secondPerson(flatten(taskHeadline(raw)).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you")));
 }
 
 function plural(n: number, one: string, many: string): string {
