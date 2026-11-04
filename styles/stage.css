@@ -6,13 +6,15 @@
   --stage-quiet: var(--muted-foreground);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 8px 20px;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: calc(100% - 4px);
+  padding: 6px 6px 8px;
   color: var(--foreground);
   container-type: inline-size;
 }
 .stage-stale {
-  margin: 0 4px 6px;
+  margin: 0 0 2px;
   padding: 9px 12px;
   border-radius: 14px;
   background: var(--muted);
@@ -20,16 +22,29 @@
   line-height: 1.4;
   color: var(--muted-foreground);
 }
-.stage-row { --stage-busy: light-dark(hsl(var(--bot-hue) 55% 36%), hsl(var(--bot-hue) 85% 80%)); border-radius: 22px; user-select: none; -webkit-touch-callout: none; }
-.stage-chat {
+.stage-row {
+  --stage-busy: light-dark(hsl(var(--bot-hue) 55% 36%), hsl(var(--bot-hue) 85% 80%));
+  flex: 1 1 0;
+  min-height: 68px;
+  max-height: 128px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 92px;
-  padding: 4px 14px 4px 2px;
+  border-radius: 18px;
+  background: light-dark(#fff, color-mix(in oklab, var(--foreground) 6%, var(--sidebar, var(--background))));
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgb(0 0 0 / .05);
+  overflow: hidden;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.stage-row:has(.stage-chat[aria-current="page"]) { box-shadow: 0 0 0 2px hsl(var(--bot-hue) 60% 50%); }
+.stage-chat {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 12px 0 0;
   border: 0;
-  border-radius: 22px;
+  border-radius: 18px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -37,15 +52,24 @@
   cursor: pointer;
 }
 .stage-chat:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.stage-chat[aria-current="page"] { background: color-mix(in oklab, hsl(var(--bot-hue) 70% 50%) 16%, transparent); }
 @media (hover: hover) and (pointer: fine) {
-  .stage-chat:not([aria-current="page"]):hover { background: var(--state-hover, var(--muted)); }
+  .stage-chat:hover { background: var(--state-hover, var(--muted)); }
 }
 .stage-chat:active { background: var(--state-hover, var(--muted)); }
-.stage-figure { flex: none; display: grid; place-items: center; width: 88px; }
+.stage-figure {
+  flex: none;
+  display: grid;
+  place-items: end center;
+  aspect-ratio: 1;
+  min-width: 68px;
+  max-width: 112px;
+  background: light-dark(hsl(var(--bot-hue) 75% 94%), hsl(var(--bot-hue) 30% 19%));
+}
+.stage-row[data-quiet] .stage-figure { background: light-dark(hsl(var(--bot-hue) 15% 95%), hsl(var(--bot-hue) 8% 17%)); }
 .stage-face { display: block; overflow: visible; }
-.stage-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.stage-copy b { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.stage-figure .stage-face { width: 94%; height: auto; margin-bottom: -6%; }
+.stage-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 8px 0; }
+.stage-copy b { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
 .stage-line {
   font-size: 13px;
   line-height: 1.35;
@@ -62,15 +86,15 @@
 .stage-row[data-tone="busy"] .stage-line { color: var(--stage-busy); }
 .stage-row[data-tone="news"] .stage-line { color: var(--stage-news); }
 .stage-row[data-tone="good"] .stage-line { color: var(--stage-good); }
-.stage-row[data-quiet] .stage-figure,
+.stage-row[data-quiet] .stage-figure .stage-face,
 .stage-row[data-quiet] .stage-copy b { opacity: 0.62; }
-.stage-row[data-quiet] .stage-chat[aria-current="page"] .stage-figure,
+.stage-row[data-quiet] .stage-chat[aria-current="page"] .stage-face,
 .stage-row[data-quiet] .stage-chat[aria-current="page"] .stage-copy b { opacity: 1; }
-@container (max-width: 240px) {
-  .stage-chat { min-height: 72px; gap: 4px; }
-  .stage-figure { width: 64px; }
-  .stage-figure .stage-face { width: 64px; height: 61px; }
+@container (max-width: 200px) {
+  .stage-figure { min-width: 56px; }
+  .stage-chat { gap: 8px; padding-right: 8px; }
 }
+
 @media (prefers-reduced-motion: no-preference) {
   .stage-face[data-pose="working"] .stage-body { animation: stage-type 0.9s ease-in-out infinite; }
   .stage-face[data-pose="working"] .stage-busy-lines { animation: stage-blink 0.9s steps(2) infinite; }
