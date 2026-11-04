@@ -31,12 +31,14 @@ export function coordinatorTarget(thread: PluginSidebarThread | undefined, threa
  * other plugins' actions, archive, delete), with Open chat on top (a tap on the desk shows the bot's work).
  * bb opens it on right-click and on a long-press; the desk turns its own long-press into the same event.
  */
-export function BotDeskMenu({ bot, children, onOpenChat }: DeskMenuProps) {
+export function BotDeskMenu({ bot, children, onOpenChat, onShowWork }: DeskMenuProps) {
   const threads = useContext(SidebarThreads);
   const target = coordinatorTarget(threads.get(bot.coordinatorThreadId), bot.coordinatorThreadId);
   const inline = useMemo<PluginThreadActionsInlineItem[]>(() => [
     { key: "radar-sidebar/bot-open-chat", group: experimental_THREAD_ACTION_GROUPS.open,
       action: { label: "Open chat", icon: "MessageSquare", run: onOpenChat } },
-  ], [onOpenChat]);
+    ...(onShowWork ? [{ key: "radar-sidebar/bot-show-work", group: experimental_THREAD_ACTION_GROUPS.open,
+      action: { label: "Show work", icon: "ListTodo", run: onShowWork } }] : []),
+  ], [onOpenChat, onShowWork]);
   return <ThreadActionsContextMenu thread={target} inline={inline}>{children}</ThreadActionsContextMenu>;
 }

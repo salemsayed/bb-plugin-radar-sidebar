@@ -116,6 +116,7 @@ export interface DeskMenuProps {
   bot: BotTasksBot;
   children: ReactNode;
   onOpenChat: () => void;
+  onShowWork?: () => void;
 }
 export type DeskMenu = (props: DeskMenuProps) => ReactNode;
 

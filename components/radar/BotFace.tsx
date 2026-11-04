@@ -8,8 +8,8 @@ import { botStyle, type BotMascot, type BotState } from "./bots";
  * handle, ERBareeq's bolt and Lab's flask of liquid.
  */
 
-interface Palette { base: string; light: string; line: string }
-const PALETTE: Record<BotMascot, Palette> = {
+export interface Palette { base: string; light: string; line: string }
+export const PALETTE: Record<BotMascot, Palette> = {
   security: { base: "hsl(185 62% 36%)", light: "hsl(182 70% 57%)", line: "hsl(190 60% 19%)" },
   personal: { base: "hsl(214 72% 52%)", light: "hsl(211 88% 66%)", line: "hsl(220 55% 24%)" },
   home: { base: "hsl(152 58% 38%)", light: "hsl(148 60% 52%)", line: "hsl(158 55% 17%)" },
@@ -18,13 +18,13 @@ const PALETTE: Record<BotMascot, Palette> = {
   erbareeq: { base: "hsl(34 90% 46%)", light: "hsl(44 96% 57%)", line: "hsl(28 70% 22%)" },
   lab: { base: "hsl(332 64% 46%)", light: "hsl(336 78% 60%)", line: "hsl(330 55% 22%)" },
 };
-const INK = "#1b1726";
+export const INK = "#1b1726";
 const HAT = "hsl(46 96% 56%)";
 const HAT_EDGE = "hsl(38 80% 38%)";
-const CHEEK = "hsl(350 95% 72%)";
+export const CHEEK = "hsl(350 95% 72%)";
 
 /** Each body's outline, and the box its light face fills (the shaded rim shows below and to the end). */
-const BODY: Record<BotMascot, { d: string; box: [number, number, number, number]; face: [number, number] }> = {
+export const BODY: Record<BotMascot, { d: string; box: [number, number, number, number]; face: [number, number] }> = {
   security: { d: "M22 5L37 11V23C37 31 30 37 22 40C14 37 7 31 7 23V11Z", box: [21, 22, 14, 15], face: [22, 23] },
   personal: { d: "M22 9a15 15 0 1 1 0 30a15 15 0 1 1 0-30Z", box: [20.6, 22.4, 14, 14], face: [22, 24.5] },
   home: { d: "M22 7.5L37 19.6V33.5a3.5 3.5 0 0 1-3.5 3.5h-23A3.5 3.5 0 0 1 7 33.5V19.6Z", box: [20.6, 21.5, 15.5, 15], face: [22, 27] },
@@ -35,13 +35,13 @@ const BODY: Record<BotMascot, { d: string; box: [number, number, number, number]
 };
 
 /** What sits behind the body (drawn first) and on top of it (drawn last). */
-function behind(mascot: BotMascot, palette: Palette): ReactNode {
+export function behind(mascot: BotMascot, palette: Palette): ReactNode {
   if (mascot === "home") return <rect x="27" y="9.5" width="4.6" height="8.5" rx="1" fill={palette.base} stroke={palette.line} strokeOpacity="0.4" strokeWidth="1.2" />;
   if (mascot === "work") return <path d="M17 15.5v-2.2a3.2 3.2 0 0 1 3.2-3.2h3.6a3.2 3.2 0 0 1 3.2 3.2v2.2" fill="none" stroke={palette.base} strokeWidth="2.6" strokeLinecap="round" />;
   if (mascot === "personal") return <path d="M22 9V5.4" stroke={palette.base} strokeWidth="1.6" strokeLinecap="round" />;
   return null;
 }
-function onTop(mascot: BotMascot, palette: Palette): ReactNode {
+export function onTop(mascot: BotMascot, palette: Palette): ReactNode {
   switch (mascot) {
     case "personal":
       return <path d="M22 1.2l1.1 2.2 2.4.3-1.8 1.7.5 2.4L22 6.6l-2.2 1.2.5-2.4-1.8-1.7 2.4-.3Z" fill={HAT} stroke={HAT_EDGE} strokeWidth="0.8" strokeLinejoin="round" />;

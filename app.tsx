@@ -10,6 +10,7 @@ import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { migrateLegacyPreferences } from "./components/storage";
 import { RadarThreadList } from "./components/radar/RadarThreadList";
 import { RemindMePanel, remindMeAction } from "./components/radar/RemindMePanel";
+import { BotWorkHeaderAction } from "./components/radar/BotWorkHeaderAction";
 import "./app.css";
 
 // Runs before any slot renders, so preferences read below the rename are
@@ -22,6 +23,7 @@ export default definePluginApp((app) => {
   // Same id as the retired threadPanelAction, so saved tabs and remindMeAction's openPanel({ actionId }) still match.
   app.slots.experimental_tab({ context: { kind: "thread" }, availability: "action", id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
+  app.slots.experimental_threadHeaderAction({ id: "bot-work", title: "Bot work", component: BotWorkHeaderAction });
   app.slots.experimental_threadList({
     id: "radar",
     title: "Radar",
