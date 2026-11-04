@@ -22,7 +22,7 @@ export function BotDeskMenuProvider({ children }: { children: ReactNode }) {
 /** A coordinator the sidebar does not list (hidden, or not loaded yet) still gets its menu, from its id alone. */
 export function coordinatorTarget(thread: PluginSidebarThread | undefined, threadId: string): PluginThreadActionTarget {
   if (thread) return threadActionTarget(thread);
-  return { id: threadId, projectId: "", parentThreadId: null, archivedAt: null, pinnedAt: null, sectionId: null, isUnread: false, status: "idle", environment: null };
+  return { ...{ parentNotifications: "auto" as const }, id: threadId, projectId: "", parentThreadId: null, archivedAt: null, pinnedAt: null, sectionId: null, isUnread: false, status: "idle", environment: null };
 }
 
 /**
