@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { useBbNavigate, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
+import { experimental_useAppPanel, useBbNavigate, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
+import { BOT_TAB } from "./BotPanelTab";
 import { isClosed, type BotTasksData } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
 import { useDispatchWorkers } from "./useDispatchWorkers";
@@ -17,6 +18,7 @@ function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; b
   const one = useMemo(() => ({ ...data, bots: data.bots.filter(b => b.key === botKey) }), [data, botKey]);
   const snapshot = useDispatchWorkers(one);
   const navigate = useBbNavigate();
+  const appPanel = experimental_useAppPanel();
   const button = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
@@ -30,7 +32,7 @@ function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; b
   const close = () => { setOpen(false); setTimeout(() => button.current?.focus(), 0); };
   return <>
     <button ref={button} type="button" className="stage-work-pill" data-busy={helpers > 0 || undefined} data-asks={asks > 0 || undefined}
-      aria-haspopup="dialog" aria-expanded={open} aria-label={`${shortBotName(bot.name)}'s work: ${text}`} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); setAnchor({ x: box.right, y: box.bottom + 6, align: "end" }); setOpen(true); }}>
+      aria-label={`${shortBotName(bot.name)}'s work: ${text}`} onClick={event => { if (appPanel.experimental_openTab({ surface: { kind: "current" }, tab: BOT_TAB })) return; const box = event.currentTarget.getBoundingClientRect(); setAnchor({ x: box.right, y: box.bottom + 6, align: "end" }); setOpen(true); }}>
       <span className="stage-work-dots" aria-hidden="true">{Array.from({ length: Math.min(helpers, 4) }, (_, i) => <i key={i} />)}</span>
       {compact ? (helpers || open_ || "") : text}
     </button>

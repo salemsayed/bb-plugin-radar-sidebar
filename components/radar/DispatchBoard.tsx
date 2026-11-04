@@ -10,7 +10,7 @@ import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu } from "@get-bb/plugin-sdk/app";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
-import { stageLook, stageText, stageTitle, type StageLook } from "./stage";
+import { rowLook, stageText, stageTitle, type RowLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
 
 export function dispatchModel(model: string) {
@@ -100,13 +100,15 @@ export function nextStep(bot: BotTasksBot, now: number): string {
 }
 export interface PanelAnchor { x: number; y: number; align?: "start" | "end" }
 
+const BADGE_WORDS: Record<string, string> = { ask: "asking you", wait: "waiting", unread: "new reply", blocked: "stuck" };
+
 function StageRow({ bot, look, current, onChat, onShowWork }: {
-  bot: BotTasksBot; look: StageLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void;
+  bot: BotTasksBot; look: RowLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void;
 }) {
   const press = useDeskPress();
   const name = shortBotName(bot.name);
-  const spoken = [look.line, look.extra].filter(Boolean).join(", ");
-  return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-quiet={look.quiet || undefined}
+  const spoken = [look.badge ? BADGE_WORDS[look.badge] : "", look.line, look.extra].filter(Boolean).join(", ");
+  return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-kind={look.kind}
       style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} {...press}
       onContextMenu={event => {
         press.onContextMenu(event);
@@ -126,10 +128,14 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
         }
       }}>
       <button type="button" className="stage-chat" aria-current={current ? "page" : undefined} aria-label={`${name}: ${spoken}. Open chat`} onClick={onChat}>
-        <span className="stage-figure"><StageFace botKey={bot.key} name={bot.name} pose={look.pose} /></span>
+        <span className="stage-figure">
+          <StageFace botKey={bot.key} name={bot.name} pose={look.pose} />
+          {look.badge && look.kind === "calm" ? <span className="stage-badge" data-badge={look.badge} aria-hidden="true" /> : null}
+        </span>
         <span className="stage-copy">
-          <b>{name}</b>
-          <span className="stage-line"><bdi>{look.line}</bdi>{look.extra ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
+          <span className="stage-head"><b>{name}</b>{look.time ? <span className="stage-time">{look.time}</span> : null}</span>
+          <span className="stage-line"><bdi>{look.line}</bdi>{look.extra && !(look.kind === "live" && look.helpers) ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
+          {look.kind === "live" && look.helpers ? <span className="stage-dots" aria-hidden="true">{Array.from({ length: Math.min(look.helpers, 6) }, (_, i) => <i key={i} />)}</span> : null}
         </span>
       </button>
     </div>;
@@ -150,7 +156,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
     {orderedBots(data).map(b => {
       const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
-      const look = stageLook(b, { running: snapshot.byBot[b.key]?.length ?? 0, chatting: snapshot.chat.has(b.key), unread, now });
+      const look = rowLook(b, { running: snapshot.byBot[b.key]?.length ?? 0, chatting: snapshot.chat.has(b.key), unread, now });
       return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId}
         onChat={() => onOpen(b.coordinatorThreadId)}
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;

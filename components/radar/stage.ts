@@ -123,3 +123,42 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", line: `Done: ${stageTitle(last.title)}`, extra: "", tone: "good", quiet: false };
   return { pose: "idle", line: "Resting", extra: "", tone: "quiet", quiet: true };
 }
+
+export type RowKind = "ask" | "live" | "calm";
+export type RowBadge = "ask" | "wait" | "unread" | "blocked" | null;
+
+export interface RowLook extends StageLook {
+  kind: RowKind;
+  badge: RowBadge;
+  time: string;
+  helpers: number;
+}
+
+export function since(at: number, now: number): string {
+  const minutes = Math.floor(Math.max(0, now - at) / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h`;
+  return `${Math.floor(minutes / 1440)}d`;
+}
+
+function lastActivity(bot: BotTasksBot): number | undefined {
+  const times = bot.tasks.map(task => task.completedAt ?? (task.observedAt !== undefined ? task.observedAt - task.ageMs : undefined)).filter((at): at is number => at !== undefined);
+  return times.length ? Math.max(...times) : undefined;
+}
+
+export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
+  const look = stageLook(bot, ctx);
+  const helpers = ctx.running;
+  if (look.pose === "asking") {
+    const first = bot.tasks.find(task => task.displayState === "needs");
+    const asked = first?.observedAt !== undefined ? first.observedAt - first.ageMs : undefined;
+    return { ...look, kind: "ask", badge: "ask", time: asked !== undefined ? since(asked, ctx.now) : "", helpers };
+  }
+  if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", time: "", helpers };
+  if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
+  if (look.pose === "unread") return { ...look, kind: "calm", badge: "unread", time: "", helpers };
+  const last = lastActivity(bot);
+  if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", time: last !== undefined ? since(last, ctx.now) : "", helpers };
+  return { ...look, kind: "calm", badge: null, time: last !== undefined ? since(last, ctx.now) : "", helpers };
+}
