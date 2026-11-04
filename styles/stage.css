@@ -85,10 +85,8 @@
   .stage-row[data-kind="calm"] .stage-chat:not([aria-current="page"]):hover { background: color-mix(in oklab, var(--foreground) 5%, transparent); }
   .stage-row:not([data-kind="calm"]) .stage-chat:hover { background: color-mix(in oklab, var(--foreground) 4%, transparent); }
 }
-.stage-figure { position: relative; flex: none; display: grid; place-items: center; width: 52px; }
-.stage-figure .stage-face { width: 48px; height: 46px; }
-.stage-row:not([data-kind="calm"]) .stage-figure { width: 68px; }
-.stage-row:not([data-kind="calm"]) .stage-figure .stage-face { width: 66px; height: 63px; }
+.stage-figure { position: relative; flex: none; display: grid; place-items: center; width: 56px; }
+.stage-figure .stage-face { width: 54px; height: 52px; }
 .stage-face { display: block; overflow: visible; }
 .stage-badge {
   position: absolute;
@@ -127,10 +125,6 @@
 .stage-row[data-tone="busy"] .stage-line { color: var(--stage-busy); }
 .stage-row[data-tone="news"] .stage-line { color: var(--stage-news); }
 .stage-row[data-tone="good"] .stage-line { color: var(--stage-good); }
-@container (max-width: 200px) {
-  .stage-row:not([data-kind="calm"]) .stage-figure { width: 56px; }
-  .stage-row:not([data-kind="calm"]) .stage-figure .stage-face { width: 54px; height: 52px; }
-}
 @media (prefers-reduced-motion: no-preference) {
   .stage-face[data-pose="working"] .stage-body { animation: stage-type 0.9s ease-in-out infinite; }
   .stage-face[data-pose="working"] .stage-busy-lines { animation: stage-blink 0.9s steps(2) infinite; }
