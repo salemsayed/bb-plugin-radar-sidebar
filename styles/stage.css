@@ -59,8 +59,8 @@
 }
 .stage-row:not([data-kind="calm"]) .stage-chat { padding-block: 10px; }
 .stage-chat:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.stage-row[data-kind="calm"] .stage-chat[aria-current="page"] { background: color-mix(in oklab, var(--foreground) 8%, transparent); }
-.stage-row:not([data-kind="calm"]):has(.stage-chat[aria-current="page"]) { background: var(--stage-wash-on); }
+.stage-row[data-kind="calm"] .stage-chat[aria-current="page"] { background: color-mix(in oklab, var(--foreground) 6%, transparent); }
+.stage-row:has(.stage-chat[aria-current="page"]) { outline: 2px solid var(--foreground); outline-offset: 1px; }
 @media (hover: hover) and (pointer: fine) {
   .stage-row[data-kind="calm"] .stage-chat:not([aria-current="page"]):hover { background: color-mix(in oklab, var(--foreground) 5%, transparent); }
   .stage-row:not([data-kind="calm"]) .stage-chat:hover { background: color-mix(in oklab, var(--foreground) 4%, transparent); }
