@@ -43,7 +43,7 @@ export function useDispatchWorkers(data: BotTasksData, enabled = true): WorkerSn
             const threads = ids.length ? await sdk.threads.list({ threadIds: ids, includeHidden: true }) : [];
             const attempts = taskAttempts({ conversationThreadId: null }, detail, threads.map(t => ({ ...t, status: t.status === "active" ? "running" : t.status })));
             next.byTask[task.id] = attempts;
-            attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId).forEach(a => workers.set(a.threadId, a));
+            attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId && !bot.desks.some(desk => desk.threadId === a.threadId)).forEach(a => workers.set(a.threadId, a));
           } catch { known = false; }
         }));
         if (bot.unlinked.length) {

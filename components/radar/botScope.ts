@@ -52,7 +52,7 @@ function descendants(index: ThreadsIndex, seeds: Iterable<string>): Set<string> 
 }
 
 function scopeKey(bot: RosterBot): string {
-  return [bot.current, ...(bot.coordinatorIds ?? [])].join("\u0000");
+  return [bot.current, ...(bot.coordinatorIds ?? []), ...(bot.deskThreadIds ?? [])].join("\u0000");
 }
 
 export function botCoordinatorIds(bot: RosterBot): Set<string> {
@@ -64,7 +64,7 @@ export function botScopeIds(threads: readonly PluginSidebarThread[], bot: Roster
   const key = scopeKey(bot);
   let ids = index.scopes.get(key);
   if (!ids) {
-    ids = descendants(index, botCoordinatorIds(bot));
+    ids = descendants(index, [...botCoordinatorIds(bot), ...(bot.deskThreadIds ?? [])]);
     index.scopes.set(key, ids);
   }
   return ids;
@@ -77,7 +77,7 @@ export function botFamily(threads: readonly PluginSidebarThread[], bot: RosterBo
   let family = index.families.get(key);
   if (!family) {
     const ids = botScopeIds(threads, bot);
-    family = threads.filter(t => ids.has(t.id) && !t.isHidden && !t.isArchived);
+    family = threads.filter(t => ids.has(t.id) && !t.isHidden && !t.isArchived );
     index.families.set(key, family);
   }
   return family;
@@ -86,7 +86,7 @@ export function botFamily(threads: readonly PluginSidebarThread[], bot: RosterBo
 /** Visible workers only; coordinators live in the rail and hidden helpers stay hidden. */
 export function botWorkers(threads: readonly PluginSidebarThread[], bot: RosterBot): PluginSidebarThread[] {
   const roots = botCoordinatorIds(bot);
-  return botFamily(threads, bot).filter(t => !roots.has(t.id));
+  return botFamily(threads, bot).filter(t => !roots.has(t.id) && !bot.deskThreadIds?.includes(t.id));
 }
 
 /** Coverage belongs to the census, never the filtered/displayed rows. */
@@ -112,10 +112,10 @@ export function botActivity(threads: readonly PluginSidebarThread[], bot: Roster
   const stale = coverage?.staleThreads.filter(thread => !known.has(thread.id)) ?? [];
   const ids = botScopeIds(stale.length ? [...threads, ...stale] : threads, bot);
   const roots = botCoordinatorIds(bot);
-  const family = threads.filter(thread => ids.has(thread.id) && !thread.isArchived);
+  const family = threads.filter(thread => ids.has(thread.id) && !thread.isArchived && !bot.deskThreadIds?.includes(thread.id));
   const workers = family.filter(thread => !roots.has(thread.id));
   const coordinator = family.find(thread => thread.id === bot.current);
-  const staleFamily = stale.filter(thread => ids.has(thread.id) && !thread.isArchived);
+  const staleFamily = stale.filter(thread => ids.has(thread.id) && !thread.isArchived && !bot.deskThreadIds?.includes(thread.id));
   const staleWorkers = staleFamily.filter(thread => !roots.has(thread.id));
   return {
     ...(coverage ? { complete: coverage.complete, lastKnownWorkers: staleWorkers.length, lastKnownActive: staleFamily.filter(isRunningThread).length,
@@ -153,7 +153,7 @@ export function botRailState(threads: readonly PluginSidebarThread[], bot: Roste
   const known = indexOf(threads).byId;
   const stale = coverage?.staleThreads.filter(thread => !known.has(thread.id)) ?? [];
   const ids = botScopeIds(stale.length ? [...threads, ...stale] : threads, bot);
-  const family = threads.filter(t => ids.has(t.id) && !t.isArchived);
+  const family = threads.filter(t => ids.has(t.id) && !t.isArchived && !bot.deskThreadIds?.includes(t.id));
   if (bot.rolloverBlocked) return "failed";
   if (family.some(t => t.status === "error" || t.queuedWork === "failed" || effectiveIndicator(t) === "unread-error" || t.indicator === "queued-failed")) return "failed";
   if (family.some(needsYou)) return "needs-you";

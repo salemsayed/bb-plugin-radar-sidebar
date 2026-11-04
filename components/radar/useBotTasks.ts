@@ -3,7 +3,7 @@ import { useSdk } from "@get-bb/plugin-sdk/app";
 import { useBotsPush } from "@/lib/botsPush";
 import { NEEDS_CHANGED, needsChanged } from "@/lib/needsClient";
 import { botTasksSchema, type BotTasksData } from "@/lib/botTasks";
-import { isPluginAbsentError } from "./useBotRoster";
+const isPluginAbsentError = (error: unknown) => /unknown plugin|has no rpc method|not installed|is disabled|plugin not found/i.test(error instanceof Error ? error.message : String(error));
 
 const TASKS_PLUGIN = "orchestrator-mode";
 /** A fallback: bb-salem-bots pushes each change (the roster's signal), which reloads through radar:needs-changed. */

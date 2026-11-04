@@ -1,3 +1,5 @@
+import { DeskThreads } from "./DeskThreads";
+import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -144,6 +146,7 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
 export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, unreadChats }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
+  const claims = useThreadClaims();
   const root = useRef<HTMLDivElement>(null);
   const visible = useVisibleSurface(root);
   const snapshot = useDispatchWorkers(data, visible);
@@ -163,8 +166,11 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
         onChat={() => onOpen(b.coordinatorThreadId)}
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
     })}
+    {claims.other.length ? <details className="radar-other"><summary>Other <span>{claims.other.length}</span></summary><ClaimedThreads threads={claims.other} onOpen={onOpen} /></details> : null}
+    <p className="radar-census" data-only-threads={claims.ready ? claims.onlyThreads : undefined}>Only in Threads: {claims.ready ? claims.onlyThreads : "checking…"}</p>
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
     {bot ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+      onShowThreads={onShowThreads}
       scope={root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined}
       onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); onOpen(id); }} onClose={close} /> : null}
   </div>;
@@ -182,10 +188,11 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
   };
 }
 
-export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose }: {
+export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads }: {
   bot: BotTasksBot; anchor?: PanelAnchor; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
-  onNavigate: (id: string) => void; onClose: () => void;
+  onNavigate: (id: string) => void; onClose: () => void; onShowThreads?: () => void;
 }) {
+  const claims = useThreadClaims();
   const panel = useRef<HTMLDivElement>(null);
   const target = useCoordinatorTarget(bot.coordinatorThreadId);
   const drag = useRef<number | null>(null);
@@ -256,11 +263,13 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
     <nav className="dispatch-panel-actions" aria-label={`${shortBotName(bot.name)} actions`}>
       {activeThreadId === bot.coordinatorThreadId ? null : <button className="dispatch-chat-pill" onClick={() => onNavigate(bot.coordinatorThreadId)}><Icon name="MessageSquare" aria-hidden="true" />Chat</button>}
       <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>
-      <ThreadActionsMenu thread={target} side="bottom" align="end" trigger={props => <button {...props} type="button" className="dispatch-more"><Icon name="MoreHorizontal" aria-hidden="true" />More</button>} />
+      <ThreadActionsMenu thread={target} inline={[{ key: "radar-sidebar/all-threads", group: "open", action: { label: "All threads", icon: "List", run: () => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); onClose(); } } }]} side="bottom" align="end" trigger={props => <button {...props} type="button" className="dispatch-more"><Icon name="MoreHorizontal" aria-hidden="true" />More</button>} />
     </nav>
     <div className="dispatch-panel-body">
     {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Blocked · {taskHeadline(t.title)}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
     {tasks.length || bot.unlinked.length ? <><header className="dispatch-section-head"><h3>Tasks</h3><span>{tasks.length + bot.unlinked.length}</span></header><div className="dispatch-open">{tasks.map(taskRow)}{bot.unlinked.map(w => <article className="dispatch-task-group" data-tone="busy" key={w.threadId}><button className="dispatch-task" onClick={() => onNavigate(w.threadId)}><span className="dispatch-status-line"><i aria-hidden="true" />Work without a task</span><b dir="auto">{taskHeadline(w.title || "Worker")}</b></button></article>)}</div></> : <p className="dispatch-idle">{chatting ? IN_CHAT : "Nothing running"}{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}
+    <DeskThreads desks={bot.desks} now={now} onOpen={onNavigate} />
+    <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={onNavigate} />
     <header className="dispatch-section-head"><h3>Recent</h3>{recent.length ? <span>{recent.length}</span> : null}</header>{recent.length ? <div className="dispatch-recent">{recent.map(taskRow)}</div> : <p className="dispatch-idle">No recent tasks</p>}
     </div>
   </div></div>, document.body);

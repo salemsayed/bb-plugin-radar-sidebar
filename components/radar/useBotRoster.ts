@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useBotTasks } from "./useBotTasks";
+import { useEffect, useMemo, useState } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { rosterSchema, type RosterBot } from "./bots";
 import { useBotsPush } from "@/lib/botsPush";
@@ -45,6 +46,7 @@ export function isPluginAbsentError(error: unknown): boolean {
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   const sdk = useSdk();
+  const desks = useBotTasks(enabled).data;
   useBotsPush(enabled, needsChanged);
   // The last roster paints immediately, so coordinators never flash as pinned rows before the RPC answers.
   const [bots, setBots] = useState<RosterBot[]>(() => (enabled ? readCache() : []));
@@ -85,5 +87,5 @@ export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
       window.removeEventListener("radar:needs-changed", onFocus);
     };
   }, [sdk, enabled, refreshKey]);
-  return bots;
+  return useMemo(() => bots.map(bot => ({ ...bot, deskThreadIds: desks?.bots.find(row => row.key === bot.key)?.desks.map(desk => desk.threadId).filter((id): id is string => !!id) ?? [] })), [bots, desks]);
 }

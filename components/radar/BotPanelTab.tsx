@@ -1,3 +1,5 @@
+import { DeskThreads } from "./DeskThreads";
+import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
@@ -52,6 +54,7 @@ function waitWhen(task: BotTaskRow, now: number): string {
 
 function BotPanel({ bot }: { bot: BotTasksBot }) {
   const now = useNow();
+  const claims = useThreadClaims();
   const navigate = useBbNavigate();
   const one = useMemo(() => ({ bots: [bot], needs: [], notFiled: [], observedAt: 0 }), [bot]);
   const root = useRef<HTMLDivElement>(null);
@@ -106,6 +109,8 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
           <span className="bot-item-when">{t.displayState === "offline" ? "machine off" : t.displayState === "ready" ? "not started" : waitWhen(t, now)}</span>
         </button>)}
       </section> : null}
+      <DeskThreads desks={bot.desks} now={now} onOpen={go} />
+      <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={go} />
       {done.length ? <section aria-label="Done today">
         <h3>Done today</h3>
         {done.map(t => <button type="button" key={t.id} className="bot-item bot-item-row bot-item-done" onClick={() => go(t.conversationThreadId)}>

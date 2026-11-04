@@ -19,3 +19,17 @@
 @import "./styles/bots-view.css";
 @import "./styles/dispatch.css";
 @import "./styles/stage.css";
+
+.radar-desks, .radar-claimed { min-width: 0; }
+.radar-desk-row { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 9px 12px; text-align: start; border-radius: 6px; color: var(--foreground); }
+.radar-desk-row:hover { background: var(--muted); }
+.radar-desk-row:disabled { opacity: 1; cursor: default; }
+.radar-desk-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.radar-desk-copy b { font-weight: 550; }
+.radar-desk-row small, .radar-desks-done, .radar-census { color: var(--muted-foreground); font-size: 12px; }
+.radar-desk-copy small { display: block; }
+.radar-desks-done > summary { padding: 8px 12px; cursor: pointer; }
+.radar-desks-done > p { padding: 4px 12px 8px; }
+.radar-other { margin: 8px; border-top: 1px solid var(--border); }
+.radar-other > summary { padding: 12px 4px; cursor: pointer; display: flex; justify-content: space-between; }
+.radar-census { padding: 8px 12px; font-size: 11px; }

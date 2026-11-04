@@ -33,6 +33,14 @@ const taskSchema = z.object({
   observedAt: z.number().optional(),
 });
 
+export const deskSchema = z.object({
+  id: z.string(), desk: z.enum(["chat", "bricks", "whatsapp", "campaign", "redemption", "feedback"]),
+  label: z.string(), key: z.string(), threadId: z.string().nullable(), title: z.string(),
+  status: z.enum(["draft", "blocked", "working", "info", "done", "deferred"]),
+  updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
+});
+export type BotDesk = z.infer<typeof deskSchema>;
+
 const count = z.number().int().nonnegative().default(0);
 const botSchema = z.object({
   key: z.string(),
@@ -48,11 +56,12 @@ const botSchema = z.object({
     const parsed = taskSchema.safeParse(row);
     return parsed.success ? [parsed.data] : [];
   })),
+  desks: z.array(deskSchema).optional().default([]),
   unlinked: z.array(z.object({ threadId: z.string(), title: z.string().default("") })).default([]),
 });
 
 export const botTasksSchema = z.object({
-  bots: z.array(botSchema),
+  bots: z.array(botSchema.transform(bot => ({ ...bot, unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) }))),
   needs: z.array(z.object({ bot: z.string(), taskId: z.string(), threadId: z.string(), interactionId: z.string(), question: z.string() })).default([]),
   notFiled: z.array(z.object({ threadId: z.string(), title: z.string().default(""), suggestedBot: z.string().optional() })).default([]),
   observedAt: z.number().default(() => Date.now()),

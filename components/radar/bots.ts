@@ -11,6 +11,7 @@ export const rosterSchema = z.object({
       key: z.string(),
       name: z.string(),
       current: z.string(),
+      deskThreadIds: z.array(z.string()).optional(),
       coordinatorIds: z.array(z.string()).optional(),
       projectId: z.string(),
       projects: z.array(z.string()),

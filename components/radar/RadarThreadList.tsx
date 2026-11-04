@@ -87,6 +87,9 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const { activeThreadId, isCompactViewport, onNavigate: hostOnNavigate } = props;
   const [mode, setMode] = useListMode();
   const tasks = useBotTasks(true);
+  const roster = useBotRoster(true);
+  const needs = useNeedsYou(true);
+  const [needsOpen, setNeedsOpen] = useState(false);
   const sidebar = experimental_useSidebarThreads();
   const unreadChats = useMemo(() => new Set(sidebar.threads.filter(thread => thread.isUnread).map(thread => thread.id)), [sidebar.threads]);
   const actions = useRadarThreadActions();
@@ -109,6 +112,10 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     setMode("threads");
     threadsSegment.current?.focus();
   }, [setMode]);
+  useEffect(() => {
+    window.addEventListener("radar:show-all-threads", showThreads);
+    return () => window.removeEventListener("radar:show-all-threads", showThreads);
+  }, [showThreads]);
   // A typed filter survives a trip to Bots and back.
   const threadsQuery = useRef("");
   const keepQuery = useCallback((query: string) => { threadsQuery.current = query; }, []);
@@ -120,6 +127,8 @@ function RadarSwitchedList(props: PluginThreadListProps) {
       ) : (
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">
+            {needs.status === "unavailable" ? <p role="status">Needs you is unavailable</p> : null}
+            <NeedsYouLane items={needs.items ?? []} roster={roster} now={now} onUpdate={needs.update} onOpen={openThread} waitingCount={0} open={needsOpen} onToggle={() => setNeedsOpen(value => !value)} />
             <BotsPane state={tasks} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport}
               now={now} onOpen={openThread} onShowThreads={showThreads} unreadChats={unreadChats} />
           </div>
@@ -377,7 +386,13 @@ function RadarThreadsList({
   const [needsYouRegion, botGroups, pinnedRegion, groups, workingRegion] = shownLayout.regions as [
     ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[], ThreadGroup[],
   ];
-  const needsYouGroup = needsYouRegion[0] ?? null;
+  const needsYouGroup = useMemo(() => {
+    const group = needsYouRegion[0];
+    if (!group) return null;
+    const represented = new Set((needs.items ?? []).map(item => item.source.threadId).filter(Boolean));
+    const roots = group.roots.filter(thread => !represented.has(thread.id));
+    return roots.length ? { ...group, roots } : null;
+  }, [needsYouRegion, needs.items]);
   const pinnedGroup = pinnedRegion[0] ?? null;
   const workingGroup = workingRegion[0] ?? null;
   const shownChildren = shownLayout.children;
