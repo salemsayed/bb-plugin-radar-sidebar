@@ -84,7 +84,7 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
       </section> : null}
       <section aria-label="Now">
         <h3>Now</h3>
-        {running.length || busyTasks.length ? <>
+        {!snapshot.known.has(bot.key) && (busyTasks.length || look.kind === "live") ? <p className="bot-quiet">Checking helpers…</p> : running.length || busyTasks.length ? <>
           {running.map(a => <button type="button" key={a.threadId} className="bot-item" onClick={() => go(a.threadId)}>
             <span className="bot-item-title"><i className="bot-live-dot" aria-hidden="true" />{titleOf(a)}</span>
             <span className="bot-item-meta">{[a.model ? `${dispatchModel(a.model)} helper` : "Helper", a.startedAt != null ? elapsed(a.startedAt, now) : ""].filter(Boolean).join(" · ")}</span>
