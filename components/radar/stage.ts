@@ -16,13 +16,14 @@ export interface StageLook {
 export interface StageContext {
   running: number;
   runningTitle?: string;
+  failedChecks?: ReadonlySet<string>;
   chatting: boolean;
   unread: boolean;
   now: number;
 }
 
 const BLOCKED = new Set(["overdue", "retrying"]);
-const CHECKING_LINE = /^checking \d+ of \d+|not checked|checks needed|check failed|evidence needs review|owner review/i;
+const CHECKING_LINE = /^(?:checking \d+ of \d+|not checked|checks needed|(?:a )?check failed|evidence needs review|owner review|the bot hasn't (?:checked|finished its checks)|worker finished|every check passed)/i;
 const NOT_STARTED_LINE = /^filed\.\s*not started/i;
 
 const IRREGULAR: Record<string, string> = { is: "are", was: "were", has: "have", does: "do", says: "say", goes: "go" };
@@ -110,7 +111,11 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     return { pose: "working", line: what, extra: helpers || queued, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
-  if (checking) return { pose: "checking", line: `Checking ${stageTitle(checking.title)}`, extra: "", tone: "busy", quiet: false };
+  if (checking && !ctx.chatting) {
+    const failed = ctx.failedChecks?.has(checking.id) || /check failed|evidence needs review/i.test(checking.line);
+    const status = failed ? "check didn't pass yet" : "waiting on its check";
+    return { pose: "idle", line: `${stageTitle(checking.title)}: ${status}`, extra: "", tone: "quiet", quiet: true };
+  }
   if (ctx.chatting) return { pose: "working", line: "Chatting with you", extra: "", tone: "busy", quiet: false };
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
@@ -160,6 +165,7 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
   if (look.pose === "unread") return { ...look, kind: "calm", badge: null, time: "", helpers };
   if (look.pose === "offline") return { ...look, kind: "calm", badge: null, time: "", helpers };
+  if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", time: "", helpers };
   const last = lastActivity(bot);
   if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", time: last !== undefined ? since(last, ctx.now) : "", helpers };
   return { ...look, kind: "calm", badge: null, time: last !== undefined ? since(last, ctx.now) : "", helpers };

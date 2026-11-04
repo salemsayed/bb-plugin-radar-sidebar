@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { isClosed, taskAttempts, taskDetailSchema, type Attempt, type BotTasksData } from "@/lib/botTasks";
 
-export type WorkerSnapshot = { byTask: Record<string, Attempt[]>; byBot: Record<string, Attempt[]>; known: Set<string>; chat: Set<string> };
+export type WorkerSnapshot = { byTask: Record<string, Attempt[]>; byBot: Record<string, Attempt[]>; known: Set<string>; failedChecks: Set<string>; chat: Set<string> };
 export const COORDINATOR_REFRESH_MS = 15_000;
 const LIVE = ["running", "active"];
 type Sdk = ReturnType<typeof useSdk>;
@@ -14,7 +14,7 @@ async function chatting(sdk: Sdk, bots: BotTasksData["bots"]): Promise<Set<strin
     return new Set(bots.filter(bot => live.has(bot.coordinatorThreadId)).map(bot => bot.key));
   } catch { return null; }
 }
-const empty = (): WorkerSnapshot => ({ byTask: {}, byBot: {}, known: new Set(), chat: new Set() });
+const empty = (): WorkerSnapshot => ({ byTask: {}, byBot: {}, known: new Set(), failedChecks: new Set(), chat: new Set() });
 let lastSnapshot: WorkerSnapshot | null = null;
 export function resetWorkerSnapshotCache() { lastSnapshot = null; }
 const same = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(key => b.has(key));
@@ -37,6 +37,7 @@ export function useDispatchWorkers(data: BotTasksData): WorkerSnapshot {
         await Promise.all(bot.tasks.filter(task => !isClosed(task.displayState)).map(async task => {
           try {
             const detail = await sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "task_detail", input: { taskId: task.id }, outputSchema: taskDetailSchema });
+            if (detail.checks.some(check => check.status === "fail" || check.verdict === "insufficient" || check.verdict === "contradicted")) next.failedChecks.add(task.id);
             const ids = detail.workers.map(worker => worker.threadId);
             const threads = ids.length ? await sdk.threads.list({ threadIds: ids, includeHidden: true }) : [];
             const attempts = taskAttempts({ conversationThreadId: null }, detail, threads.map(t => ({ ...t, status: t.status === "active" ? "running" : t.status })));

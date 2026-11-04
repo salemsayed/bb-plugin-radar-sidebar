@@ -278,6 +278,10 @@ export function localizeDoneLine(task: Pick<BotTaskRow, "line" | "completedAt">,
 export const taskDetailSchema = z.object({
   taskId: z.string(),
   outcome: z.string().default(""),
+  checks: z.array(z.object({
+    status: z.string(),
+    verdict: z.string().nullable().optional(),
+  })).default([]),
   workers: z.array(z.object({
     threadId: z.string(),
     title: z.string().default(""),
