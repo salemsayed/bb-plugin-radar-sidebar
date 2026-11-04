@@ -9,6 +9,14 @@ const TASKS_PLUGIN = "orchestrator-mode";
 /** A fallback: bb-salem-bots pushes each change (the roster's signal), which reloads through radar:needs-changed. */
 export const BOT_TASKS_REFRESH_MS = 60_000;
 const CACHE_KEY = "radar.botTasks.v1";
+let pending: Promise<BotTasksData> | null = null;
+function loadTasks(sdk: ReturnType<typeof useSdk>) {
+  if (!pending) {
+    pending = sdk.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: botTasksSchema });
+    queueMicrotask(() => { pending = null; });
+  }
+  return pending;
+}
 
 export type BotTasksStatus =
   /** Nothing loaded yet; a cached copy may already be painted. */
@@ -66,7 +74,7 @@ export function useBotTasks(enabled: boolean): BotTasksState {
     const load = async () => {
       const current = ++request;
       try {
-        const data = await sdk.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: botTasksSchema });
+        const data = await loadTasks(sdk);
         if (cancelled || current !== request) return;
         writeCache(data);
         setState(previous => previous.status === "ready" && JSON.stringify(previous.data) === JSON.stringify(data)
