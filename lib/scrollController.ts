@@ -146,6 +146,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   const timer = setInterval(() => capture(), 400);
   return () => {
     trace("dispose");
+    capture(true);
     disposed = true;
     observer.disconnect();
     resize?.disconnect();

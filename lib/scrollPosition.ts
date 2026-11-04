@@ -11,8 +11,7 @@ export const scrollContract = {
   scroll_set: { input: keySchema.extend({ position: positionSchema }), output: z.object({ ok: z.literal(true) }) },
 };
 export function capturePosition(scrollTop: number, height: number, scrollHeight: number, top: number, anchors: { seq: number; top: number; bottom: number }[]): ScrollPosition | null {
-  if (scrollHeight - height - scrollTop <= 24) return { atBottom: true, messageSeq: null, offset: 0 };
   const anchor = anchors.filter(a => a.bottom > top && a.top < top + height).sort((a, b) => a.top - b.top)[0];
-  return anchor ? { atBottom: false, messageSeq: anchor.seq, offset: anchor.top - top } : null;
+  return anchor ? { atBottom: false, messageSeq: anchor.seq, offset: anchor.top - top } : scrollHeight - height - scrollTop <= 24 ? { atBottom: true, messageSeq: null, offset: 0 } : null;
 }
 export const restoreDelta = (anchorTop: number, containerTop: number, offset: number) => anchorTop - containerTop - offset;
