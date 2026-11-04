@@ -10,6 +10,7 @@ import { botStyle, type BotMascot, type BotState } from "./bots";
 
 interface Palette { base: string; light: string; line: string }
 const PALETTE: Record<BotMascot, Palette> = {
+  security: { base: "hsl(185 62% 36%)", light: "hsl(182 70% 57%)", line: "hsl(190 60% 19%)" },
   personal: { base: "hsl(214 72% 52%)", light: "hsl(211 88% 66%)", line: "hsl(220 55% 24%)" },
   home: { base: "hsl(152 58% 38%)", light: "hsl(148 60% 52%)", line: "hsl(158 55% 17%)" },
   bricks: { base: "hsl(14 70% 46%)", light: "hsl(18 82% 58%)", line: "hsl(10 60% 22%)" },
@@ -24,6 +25,7 @@ const CHEEK = "hsl(350 95% 72%)";
 
 /** Each body's outline, and the box its light face fills (the shaded rim shows below and to the end). */
 const BODY: Record<BotMascot, { d: string; box: [number, number, number, number]; face: [number, number] }> = {
+  security: { d: "M22 5L37 11V23C37 31 30 37 22 40C14 37 7 31 7 23V11Z", box: [21, 22, 14, 15], face: [22, 23] },
   personal: { d: "M22 9a15 15 0 1 1 0 30a15 15 0 1 1 0-30Z", box: [20.6, 22.4, 14, 14], face: [22, 24.5] },
   home: { d: "M22 7.5L37 19.6V33.5a3.5 3.5 0 0 1-3.5 3.5h-23A3.5 3.5 0 0 1 7 33.5V19.6Z", box: [20.6, 21.5, 15.5, 15], face: [22, 27] },
   bricks: { d: "M9.5 15h25a4.5 4.5 0 0 1 4.5 4.5v10a4.5 4.5 0 0 1-4.5 4.5h-25A4.5 4.5 0 0 1 5 29.5v-10A4.5 4.5 0 0 1 9.5 15Z", box: [20.5, 23, 17.5, 9.4], face: [22, 25.4] },
