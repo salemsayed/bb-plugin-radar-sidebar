@@ -42,6 +42,7 @@ function statusWords(look: ReturnType<typeof rowLook>): string {
 }
 
 function waitWhen(task: BotTaskRow, now: number): string {
+  if (/^filed\.\s*not started/i.test(task.line)) return "not started";
   if (task.wakeAt !== undefined) return clearsLine(task.wakeAt, now);
   if (task.waitFor && task.waitFor !== "the bot") return "on someone";
   return "";
@@ -58,7 +59,7 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
   const asks = open.filter(t => t.displayState === "needs");
   const titleOf = (attempt: Attempt) => {
     const task = bot.tasks.find(t => (snapshot.byTask[t.id] ?? []).some(a => a.threadId === attempt.threadId));
-    return stageTitle(task?.title || attempt.title || "Helper");
+    return stageTitle(attempt.title || task?.title || "Helper");
   };
   const busyTasks = open.filter(t => (t.displayState === "working" || t.displayState === "queued" || t.displayState === "retrying" || t.displayState === "overdue" || t.displayState === "checking") && !(snapshot.byTask[t.id] ?? []).some(a => a.state === "running"));
   const waiting = open.filter(t => t.displayState === "waiting" || t.displayState === "ready" || t.displayState === "offline")
