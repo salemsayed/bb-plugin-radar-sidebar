@@ -13,6 +13,11 @@ import type { DeskMenuProps } from "./BotsView";
 /** The sidebar's threads by id, read once for every desk rather than once per desk. */
 const SidebarThreads = createContext<ReadonlyMap<string, PluginSidebarThread>>(new Map());
 
+export function useCoordinatorTarget(threadId: string): PluginThreadActionTarget {
+  const threads = useContext(SidebarThreads);
+  return coordinatorTarget(threads.get(threadId), threadId);
+}
+
 export function BotDeskMenuProvider({ children }: { children: ReactNode }) {
   const { threads } = experimental_useSidebarThreads();
   const byId = useMemo(() => new Map(threads.map(thread => [thread.id, thread])), [threads]);

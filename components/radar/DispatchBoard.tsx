@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
-import { BotTaskFace, openMenuAt, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
+import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle, shortBotName } from "./bots";
 import { automationsHref } from "./automationsLink";
 import { askLine, cardOrder, stateTone, taskHeadline, youWords } from "./workText";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
+import { experimental_ThreadActionsMenu as ThreadActionsMenu } from "@get-bb/plugin-sdk/app";
+import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { stageLook, stageText, type StageLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
@@ -96,25 +98,19 @@ export function nextStep(bot: BotTasksBot, now: number): string {
   const first = layoutBot(bot, now).active[0] ?? waiting[0] ?? open[0];
   return [STATE_LABEL[first.displayState], first.displayState === "waiting" && first.wakeAt !== undefined ? checksLine(first.wakeAt, now) : "", open.length > 1 ? `+${open.length - 1} more` : ""].filter(Boolean).join(" · ");
 }
-function MenuTarget({ bot, Menu, onOpen, children }: { bot: BotTasksBot; Menu?: DeskMenu; onOpen: () => void; children: ReactNode }) {
-  return Menu ? <Menu bot={bot} onOpenChat={onOpen}>{children}</Menu> : children;
-}
-
 export interface PanelAnchor { x: number; y: number; align?: "start" | "end" }
 
-function StageRow({ bot, look, current, onChat, onShowWork, hostMenu, Menu }: {
-  bot: BotTasksBot; look: StageLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void; hostMenu: { current: string | null }; Menu?: DeskMenu;
+function StageRow({ bot, look, current, onChat, onShowWork }: {
+  bot: BotTasksBot; look: StageLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void;
 }) {
   const press = useDeskPress();
   const name = shortBotName(bot.name);
   const spoken = [look.line, look.extra].filter(Boolean).join(", ");
-  return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat}>
-    <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-quiet={look.quiet || undefined}
+  return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-quiet={look.quiet || undefined}
       style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} {...press}
       onContextMenu={event => {
         press.onContextMenu(event);
         if (event.defaultPrevented) return;
-        if (hostMenu.current === bot.key) { hostMenu.current = null; return; }
         event.preventDefault();
         event.stopPropagation();
         const box = event.currentTarget.getBoundingClientRect();
@@ -136,44 +132,33 @@ function StageRow({ bot, look, current, onChat, onShowWork, hostMenu, Menu }: {
           <span className="stage-line"><bdi>{look.line}</bdi>{look.extra ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
         </span>
       </button>
-    </div>
-  </MenuTarget>;
+    </div>;
 }
 
-export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, deskMenu, unreadChats }: {
+export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, unreadChats }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
   const snapshot = useDispatchWorkers(data);
   const [sheet, setSheet] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
-  const hostMenu = useRef<string | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
-  const showMenu = (key: string, x?: number, y?: number) => {
-    flushSync(() => setSheet(null));
-    const row = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-row") ?? []).find(node => node.dataset.bot === key);
-    if (!row) return;
-    hostMenu.current = key;
-    openMenuAt(row, x, y);
-    hostMenu.current = null;
-  };
   const bot = data.bots.find(b => b.key === sheet);
   return <div className="stage" ref={root}>
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
     {orderedBots(data).map(b => {
       const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
       const look = stageLook(b, { running: snapshot.byBot[b.key]?.length ?? 0, chatting: snapshot.chat.has(b.key), unread, now });
-      return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId} Menu={deskMenu} hostMenu={hostMenu}
+      return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId}
         onChat={() => onOpen(b.coordinatorThreadId)}
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
     })}
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
     {bot ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       scope={root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined}
-      onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); onOpen(id); }} onClose={close}
-      onMenu={(x, y) => showMenu(bot.key, x, y)} /> : null}
+      onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); onOpen(id); }} onClose={close} /> : null}
   </div>;
 }
 
@@ -189,12 +174,12 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
   };
 }
 
-export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onMenu }: {
+export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose }: {
   bot: BotTasksBot; anchor?: PanelAnchor; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
-  onNavigate: (id: string) => void; onClose: () => void; onMenu?: (x?: number, y?: number) => void;
+  onNavigate: (id: string) => void; onClose: () => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
-  const panelPress = useDeskPress();
+  const target = useCoordinatorTarget(bot.coordinatorThreadId);
   const drag = useRef<number | null>(null);
   const [openAsks, setOpenAsks] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => { panel.current?.focus(); }, []);
@@ -253,14 +238,7 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
   const hue = botStyle(bot.key, bot.name).hue;
   const blockedNow = tasks.some(t => BLOCKED.includes(t.displayState));
   const anchored = anchor && !isCompactViewport;
-  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" style={{ "--bot-hue": hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} {...panelPress} onContextMenu={event => {
-    panelPress.onContextMenu(event);
-    if (event.defaultPrevented || !onMenu) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onMenu(event.clientX, event.clientY);
-  }} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: work`} onKeyDown={event => {
-    if (onMenu && (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey)) { event.preventDefault(); onMenu(); }
+  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" style={{ "--bot-hue": hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: work`} onKeyDown={event => {
     if (event.key === "Escape") { event.stopPropagation(); onClose(); }
     if (event.key === "Tab") { const buttons = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], summary, [tabindex="0"]')).filter(node => { const closed = node.closest("details:not([open])"); return !closed || node.parentElement === closed && node.tagName === "SUMMARY"; }).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1); const first = buttons[0], last = buttons.at(-1); if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
   }}>
@@ -269,7 +247,7 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
     <nav className="dispatch-panel-actions" aria-label={`${shortBotName(bot.name)} actions`}>
       {activeThreadId === bot.coordinatorThreadId ? null : <button className="dispatch-chat-pill" onClick={() => onNavigate(bot.coordinatorThreadId)}><Icon name="MessageSquare" aria-hidden="true" />Chat</button>}
       <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>
-      {onMenu ? <button className="dispatch-more" onClick={() => onMenu()}><Icon name="MoreHorizontal" aria-hidden="true" />More</button> : null}
+      <ThreadActionsMenu thread={target} side="bottom" align="end" trigger={props => <button {...props} type="button" className="dispatch-more"><Icon name="MoreHorizontal" aria-hidden="true" />More</button>} />
     </nav>
     <div className="dispatch-panel-body">
     {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Blocked · {taskHeadline(t.title)}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
