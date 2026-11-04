@@ -70,8 +70,8 @@ function waitLine(task: BotTaskRow, now: number): string {
     return when.startsWith("overdue") ? `Check was due ${when.slice("overdue since ".length)}` : `Checks again ${when}`;
   }
   if (task.waitFor && task.waitFor !== "the bot") return "Waiting on someone";
-  if (/thread-idle|builder|worker|helper/i.test(task.line)) return "Waiting on a helper";
-  return "Waiting";
+  if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a helper";
+  return "Waiting · no date";
 }
 
 function isChecking(task: BotTaskRow): boolean {

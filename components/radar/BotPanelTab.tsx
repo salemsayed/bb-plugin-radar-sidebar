@@ -45,7 +45,8 @@ function waitWhen(task: BotTaskRow, now: number): string {
   if (/^filed\.\s*not started/i.test(task.line)) return "not started";
   if (task.wakeAt !== undefined) return clearsLine(task.wakeAt, now);
   if (task.waitFor && task.waitFor !== "the bot") return "on someone";
-  return "";
+  if (/wakes on thread-idle/i.test(task.line)) return "on a helper";
+  return "no date";
 }
 
 function BotPanel({ bot }: { bot: BotTasksBot }) {
