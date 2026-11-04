@@ -15,6 +15,7 @@ export interface StageLook {
 
 export interface StageContext {
   running: number;
+  runningTitle?: string;
   chatting: boolean;
   unread: boolean;
   now: number;
@@ -103,8 +104,8 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   }
   const helpers = ctx.running ? `· ${plural(ctx.running, "helper", "helpers")}` : "";
   const moving = working[0] ?? (ctx.running ? open.find(task => !isClosed(task.displayState) && !notStarted(task) && task.displayState !== "waiting") : undefined);
-  if (moving || ctx.running || bot.unlinked.length) {
-    const what = moving ? stageTitle(moving.title) : bot.unlinked[0]?.title ? stageTitle(bot.unlinked[0].title) : "Working";
+  if (moving || ctx.running) {
+    const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "Working";
     const queued = moving?.displayState === "queued" && !ctx.running ? "· queued" : "";
     return { pose: "working", line: what, extra: helpers || queued, tone: "busy", quiet: false };
   }

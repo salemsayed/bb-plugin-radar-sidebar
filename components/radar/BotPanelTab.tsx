@@ -54,7 +54,7 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
   const one = useMemo(() => ({ bots: [bot], needs: [], notFiled: [], observedAt: 0 }), [bot]);
   const snapshot = useDispatchWorkers(one);
   const running = (snapshot.byBot[bot.key] ?? []).filter(a => a.threadId !== bot.coordinatorThreadId);
-  const look = rowLook(bot, { running: running.length, chatting: snapshot.chat.has(bot.key), unread: false, now });
+  const look = rowLook(bot, { running: running.length, runningTitle: running[0]?.title, chatting: snapshot.chat.has(bot.key), unread: false, now });
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
   const asks = open.filter(t => t.displayState === "needs");
   const titleOf = (attempt: Attempt) => {

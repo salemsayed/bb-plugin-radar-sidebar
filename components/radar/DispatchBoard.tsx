@@ -156,7 +156,8 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
     {orderedBots(data).map(b => {
       const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
-      const look = rowLook(b, { running: snapshot.byBot[b.key]?.length ?? 0, chatting: snapshot.chat.has(b.key), unread, now });
+      const workers = snapshot.byBot[b.key] ?? [];
+      const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, chatting: snapshot.chat.has(b.key), unread, now });
       return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId}
         onChat={() => onOpen(b.coordinatorThreadId)}
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
