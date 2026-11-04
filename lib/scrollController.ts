@@ -131,6 +131,11 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       if (performance.now() - visibleAt < 40) return;
     }
     if (position && !position.atBottom) {
+      if (!requestedAnchor && store.loadAnchor) {
+        requestedAnchor = true;
+        trace("load-anchor", position.messageSeq);
+        store.loadAnchor(position.messageSeq);
+      }
       const anchor = messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === position!.messageSeq && container?.contains(e));
       if (anchor && container) {
         container.style.scrollBehavior = "auto";
@@ -139,10 +144,6 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
         matched = true;
         matchedAt ??= performance.now();
         if (!releasedRoute) { releasedRoute = true; store.anchorReady?.(); }
-      } else if (!requestedAnchor && store.loadAnchor) {
-        requestedAnchor = true;
-        trace("load-anchor", position.messageSeq);
-        store.loadAnchor(position.messageSeq);
       }
     }
     if (container) firstContainerAt ??= performance.now();
