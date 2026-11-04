@@ -25,6 +25,22 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let frame = 0, started = performance.now(), requestedAnchor = false, firstContainerAt: number | null = null, matched = false, matchedAt: number | null = null, releasedRoute = false;
   let visibleAt: number | null = null;
   let handlingScroll = false;
+  let bottomPinned = false, lastHeight = 0, lastScrollHeight = 0;
+  const inputEvents = ["wheel", "touchstart", "pointerdown", "keydown", "beforeinput", "input", "focusin"];
+  const measure = () => {
+    if (!container) return;
+    lastHeight = container.clientHeight;
+    lastScrollHeight = container.scrollHeight;
+    bottomPinned = lastScrollHeight - lastHeight - container.scrollTop <= 24;
+  };
+  const resized = () => {
+    if (!container || disposed) return;
+    if (restoring) apply();
+    else if (bottomPinned && (lastHeight !== container.clientHeight || lastScrollHeight !== container.scrollHeight)) {
+      container.scrollTop = container.scrollHeight;
+    }
+    measure();
+  };
   let lastSaved = "", saveTimer: ReturnType<typeof setTimeout> | undefined;
   const reveal = () => {
     if (container) { container.style.scrollBehavior = previousBehavior; }
@@ -38,10 +54,11 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       container?.removeEventListener("scroll", onScroll);
       container = found;
       if (container) {
+        measure();
         previousBehavior = container.style.scrollBehavior;
         container.addEventListener("scroll", onScroll, { passive: true });
         if (typeof ResizeObserver !== "undefined") {
-          resize = new ResizeObserver(() => apply());
+          resize = new ResizeObserver(resized);
           resize.observe(container);
           if (container.firstElementChild) resize.observe(container.firstElementChild);
         }
@@ -65,9 +82,9 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     trace("capture", next);
     store.save(next);
   };
-  const finish = () => { trace("finish", { position, matched, failed, interacted }); restoring = false; reveal(); if (failed) store.cancelAnchor?.(); };
+  const finish = () => { trace("finish", { position, matched, failed, interacted }); restoring = false; measure(); reveal(); if (failed) store.cancelAnchor?.(); };
   const input = (event: Event) => {
-    if (event instanceof KeyboardEvent && !["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Tab"].includes(event.key)) return;
+    if (interacted) return;
     trace("input", event.type);
     interacted = true;
     failed = false;
@@ -82,6 +99,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
       }
       return;
     }
+    resized();
     capture();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(capture, 120);
@@ -140,7 +158,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     if (restoring) frame = requestAnimationFrame(tick);
     else observer.disconnect();
   };
-  for (const type of ["wheel", "touchstart", "pointerdown", "keydown"]) document.addEventListener(type, input, { capture: true, passive: true });
+  for (const type of inputEvents) document.addEventListener(type, input, { capture: true, passive: true });
   void store.load().then(value => { if (!disposed && !interacted && !loaded) { position = value; loaded = true; apply(); } }).catch(() => { loaded = true; });
   tick();
   const timer = setInterval(() => capture(), 400);
@@ -155,6 +173,6 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
     clearTimeout(saveTimer);
     container?.removeEventListener("scroll", onScroll);
     reveal();
-    for (const type of ["wheel", "touchstart", "pointerdown", "keydown"]) document.removeEventListener(type, input, true);
+    for (const type of inputEvents) document.removeEventListener(type, input, true);
   };
 }
