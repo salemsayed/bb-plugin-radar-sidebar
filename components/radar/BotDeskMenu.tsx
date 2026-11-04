@@ -42,6 +42,8 @@ export function BotDeskMenu({ bot, children, onOpenChat, onShowWork }: DeskMenuP
   const inline = useMemo<PluginThreadActionsInlineItem[]>(() => [
     { key: "radar-sidebar/bot-open-chat", group: experimental_THREAD_ACTION_GROUPS.open,
       action: { label: "Open chat", icon: "MessageSquare", run: onOpenChat } },
+    { key: "radar-sidebar/all-threads", group: experimental_THREAD_ACTION_GROUPS.open,
+      action: { label: "All threads", icon: "List", run: () => window.dispatchEvent(new Event("radar:show-all-threads")) } },
     ...(onShowWork ? [{ key: "radar-sidebar/bot-show-work", group: experimental_THREAD_ACTION_GROUPS.open,
       action: { label: "Show work", icon: "ListTodo", run: onShowWork } }] : []),
   ], [onOpenChat, onShowWork]);

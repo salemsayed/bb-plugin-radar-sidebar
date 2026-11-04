@@ -166,7 +166,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
         onChat={() => onOpen(b.coordinatorThreadId)}
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
     })}
-    {claims.other.length ? <details className="radar-other"><summary>Other <span>{claims.other.length}</span></summary><ClaimedThreads threads={claims.other} onOpen={onOpen} /></details> : null}
+    {<details className="radar-other"><summary>Other <span>{claims.other.length}</span></summary><ClaimedThreads threads={claims.other} onOpen={onOpen} />{!claims.other.length ? <p className="radar-census">No other threads</p> : null}</details>}
     <p className="radar-census" data-only-threads={claims.ready ? claims.onlyThreads : undefined}>Only in Threads: {claims.ready ? claims.onlyThreads : "checking…"}</p>
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
     {bot ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
