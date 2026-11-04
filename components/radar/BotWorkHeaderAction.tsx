@@ -3,7 +3,7 @@ import { useBbNavigate, type PluginThreadHeaderActionProps } from "@get-bb/plugi
 import { isClosed, type BotTasksData } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
 import { useDispatchWorkers } from "./useDispatchWorkers";
-import { BotWorkPanel } from "./DispatchBoard";
+import { BotWorkPanel, type PanelAnchor } from "./DispatchBoard";
 import { shortBotName } from "./bots";
 
 export function BotWorkHeaderAction({ threadId, isCompactViewport }: PluginThreadHeaderActionProps) {
@@ -19,6 +19,7 @@ function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; b
   const navigate = useBbNavigate();
   const button = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const bot = one.bots[0];
   if (!bot) return null;
   const open_ = bot.tasks.filter(t => !isClosed(t.displayState)).length + bot.unlinked.length;
@@ -29,11 +30,11 @@ function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; b
   const close = () => { setOpen(false); setTimeout(() => button.current?.focus(), 0); };
   return <>
     <button ref={button} type="button" className="stage-work-pill" data-busy={helpers > 0 || undefined} data-asks={asks > 0 || undefined}
-      aria-haspopup="dialog" aria-expanded={open} aria-label={`${shortBotName(bot.name)}'s work: ${text}`} onClick={() => setOpen(true)}>
+      aria-haspopup="dialog" aria-expanded={open} aria-label={`${shortBotName(bot.name)}'s work: ${text}`} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); setAnchor({ x: box.right, y: box.bottom + 6, align: "end" }); setOpen(true); }}>
       <span className="stage-work-dots" aria-hidden="true">{Array.from({ length: Math.min(helpers, 4) }, (_, i) => <i key={i} />)}</span>
       {compact ? (helpers || open_ || "") : text}
     </button>
-    {open ? <BotWorkPanel bot={bot} snapshot={snapshot} activeThreadId={threadId} isCompactViewport={compact} now={Date.now()}
+    {open ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={threadId} isCompactViewport={compact} now={Date.now()}
       onNavigate={id => { setOpen(false); navigate.toThread(id); }} onClose={close} /> : null}
   </>;
 }

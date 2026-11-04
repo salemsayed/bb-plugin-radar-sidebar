@@ -96,20 +96,36 @@ export function nextStep(bot: BotTasksBot, now: number): string {
   const first = layoutBot(bot, now).active[0] ?? waiting[0] ?? open[0];
   return [STATE_LABEL[first.displayState], first.displayState === "waiting" && first.wakeAt !== undefined ? checksLine(first.wakeAt, now) : "", open.length > 1 ? `+${open.length - 1} more` : ""].filter(Boolean).join(" · ");
 }
-function MenuTarget({ bot, Menu, onOpen, onShowWork, children }: { bot: BotTasksBot; Menu?: DeskMenu; onOpen: () => void; onShowWork: () => void; children: ReactNode }) {
-  return Menu ? <Menu bot={bot} onOpenChat={onOpen} onShowWork={onShowWork}>{children}</Menu> : children;
+function MenuTarget({ bot, Menu, onOpen, children }: { bot: BotTasksBot; Menu?: DeskMenu; onOpen: () => void; children: ReactNode }) {
+  return Menu ? <Menu bot={bot} onOpenChat={onOpen}>{children}</Menu> : children;
 }
 
-function StageRow({ bot, look, current, onChat, onShowWork, Menu }: {
-  bot: BotTasksBot; look: StageLook; current: boolean; onChat: () => void; onShowWork: () => void; Menu?: DeskMenu;
+export interface PanelAnchor { x: number; y: number; align?: "start" | "end" }
+
+function StageRow({ bot, look, current, onChat, onShowWork, hostMenu, Menu }: {
+  bot: BotTasksBot; look: StageLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void; hostMenu: { current: string | null }; Menu?: DeskMenu;
 }) {
   const press = useDeskPress();
   const name = shortBotName(bot.name);
   const spoken = [look.line, look.extra].filter(Boolean).join(", ");
-  return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat} onShowWork={onShowWork}>
+  return <MenuTarget bot={bot} Menu={Menu} onOpen={onChat}>
     <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-quiet={look.quiet || undefined}
       style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} {...press}
-      onKeyDown={event => { if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) { event.preventDefault(); openMenuAt(event.currentTarget); } }}>
+      onContextMenu={event => {
+        press.onContextMenu(event);
+        if (event.defaultPrevented) return;
+        if (hostMenu.current === bot.key) { hostMenu.current = null; return; }
+        event.preventDefault();
+        event.stopPropagation();
+        onShowWork({ x: event.clientX, y: event.clientY });
+      }}
+      onKeyDown={event => {
+        if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) {
+          event.preventDefault();
+          const box = event.currentTarget.getBoundingClientRect();
+          onShowWork({ x: box.right + 8, y: box.top });
+        }
+      }}>
       <button type="button" className="stage-chat" aria-current={current ? "page" : undefined} aria-label={`${name}: ${spoken}. Open chat`} onClick={onChat}>
         <span className="stage-figure"><StageFace botKey={bot.key} name={bot.name} pose={look.pose} /></span>
         <span className="stage-copy">
@@ -126,6 +142,8 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
 }) {
   const snapshot = useDispatchWorkers(data);
   const [sheet, setSheet] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
+  const hostMenu = useRef<string | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const close = () => { setSheet(null); opener.current?.focus(); };
@@ -133,7 +151,10 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const showMenu = (key: string, x?: number, y?: number) => {
     flushSync(() => setSheet(null));
     const row = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-row") ?? []).find(node => node.dataset.bot === key);
-    if (row) openMenuAt(row, x, y);
+    if (!row) return;
+    hostMenu.current = key;
+    openMenuAt(row, x, y);
+    hostMenu.current = null;
   };
   const bot = data.bots.find(b => b.key === sheet);
   return <div className="stage" ref={root}>
@@ -141,20 +162,32 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
     {orderedBots(data).map(b => {
       const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
       const look = stageLook(b, { running: snapshot.byBot[b.key]?.length ?? 0, chatting: snapshot.chat.has(b.key), unread, now });
-      return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId} Menu={deskMenu}
+      return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId} Menu={deskMenu} hostMenu={hostMenu}
         onChat={() => onOpen(b.coordinatorThreadId)}
-        onShowWork={() => { opener.current = document.activeElement as HTMLElement; setSheet(b.key); }} />;
+        onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
     })}
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
-    {bot ? <BotWorkPanel bot={bot} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       scope={root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined}
       onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); onOpen(id); }} onClose={close}
       onMenu={(x, y) => showMenu(bot.key, x, y)} /> : null}
   </div>;
 }
 
-export function BotWorkPanel({ bot, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onMenu }: {
-  bot: BotTasksBot; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+const PANEL_WIDTH = 400;
+const EDGE = 12;
+
+function anchoredStyle(anchor: PanelAnchor): CSSProperties {
+  const left = anchor.align === "end" ? anchor.x - PANEL_WIDTH : anchor.x;
+  return {
+    position: "fixed",
+    left: `clamp(${EDGE}px, ${left}px, calc(100vw - ${PANEL_WIDTH + EDGE}px))`,
+    top: `clamp(${EDGE}px, ${anchor.y}px, calc(100dvh - ${EDGE}px - min(80dvh, calc(100dvh - 100px))))`,
+  };
+}
+
+export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onMenu }: {
+  bot: BotTasksBot; anchor?: PanelAnchor; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: (id: string) => void; onClose: () => void; onMenu?: (x?: number, y?: number) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -216,7 +249,8 @@ export function BotWorkPanel({ bot, snapshot, activeThreadId, isCompactViewport,
   };
   const hue = botStyle(bot.key, bot.name).hue;
   const blockedNow = tasks.some(t => BLOCKED.includes(t.displayState));
-  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" style={{ "--bot-hue": hue } as CSSProperties} {...panelPress} onContextMenu={event => {
+  const anchored = anchor && !isCompactViewport;
+  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" style={{ "--bot-hue": hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} {...panelPress} onContextMenu={event => {
     panelPress.onContextMenu(event);
     if (event.defaultPrevented || !onMenu) return;
     event.preventDefault();

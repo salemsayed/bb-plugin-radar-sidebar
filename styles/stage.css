@@ -108,3 +108,5 @@
   .stage-work-pill[data-busy] .stage-work-dots i:nth-child(2) { animation-delay: 0.3s; }
   .stage-work-pill[data-busy] .stage-work-dots i:nth-child(3) { animation-delay: 0.6s; }
 }
+.dispatch-overlay.dispatch-anchored { background: transparent; padding: 0; }
+.dispatch-anchored .dispatch-panel { box-shadow: 0 12px 40px rgb(0 0 0 / .22), 0 0 0 1px var(--border); }
