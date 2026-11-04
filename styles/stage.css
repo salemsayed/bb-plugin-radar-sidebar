@@ -85,6 +85,8 @@
 @keyframes stage-rise { from { transform: translateY(1px); opacity: 0.8; } to { transform: translateY(-2px); opacity: 0.3; } }
 .stage-work-pill {
   display: inline-flex;
+  justify-content: center;
+  min-width: 36px;
   align-items: center;
   gap: 6px;
   min-height: 32px;

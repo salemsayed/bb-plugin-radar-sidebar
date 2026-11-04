@@ -10,7 +10,7 @@ import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu } from "@get-bb/plugin-sdk/app";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
-import { stageLook, stageText, type StageLook } from "./stage";
+import { stageLook, stageText, stageTitle, type StageLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
 
 export function dispatchModel(model: string) {
@@ -199,7 +199,7 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
   const workerLabel = (a: Attempt, status: string) => `Open worker ${a.title || a.threadId}: ${workerName(a)}${status ? `, ${status}` : ""}`;
   const taskRow = (task: BotTaskRow) => {
     const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : stateTone(task.displayState);
-    const name = youWords(taskHeadline(task.title));
+    const name = stageTitle(task.title);
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const status = cardStatus(task, running, now);
