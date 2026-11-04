@@ -158,6 +158,7 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", time: "", helpers };
   if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
   if (look.pose === "unread") return { ...look, kind: "calm", badge: null, time: "", helpers };
+  if (look.pose === "offline") return { ...look, kind: "calm", badge: null, time: "", helpers };
   const last = lastActivity(bot);
   if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", time: last !== undefined ? since(last, ctx.now) : "", helpers };
   return { ...look, kind: "calm", badge: null, time: last !== undefined ? since(last, ctx.now) : "", helpers };
