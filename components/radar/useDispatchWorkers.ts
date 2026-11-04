@@ -18,7 +18,7 @@ const empty = (): WorkerSnapshot => ({ byTask: {}, byBot: {}, known: new Set(), 
 let lastSnapshot: WorkerSnapshot | null = null;
 export function resetWorkerSnapshotCache() { lastSnapshot = null; }
 const same = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(key => b.has(key));
-export function useDispatchWorkers(data: BotTasksData): WorkerSnapshot {
+export function useDispatchWorkers(data: BotTasksData, enabled = true): WorkerSnapshot {
   const sdk = useSdk();
   const [snapshot, setState] = useState<WorkerSnapshot>(() => lastSnapshot ?? empty());
   const setSnapshot = (update: WorkerSnapshot | ((previous: WorkerSnapshot) => WorkerSnapshot)) => setState(previous => {
@@ -27,6 +27,7 @@ export function useDispatchWorkers(data: BotTasksData): WorkerSnapshot {
     return next;
   });
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     void (async () => {
       const next = empty();
@@ -59,14 +60,15 @@ export function useDispatchWorkers(data: BotTasksData): WorkerSnapshot {
       if (!cancelled) setSnapshot(next);
     })();
     return () => { cancelled = true; };
-  }, [data, sdk]);
+  }, [data, sdk, enabled]);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const timer = setInterval(() => void chatting(sdk, data.bots).then(chat => {
       if (cancelled || !chat) return;
       setSnapshot(previous => Object.keys(previous.byBot).length && !same(previous.chat, chat) ? { ...previous, chat } : previous);
     }), COORDINATOR_REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [data, sdk]);
+  }, [data, sdk, enabled]);
   return snapshot;
 }

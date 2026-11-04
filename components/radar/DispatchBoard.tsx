@@ -1,3 +1,4 @@
+import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
@@ -143,11 +144,12 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
 export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, unreadChats }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
-  const snapshot = useDispatchWorkers(data);
+  const root = useRef<HTMLDivElement>(null);
+  const visible = useVisibleSurface(root);
+  const snapshot = useDispatchWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const opener = useRef<HTMLElement | null>(null);
-  const root = useRef<HTMLDivElement>(null);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
   const bot = data.bots.find(b => b.key === sheet);

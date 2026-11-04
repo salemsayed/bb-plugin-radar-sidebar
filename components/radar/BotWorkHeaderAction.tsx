@@ -1,3 +1,4 @@
+import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useMemo, useRef, useState } from "react";
 import { experimental_useAppPanel, useBbNavigate, type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { BOT_TAB } from "./BotPanelTab";
@@ -16,16 +17,17 @@ export function BotWorkHeaderAction({ threadId, isCompactViewport }: PluginThrea
 
 function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; botKey: string; threadId: string; compact: boolean }) {
   const one = useMemo(() => ({ ...data, bots: data.bots.filter(b => b.key === botKey) }), [data, botKey]);
-  const snapshot = useDispatchWorkers(one);
   const navigate = useBbNavigate();
   const appPanel = experimental_useAppPanel();
   const button = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const visible = useVisibleSurface(button);
+  const snapshot = useDispatchWorkers(one, open && visible);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const bot = one.bots[0];
   if (!bot) return null;
   const open_ = bot.tasks.filter(t => !isClosed(t.displayState)).length;
-  const helpers = snapshot.byBot[bot.key]?.length ?? 0;
+  const helpers = open ? snapshot.byBot[bot.key]?.length ?? 0 : 0;
   const asks = bot.tasks.filter(t => t.displayState === "needs").length;
   const parts = [helpers ? `${helpers} ${helpers === 1 ? "helper" : "helpers"}` : "", open_ ? `${open_} ${open_ === 1 ? "task" : "tasks"}` : ""].filter(Boolean);
   const text = parts.join(" · ") || "No work";

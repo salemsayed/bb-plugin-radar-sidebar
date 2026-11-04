@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useVisibleSurface } from "@/lib/useVisibleSurface";
+import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
@@ -53,7 +54,9 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
   const now = useNow();
   const navigate = useBbNavigate();
   const one = useMemo(() => ({ bots: [bot], needs: [], notFiled: [], observedAt: 0 }), [bot]);
-  const snapshot = useDispatchWorkers(one);
+  const root = useRef<HTMLDivElement>(null);
+  const visible = useVisibleSurface(root);
+  const snapshot = useDispatchWorkers(one, visible);
   const running = (snapshot.byBot[bot.key] ?? []).filter(a => a.threadId !== bot.coordinatorThreadId);
   const look = rowLook(bot, { running: running.length, runningTitle: running[0]?.title, chatting: snapshot.chat.has(bot.key), unread: false, now });
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
@@ -69,7 +72,7 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
     .sort((a, b) => b.completedAt! - a.completedAt!);
   const go = (id: string | null | undefined) => navigate.toThread(id ?? bot.coordinatorThreadId);
   const hue = botStyle(bot.key, bot.name).hue;
-  return <div className="bot-panel" data-kind={look.kind} style={{ "--bot-hue": hue } as CSSProperties}>
+  return <div ref={root} className="bot-panel" data-kind={look.kind} style={{ "--bot-hue": hue } as CSSProperties}>
     <header className="bot-hero">
       <StageFace botKey={bot.key} name={bot.name} pose={look.pose === "idle" && look.badge === "wait" ? "waiting" : look.pose} size={168} />
       <h2>{shortBotName(bot.name)}</h2>
