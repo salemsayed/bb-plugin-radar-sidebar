@@ -4,11 +4,11 @@ import { isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL
 import { BotTaskFace, openMenuAt, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle, shortBotName } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askLine, cardOrder, plainNote, stateTone, taskHeadline, youWords } from "./workText";
+import { askLine, cardOrder, stateTone, taskHeadline, youWords } from "./workText";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { StageFace } from "./StageFace";
-import { stageLook, type StageLook } from "./stage";
+import { stageLook, stageText, type StageLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
 
 export function dispatchModel(model: string) {
@@ -52,7 +52,7 @@ const CHECKING = /not checked|checks needed|check failed|hasn't (?:checked|close
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): string {
   const state = task.displayState;
   if (state === "needs") {
-    const ask = youWords(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, "");
+    const ask = stageText(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, "");
     return ask ? `Waiting on you: ${ask}` : "Waiting on you";
   }
   if (state === "working" || state === "retrying" && running.length) {
@@ -117,13 +117,16 @@ function StageRow({ bot, look, current, onChat, onShowWork, hostMenu, Menu }: {
         if (hostMenu.current === bot.key) { hostMenu.current = null; return; }
         event.preventDefault();
         event.stopPropagation();
-        onShowWork({ x: event.clientX, y: event.clientY });
+        const box = event.currentTarget.getBoundingClientRect();
+        const side = event.currentTarget.closest(".stage")?.getBoundingClientRect().right ?? box.right;
+        onShowWork({ x: side + 8, y: Math.max(box.top, event.clientY - 40) });
       }}
       onKeyDown={event => {
         if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) {
           event.preventDefault();
           const box = event.currentTarget.getBoundingClientRect();
-          onShowWork({ x: box.right + 8, y: box.top });
+          const side = event.currentTarget.closest(".stage")?.getBoundingClientRect().right ?? box.right;
+          onShowWork({ x: side + 8, y: box.top });
         }
       }}>
       <button type="button" className="stage-chat" aria-current={current ? "page" : undefined} aria-label={`${name}: ${spoken}. Open chat`} onClick={onChat}>
@@ -215,7 +218,7 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const status = cardStatus(task, running, now);
-    const reason = plainNote(youWords(task.needs?.question ?? task.line));
+    const reason = stageText(task.needs?.question ?? task.line);
     const ask = task.ask ? askLine(task.ask, now) : "";
     const askOpen = openAsks.has(task.id);
     const outcome = task.outcome && task.outcome !== task.title ? task.outcome : "";
