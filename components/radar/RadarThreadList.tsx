@@ -90,6 +90,12 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const roster = useBotRoster(true);
   const needs = useNeedsYou(true);
   const [needsOpen, setNeedsOpen] = useState(false);
+  const deskNeeds = useMemo(() => {
+    const desks = new Map((tasks.data?.bots ?? []).map(bot => [bot.key, new Set(bot.desks
+      .filter(desk => desk.status === "draft" || desk.status === "blocked")
+      .map(desk => desk.threadId).filter((id): id is string => id !== null))]));
+    return (needs.items ?? []).filter(item => !!item.source.threadId && desks.get(item.bot)?.has(item.source.threadId));
+  }, [tasks.data, needs.items]);
   const sidebar = experimental_useSidebarThreads();
   const unreadChats = useMemo(() => new Set(sidebar.threads.filter(thread => thread.isUnread).map(thread => thread.id)), [sidebar.threads]);
   const actions = useRadarThreadActions();
@@ -127,8 +133,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
       ) : (
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">
-            {needs.status === "unavailable" ? <p role="status">Needs you is unavailable</p> : null}
-            <NeedsYouLane items={needs.items ?? []} roster={roster} now={now} onUpdate={needs.update} onOpen={openThread} waitingCount={0} open={needsOpen} onToggle={() => setNeedsOpen(value => !value)} />
+            <NeedsYouLane items={deskNeeds} roster={roster} now={now} onUpdate={needs.update} onOpen={openThread} waitingCount={0} open={needsOpen} onToggle={() => setNeedsOpen(value => !value)} />
             <BotsPane state={tasks} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport}
               now={now} onOpen={openThread} onShowThreads={showThreads} unreadChats={unreadChats} />
           </div>
