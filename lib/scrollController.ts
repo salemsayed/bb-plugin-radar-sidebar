@@ -26,7 +26,7 @@ export function rememberScroll(threadId: string, store: { load: () => Promise<Sc
   let visibleAt: number | null = null;
   let handlingScroll = false;
   let bottomPinned = false, lastHeight = 0, lastScrollHeight = 0;
-  const inputEvents = ["wheel", "touchstart", "pointerdown", "keydown", "beforeinput", "input", "focusin"];
+  const inputEvents = ["wheel", "touchstart", "pointerdown", "keydown", "beforeinput", "input"];
   const measure = () => {
     if (!container) return;
     lastHeight = container.clientHeight;
