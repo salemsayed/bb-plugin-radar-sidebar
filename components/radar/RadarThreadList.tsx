@@ -114,6 +114,7 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const keepQuery = useCallback((query: string) => { threadsQuery.current = query; }, []);
   return (
     <div className={cn("radar-list-shell", isCompactViewport && "radar-list-compact")} data-radar-mode={mode}>
+      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} unreadBots={unreadBots} threadsRef={threadsSegment} />
       {mode === "threads" ? (
         <RadarThreadsList {...props} everyThread initialQuery={threadsQuery.current} onQueryChange={keepQuery} />
       ) : (
@@ -124,7 +125,6 @@ function RadarSwitchedList(props: PluginThreadListProps) {
           </div>
         </div>
       )}
-      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} unreadBots={unreadBots} threadsRef={threadsSegment} />
     </div>
   );
 }

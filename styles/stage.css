@@ -158,9 +158,8 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
   align-self: stretch;
   gap: 4px;
   margin: 0;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  padding: 8px 8px 6px;
   border-radius: 0;
-  border-top: 1px solid var(--border);
   background: transparent;
 }
 .radar-list-shell > .radar-mode-switch .radar-mode-option {
