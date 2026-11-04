@@ -24,7 +24,7 @@ function WorkButton({ data, botKey, threadId, compact }: { data: BotTasksData; b
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const bot = one.bots[0];
   if (!bot) return null;
-  const open_ = bot.tasks.filter(t => !isClosed(t.displayState)).length + bot.unlinked.length;
+  const open_ = bot.tasks.filter(t => !isClosed(t.displayState)).length;
   const helpers = snapshot.byBot[bot.key]?.length ?? 0;
   const asks = bot.tasks.filter(t => t.displayState === "needs").length;
   const parts = [helpers ? `${helpers} ${helpers === 1 ? "helper" : "helpers"}` : "", open_ ? `${open_} ${open_ === 1 ? "task" : "tasks"}` : ""].filter(Boolean);
