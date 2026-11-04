@@ -110,3 +110,4 @@
 }
 .dispatch-overlay.dispatch-anchored { background: transparent; padding: 0; }
 .dispatch-anchored .dispatch-panel { box-shadow: 0 12px 40px rgb(0 0 0 / .22), 0 0 0 1px var(--border); }
+body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !important; }
