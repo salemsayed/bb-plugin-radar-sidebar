@@ -384,7 +384,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
       {outcome || extra || attempts.length || fullAsk ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
         {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
-        {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span><Isolated text={youWords(outcome)} /></p> : null}
+        {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span><Isolated text={youWords(plainNote(outcome))} /></p> : null}
         {extra ? <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <ul className="dispatch-worker-list">{attempts.map(a => {
           const s = attemptStatus(a, now);
@@ -418,7 +418,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
       {asks.length ? <div className="dispatch-open">{asks.map(taskRow)}</div> : null}
       {needDesks.length ? <DeskThreads desks={needDesks} now={now} onOpen={onNavigate} bare /> : null}
     </section> : null}
-    {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Stuck · {taskHeadline(t.title)}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
+    {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Stuck · <Isolated text={stageTitle(t.title)} /></b><p>{detailReason(rowDetail(t, now)) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
     {others.length || bot.unlinked.length ? <><header className="dispatch-section-head"><h3>Tasks</h3><span>{others.length + bot.unlinked.length}</span></header><div className="dispatch-open">{others.map(taskRow)}{bot.unlinked.map(w => <article className="dispatch-task-group" data-tone="busy" key={w.threadId}><button className="dispatch-task" onClick={() => onNavigate(w.threadId)}><span className="dispatch-status-line"><i aria-hidden="true" />Work without a task</span><b dir="auto">{taskHeadline(plainWorkerTitle(w.title || "Worker"))}</b></button></article>)}</div></> : asks.length ? null : <p className="dispatch-idle">{chatting ? IN_CHAT : "Nothing running"}{recent[0]?.completedAt ? ` · last finished ${ago(recent[0].completedAt, now)}` : ""}</p>}
     <DeskThreads desks={otherDesks} now={now} onOpen={onNavigate} />
     <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={onNavigate} />
