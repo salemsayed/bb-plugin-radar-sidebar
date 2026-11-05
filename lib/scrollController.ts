@@ -150,14 +150,11 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!hit || !message || message.dataset.notificationThread !== threadId || !container.contains(message)) return null;
     return { element: hit, offset: hit.getBoundingClientRect().top - top };
   };
-  const pickFine = () => {
-    fine = position && !position.atBottom ? topElement() : null;
-  };
   const settle = () => {
     show();
     phase = "settling";
     settledAt = lastFixAt = now();
-    pickFine();
+    fine = null;
     if (requested) store.anchorReady?.();
     trace("placed", { position, top: container ? Math.round(container.scrollTop) : null });
     measure();
