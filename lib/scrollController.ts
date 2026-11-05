@@ -11,7 +11,7 @@ const PIN_GAP = 4;
 const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
 const HELD_MAX_MS = 15000;
-const FINGER_MS = 60;
+const FINGER_MS = 120;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 const PLACED_PX = 1;
 const FLASH_MS = 2000;
@@ -59,7 +59,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let container: HTMLElement | null = null, boundAt = 0, resize: ResizeObserver | null = null, frame = 0;
   let veil: { element: HTMLElement; visibility: string; behavior: string } | null = null, veiledAt = 0;
   let requested = false, stable = 0, settledAt = 0, lastFixAt = 0;
-  let fingerRef: { seq: number; offset: number } | null = null, fingerMovedAt = -Infinity;
+  let fingerRef: { seq: number; offset: number } | null = null, fingerMovedAt = -Infinity, fingerMoved = false;
   let fine: { element: Element; offset: number } | null = null;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0;
@@ -268,7 +268,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
     if (held() && touching) {
       if (ours) return;
-      if (now() - fingerMovedAt < FINGER_MS) fingerRef = firstVisible();
+      if (fingerMoved || now() - fingerMovedAt < FINGER_MS) { fingerMoved = false; fingerRef = firstVisible(); }
       else keepFinger();
     }
     measure();
@@ -337,7 +337,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     switch (event.type) {
       case "touchend": case "touchcancel": if (touching) { touching = (event as TouchEvent).touches.length > 0; gestureAt = t; } return;
       case "pointerup": case "pointercancel": if (pointerDown) { pointerDown = false; gestureAt = t; } return;
-      case "touchmove": if (touching) fingerMovedAt = t; return;
+      case "touchmove": if (touching) { fingerMovedAt = t; fingerMoved = true; } return;
       case "touchstart": if (inside) { touching = true; touchAt = t; fingerRef = phase === "live" ? firstVisible() : null; } break;
       case "pointerdown": if (inside && (event as PointerEvent).pointerType !== "touch") { pointerDown = true; touchAt = t; } break;
       case "wheel": if (inside) gestureAt = t; break;
