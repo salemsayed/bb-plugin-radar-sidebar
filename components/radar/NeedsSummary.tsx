@@ -244,6 +244,26 @@ export function ageLabel(age: string, since: "asked" | "open"): string {
   return age === "now" ? "asked just now" : `${age} ago`;
 }
 
+function useShortName(who: RefObject<HTMLElement | null>, name: string, age: string): string {
+  const short = name.replace(/\s+Bot$/, "");
+  const [fits, setFits] = useState(true);
+  useLayoutEffect(() => {
+    const box = who.current;
+    if (!box || short === name) return;
+    const measure = () => {
+      const style = getComputedStyle(box);
+      const room = box.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const need = textWidth(name, `650 12.5px ${style.fontFamily}`) + (age ? 4 + textWidth(age, `400 11px ${style.fontFamily}`) : 0);
+      setFits(need <= room);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [name, age]);
+  return fits ? name : short;
+}
+
 function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   item: NeedItem;
   bot: BotTasksData["bots"][number] | undefined;
@@ -262,6 +282,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
   const sinceWord = item.since ?? "asked";
   const shownAge = age ? ageLabel(age, sinceWord) : "";
+  const shortName = useShortName(whoRef, item.botName, shownAge);
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
   const asked = age ? sinceWord === "open" ? `waiting ${age === "now" ? "just now" : age}` : askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
@@ -285,7 +306,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
       onClick={() => onOpen(item.threadId, item.messageSeq)}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
-        <span className="stage-needs-who" ref={whoRef}><b ref={nameRef}>{item.botName}</b>
+        <span className="stage-needs-who" ref={whoRef}><b ref={nameRef}>{shortName}</b>
           {item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span> : item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : shownAge ? <span className="stage-needs-age" aria-hidden="true">{shownAge}</span> : null}
         </span>
         <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
