@@ -64,6 +64,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0;
   let muted: HTMLElement | null = null;
+  let lastFine: { element: Element; offset: number } | null = null;
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   const now = () => performance.now();
@@ -140,17 +141,17 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (requested && phase === "restoring") store.cancelAnchor?.();
     goLive(reason);
   };
-  const pickFine = () => {
-    fine = null;
-    if (!container || !position || position.atBottom) return;
-    const message = anchorFor(position.messageSeq);
-    if (!message) return;
+  const topElement = () => {
+    if (!container) return null;
     const bounds = container.getBoundingClientRect();
     const top = bounds.top + container.clientTop;
-    if (message.getBoundingClientRect().top >= top) return;
     const hit = document.elementFromPoint(bounds.left + bounds.width / 2, top + 6);
-    if (!hit || hit === message || !message.contains(hit)) return;
-    fine = { element: hit, offset: hit.getBoundingClientRect().top - top };
+    const message = hit?.closest<HTMLElement>("[data-notification-thread][data-notification-message]");
+    if (!hit || !message || message.dataset.notificationThread !== threadId || !container.contains(message)) return null;
+    return { element: hit, offset: hit.getBoundingClientRect().top - top };
+  };
+  const pickFine = () => {
+    fine = position && !position.atBottom ? topElement() : null;
   };
   const settle = () => {
     show();
@@ -212,8 +213,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "settling";
     settledAt = lastFixAt = now();
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    fine = null;
-    trace("hold", { reason, position });
+    fine = lastFine?.element.isConnected ? lastFine : null;
+    trace("hold", { reason, position, fine: fine ? Math.round(fine.offset) : null });
     frame = requestAnimationFrame(tick);
     keep();
   };
@@ -254,6 +255,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     }).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!next) return;
     lastAnchor = next;
+    lastFine = next.atBottom ? null : topElement();
     if (JSON.stringify(next) === lastSaved) return;
     lastSaved = JSON.stringify(next);
     trace("capture", next);
