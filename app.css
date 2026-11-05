@@ -20,6 +20,7 @@
 @import "./styles/dispatch.css";
 @import "./styles/stage.css";
 @import "./styles/later.css";
+@import "./styles/scroll.css";
 
 .radar-desks, .radar-claimed { min-width: 0; }
 .radar-desk-row { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 9px 12px; text-align: start; border-radius: 6px; color: var(--foreground); }

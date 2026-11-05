@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
 import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
 import { scrollContract, positionSchema } from "./scrollPosition";
-import { coldReloadThreadId, requestScrollAnchor } from "./primeScrollRoute";
+import { ownedRouteHash, releaseScrollAnchor, requestScrollAnchor } from "./primeScrollRoute";
 import { rememberScroll } from "./scrollController";
+
+const ENABLED_KEY = "radar-scroll-enabled";
 
 function browserId() {
   try {
@@ -12,91 +14,38 @@ function browserId() {
     return id;
   } catch { return null; }
 }
+function mirroredSetting() {
+  try { return localStorage.getItem(ENABLED_KEY) !== "false"; } catch { return true; }
+}
 export function useRememberScroll(threadId: string | null, active: boolean) {
-  const coldThread = useRef(coldReloadThreadId);
-  if (threadId && threadId !== coldThread.current) coldThread.current = null;
-  const autoHash = useRef<{ threadId: string; hash: string } | null>(null);
   const rpc = useRpc<typeof scrollContract>();
   const { values } = useSettings();
-  const configured = typeof values?.rememberScroll === "boolean";
-  const enabled = values?.rememberScroll === true;
+  const setting = typeof values?.rememberScroll === "boolean" ? values.rememberScroll : null;
+  const enabled = setting ?? mirroredSetting();
   useLayoutEffect(() => {
-    if (!configured) return;
-    try { localStorage.setItem("radar-scroll-enabled", String(enabled)); } catch {}
-    if (!enabled) {
-      try {
-        const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-        if (marker && (marker.hash === location.hash || !location.hash) && location.pathname.endsWith(`/threads/${marker.threadId}`)) {
-          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-          sessionStorage.removeItem("radar-scroll-route");
-          window.dispatchEvent(new PopStateEvent("popstate"));
-        }
-      } catch {}
-      return;
-    }
-    if (!active || location.hash) return;
-    const routeId = location.pathname.match(/\/threads\/([^/]+)/)?.[1];
-    if (!routeId || coldThread.current === routeId) return;
-    try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); if (marker?.threadId === routeId && Date.now() - marker.at < 5000) return; } catch {}
-    try {
-      const point = positionSchema.parse(JSON.parse(localStorage.getItem(`radar-scroll:${routeId}`) ?? "null"));
-      if (point.atBottom) return;
-      const hash = `#msg=${point.messageSeq}`;
-      autoHash.current = { threadId: routeId, hash };
-      requestScrollAnchor(routeId, point.messageSeq);
-    } catch {}
-  }, [configured, enabled, active, threadId]);
+    if (setting === null) return;
+    try { localStorage.setItem(ENABLED_KEY, String(setting)); } catch {}
+    if (!setting) releaseScrollAnchor(null, true);
+  }, [setting]);
   useLayoutEffect(() => {
     if (!enabled || !threadId || !active) return;
-    let generated = false;
-    try { const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null"); generated = marker?.threadId === threadId && marker.hash === location.hash; } catch {}
-    const explicitLink = /^#msg=/.test(location.hash) && !generated && !(autoHash.current?.threadId === threadId && autoHash.current.hash === location.hash);
+    const explicitLink = /^#msg=/.test(location.hash) && ownedRouteHash(threadId) !== location.hash;
     const deviceId = browserId();
     if (!deviceId) return;
     const key = `radar-scroll:${threadId}`;
     let cached = null;
     try { cached = positionSchema.parse(JSON.parse(localStorage.getItem(key) ?? "null")); } catch {}
     let pending = Promise.resolve();
-    const stop = rememberScroll(threadId, {
+    return rememberScroll(threadId, {
       cached: explicitLink ? null : cached,
-      deferUntilVisible: coldThread.current === threadId,
-      cancelAnchor: () => {
-        try {
-          const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-          if (marker?.threadId !== threadId || location.hash && marker.hash !== location.hash || !location.pathname.endsWith(`/threads/${threadId}`)) return;
-          history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-          sessionStorage.removeItem("radar-scroll-route");
-          autoHash.current = null;
-          window.dispatchEvent(new PopStateEvent("popstate"));
-        } catch {}
-      },
-      anchorReady: () => {
-        try {
-          const marker = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-          if (marker?.threadId !== threadId) return;
-          if (marker.hash === location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-          sessionStorage.removeItem("radar-scroll-route");
-          autoHash.current = null;
-        } catch {}
-      },
-      loadAnchor: seq => { autoHash.current = { threadId, hash: `#msg=${seq}` }; requestScrollAnchor(threadId, seq); },
-      load: () => explicitLink ? Promise.resolve(null) : rpc.call("scroll_get", { threadId, deviceId }),
+      load: explicitLink || cached ? undefined : () => rpc.call("scroll_get", { threadId, deviceId }),
+      loadAnchor: seq => requestScrollAnchor(threadId, seq),
+      anchorReady: () => releaseScrollAnchor(threadId, false),
+      cancelAnchor: () => releaseScrollAnchor(threadId, true),
       save: position => {
-        try {
-          localStorage.setItem(key, JSON.stringify(position));
-          const owned = JSON.parse(sessionStorage.getItem("radar-scroll-route") ?? "null");
-          if (position.atBottom && owned?.threadId === threadId && owned.hash === location.hash) {
-            history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-            sessionStorage.removeItem("radar-scroll-route");
-          }
-          if (!position.atBottom && owned?.threadId === threadId && owned.hash === location.hash) {
-            history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-            sessionStorage.removeItem("radar-scroll-route");
-          }
-        } catch {}
+        try { localStorage.setItem(key, JSON.stringify(position)); } catch {}
         pending = pending.then(() => rpc.call("scroll_set", { threadId, deviceId, position })).then(() => {}, () => {});
       },
     });
-    return () => { stop(); coldThread.current = null; };
   }, [rpc, threadId, active, enabled]);
 }
