@@ -302,3 +302,6 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .radar-desk-mark[data-status="working"] { background: var(--tone-busy, #285ca3); box-shadow: none; }
 .radar-desk-mark[data-status="done"] { background: var(--tone-done, #2d7346); box-shadow: none; }
 .radar-desk-state { font-weight: 550; }
+.dispatch-panel-actions > .bot-menu { padding: 0; min-height: 0; border-radius: 0; }
+.dispatch-panel .dispatch-panel-actions .bot-menu-item { justify-content: flex-start; text-align: start; white-space: normal; }
+.bot-menu-label { align-items: flex-start; }
