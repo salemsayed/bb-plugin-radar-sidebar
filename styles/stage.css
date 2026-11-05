@@ -26,6 +26,8 @@
   color: var(--muted-foreground);
 }
 .stage-bots { display: flex; flex-direction: column; gap: 2px; }
+.stage-bots-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 34px 0 60px; font-size: 11.5px; font-weight: 600; line-height: 16px; color: var(--muted-foreground); }
+@media (pointer: coarse) { .stage-bots-head { padding-inline: 50px 44px; } }
 .stage-row {
   --stage-busy: var(--foreground);
   --stage-wash: light-dark(hsl(var(--bot-hue) 80% 95%), hsl(var(--bot-hue) 35% 17%));

@@ -94,7 +94,7 @@ export function ThreadsSection({ activeThreadId, now, onOpen, onShowAll }: { act
                         <span className="radar-thread-head">
                           <b dir="auto">{thread.displayTitle}</b>
                           <span className="radar-thread-aside" aria-hidden="true">
-                            {age ? <span className="radar-thread-time">{age === "now" ? "now" : `${age} ago`}</span> : null}
+                            {age ? <span className="radar-thread-time" title={`Last activity ${new Date(thread.latestAttentionAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}`}>{age}</span> : null}
                             {mark !== "none" ? <span className="radar-thread-mark" title={MARK_TITLES[mark]} /> : null}
                           </span>
                         </span>

@@ -14,7 +14,7 @@ import { Isolated } from "./Isolated";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
-import { NeedsSummary, botMenuLabel, type NeedItem } from "./NeedsSummary";
+import { NeedsSummary, botMenuLabel, fitWhat, type NeedItem } from "./NeedsSummary";
 import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
@@ -167,7 +167,7 @@ function StageRow({ bot, look, current, here, opening, unread, needs, panelOpen,
             <b>{name}</b>
             {opening ? <span className="stage-opening" aria-hidden="true" />
               : <span className="stage-aside" aria-hidden="true">
-                {look.time ? <span className="stage-time" title={look.time === "now" ? "Working now" : look.timeTitle}>{look.time === "now" ? "now" : `${look.time} ago`}</span> : null}
+                {look.time ? <span className="stage-time" title={look.time === "now" ? "Working now" : look.timeTitle}>{look.time}</span> : null}
                 {unread ? <span className="stage-unread-dot" title="New reply" /> : null}
               </span>}
           </span>
@@ -294,6 +294,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
     <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={open}
       onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }} />
+    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
     {rows.map(({ bot: b, unread, look, current, here, needs }) =>
       <div role="listitem" key={b.key}><StageRow bot={b} look={look} current={current} here={here} opening={opening === b.coordinatorThreadId} unread={unread} needs={needs} panelOpen={sheet === b.key}
@@ -336,6 +337,7 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
 
 const RECENT_SHOWN = 3;
 const OUTCOME_CAP = 300;
+const CARD_ASK = 120;
 const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
@@ -380,15 +382,16 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const name = stageTitle(task.title);
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
-    const status = cardStatus(task, running, now);
+    const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now), CARD_ASK) : cardStatus(task, running, now);
     const reason = detailReason(stageText(task.needs?.question ?? task.line));
     const ask = task.ask ? askLine(task.ask, now, askerOf) : "";
     const parts = task.ask ? askParts(task.ask, now, askerOf) : null;
-    const fullAsk = parts && parts.full && cutAtWord(parts.full, ASK_PREVIEW) !== parts.full ? parts : null;
+    const bare = (text: string) => text.replace(/\u2026$/, "").trim();
+    const fullAsk = parts && parts.full && bare(parts.full).length > bare(cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 ? parts : null;
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
     const outcome = task.outcome && task.outcome !== task.title ? capCut(task.outcome, OUTCOME_CAP) : "";
-    const extra = reason && !status.includes(reason) && !reason.startsWith(status) ? capCut(reason, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
+    const extra = reason && !CRITERIA.test(reason) && !status.includes(reason) && !reason.startsWith(status) ? capCut(reason, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone}>
       <div className="dispatch-card-head">
         <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>
