@@ -524,9 +524,10 @@ function WorkerList({ attempts, now, onOpen }: { attempts: readonly Attempt[]; n
     </button></li> : null}
   </ul>;
 }
-const OUTCOME_CAP = 300;
-const CARD_ASK = 84;
-const CARD_ASK_PHONE = 84;
+const OUTCOME_CAP = 600;
+const CORE_CAPS = [300, 600];
+const CARD_ASK = 70;
+const CARD_ASK_PHONE = 70;
 const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
@@ -625,7 +626,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const repeatsTitle = !!goalText && (flatWords(goalText) === flatWords(name) || stageTitle(task.outcome!) === name && goalText.length <= name.length + 16);
     const fragment = !!goalText && goalText.split(/\s+/).length < 6 && (task.outcome ?? "").length > goalText.length + 10;
     const goal = goalText && !repeatsTitle && !fragment && !shownWorkers.has(goalText.toLowerCase()) ? goalText : "";
-    const outcome = goal ? capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
+    const capped = !!task.outcome && CORE_CAPS.includes(task.outcome.length) && !/[.!?]$/.test(task.outcome.trim());
+    const outcome = goal ? capped ? cutAtWord(`${goal}\u2026`, goal.length) : capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
     const goalCut = !!outcome && /\u2026$/.test(outcome);
     const said = noteOwner.get(reason) === task.id ? closedNote(task, reason) : "";
     const split = yourAskSplit(said);

@@ -143,6 +143,7 @@
 .dispatch-card .dispatch-status-line i { margin-top: 5px; }
 .dispatch-card .dispatch-status-line>span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .dispatch-card[data-tone=needs] .dispatch-status-line>span { -webkit-line-clamp: 3; line-clamp: 3; }
+.dispatch-card[data-tone=needs] .dispatch-status-line>span { -webkit-line-clamp: 3; line-clamp: 3; }
 .dispatch-panel button.dispatch-task-continue { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 44px; min-height: 44px; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--foreground); }
 .dispatch-continue-pill { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 9px; border-radius: 15px; background: color-mix(in oklab, var(--foreground) 7%, transparent); font-size: 12.5px; font-weight: 550; white-space: nowrap; }
 .dispatch-continue-pill [data-icon-root],.dispatch-continue-pill svg { width: 14px; height: 14px; }
