@@ -394,9 +394,10 @@ const DECISION_FORM = /^Re:\s*([^·]+?)\s*·\s*Decisions\s*·\s*/;
 const FORM_CAP = 280;
 
 export function formAnswers(text: string): { subject: string; answers: string } | null {
-  const form = DECISION_FORM.exec(text.trim());
+  const flat = plainMarkdown(text.trim());
+  const form = DECISION_FORM.exec(flat);
   if (!form) return null;
-  const answers = text.trim().slice(form[0].length).split(/\s+·\s+/).map(part => /→\s*(.+)$/.exec(part)?.[1]?.trim()).filter((part): part is string => !!part);
+  const answers = flat.slice(form[0].length).split(/\s+·\s+/).map(part => /→\s*(.+)$/.exec(part)?.[1]?.trim()).filter((part): part is string => !!part);
   return answers.length ? { subject: form[1]!.trim(), answers: answers.join("; ") } : null;
 }
 

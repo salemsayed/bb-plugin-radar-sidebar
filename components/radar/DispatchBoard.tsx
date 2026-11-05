@@ -598,7 +598,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   };
   const noteOwner = new Map<string, string>();
   for (const task of [...tasks, ...recent]) {
-    const reason = detailReason(stageText(task.needs?.question ?? task.line));
+    const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
     const owner = noteOwner.get(reason);
     const busyHere = (snapshot.byTask[task.id] ?? []).some(a => a.state === "running");
     if (!owner || busyHere && !(snapshot.byTask[owner] ?? []).some(a => a.state === "running")) noteOwner.set(reason, task.id);
@@ -610,7 +610,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const waitsOn = running.length ? null : idleWait(task, bot, snapshot, now);
     const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now, waitsOn), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now, waitsOn);
-    const reason = detailReason(stageText(task.needs?.question ?? task.line));
+    const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
     const told = task.ask ? askParts(task.ask, now, askerOf, bot.name, originalOf) : null;
     const offTopic = told?.kind === "update" && !sameJob(told.quote, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
     const parts = offTopic ? null : told;
