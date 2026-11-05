@@ -19,6 +19,7 @@ import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
+import { useRailHomeCurrent } from "./useRailHomeCurrent";
 import { askFirst, needsCount, rowLook, stageText, stageTitle, type RowLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
 
@@ -235,6 +236,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const [keysIn, setKeysIn] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const claims = useThreadClaims();
+  useRailHomeCurrent(!!activeThreadId);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
   useEffect(() => {
