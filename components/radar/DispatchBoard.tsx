@@ -417,8 +417,8 @@ function WorkerList({ attempts, now, onOpen }: { attempts: readonly Attempt[]; n
   </ul>;
 }
 const OUTCOME_CAP = 300;
-const CARD_ASK = 120;
-const CARD_ASK_PHONE = 90;
+const CARD_ASK = 84;
+const CARD_ASK_PHONE = 84;
 const LINE_CAP = 240;
 const SETTLE_MS = 450;
 

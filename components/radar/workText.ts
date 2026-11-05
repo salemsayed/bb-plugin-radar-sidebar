@@ -74,7 +74,10 @@ const CLAUSE_END = /[.;!?](?=\s)|,(?=\s)/g;
 export function clauseCut(text: string, max: number): string {
   if (text.length <= max) return text;
   let end = -1;
-  for (const match of text.slice(0, max).matchAll(CLAUSE_END)) end = match.index!;
+  for (const match of text.slice(0, max).matchAll(CLAUSE_END)) {
+    const head = text.slice(0, match.index!);
+    if ((head.match(/\(/g)?.length ?? 0) === (head.match(/\)/g)?.length ?? 0)) end = match.index!;
+  }
   return end >= 12 ? `${text.slice(0, end).trimEnd()}\u2026` : "";
 }
 
