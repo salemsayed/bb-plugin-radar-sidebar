@@ -124,7 +124,7 @@ export function needAsk(raw: string, title: string): string {
   const first = askFirst(text, title);
   if (!first || isDecision(first)) return first;
   const wanted = YOU_TO.exec(text)?.[1]?.trim().replace(/[,\s]+$/, "");
-  const rest = first.split(/(?<=[.;!?])\s+/).filter(part => !YOU_TO.test(part) && !/^Waiting (?:on|for) you\b/i.test(part)).join(" ").trim();
+  const rest = first.split(/(?<=[.;!?])\s+/).filter(part => !YOU_TO.test(part) && !/^Waiting (?:on|for) you\b/i.test(part)).join(" ").trim().replace(/\s*[;,:]$/, ".");
   if (wanted) return `${capitalFirst(wanted.replace(/\s*\/\s*/g, " or "))}?${rest ? ` · ${rest}` : ""}`;
   return `Reply needed on ${title || "this task"}${rest ? ` · ${rest}` : ""}`;
 }
