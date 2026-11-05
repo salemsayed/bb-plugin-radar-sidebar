@@ -6,6 +6,7 @@ const MODEL = new RegExp(`\\b${MODEL_WORD}\\b`, "i");
 const MODEL_ASIDE = new RegExp(`\\s*\\([^()]*\\b${MODEL_WORD}\\b[^()]*\\)`, "gi");
 const MODEL_LEAD = new RegExp(`^${MODEL_WORD}\\s*(${ROLE})?\\s*:\\s*`, "i");
 const MODEL_ROUTE = new RegExp(`\\s*\\b(?:on|via|with|using|to) (?:the )?(?:latest |newest )?${MODEL_WORD}(?: (?:and|or) ${MODEL_WORD})*(?: ${EFFORT})?(?: effort)?\\b`, "gi");
+const MODEL_ROUTE_ONE = new RegExp(`\\b(?:on|via|with|using) (?:the )?(?:latest |newest )?${MODEL_WORD}\\b`, "i");
 const MODEL_ROLE = new RegExp(`\\b(?:(an?) )?${MODEL_WORD}( ${EFFORT})? (?=${ROLE}\\b)`, "gi");
 const MODEL_EFFORT = new RegExp(`\\b${MODEL_WORD} ${EFFORT}\\b`, "gi");
 const MODEL_NOUN = new RegExp(`\\b${MODEL_WORD}\\s+(?=(?:UI|note|notes|fixes|pass|picks|plan|pick)\\b)`, "gi");
@@ -100,8 +101,8 @@ function dropModelClauses(sentence: string): string {
 
 export function withoutModels(text: string): string {
   if (!MODEL.test(text)) return text;
-  let out = text.replace(MODEL_ASIDE, "").replace(/(^|[.!?]\s+)([^:.!?;]{12,}?):\s+([^.;!?]*)/g, (whole, start: string, lead: string, list: string) =>
-    MODEL.test(list) && !MODEL.test(lead) && lead.trim().split(/\s+/).length >= 3 ? `${start}${lead}` : whole);
+  let out = text.replace(MODEL_ASIDE, "").replace(/(^|[.!?]\s+)([^.!?;]{12,}):\s+([^.;:!?]*)/g, (whole, start: string, lead: string, list: string) =>
+    list.includes(",") && list.split(/,\s*/).some(item => MODEL_ROUTE_ONE.test(item)) && !MODEL.test(lead) && lead.trim().split(/\s+/).length >= 3 ? `${start}${lead}` : whole);
   const lead = MODEL_LEAD.exec(out);
   if (lead) out = `${lead[1] ? `${lead[1][0]!.toUpperCase()}${lead[1].slice(1).toLowerCase()}: ` : ""}${out.slice(lead[0].length)}`;
   out = out

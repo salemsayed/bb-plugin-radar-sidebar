@@ -513,8 +513,10 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
     const shownWorkers = new Set(attempts.map(a => plainWorkerTitle(a.title).toLowerCase()));
-    const goalText = task.outcome && task.outcome !== task.title && stageTitle(task.outcome) !== name ? readerWords(plainNote(task.outcome)) : "";
-    const goal = goalText && !shownWorkers.has(goalText.toLowerCase()) ? goalText : "";
+    const goalText = task.outcome && task.outcome !== task.title ? readerWords(plainNote(task.outcome)) : "";
+    const flatWords = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const repeatsTitle = !!goalText && (flatWords(goalText) === flatWords(name) || stageTitle(task.outcome!) === name && goalText.length <= name.length + 16);
+    const goal = goalText && !repeatsTitle && !shownWorkers.has(goalText.toLowerCase()) ? goalText : "";
     const outcome = goal ? capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
     const goalCut = !!outcome && /\u2026$/.test(outcome);
     const said = closedNote(task, reason);
