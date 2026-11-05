@@ -68,7 +68,7 @@
 .radar-thread-row[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--stage-selection); }
 .radar-thread-row[data-depth="1"] { padding-inline-start: 26px; }
 .radar-thread-row[data-depth="2"], .radar-thread-row[data-depth="3"] { padding-inline-start: 42px; }
-.radar-thread-head { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline-end: 24px; }
+.radar-thread-head { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding-inline-end: 24px; }
 .radar-thread-aside { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .radar-thread-time { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .radar-thread-row[data-mark="unread"] .radar-thread-time { color: var(--stage-news); font-weight: 600; }
@@ -82,7 +82,7 @@
 .radar-thread-row[data-mark="failed"] .radar-thread-mark { background: var(--stage-blocked); }
 .radar-thread-row[data-mark="running"] .radar-thread-mark { background: var(--stage-busy, var(--primary)); }
 .radar-thread-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.radar-thread-copy b { font-size: 13px; font-weight: 550; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-thread-copy b { font-size: 13px; font-weight: 550; line-height: 1.3; overflow: hidden; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .radar-thread-row[data-mark="unread"] .radar-thread-copy b, .radar-thread-row[data-mark="needs"] .radar-thread-copy b { font-weight: 650; }
 .radar-thread-copy small { color: var(--muted-foreground); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radar-all-threads-bar { display: flex; align-items: center; gap: 8px; flex: none; padding: 8px 8px 4px; }

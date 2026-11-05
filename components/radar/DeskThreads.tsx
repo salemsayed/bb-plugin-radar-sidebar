@@ -3,6 +3,9 @@ import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
 import { elapsed } from "./DispatchBoard";
 import { deskNeedLine } from "./stage";
 import { Isolated } from "./Isolated";
+import { plainNote } from "./workText";
+
+const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)\s+·\s+(?=\S)/i;
 import { askedAgo } from "./NeedsSummary";
 
 const DAY_MS = 86_400_000;
@@ -22,7 +25,7 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   const done = sortDesks(visible.filter(desk => desk.status === "done"));
   const row = (desk: BotDesk) => {
     const asking = needsYou(desk);
-    const title = asking ? deskNeedLine(desk) : deskTitle(desk);
+    const title = asking ? deskNeedLine(desk) : plainNote(deskTitle(desk)).replace(CHANNEL_TAG, "");
     return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={needsYou(desk) || undefined}
       disabled={!desk.threadId} onClick={() => desk.threadId && onOpen(desk.threadId)}>
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />

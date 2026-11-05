@@ -95,7 +95,8 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const open = all && more > 0;
   const shown = open ? items : items.slice(0, 1);
   const hidden = items.slice(1);
-  const hiddenBots = [...new Map(hidden.map(item => [item.botKey || item.botName, item])).values()];
+  const hiddenBots = [...new Map(hidden.map(item => [item.botKey || `thread:${item.threadId}`, item])).values()];
+  const currentId = activeThreadId ? items.find(item => item.threadId === activeThreadId)?.id : undefined;
   const hiddenNames = hiddenBots.map(item => item.botName);
   const moreLabel = `Show ${more} more${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}`;
   const state = !items.length ? "empty" : waiting ? "waiting" : "settled";
@@ -106,17 +107,17 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       <span className="stage-needs-dot" aria-hidden="true" />
       <span className="stage-needs-heading">{title}</span>
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : moreLabel} title={open ? undefined : moreLabel} onClick={() => setAll(value => !value)}>
-        <span className="stage-needs-more-pill"><span>{open ? "Show less" : `+${more} more`}</span>
-          {open ? null : <span className="stage-needs-more-faces" aria-hidden="true">{hiddenBots.slice(0, 2).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
+        <span className="stage-needs-more-pill"><span>{open ? "Show less" : "Show all"}</span>
+          {open ? null : <span className="stage-needs-more-faces" data-count={Math.min(hiddenBots.length, 3)} aria-hidden="true">{hiddenBots.slice(0, 3).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
           <Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
-      {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`}>{waiting}</span> : null}
+      {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
     {state === "empty" ? <p className="stage-needs-empty" role="status">
       <Icon name="Check" aria-hidden="true" />
       <span><b>Nothing right now</b><span>Bot questions and approvals show here</span></span>
     </p> : <ul>
-      {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.threadId === activeThreadId} onOpen={onOpen} onMenu={onMenu} />)}
+      {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} />)}
     </ul>}
   </section>;
 }

@@ -777,7 +777,7 @@ function RadarThreadRowImpl({
       onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}>
       <a href={thread.href} data-sidebar-thread-id={thread.id}
         data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
-        aria-label={rowLabel} aria-current={isActive ? "true" : undefined}
+        aria-label={rowLabel} aria-current={isActive ? "page" : undefined}
         aria-keyshortcuts={shortcut?.ariaKeyshortcuts} {...splitProps}
         onPointerDown={handlePointerDown} onMouseDown={handleMouseDown}
         className="radar-row-main" onClick={handleNavigate}>
@@ -1198,7 +1198,7 @@ function RadarThreadRowImpl({
         data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
         data-sidebar-thread-id={thread.id}
         aria-label={rowLabel}
-        aria-current={isActive ? "true" : undefined}
+        aria-current={isActive ? "page" : undefined}
         aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
         title={thread.displayTitle}
         {...splitProps}

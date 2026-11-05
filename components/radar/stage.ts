@@ -2,6 +2,7 @@ import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk,
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
 import { capitalFirst, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
+import { wholeTitle } from "./displayText";
 
 export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
 
@@ -113,10 +114,20 @@ export function stageText(text: string): string {
 
 const MERGE_REQUEST = /^([a-z][\w-]*)!(\d+)$/i;
 
-export function stageTitle(raw: string): string {
+export function stageTitle(raw: string, outcome?: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
   if (request) return `Merge request ${request[2]}`;
-  return plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(raw))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you")));
+  const whole = outcome ? wholeTitle(raw, outcome) : raw;
+  return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))));
+}
+
+const SCHEDULED_RUN = /\bwakes on automation-run\b/i;
+const RUN_TIME = /\b(today's|tonight's|tomorrow's|(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day's)\s+(\d{1,2}:\d{2})\b/;
+
+export function scheduledWait(line: string): string {
+  if (!SCHEDULED_RUN.test(line)) return /\bwakes on thread-idle\b/i.test(line) ? "Waits for its worker to finish" : "";
+  const at = RUN_TIME.exec(line);
+  return at ? `Next check after ${at[1]} ${at[2]} run` : "Next check after its next scheduled run";
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -138,7 +149,8 @@ export function nextCheck(at: number, now: number): string {
 function waitLine(task: BotTaskRow, now: number): string {
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
   if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
-  if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a worker";
+  const scheduled = scheduledWait(task.line);
+  if (scheduled) return scheduled;
   return "Waiting on the bot · no check scheduled";
 }
 
@@ -267,7 +279,7 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   const when = replyTime(bot, ctx);
   if (look.pose === "asking") return { ...look, kind: "ask", badge: "ask", ...when, helpers };
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", ...when, helpers };
-  if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
+  if (look.tone === "busy") return { ...look, kind: "live", badge: null, ...when, helpers };
   if (look.pose === "offline") return { ...look, kind: "calm", badge: null, ...when, helpers };
   if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", ...when, helpers };
   if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", ...when, helpers };

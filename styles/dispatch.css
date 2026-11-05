@@ -156,3 +156,7 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-ask-open-inline { display: block; min-height: 32px; margin: -4px 0 4px; }
 .dispatch-ask-open { min-height: 44px; padding: 0; border: 0; background: none; font-size: 12.5px; font-weight: 550; color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 3px; }
 .dispatch-open .dispatch-task-group[data-tone=needs] { border-color: color-mix(in oklab, light-dark(#f5a300, #f2b233) 35%, transparent); background: color-mix(in oklab, light-dark(#f5a300, #f2b233) 12%, var(--popover, var(--background))); }
+.dispatch-panel .dispatch-worker-fold { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 12.5px; color: var(--muted-foreground); text-align: start; cursor: pointer; }
+.dispatch-worker-fold-action { flex: none; font-weight: 600; color: var(--foreground); }
+.dispatch-panel .dispatch-worker-fold:hover .dispatch-worker-fold-action { text-decoration: underline; text-underline-offset: 3px; }
+.dispatch-panel .dispatch-worker-fold:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 8px; }

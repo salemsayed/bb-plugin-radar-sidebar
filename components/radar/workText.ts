@@ -1,3 +1,5 @@
+import { askKind, botWords, botWordsShown, keepsCase, userWordsShown } from "./displayText";
+
 const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]{6,}\b/gi;
 const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
 const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit)\\s+${HASH}\\b`, "g");
@@ -12,6 +14,10 @@ const BREADCRUMB = /\b([A-Z][\w-]*(?: [A-Z][\w-]*)?) > ([A-Z][\w-]*(?: [A-Z][\w-
 const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
 export function plainNote(text: string): string {
+  return plainText(botWords(text));
+}
+
+export function plainText(text: string): string {
   return text
     .replace(REPO_MERGE_REQUEST, "merge request $1")
     .replace(MEMORY_SLUG_ASIDE, "")
@@ -42,7 +48,7 @@ export function plainQueue(line: string): string {
   const retry = tail.filter(part => /^retry\b/i.test(part)).join(" · ");
   const rest = tail.filter(part => !/^retry\b/i.test(part));
   if (reason && !ROUTING_WORDS.test(reason)) return line;
-  const why = /\bbrowser\b/i.test(reason) ? "Waiting for a free browser worker" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Waiting for its machine" : "Waiting for a free worker";
+  const why = /\bbrowser\b/i.test(reason) ? "Starts when a browser is free" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Starts when a worker is free";
   return [why, retry, ...rest].filter(Boolean).join(" · ");
 }
 
@@ -78,6 +84,7 @@ export function capCut(text: string, cap: number): string {
 }
 
 const MARKDOWN = [
+  [/(\*\*[^*]+\*\*)\s*`[a-z][\w-]*`/g, "$1"],
   [/^\s*#{1,6}\s+/, ""],
   [/\s+#{1,6}\s+/g, " · "],
   [/\[\d+(?:\.\d+)*\]\s*/g, ""],
@@ -104,7 +111,7 @@ const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorer|builder|reviewer|judge|worker|takeover|re-check|recheck|review|check|fix|build)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
-  let out = title.trim().replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botWords(title.trim()).replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -116,7 +123,7 @@ export function plainWorkerTitle(title: string): string {
 }
 
 export function capitalFirst(text: string): string {
-  if (!text || /^[a-z]+[A-Z]/.test(text)) return text;
+  if (!text || keepsCase(text)) return text;
   return text[0]!.toUpperCase() + text.slice(1);
 }
 
@@ -187,35 +194,54 @@ const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2
 const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
 const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?|(?:\d{1,2} [A-Z][a-z]{2}(?: \d{4})?,?\s*)?word for word)\s*:\s*["\u201c]?/i;
+const RELAYED_ASIDE = /^\s*Salem\s*\([^()]{0,60}\)\s*:\s*["\u201c]/;
 const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b(?:\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))?/g;
 const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
+const WAKE_ONLY = /^\s*(?:\p{Extended_Pictographic}\uFE0F?\s*)?wake(?:-up)? due\.?\s*$/iu;
 
-export interface AskParts { head: string; quote: string; full: string; excerpt: boolean }
+export interface AskParts { head: string; quote: string; full: string; excerpt: boolean; kind: "ask" | "note" | "update" | "yours" }
 
-function cleanAsk(text: string): string {
-  return plainNote(plainMarkdown(text.replace(RELAYED_WORDS, "")).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+function cleanAsk(text: string, mine: boolean): { text: string; cut: boolean } {
+  const shown = (mine ? userWordsShown : botWordsShown)(text.replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, ""));
+  const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+  return { text: flat, cut: shown.cut };
 }
 
-export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined): AskParts {
+function relayedQuote(text: string): string {
+  if (!RELAYED_ASIDE.test(text)) return text;
+  const body = text.replace(RELAYED_ASIDE, "");
+  const close = body.search(/["\u201d]/);
+  return close > 0 ? body.slice(0, close) : body;
+}
+
+export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string): AskParts {
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
-  const asker = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
+  const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
+  const asker = named && named !== own ? named : undefined;
   const bare = ask.excerpt.replace(ASKER, "");
-  const relayed = RELAYED_WORDS.test(bare);
-  const who = relayed ? "You asked" : label === "Bot request" ? `${asker || "A bot"} asked` : label;
-  const via = relayed && asker ? ` via ${asker}` : "";
+  const relayed = RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare);
+  const mine = relayed || label !== "Bot request";
+  const kind: AskParts["kind"] = mine ? "yours" : askKind(bare);
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const quote = cleanAsk(bare);
-  const full = ask.full ? cleanAsk(ask.full.replace(ASKER, "")) : quote;
-  const cut = /(?:\u2026|\.\.\.)["\u201d]?$/.test(full);
-  return { head: `${who} ${when}${via}`, quote, full: cut ? cutAtWord(full.replace(/["\u201d]$/, ""), full.length) : full, excerpt: cut };
+  const via = relayed && named ? ` via ${named}` : "";
+  const who = relayed ? "You asked" : kind === "note" ? `${asker ? `Note from ${asker}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${asker}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
+  const source = relayed ? relayedQuote(bare) : bare;
+  const quoteShown = WAKE_ONLY.test(bare) ? { text: "", cut: false } : cleanAsk(source, mine);
+  const fullSource = ask.full ? (relayed ? relayedQuote(ask.full.replace(ASKER, "")) : ask.full.replace(ASKER, "")) : "";
+  const fullShown = fullSource && !WAKE_ONLY.test(bare) ? cleanAsk(fullSource, mine) : quoteShown;
+  const head = WAKE_ONLY.test(bare) ? `Scheduled check ${when}` : `${who} ${when}${via}`;
+  const trailing = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
+  const cut = trailing || fullShown.cut;
+  const full = trailing ? cutAtWord(fullShown.text.replace(/["\u201d\u2019]$/, ""), fullShown.text.length) : fullShown.text;
+  return { head, quote: quoteShown.cut ? full : quoteShown.text, full, excerpt: cut, kind };
 }
 
 export const ASK_PREVIEW = 84;
 
-export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW): string {
-  const { head, quote } = askParts(ask, now, askerOf);
+export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW, own?: string): string {
+  const { head, quote } = askParts(ask, now, askerOf, own);
   return quote ? `${head}: \u201c${cutAtWord(quote, max)}\u201d` : head;
 }
 
