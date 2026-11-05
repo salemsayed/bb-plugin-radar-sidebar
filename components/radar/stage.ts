@@ -180,8 +180,12 @@ export function nextCheck(at: number, now: number): string {
   return `Next check ${when}`;
 }
 
-export function laterLine(later: { reason: string }): string {
-  return later.reason === "answered" ? "You answered · bot to follow up" : "Later · back when it asks again";
+export function answeredHere(later: { reason: string; messageSeq?: number }): boolean {
+  return later.reason === "answered" && later.messageSeq !== undefined;
+}
+
+export function laterLine(later: { reason: string; messageSeq?: number }): string {
+  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · back when it asks again";
 }
 
 function waitLine(task: BotTaskRow, now: number): string {

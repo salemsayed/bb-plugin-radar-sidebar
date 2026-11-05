@@ -1,7 +1,7 @@
 import { useLayoutEffect, type RefObject } from "react";
 
-const CAP_SHARE = 0.24;
-const CAP_MAX = 220;
+const CAP_SHARE = 0.46;
+const CAP_MAX = 420;
 
 export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean, count: number) {
   useLayoutEffect(() => {

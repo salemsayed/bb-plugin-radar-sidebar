@@ -164,3 +164,4 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-worker-fold-action { flex: none; font-weight: 600; color: var(--foreground); }
 .dispatch-panel .dispatch-worker-fold:hover .dispatch-worker-fold-action { text-decoration: underline; text-underline-offset: 3px; }
 .dispatch-panel .dispatch-worker-fold:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 8px; }
+.dispatch-offlist-note { margin: 0 10px 6px; font-size: 12px; line-height: 1.35; color: var(--muted-foreground); }

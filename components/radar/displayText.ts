@@ -1,4 +1,4 @@
-const MODEL_WORD = "(?:Opus|Sonnet|Sol|Fable|Astra|Terra|Haiku|Luna|GPT-[\\w.-]+|\\d+(?:\\.\\d+)?-?Sol)";
+const MODEL_WORD = "(?:Opus|Sonnet|Sol|Fable|Astra|Terra|Haiku|Luna|Daybreak(?: Blue)?|GPT-[\\w.-]+|\\d+(?:\\.\\d+)?-?Sol)";
 const EFFORT = "(?:low|medium|high|xhigh|max)";
 const ROLE = "(?:worker|workers|planner|scorer|builder|reviewer|judge|takeover|re-review|review|re-check|recheck|check|fix|build|thread|agent|helper|run)";
 
@@ -10,6 +10,7 @@ const MODEL_ROUTE_ONE = new RegExp(`\\b(?:on|via|with|using) (?:the )?(?:latest 
 const MODEL_ROLE = new RegExp(`\\b(?:(an?) )?${MODEL_WORD}( ${EFFORT})? (?=${ROLE}\\b)`, "gi");
 const MODEL_EFFORT = new RegExp(`\\b${MODEL_WORD} ${EFFORT}\\b`, "gi");
 const MODEL_NOUN = new RegExp(`\\b${MODEL_WORD}\\s+(?=(?:UI|note|notes|fixes|pass|picks|plan|pick)\\b)`, "gi");
+const MODEL_NAMED = new RegExp(`\\bthe (?:latest |newest )?${MODEL_WORD}(?: [\\w.-]+)? model\\b`, "gi");
 const MODEL_CLAUSE = new RegExp(`^(?:never |not |no |only |and |or )?${MODEL_WORD}\\b`, "i");
 
 const PICTOGRAPH = /\p{Extended_Pictographic}/u;
@@ -106,6 +107,7 @@ export function withoutModels(text: string): string {
   const lead = MODEL_LEAD.exec(out);
   if (lead) out = `${lead[1] ? `${lead[1][0]!.toUpperCase()}${lead[1].slice(1).toLowerCase()}: ` : ""}${out.slice(lead[0].length)}`;
   out = out
+    .replace(MODEL_NAMED, "the chosen model")
     .replace(MODEL_ROUTE, "")
     .replace(MODEL_ROLE, (_, article: string | undefined, _effort: string | undefined, at: number) => article ? `${article[0] === "A" ? "A" : "a"} ` : "")
     .replace(MODEL_EFFORT, "")
@@ -150,11 +152,15 @@ export function keepsCase(text: string): boolean {
   return KEEP_CASE.test(text) || /^[a-z][\w-]*\.[a-z]/.test(text) || /^[a-z]+[A-Z]/.test(text);
 }
 
-const NOTE = /^(?:FYI\b|heads[- ]up\b|for your info\b|note:|clarification:|[A-Z][\w-]*(?: Bot)? (?:disabled|enabled|removed|closed|blocked|moved|fixed|deployed|restored|rotated|turned off)\b)|\bnotice\b|\b(?:no (?:reply|action|response|answer)(?: (?:to me|from you))? (?:is )?(?:needed|required)|nothing (?:for you )?to do)\b/i;
+const NOTE = /^(?:FYI\b|heads[- ]up\b|correction from you\b|your standing rule\b|for your info\b|note:|clarification:|[A-Z][\w-]*(?: Bot)? (?:disabled|enabled|removed|closed|blocked|moved|fixed|deployed|restored|rotated|turned off)\b)|\bnotice\b|\b(?:no (?:reply|action|response|answer)(?: (?:to me|from you))? (?:is )?(?:needed|required)|nothing (?:for you )?to do)\b/i;
 const FINISHED = /^\s*[↳⤷]|\b(?:finished|completed|is done|wake due|wake-up due)\s*\.?$/i;
 const REQUEST = /\?|\b(?:please|can you|could you|would you|need(?:s)? you to|decide|approve|confirm|choose|pick|your call|go-ahead|reply)\b/i;
 
 export type AskKind = "ask" | "note" | "update";
+
+export function requestsSomething(text: string): boolean {
+  return REQUEST.test(text);
+}
 
 export function askKind(text: string): AskKind {
   const flat = text.trim();

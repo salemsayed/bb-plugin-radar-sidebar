@@ -1,4 +1,4 @@
-import { askKind, botWords, botWordsShown, keepsCase, userWordsShown } from "./displayText";
+import { askKind, botWords, botWordsShown, keepsCase, requestsSomething, userWordsShown } from "./displayText";
 
 const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]{6,}\b/gi;
 const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
@@ -37,6 +37,13 @@ const REPO_BEFORE = /\b(?:the |its |a )?([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s+(branc
 const PROJECT_SLUG = /\bproject ([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b(?!-)/g;
 const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
+const NAMED_COORDINATOR = /\bthe (Personal|Home|Bricks|Work|ERBareeq|Lab|Security) coordinator\b/g;
+const COORDINATOR_TASKS = /\bcoordinator (tasks?)\b/g;
+const COORDINATOR_OWNS = /\bthe coordinator(?:['\u2019]s)?\b/g;
+const COORDINATORS = /\bcoordinators?\b/g;
+const HANDOFF_RECORDS = /\b(?:the )?rollover handoff (?:records?|notes?)\b/g;
+const ROLLOVER = /\b(?:a |the )?rollovers?\b/g;
+const CORE_PREFIX = /(^|["\u201c]\s*)Core:\s+/g;
 const COMPONENT_ASIDE = /\s*\((?:Lab|bots?|Bots|the bots) core\)/g;
 const TYPESAFE = /\b(?:the |its )?TypeSafe skill\b/g;
 const AUTO_EFFORT = /\b(?:(through|via|with|using) )?Auto Effort\b/g;
@@ -55,6 +62,13 @@ export function botTokens(text: string, keepNames = false): string {
     .replace(CHECKER_LEAD, "Checker")
     .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker");
   return named
+    .replace(NAMED_COORDINATOR, "$1 Bot")
+    .replace(COORDINATOR_TASKS, "main-chat $1")
+    .replace(COORDINATOR_OWNS, whole => /s$/.test(whole) ? "the bot's" : "the bot")
+    .replace(COORDINATORS, word => word.endsWith("s") ? "main chats" : "main chat")
+    .replace(HANDOFF_RECORDS, "the notes a bot leaves when it starts a fresh chat")
+    .replace(ROLLOVER, whole => /^the /.test(whole) ? "the fresh-chat switch" : /^a /.test(whole) ? "a fresh-chat switch" : "fresh-chat switch")
+    .replace(CORE_PREFIX, "$1")
     .replace(COMPONENT_ASIDE, "")
     .replace(TYPESAFE, "the question-writing guide")
     .replace(AUTO_EFFORT, (_, lead?: string) => lead ? "with the effort picker" : "the effort picker")
@@ -418,6 +432,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const mine = relayed || label !== "Bot request";
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);
+  const notice = told === "ask" && label === "Bot request" && !requestsSomething(rawFull);
   const kind: AskParts["kind"] = mine ? "yours" : AGENT_BRIEF.test(rawFull) ? "brief" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
@@ -426,7 +441,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   if (kind === "brief") return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind };
   const from = !asker || asker === "Another chat" ? handedFrom(rawFull) : "";
   const handedBy = YOU_HANDED.test(rawFull) ? `You handed this over${from ? ` from ${from[0]!.toLowerCase()}${from.slice(1)}` : ""}` : `${from || asker || "Another chat"} handed this over`;
-  const who = relayed ? "You asked" : kind === "handover" ? handedBy : kind === "note" ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
+  const who = relayed ? "You asked" : kind === "handover" ? handedBy : kind === "note" || notice ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
   const ref = relayed ? SOURCE_REF.exec(bare) : null;
   const original = relayed && originalOf ? originalOf(ref?.[1], ref ? Number(ref[2]) : undefined, relayedWords(bare)) : undefined;
   const source = original ?? (relayed ? relayedQuote(bare) : bare);
@@ -434,6 +449,11 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const fullSource = original ?? (ask.full ? (relayed ? relayedQuote(ask.full.replace(ASKER, "")) : ask.full.replace(ASKER, "")) : "");
   const fullShown = fullSource && !WAKE_ONLY.test(bare) ? cleanAsk(fullSource, mine, own) : quoteShown;
   const head = WAKE_ONLY.test(bare) ? `Scheduled check ${when}` : `${who} ${when}${via}`;
+  if (kind === "update") {
+    const done = (text: string) => text.replace(/\s+(?:finished|completed)(?=["\u201d]?$)/i, "");
+    quoteShown.text = done(quoteShown.text);
+    fullShown.text = done(fullShown.text);
+  }
   if (kind === "handover") {
     const said = YOU_HANDED.test(rawFull) ? /["\u201c]([^"\u201c\u201d]{12,})["\u201d]/.exec(fullShown.text)?.[1] : undefined;
     const first = said ? said.trim() : firstPlain(fullShown.text.replace(/(?:\u2026|\.\.\.)["\u201d\u2019]?$/, ""));
@@ -442,8 +462,26 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   }
   const trailing = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
   const cut = trailing || fullShown.cut;
-  const full = trailing ? cutAtWord(fullShown.text.replace(/["\u201d\u2019]$/, ""), fullShown.text.length) : fullShown.text;
+  const full = trailing ? wholeSentences(fullShown.text.replace(/["\u201d\u2019]$/, "")) : fullShown.text;
   return { head, quote: quoteShown.cut ? full : quoteShown.text, full, excerpt: cut, kind };
+}
+
+const SENTENCE_END = /[.!?](?=["\u201d\u2019)]?\s)/g;
+
+export function wholeSentences(text: string): string {
+  const body = text.replace(/(?:\u2026|\.\.\.)$/, "").trimEnd();
+  let end = -1;
+  for (const match of body.matchAll(SENTENCE_END)) end = match.index! + 1;
+  if (end >= Math.min(40, body.length * 0.3)) return body.slice(0, end);
+  return clauseCut(body, body.length - 1) || cutAtWord(`${body}\u2026`, body.length);
+}
+
+export function readableCut(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max && !/(?:\u2026|\.\.\.)$/.test(flat)) return flat;
+  const first = /^(.+?[.!?])(?=["\u201d\u2019)]?\s|$)/.exec(flat)?.[1];
+  if (first && first.length <= max && first.length >= 12) return first;
+  return clauseCut(flat.replace(/(?:\u2026|\.\.\.)$/, ""), max) || cutAtWord(flat, max);
 }
 
 export const ASK_PREVIEW = 84;
@@ -452,7 +490,7 @@ const PREVIEW_LINES = 100;
 export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW, own?: string, originalOf?: OriginalOf): string {
   const { head, quote } = askParts(ask, now, askerOf, own, originalOf);
   const room = Math.max(32, Math.min(max, PREVIEW_LINES - head.length));
-  return quote ? `${head}: \u201c${cutAtWord(quote, room)}\u201d` : head;
+  return quote ? `${head}: \u201c${readableCut(quote, room)}\u201d` : head;
 }
 
 const CARD_RANK: Record<string, number> = { needs: 0, overdue: 1, offline: 1, retrying: 1, working: 2, queued: 3, checking: 3 };
