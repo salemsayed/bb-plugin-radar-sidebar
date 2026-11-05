@@ -88,14 +88,17 @@ export function ThreadsSection({ activeThreadId, now, onOpen, onShowAll }: { act
                   <div className="radar-thread-item" data-current={thread.id === activeThreadId || undefined} data-menu={menuFor === thread.id || undefined}>
                     <button type="button" className="radar-thread-row" data-rove={thread.id} data-thread-id={thread.id} data-mark={mark} data-depth={depth || undefined}
                       aria-current={thread.id === activeThreadId ? "page" : undefined}
-                      aria-label={[thread.displayTitle, MARK_WORDS[mark], project, age].filter(Boolean).join(", ")} title={thread.displayTitle}
+                      aria-label={[thread.displayTitle, MARK_WORDS[mark], project ? `${project} project` : "no project", age ? `last activity ${age === "now" ? "just now" : `${age} ago`}` : ""].filter(Boolean).join(", ")} title={thread.displayTitle}
                       onClick={() => onOpen(thread.id)}>
                       <span className="radar-thread-copy">
                         <span className="radar-thread-head">
                           <b dir="auto">{thread.displayTitle}</b>
-                          {mark !== "none" ? <span className="radar-thread-mark" title={MARK_TITLES[mark]} aria-hidden="true" /> : null}
+                          <span className="radar-thread-aside" aria-hidden="true">
+                            {age ? <span className="radar-thread-time">{age === "now" ? "now" : `${age} ago`}</span> : null}
+                            {mark !== "none" ? <span className="radar-thread-mark" title={MARK_TITLES[mark]} /> : null}
+                          </span>
                         </span>
-                        <small>{[project, age].filter(Boolean).join(" · ")}</small>
+                        <small className="radar-thread-project"><Icon name="Folder" aria-hidden="true" /><span>{project ? `${project} project` : "No project"}</span></small>
                       </span>
                     </button>
                     <ThreadActionsMenu thread={threadActionTarget(thread)} side="bottom" align="end" sideOffset={4}

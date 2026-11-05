@@ -3,6 +3,7 @@ import { Fragment } from "react";
 const RTL = "\\u0590-\\u08FF\\uFB1D-\\uFDFF\\uFE70-\\uFEFF";
 const RTL_RUN = new RegExp(`[${RTL}]+(?:[\\s\\u200c\\u200f.'-]+[${RTL}]+)*`, "g");
 const LATIN = /[A-Za-z]/;
+const SHORT_RUN = 28;
 
 export function Isolated({ text }: { text: string }) {
   if (!LATIN.test(text.replace(RTL_RUN, ""))) return <>{text}</>;
@@ -15,5 +16,5 @@ export function Isolated({ text }: { text: string }) {
   }
   if (!parts.length) return <>{text}</>;
   if (last < text.length) parts.push(text.slice(last));
-  return <>{parts.map((part, i) => typeof part === "string" ? <Fragment key={i}>{part}</Fragment> : <bdi key={i} dir="rtl">{part.rtl}</bdi>)}</>;
+  return <>{parts.map((part, i) => typeof part === "string" ? <Fragment key={i}>{part}</Fragment> : <bdi key={i} dir="rtl" className={part.rtl.length <= SHORT_RUN ? "radar-rtl-run" : undefined}>{part.rtl}</bdi>)}</>;
 }

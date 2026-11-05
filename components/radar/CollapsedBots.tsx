@@ -17,6 +17,7 @@ export interface CollapsedBot {
   unread: boolean;
   working?: boolean;
   current: boolean;
+  here?: boolean;
   threadId: string;
 }
 
@@ -178,7 +179,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
   const unread = bots.filter(bot => bot.unread).length;
   const badgeLabel = [needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "", unread ? `${unread} new ${unread === 1 ? "reply" : "replies"}` : ""].filter(Boolean).join(", ");
   useNamedToggle(place?.kind === "toggle" ? badgeLabel : "");
-  const roving = useRoving(list, { item: ".radar-rail-bot, .radar-rail-threads", row: ".radar-rail-bot, .radar-rail-threads", preferred: bots.find(bot => bot.current)?.key ?? null });
+  const roving = useRoving(list, { item: ".radar-rail-bot, .radar-rail-threads", row: ".radar-rail-bot, .radar-rail-threads", preferred: bots.find(bot => bot.current || bot.here)?.key ?? null });
   useEffect(() => { if (!place) setTip(null); }, [place]);
   if (!place) return null;
   if (place.kind === "toggle") {
@@ -201,8 +202,8 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
   return <>
     {createPortal(<nav ref={list} className="radar-rail-bots" data-bb-plugin={scope} aria-label="Bots"
       style={{ top: place.top, bottom: place.bottom, width: place.width } as CSSProperties} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
-      {bots.map(bot => <button key={bot.key} type="button" className="radar-rail-bot" data-rove={bot.key} data-current={bot.current || undefined}
-        aria-current={bot.current ? "page" : undefined} aria-label={`${spoken(bot)}. Open chat`}
+      {bots.map(bot => <button key={bot.key} type="button" className="radar-rail-bot" data-rove={bot.key} data-current={bot.current || undefined} data-here={bot.here && !bot.current || undefined}
+        aria-current={bot.current ? "page" : bot.here ? "true" : undefined} aria-label={`${spoken(bot)}. Open chat`}
         style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} onClick={() => { hide(); onOpen(bot.threadId); }}
         {...tipProps(bot.name, [[bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : ""].filter(Boolean).join(" · ").replace(/^n/, "N"), bot.status])}>
         <StageFace botKey={bot.key} name={bot.name} pose={bot.pose} size={30} bare />

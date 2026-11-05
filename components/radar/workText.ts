@@ -5,10 +5,20 @@ const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
 const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
 const REPO_MERGE_REQUEST = /\b[a-z][\w-]*!(\d+)\b/gi;
+const MEMORY_SLUG_ASIDE = /\s*\((?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\)/gi;
+const MEMORY_SLUG = /\b(?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\b/gi;
+const NO_MODEL = /\bno (?:AI |LLM )?model\b/gi;
+const BREADCRUMB = /\b([A-Z][\w-]*(?: [A-Z][\w-]*)?) > ([A-Z][\w-]*(?: [A-Z][\w-]*)?)( (?:pages?|tabs?|screens?|sections?|menus?|lists?))?/g;
+const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
 export function plainNote(text: string): string {
   return text
     .replace(REPO_MERGE_REQUEST, "merge request $1")
+    .replace(MEMORY_SLUG_ASIDE, "")
+    .replace(MEMORY_SLUG, "a saved rule")
+    .replace(NO_MODEL, "no AI")
+    .replace(BREADCRUMB, (_, area: string, page: string, noun = "") => `${page}${noun} under ${area}`)
+    .replace(TRAILING_HEADING, "$1")
     .replace(TECHNICAL_ID, "")
     .replace(COMMENT_ID, "")
     .replace(HASH_AT, "")
@@ -45,11 +55,26 @@ export function cutAtWord(text: string, max: number): string {
   if (!clipped && body.length <= max) return body;
   let cut = body.length <= max ? body : body.slice(0, max + 1);
   const tail = /\S+$/.exec(cut)?.[0] ?? "";
-  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z]{1,3})$/i.test(tail);
+  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z]{1,3}|[^\p{L}\p{N}]+)$/iu.test(tail);
   const space = cut.lastIndexOf(" ");
   if (partial) cut = space > 0 ? cut.slice(0, space) : cut.slice(0, max);
   const kept = cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");
   return `${kept || cut}\u2026`;
+}
+
+const CLAUSE_END = /[.;!?](?=\s)|,(?=\s)/g;
+
+export function clauseCut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let end = -1;
+  for (const match of text.slice(0, max).matchAll(CLAUSE_END)) end = match.index!;
+  return end >= 12 ? `${text.slice(0, end).trimEnd()}\u2026` : "";
+}
+
+export function capCut(text: string, cap: number): string {
+  const flat = text.trim();
+  if (flat.length < cap - 1 || /[.!?]$/.test(flat)) return flat;
+  return clauseCut(flat, flat.length - 1) || cutAtWord(`${flat}\u2026`, flat.length);
 }
 
 const MARKDOWN = [
@@ -74,8 +99,12 @@ const MERGE_REQUEST_REF = /\b[a-z][\w-]*!(\d+)\b/gi;
 const ROUTE_PREFIX = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:\s*/i;
 const ROUTE_ONLY = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(?:review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:/i;
 
+const MODEL = "(?:Opus|Sonnet|Sol|Fable|Astra|Terra|Haiku|Luna|Codex|GPT[\\w.-]*|Claude[\\w.-]*)";
+const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0,2}\\)`, "gi");
+const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorer|builder|reviewer|judge|worker|takeover|re-check|recheck|review|check|fix|build)\\b(?!-))`, "gi");
+
 export function plainWorkerTitle(title: string): string {
-  let out = title.trim().replace(MERGE_REQUEST_REF, "merge request $1");
+  let out = title.trim().replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -157,11 +186,11 @@ export function youWords(text: string): string {
 const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
-const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?\s*:\s*["\u201c]?/i;
+const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?|(?:\d{1,2} [A-Z][a-z]{2}(?: \d{4})?,?\s*)?word for word)\s*:\s*["\u201c]?/i;
 const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b(?:\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))?/g;
 const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
 
-export interface AskParts { head: string; quote: string; full: string }
+export interface AskParts { head: string; quote: string; full: string; excerpt: boolean }
 
 function cleanAsk(text: string): string {
   return plainNote(plainMarkdown(text.replace(RELAYED_WORDS, "")).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
@@ -179,7 +208,8 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
   const quote = cleanAsk(bare);
   const full = ask.full ? cleanAsk(ask.full.replace(ASKER, "")) : quote;
-  return { head: `${who} ${when}${via}`, quote, full: /(?:\u2026|\.\.\.)$/.test(full) ? cutAtWord(full, full.length) : full };
+  const cut = /(?:\u2026|\.\.\.)["\u201d]?$/.test(full);
+  return { head: `${who} ${when}${via}`, quote, full: cut ? cutAtWord(full.replace(/["\u201d]$/, ""), full.length) : full, excerpt: cut };
 }
 
 export const ASK_PREVIEW = 84;

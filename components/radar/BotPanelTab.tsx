@@ -6,7 +6,7 @@ import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
 import { useDispatchWorkers } from "./useDispatchWorkers";
-import { dispatchModel, elapsed } from "./DispatchBoard";
+import { elapsed } from "./DispatchBoard";
 import { StageFace } from "./StageFace";
 import { rowLook, stageText, stageTitle } from "./stage";
 import { clearsLine } from "./BotsView";
@@ -94,7 +94,7 @@ function BotPanel({ bot }: { bot: BotTasksBot }) {
         {!snapshot.known.has(bot.key) && (busyTasks.length || look.kind === "live") ? <p className="bot-quiet">Checking helpers…</p> : running.length || busyTasks.length ? <>
           {running.map(a => <button type="button" key={a.threadId} className="bot-item" onClick={() => go(a.threadId)}>
             <span className="bot-item-title"><i className="bot-live-dot" aria-hidden="true" />{titleOf(a)}</span>
-            <span className="bot-item-meta">{[a.model ? `${dispatchModel(a.model)} helper` : "Helper", a.startedAt != null ? elapsed(a.startedAt, now) : ""].filter(Boolean).join(" · ")}</span>
+            <span className="bot-item-meta">{["Helper", a.startedAt != null ? elapsed(a.startedAt, now) : ""].filter(Boolean).join(" · ")}</span>
           </button>)}
           {busyTasks.map(t => <button type="button" key={t.id} className="bot-item" onClick={() => go(t.conversationThreadId)}>
             <span className="bot-item-title">{stageTitle(t.title)}</span>

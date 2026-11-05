@@ -4,18 +4,23 @@ import { threadActionTarget } from "./threadActions";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
 import { Icon } from "@/components/ui/icon";
 import { askFirst, deskNeedLine, since, stageText, stageTitle } from "./stage";
-import { BotTaskFace } from "./BotsView";
+import { BotTaskFace, useDeskPress } from "./BotsView";
 import { Isolated } from "./Isolated";
-import { cutAtWord } from "./workText";
+import { clauseCut, cutAtWord } from "./workText";
 
 const SHORT_WHAT = 62;
 const OPEN_WHAT = 96;
 
-function fitWhat(what: string, max: number): string {
+const MIN_CONTEXT = 18;
+
+export function fitWhat(what: string, max: number): string {
   if (what.length <= max) return what;
   const at = what.indexOf(" · ");
-  if (at < 0 || at > max - 12) return what;
-  return `${what.slice(0, at)} · ${cutAtWord(what.slice(at + 3), max - at - 3)}`;
+  if (at < 0) return cutAtWord(what, max);
+  const head = what.slice(0, at);
+  const room = max - at - 3;
+  const context = room >= MIN_CONTEXT ? clauseCut(what.slice(at + 3), room) : "";
+  return context ? `${head} · ${context}` : head;
 }
 
 export function botMenuLabel(name: string, needs: boolean): string {
@@ -72,8 +77,9 @@ function sideKeys(event: KeyboardEvent<HTMLElement>, onMenu: () => void) {
   if (event.key === "ArrowLeft" && event.target === item?.querySelector(".stage-needs-menu")) { event.preventDefault(); item?.querySelector<HTMLElement>(".stage-needs-item")?.focus(); }
 }
 
-export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu }: {
+export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, onOpen, onMenu }: {
   data: BotTasksData;
+  activeThreadId: string | null;
   extra: readonly NeedItem[];
   answered: readonly NeedItem[];
   hold: boolean;
@@ -110,38 +116,58 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu 
       <Icon name="Check" aria-hidden="true" />
       <span><b>Nothing right now</b><span>Bot questions and approvals show here</span></span>
     </p> : <ul>
-      {shown.map(item => {
-        const bot = faces.get(item.botKey);
-        const what = item.what;
-        const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
-        const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-        const asked = age ? askedAgo(age) : "";
-        return <li key={item.id} onKeyDown={event => sideKeys(event, () => {
-          const menu = event.currentTarget.querySelector<HTMLElement>(".stage-needs-menu");
-          if (item.kind === "thread") menu?.click(); else onMenu(item, event.currentTarget);
-        })}>
-          <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
-            aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
-            onClick={() => onOpen(item.threadId)}>
-            {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
-            <span className="stage-needs-copy">
-              <span className="stage-needs-who"><b>{item.botName}</b>
-                {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age">{asked}</span> : null}
-              </span>
-              <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
-            </span>
-          </button>
-          {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
-            trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={-1} aria-label={menuLabel} title="Actions"
-              onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
-              <Icon name="MoreHorizontal" aria-hidden="true" />
-            </button>} />
-            : item.kind !== "thread" ? <button type="button" className="stage-needs-menu" tabIndex={-1} aria-haspopup="dialog" aria-label={menuLabel} title={menuLabel}
-              onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
-              <Icon name="MoreHorizontal" aria-hidden="true" />
-            </button> : null}
-        </li>;
-      })}
+      {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.threadId === activeThreadId} onOpen={onOpen} onMenu={onMenu} />)}
     </ul>}
   </section>;
+}
+
+function NeedRow({ item, bot, open, now, current, onOpen, onMenu }: {
+  item: NeedItem;
+  bot: BotTasksData["bots"][number] | undefined;
+  open: boolean;
+  now: number;
+  current: boolean;
+  onOpen: (threadId: string) => void;
+  onMenu: (item: NeedItem, at: HTMLElement) => void;
+}) {
+  const press = useDeskPress();
+  const what = item.what;
+  const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
+  const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
+  const asked = age ? askedAgo(age) : "";
+  const showMenu = (li: HTMLElement) => {
+    if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
+  };
+  return <li data-current={current || undefined} {...press}
+    onContextMenu={event => {
+      press.onContextMenu(event);
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      showMenu(event.currentTarget);
+    }}
+    onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
+    <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
+      aria-current={current ? "page" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
+      onClick={() => onOpen(item.threadId)}>
+      {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
+      <span className="stage-needs-copy">
+        <span className="stage-needs-who"><b>{item.botName}</b>
+          {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age">{asked}</span> : null}
+        </span>
+        <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
+      </span>
+    </button>
+    {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
+      trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={-1} aria-label={menuLabel} title="Actions"
+        onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
+        <Icon name="MoreHorizontal" aria-hidden="true" />
+      </button>} />
+      : item.kind !== "thread" ? <button type="button" className="stage-needs-menu" tabIndex={-1} aria-haspopup="dialog" aria-label={menuLabel} title={menuLabel}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
+        <Icon name="MoreHorizontal" aria-hidden="true" />
+      </button> : null}
+  </li>;
 }

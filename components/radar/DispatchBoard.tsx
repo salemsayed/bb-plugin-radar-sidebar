@@ -9,7 +9,7 @@ import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, sh
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askLine, askParts, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, stateTone, taskHeadline, waitingOn, youWords, ASK_PREVIEW } from "./workText";
+import { askLine, askParts, capCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, stateTone, taskHeadline, waitingOn, youWords, ASK_PREVIEW } from "./workText";
 import { Isolated } from "./Isolated";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
@@ -61,6 +61,8 @@ export function taskStatus(task: BotTaskRow, now: number): string {
   return [label, task.completedAt !== undefined ? dayAndTime(task.completedAt, now) : "", ...parts].filter(Boolean).join(" · ");
 }
 const CHECKING = /not checked|checks needed|check failed|hasn't (?:checked|closed|finished)|evidence needs review|owner review/i;
+const CRITERIA = /^checking (\d+) of (\d+) criteria/i;
+const NO_CHECK = "no check scheduled";
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): string {
   const state = task.displayState;
   if (state === "needs") {
@@ -91,11 +93,13 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (/^Wake was due/.test(line) || state === "overdue") return "Check overdue";
   if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
   if (/^With the bot/.test(line)) return "With the bot";
+  const criteria = CRITERIA.exec(line);
+  if (criteria) return `Waiting on the bot to verify · ${criteria[1]} of ${criteria[2]} criteria met · ${NO_CHECK}`;
   if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
-  if (task.waitFor === "someone else") { const who = waitingOn(task.line, task.outcome); return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · no date`; }
+  if (task.waitFor === "someone else") { const who = waitingOn(task.line, task.outcome); return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · ${NO_CHECK}`; }
   if (state === "offline") return "Machine off";
   if (state === "queued") return "Queued";
-  return "Waiting · no date";
+  return `Waiting on ${task.waitFor === "you" ? "you" : "the bot"} · ${NO_CHECK}`;
 }
 export function attemptStatus(attempt: Attempt, now: number): string {
   if (attempt.state === "running") return attempt.startedAt != null ? `running ${elapsed(attempt.startedAt, now)}` : "running";
@@ -123,8 +127,8 @@ function panelAnchor(row: HTMLElement): PanelAnchor {
 
 const OPENING_TIMEOUT_MS = 8000;
 
-function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onChat, onShowWork }: {
-  bot: BotTasksBot; look: RowLook; current: boolean; opening: boolean; unread: boolean; needs: number; panelOpen: boolean;
+function StageRow({ bot, look, current, here, opening, unread, needs, panelOpen, onChat, onShowWork }: {
+  bot: BotTasksBot; look: RowLook; current: boolean; here: boolean; opening: boolean; unread: boolean; needs: number; panelOpen: boolean;
   onChat: () => void; onShowWork: (anchor: PanelAnchor) => void;
 }) {
   const press = useDeskPress();
@@ -132,10 +136,10 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
   const needsLabel = needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "";
   const full = look.ask ?? [look.line, look.extra].filter(Boolean).join(" · ");
   const when = look.time && look.time !== "now" ? `last reply ${look.time} ago` : "";
-  const spoken = [needsLabel, unread ? "new reply" : "", full, when].filter(Boolean).join(", ");
+  const spoken = [needsLabel, unread ? "new reply" : "", full, when, here ? "you are in one of its chats" : ""].filter(Boolean).join(", ");
   const row = (element: Element) => element.closest<HTMLElement>(".stage-row") ?? (element as HTMLElement);
   const [hover, setHover] = useState(false);
-  return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-kind={look.kind} data-current={current || undefined}
+  return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-kind={look.kind} data-current={current || undefined} data-here={here && !current || undefined}
       data-opening={opening || undefined} data-unread={unread || undefined} data-needs={needs || undefined} data-hover={hover || undefined} data-panel={panelOpen || undefined}
       style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} {...press}
       onPointerEnter={event => { if (event.pointerType === "mouse") setHover(true); }}
@@ -153,7 +157,7 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
           onShowWork(panelAnchor(event.currentTarget));
         }
       }}>
-      <button type="button" className="stage-chat" data-rove={bot.key} aria-current={current ? "page" : undefined} aria-busy={opening || undefined}
+      <button type="button" className="stage-chat" data-rove={bot.key} aria-current={current ? "page" : here ? "true" : undefined} aria-busy={opening || undefined}
         aria-label={`${name}: ${spoken}. Open chat`} aria-keyshortcuts="ArrowRight" title={full} onClick={onChat}>
         <span className="stage-figure">
           <StageFace botKey={bot.key} name={bot.name} pose={look.pose} bare />
@@ -163,7 +167,7 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
             <b>{name}</b>
             {opening ? <span className="stage-opening" aria-hidden="true" />
               : <span className="stage-aside" aria-hidden="true">
-                {look.time ? <span className="stage-time" title={look.time === "now" ? "Working now" : look.timeTitle}>{look.time}</span> : null}
+                {look.time ? <span className="stage-time" title={look.time === "now" ? "Working now" : look.timeTitle}>{look.time === "now" ? "now" : `${look.time} ago`}</span> : null}
                 {unread ? <span className="stage-unread-dot" title="New reply" /> : null}
               </span>}
           </span>
@@ -192,8 +196,22 @@ function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<
   return undefined;
 }
 
+function ownerOf(threadId: string, data: BotTasksData, snapshot: WorkerSnapshot, threads: ReadonlyMap<string, PluginSidebarThread>): string | null {
+  const direct = (id: string) => data.bots.find(b => b.coordinatorThreadId === id || b.desks.some(desk => desk.threadId === id)
+    || b.tasks.some(task => task.conversationThreadId === id || task.needs?.threadId === id || (snapshot.byTask[task.id] ?? []).some(a => a.threadId === id))
+    || (snapshot.byBot[b.key] ?? []).some(a => a.threadId === id))?.key;
+  let id: string | null | undefined = threadId;
+  for (let hop = 0; id && hop < 4; hop++) {
+    const key = direct(id);
+    if (key) return key;
+    const thread = threads.get(id);
+    id = thread?.lifecycleOwnerThreadId ?? thread?.parentThreadId;
+  }
+  return null;
+}
+
 function detailReason(text: string): string {
-  return capitalFirst(plainQueue(text).replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/(?:\s*·\s*(?:wakes (?:\d{1,2}:\d{2}|on [\w-]+)|next check [^·]+|no wake set|untouched \w+))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
+  return capitalFirst(plainQueue(text).replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes (?:\d{1,2}:\d{2}|on [\w-]+)|next check [^·]+|no wake set|untouched \w+))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
 }
 
 function deskAnswered(desk: BotDesk, coordinatorThreadId: string, threads: ReadonlyMap<string, PluginSidebarThread>): boolean {
@@ -256,7 +274,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     setSheet(key);
   };
   const currentKey = orderedBots(data).find(b => b.coordinatorThreadId === activeThreadId)?.key ?? null;
-  const roving = useRoving(list, { item: ".stage-chat", row: ".stage-row", side: ".stage-more", preferred: currentKey });
+  const hereKey = currentKey ?? (activeThreadId ? ownerOf(activeThreadId, data, snapshot, byId) : null);
+  const roving = useRoving(list, { item: ".stage-chat", row: ".stage-row", side: ".stage-more", preferred: hereKey });
   const scope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   const loose = threadsSummary(claims.ready ? claims.loose : []);
   const collapsedThreads = { text: loose.text, tone: loose.needs ? "needs" as const : loose.failed ? "failed" as const : loose.loud ? "unread" as const : null, count: claims.ready ? claims.loose.length : null };
@@ -265,7 +284,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     const workers = snapshot.byBot[b.key] ?? [];
     const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
     const current = opening ? opening === b.coordinatorThreadId : activeThreadId === b.coordinatorThreadId;
-    return { bot: b, unread, look, current, needs: needsCount(b) };
+    return { bot: b, unread, look, current, here: !opening && hereKey === b.key, needs: needsCount(b) };
   });
   return <div className="stage" ref={root}
     onPointerEnter={event => { if (event.pointerType === "mouse") setPointerIn(true); }}
@@ -273,18 +292,18 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => setKeysIn((event.target as HTMLElement).matches(":focus-visible"))}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
-    <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} onOpen={open}
+    <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={open}
       onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }} />
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
-    {rows.map(({ bot: b, unread, look, current, needs }) =>
-      <div role="listitem" key={b.key}><StageRow bot={b} look={look} current={current} opening={opening === b.coordinatorThreadId} unread={unread} needs={needs} panelOpen={sheet === b.key}
+    {rows.map(({ bot: b, unread, look, current, here, needs }) =>
+      <div role="listitem" key={b.key}><StageRow bot={b} look={look} current={current} here={here} opening={opening === b.coordinatorThreadId} unread={unread} needs={needs} panelOpen={sheet === b.key}
         onChat={() => open(b.coordinatorThreadId)}
         onShowWork={showPanel(b.key, needs > 0)} /></div>)}
     </div>
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · All threads</button> : null}
     <ThreadsSection activeThreadId={activeThreadId} now={now} onOpen={open} onShowAll={onShowThreads} />
-    <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, needs }) => ({
-      key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, threadId: b.coordinatorThreadId,
+    <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, here, needs }) => ({
+      key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, here, threadId: b.coordinatorThreadId,
     }))} />
     {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} askerOf={threadId => botOfThread(threadId, data, byId)} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
@@ -316,6 +335,8 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
 }
 
 const RECENT_SHOWN = 3;
+const OUTCOME_CAP = 300;
+const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
 export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads, askerOf }: {
@@ -366,8 +387,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const fullAsk = parts && parts.full && cutAtWord(parts.full, ASK_PREVIEW) !== parts.full ? parts : null;
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
-    const outcome = task.outcome && task.outcome !== task.title ? task.outcome : "";
-    const extra = reason && !status.includes(reason) && !reason.startsWith(status) ? reason : "";
+    const outcome = task.outcome && task.outcome !== task.title ? capCut(task.outcome, OUTCOME_CAP) : "";
+    const extra = reason && !status.includes(reason) && !reason.startsWith(status) ? capCut(reason, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone}>
       <div className="dispatch-card-head">
         <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>
@@ -383,17 +404,18 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || attempts.length || fullAsk ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.head}, in full</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
+        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · excerpt` : `${fullAsk.head}, in full`}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
+        {fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open dispatch-ask-open-inline" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open the whole ask in chat</button> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span><Isolated text={youWords(plainNote(outcome))} /></p> : null}
         {extra ? <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <ul className="dispatch-worker-list">{attempts.map(a => {
           const s = attemptStatus(a, now);
-          return <li key={a.threadId}><button type="button" className="dispatch-attempt" onClick={() => onNavigate(a.threadId)} aria-label={workerLabel(a, s)} title={a.model ? `Model: ${dispatchModel(a.model)}` : undefined}>
-            <span className="dispatch-attempt-head"><i aria-hidden="true" data-running={a.state === "running" || undefined} /><span className="dispatch-worker-model">Worker</span>{s ? ` · ${s}` : ""}</span>
-            {a.title ? <span className="dispatch-attempt-title" dir="auto">{plainWorkerTitle(a.title)}</span> : null}
+          return <li key={a.threadId}><button type="button" className="dispatch-attempt" onClick={() => onNavigate(a.threadId)} aria-label={workerLabel(a, s)}>
+            <span className="dispatch-attempt-head"><i aria-hidden="true" data-running={a.state === "running" || undefined} /><span className="dispatch-worker-model" dir="auto">{a.title ? <Isolated text={plainWorkerTitle(a.title)} /> : "Worker"}</span></span>
+            {s ? <span className="dispatch-attempt-title">{capitalFirst(s)}</span> : null}
           </button></li>;
         })}</ul> : null}
-        {task.ask ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open your ask in chat</button> : null}
+        {task.ask && !fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open your ask in chat</button> : null}
       </details> : null}
     </article>;
   };

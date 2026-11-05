@@ -139,7 +139,7 @@ function waitLine(task: BotTaskRow, now: number): string {
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
   if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
   if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a worker";
-  return "Waiting, no date set";
+  return "Waiting on the bot · no check scheduled";
 }
 
 function isChecking(task: BotTaskRow): boolean {
@@ -157,7 +157,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (needs.length || desks.length) {
     const first = needs[0];
     const ask = first ? askFirst(stageText(first.needs?.question || first.line || first.title), stageTitle(first.title)) || "Has a question for you" : deskNeedLine(desks[0]!);
-    return { pose: "asking", line: `Waiting on you · ${needs.length + desks.length}`, ask, extra: "", tone: "ask", quiet: false };
+    return { pose: "asking", line: `Waiting on you · ${plural(needs.length + desks.length, "ask", "asks")}`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {

@@ -58,19 +58,23 @@
 .radar-threads-empty { margin: 0; padding: 6px 12px 10px; color: var(--muted-foreground); font-size: 12px; }
 .radar-thread-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); border-radius: 10px; }
 .radar-thread-row { grid-area: 1 / 1; display: flex; align-items: flex-start; gap: 8px; width: 100%; min-height: 44px; padding: 7px 10px 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; }
-.radar-thread-item:hover .radar-thread-row { background: var(--muted); }
-.radar-thread-more { grid-area: 1 / 1; align-self: center; justify-self: end; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; margin-inline-end: 4px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; opacity: 0; }
+@media (hover: hover) { .radar-thread-item:hover .radar-thread-row { background: var(--muted); } }
+.radar-thread-more { grid-area: 1 / 1; align-self: start; justify-self: end; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; margin: 2px 4px 0 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; opacity: 0; }
 .radar-thread-more svg, .radar-thread-more [data-icon-root] { width: 16px; height: 16px; }
 .radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-more { opacity: 1; }
-.radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-row { padding-inline-end: 38px; }
-.radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-mark { visibility: hidden; }
 .radar-thread-item[data-menu]:not([data-current]) .radar-thread-row { background: var(--muted); }
 .radar-thread-more:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 9%, transparent); }
 .radar-thread-row[aria-current="page"] { position: relative; background: var(--stage-selection-fill); }
 .radar-thread-row[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--stage-selection); }
 .radar-thread-row[data-depth="1"] { padding-inline-start: 26px; }
 .radar-thread-row[data-depth="2"], .radar-thread-row[data-depth="3"] { padding-inline-start: 42px; }
-.radar-thread-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-thread-head { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline-end: 24px; }
+.radar-thread-aside { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.radar-thread-time { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.radar-thread-row[data-mark="unread"] .radar-thread-time { color: var(--stage-news); font-weight: 600; }
+.radar-thread-project { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.radar-thread-project > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.radar-thread-project > svg, .radar-thread-project > [data-icon-root] { flex: none; width: 12px; height: 12px; }
 .radar-thread-head b { flex: 1; }
 .radar-thread-mark { flex: none; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
 .radar-thread-row[data-mark="unread"] .radar-thread-mark { background: var(--stage-news); }
@@ -87,4 +91,4 @@
 .radar-back-to-bots:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
 .radar-back-to-bots svg, .radar-back-to-bots [data-icon-root] { width: 16px; height: 16px; }
 .radar-all-threads-title { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .radar-threads-toggle { min-height: 44px; } .radar-thread-row, .radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-row { padding-block: 10px; padding-inline-end: 48px; } .radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-mark { visibility: visible; } .radar-thread-copy b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; } .radar-thread-more { opacity: 1; width: 44px; height: 44px; margin: 0; } .radar-back-to-bots { min-height: 44px; } .radar-threads-all { min-height: 44px; } }
+@media (pointer: coarse) { .radar-threads-toggle { min-height: 44px; } .radar-thread-row { padding-block: 10px; padding-inline-end: 48px; } .radar-thread-head { padding-inline-end: 0; } .radar-thread-more { align-self: center; } .radar-thread-copy b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; } .radar-thread-more { opacity: 1; width: 44px; height: 44px; margin: 0; } .radar-back-to-bots { min-height: 44px; } .radar-threads-all { min-height: 44px; } }

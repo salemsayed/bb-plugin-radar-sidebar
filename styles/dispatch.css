@@ -93,7 +93,9 @@
 .dispatch-status-line { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--tone); }
 .dispatch-status-line i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
 .dispatch-task-group:is([data-tone=busy], [data-tone=done]) .dispatch-status-line { color: var(--foreground); }
-.dispatch-task-group[data-tone=busy] .dispatch-status-line i { box-shadow: 0 0 0 3px color-mix(in oklab, var(--tone) 22%, transparent); }
+.dispatch-task-group[data-tone=busy] .dispatch-status-line i, .dispatch-attempt-head i[data-running] { width: 6px; height: 6px; margin-inline: 1px; background: var(--tone-busy); box-shadow: none; animation: stage-status-pulse 1.8s ease-in-out infinite; }
+.dispatch-attempt-head i[data-running] { margin-inline: 1px 9px; }
+@media (prefers-reduced-motion: reduce) { .dispatch-task-group[data-tone=busy] .dispatch-status-line i, .dispatch-attempt-head i[data-running] { animation: none; } }
 .dispatch-task-group[data-tone=quiet] .dispatch-status-line i,.dispatch-task-group[data-tone=ended] .dispatch-status-line i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted-foreground); }
 .dispatch-task b { font-size: 15px; line-height: 1.35; font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .dispatch-recent .dispatch-task b { font-size: 14px; font-weight: 500; -webkit-line-clamp: 2; }
@@ -151,5 +153,6 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-card .dispatch-details { margin-bottom: 2px; }
 .dispatch-card .dispatch-details>summary { min-height: 36px; margin-top: -2px; }
 .dispatch-full>span { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
+.dispatch-ask-open-inline { display: block; min-height: 32px; margin: -4px 0 4px; }
 .dispatch-ask-open { min-height: 44px; padding: 0; border: 0; background: none; font-size: 12.5px; font-weight: 550; color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 3px; }
 .dispatch-open .dispatch-task-group[data-tone=needs] { border-color: color-mix(in oklab, light-dark(#f5a300, #f2b233) 35%, transparent); background: color-mix(in oklab, light-dark(#f5a300, #f2b233) 12%, var(--popover, var(--background))); }
