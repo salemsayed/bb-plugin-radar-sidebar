@@ -44,7 +44,8 @@
 .radar-threads-toggle:focus-visible, .radar-thread-row:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
 .radar-threads-chevron { flex: none; width: 16px; height: 16px; transition: transform 120ms ease; }
 .radar-threads-toggle[aria-expanded="true"] .radar-threads-chevron { transform: rotate(90deg); }
-.radar-threads-label { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; color: var(--foreground); }
+.radar-threads-label { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; color: var(--foreground); white-space: nowrap; overflow: hidden; }
+.radar-threads-toggle:has(.radar-threads-summary) .radar-threads-hint { display: none; }
 .radar-threads-hint { font-size: 12px; font-weight: 450; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radar-threads-summary { flex: none; font-size: 12px; font-weight: 600; color: var(--stage-news); }
 .radar-threads-summary[data-tone="needs"] { color: var(--stage-ask); }
