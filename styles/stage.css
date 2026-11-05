@@ -168,26 +168,6 @@
 .dispatch-overlay.dispatch-anchored { background: transparent; padding: 0; }
 .dispatch-anchored .dispatch-panel { box-shadow: 0 12px 40px rgb(0 0 0 / .22), 0 0 0 1px var(--border); }
 body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !important; }
-.radar-list-shell > .radar-mode-switch {
-  display: flex;
-  align-self: stretch;
-  gap: 4px;
-  margin: 0;
-  padding: 8px 8px 6px;
-  border-radius: 0;
-  background: transparent;
-}
-.radar-list-shell > .radar-mode-switch .radar-mode-option {
-  flex: 1;
-  justify-content: center;
-  gap: 6px;
-  min-height: 40px;
-  border-radius: 12px;
-  font-size: 13px;
-}
-.radar-list-shell > .radar-mode-switch .radar-mode-option svg,
-.radar-list-shell > .radar-mode-switch .radar-mode-option [data-icon-root] { width: 18px; height: 18px; }
-.radar-list-shell > .radar-mode-switch .radar-mode-option[aria-pressed="true"] { background: var(--state-active, var(--muted)); box-shadow: none; }
 [data-testid="app-sidebar-body"]:has(.radar-list-shell[data-radar-mode="bots"]) > [data-testid="app-sidebar-top-reserve-row"] { display: none; }
 .bot-panel { --bot-wash: light-dark(hsl(var(--bot-hue) 80% 96%), hsl(var(--bot-hue) 30% 15%)); --bot-ink: light-dark(hsl(var(--bot-hue) 55% 32%), hsl(var(--bot-hue) 80% 80%)); display: flex; flex-direction: column; min-height: 100%; color: var(--foreground); font-size: 13px; }
 .bot-panel[data-kind="ask"] { --bot-wash: light-dark(#fff4dc, #3a2d10); --bot-ink: light-dark(#7a5200, #ffd36b); }

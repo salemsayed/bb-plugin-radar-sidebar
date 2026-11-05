@@ -111,13 +111,13 @@ export default async function plugin(bb: BbPluginApi) {
     botsPage: {
       type: "boolean",
       label: "Bots on the Bots page",
-      description: "Leave bot coordinators and their workers out of the whole list, with no bot shortcuts, deck or saved bot asks. The Bots | Threads switch already keeps them on Bots.",
+      description: "Leave bot coordinators and their workers out of the whole list, with no bot shortcuts, deck or saved bot asks. The Bots sidebar already keeps them out of its Threads section.",
       default: false,
     },
     botsSwitch: {
       type: "boolean",
-      label: "Bots | Threads switch",
-      description: "A switch at the top of the list (and in the phone drawer): Bots shows each bot's tasks from bb-salem-bots with Needs you on top; Threads shows every other thread; bot chats and their workers stay on Bots. Each device keeps its own choice. Off restores the list as it was.",
+      label: "Bots sidebar",
+      description: "One list: each bot's tasks from bb-salem-bots on top, and a Threads section at the bottom, collapsed by default, with only the threads no bot owns. Each device remembers whether Threads is open. All threads stays in a bot's ⋯ menu. Off restores the list as it was.",
       default: false,
     },
     swipeActions: {

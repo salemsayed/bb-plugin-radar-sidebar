@@ -18,7 +18,8 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { preloadExtendedIcons } from "@/components/ui/icon";
+import { Icon, preloadExtendedIcons } from "@/components/ui/icon";
+import { flushSync } from "react-dom";
 import { useRadarThreadActions } from "./threadActions";
 import { askPulse, shortBotName } from "./bots";
 import { botCoordinatorIds, botScopeIds, rosterRefreshKey } from "./botScope";
@@ -60,7 +61,6 @@ import {
 } from "./RadarListStates";
 import { RadarBulkBar } from "./RadarBulkBar";
 import { problem } from "./listFeedback";
-import { ListModeSwitch, useListMode } from "./ListModeSwitch";
 import { BotsView } from "./BotsView";
 import { BotDeskMenu, BotDeskMenuProvider } from "./BotDeskMenu";
 import { useBotTasks } from "./useBotTasks";
@@ -71,12 +71,6 @@ export type { RowDragHandle } from "./RadarGroupList";
 
 void preloadExtendedIcons().catch(() => undefined);
 
-/**
- * The sidebar list. With the botsSwitch setting off it is exactly the thread
- * list. On, a Bots | Threads switch sits on top: Bots reads each bot's tasks,
- * Threads is the thread list with every thread in it. Switching never
- * navigates, so the open thread stays open.
- */
 export function RadarThreadList(props: PluginThreadListProps) {
   const { botsSwitch } = useListSettings();
   if (!botsSwitch) return <RadarThreadsList {...props} />;
@@ -85,7 +79,7 @@ export function RadarThreadList(props: PluginThreadListProps) {
 
 function RadarSwitchedList(props: PluginThreadListProps) {
   const { activeThreadId, isCompactViewport, onNavigate: hostOnNavigate } = props;
-  const [mode, setMode] = useListMode();
+  const [mode, setMode] = useState<"bots" | "threads">("bots");
   const tasks = useBotTasks(true);
   const sidebar = experimental_useSidebarThreads();
   const unreadChats = useMemo(() => new Set(sidebar.threads.filter(thread => thread.isUnread).map(thread => thread.id)), [sidebar.threads]);
@@ -97,30 +91,34 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const needsCount = null;
-  const unreadBots = mode === "bots" ? 0 : (tasks.data?.bots ?? []).filter(bot => bot.coordinatorThreadId !== activeThreadId && unreadChats.has(bot.coordinatorThreadId)).length;
   const openThread = useCallback((threadId: string) => {
     actions.open(threadId);
     navigation.current();
   }, [actions]);
-  // "Show threads" unmounts the pressed button, so focus lands on the Threads segment.
-  const threadsSegment = useRef<HTMLButtonElement>(null);
+  const backButton = useRef<HTMLButtonElement>(null);
   const showThreads = useCallback(() => {
-    setMode("threads");
-    threadsSegment.current?.focus();
-  }, [setMode]);
+    flushSync(() => setMode("threads"));
+    backButton.current?.focus();
+  }, []);
   useEffect(() => {
     window.addEventListener("radar:show-all-threads", showThreads);
     return () => window.removeEventListener("radar:show-all-threads", showThreads);
   }, [showThreads]);
-  // A typed filter survives a trip to Bots and back.
   const threadsQuery = useRef("");
   const keepQuery = useCallback((query: string) => { threadsQuery.current = query; }, []);
   return (
     <div className={cn("radar-list-shell", isCompactViewport && "radar-list-compact")} data-radar-mode={mode}>
-      <ListModeSwitch mode={mode} onChange={setMode} needsCount={needsCount} unreadBots={unreadBots} threadsRef={threadsSegment} />
       {mode === "threads" ? (
-        <RadarThreadsList {...props} everyThread initialQuery={threadsQuery.current} onQueryChange={keepQuery} />
+        <>
+          <nav className="radar-all-threads-bar" aria-label="All threads">
+            <button ref={backButton} type="button" className="radar-back-to-bots" onClick={() => setMode("bots")}>
+              <Icon name="ChevronLeft" aria-hidden="true" />
+              Bots
+            </button>
+            <span className="radar-all-threads-title">All threads</span>
+          </nav>
+          <RadarThreadsList {...props} everyThread initialQuery={threadsQuery.current} onQueryChange={keepQuery} />
+        </>
       ) : (
         <div className={cn("radar-list", "radar-bots-list", isCompactViewport && "radar-list-compact")}>
           <div className="radar-list-body">

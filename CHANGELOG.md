@@ -6,6 +6,13 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-11-05, Salem: "lets stop using a dedicated threads tab, its just bots up top and threads at bottom by default collapsed. make sure the bots threads dont leak into the threads view at bottom")
+
+- The Bots | Threads switch is gone. The sidebar is one list: bots on top, a Threads section at the bottom, collapsed by default and remembered per device.
+- Threads lists only threads no bot owns: coordinators, their children and lifecycle-owned workers, desks and their workers, plugin-made threads (such as an unfinished rollover's new coordinator) and threads whose owner is out of view all stay out. It waits for the bot roster before listing anything.
+- The Other group and the "Only in Threads" count are gone; "Started by you" in a bot's panel uses the same rule.
+- All threads (a bot's ⋯ menu, or "N not filed · All threads") opens the full list with a Bots button to return. It no longer sticks across reloads.
+
 ### Changed (2026-11-05, Salem: "Desks group only" and "i need a visual way to know that i need to right click the erbaeeq bot")
 
 - A bot's row in Bots wears a colored badge with the number of desks that need you (🟢 draft or 🟠 blocked): orange when any is blocked, green otherwise. Tapping it opens that bot's work panel at its Desks, without a right-click.

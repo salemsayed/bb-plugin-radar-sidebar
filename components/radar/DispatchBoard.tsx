@@ -1,5 +1,6 @@
 import { DeskThreads } from "./DeskThreads";
 import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
+import { ThreadsSection } from "./ThreadsSection";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -159,7 +160,6 @@ function StageRow({ bot, look, current, onChat, onShowWork, onShowDesks }: {
 export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, unreadChats }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
-  const claims = useThreadClaims();
   const root = useRef<HTMLDivElement>(null);
   const visible = useVisibleSurface(root);
   const snapshot = useDispatchWorkers(data, visible);
@@ -181,9 +181,8 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
         onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setFocusDesks(false); setSheet(b.key); }}
         onShowDesks={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setFocusDesks(true); setSheet(b.key); }} />;
     })}
-    {<details className="radar-other"><summary>Other <span>{claims.other.length}</span></summary><ClaimedThreads threads={claims.other} onOpen={onOpen} />{!claims.other.length ? <p className="radar-census">No other threads</p> : null}</details>}
-    <p className="radar-census" data-only-threads={claims.ready ? claims.onlyThreads : undefined}>Only in Threads: {claims.ready ? claims.onlyThreads : "checking…"}</p>
-    {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
+    {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · All threads</button> : null}
+    <ThreadsSection activeThreadId={activeThreadId} now={now} onOpen={onOpen} />
     {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined}
