@@ -6,6 +6,17 @@ import { Icon } from "@/components/ui/icon";
 import { askFirst, deskNeedLine, since, stageText, stageTitle } from "./stage";
 import { BotTaskFace } from "./BotsView";
 import { Isolated } from "./Isolated";
+import { cutAtWord } from "./workText";
+
+const SHORT_WHAT = 62;
+const OPEN_WHAT = 96;
+
+function fitWhat(what: string, max: number): string {
+  if (what.length <= max) return what;
+  const at = what.indexOf(" · ");
+  if (at < 0 || at > max - 12) return what;
+  return `${what.slice(0, at)} · ${cutAtWord(what.slice(at + 3), max - at - 3)}`;
+}
 
 export function botMenuLabel(name: string, needs: boolean): string {
   return needs ? `What ${name} needs from you, tasks and settings` : `${name}: tasks, desks and settings`;
@@ -112,12 +123,12 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu 
           <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
             aria-label={`${item.botName}: ${what}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
             onClick={() => onOpen(item.threadId)}>
-            {bot ? <BotTaskFace bot={bot} size={18} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
+            {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
             <span className="stage-needs-copy">
               <span className="stage-needs-who"><b>{item.botName}</b>
                 {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age">{asked}</span> : null}
               </span>
-              <span className="stage-needs-what" dir="auto"><Isolated text={what} /></span>
+              <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
             </span>
           </button>
           {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
