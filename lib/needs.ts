@@ -35,6 +35,10 @@ export const needsRpcContract = {
   },
 } as const;
 
+export function isDeskNeed(item: Pick<NeedsItem, "key">): boolean {
+  return item.key?.startsWith("desk:") ?? false;
+}
+
 export function openNeeds(items: readonly NeedsItem[]): NeedsItem[] {
   const dueAt = (item: NeedsItem) => {
     if (!item.due) return Infinity;
@@ -43,7 +47,7 @@ export function openNeeds(items: readonly NeedsItem[]): NeedsItem[] {
     try { return Date.parse(cairoInstant(local)); }
     catch { return Date.parse(cairoInstant(`${item.due.slice(0, 10)}T01:00`)); }
   };
-  return items.filter(item => item.state === "open" || item.state === "snoozed" || item.state === "reminded").sort((a, b) =>
+  return items.filter(item => !isDeskNeed(item) && (item.state === "open" || item.state === "snoozed" || item.state === "reminded")).sort((a, b) =>
     (dueAt(a) - dueAt(b)) || a.createdAt.localeCompare(b.createdAt));
 }
 

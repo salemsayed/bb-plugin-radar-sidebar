@@ -23,6 +23,12 @@
 .radar-desks, .radar-claimed { min-width: 0; }
 .radar-desk-row { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 9px 12px; text-align: start; border-radius: 6px; color: var(--foreground); }
 .radar-desk-row:hover { background: var(--muted); }
+.radar-desk-row[data-needs-you] { background: color-mix(in oklab, light-dark(#1f8a4c, #3fbf74) 9%, transparent); }
+.radar-desk-row[data-status="blocked"] { background: color-mix(in oklab, light-dark(#c4560a, #f5913d) 11%, transparent); }
+.radar-desk-row[data-needs-you]:hover { background: var(--muted); }
+.radar-desk-row + .radar-desk-row[data-needs-you] { margin-top: 2px; }
+.radar-desk-mark { flex: none; }
+.radar-desks .dispatch-section-head > span[data-needs-you] { color: var(--foreground); font-weight: 600; }
 .radar-desk-row:disabled { opacity: 1; cursor: default; }
 .radar-desk-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .radar-desk-copy b { font-weight: 550; }

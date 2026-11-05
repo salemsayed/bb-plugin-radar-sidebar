@@ -41,6 +41,40 @@ export const deskSchema = z.object({
 });
 export type BotDesk = z.infer<typeof deskSchema>;
 
+export const DESK_MARKS: Record<BotDesk["status"], string> = { draft: "🟢", blocked: "🟠", working: "⏳", info: "⚪", done: "✅", deferred: "⏸" };
+const DESK_RANK: Record<BotDesk["status"], number> = { draft: 0, blocked: 0, working: 1, info: 2, deferred: 3, done: 4 };
+const LEADING_MARKS = /^(?:(?:🟢|🟠|🟡|🔴|⏳|⚪|✅|⏸|⚠)\uFE0F?\s*)+/u;
+const THREAD_REF = /(?:\s+(?:on|in|at|from|see))?\s*@thread:\S+/g;
+
+export function needsYou(desk: Pick<BotDesk, "status">): boolean {
+  return desk.status === "draft" || desk.status === "blocked";
+}
+
+export function sortDesks(desks: readonly BotDesk[]): BotDesk[] {
+  return [...desks].sort((a, b) => DESK_RANK[a.status] - DESK_RANK[b.status]
+    || (needsYou(a) ? a.updatedAt - b.updatedAt : b.updatedAt - a.updatedAt));
+}
+
+export interface DeskBadge { count: number; tone: "blocked" | "draft" }
+
+export function deskBadge(desks: readonly BotDesk[]): DeskBadge | null {
+  const waiting = desks.filter(needsYou);
+  if (!waiting.length) return null;
+  return { count: waiting.length, tone: waiting.some(desk => desk.status === "blocked") ? "blocked" : "draft" };
+}
+
+function cleanDeskText(text: string): string {
+  return text.replace(THREAD_REF, "").replace(/\s+/g, " ").trim().replace(LEADING_MARKS, "").trim();
+}
+
+export function deskTitle(desk: Pick<BotDesk, "label" | "title">): string {
+  const label = cleanDeskText(desk.label);
+  const title = cleanDeskText(desk.title);
+  if (!title) return label;
+  if (!label || title.toLowerCase().startsWith(label.toLowerCase())) return title;
+  return `${label} · ${title}`;
+}
+
 const count = z.number().int().nonnegative().default(0);
 const botSchema = z.object({
   key: z.string(),

@@ -3,7 +3,7 @@ import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
+import { deskBadge, isClosed, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle, shortBotName } from "./bots";
 import { automationsHref } from "./automationsLink";
@@ -105,11 +105,19 @@ export interface PanelAnchor { x: number; y: number; align?: "start" | "end" }
 
 const BADGE_WORDS: Record<string, string> = { ask: "asking you", wait: "waiting", unread: "new reply", blocked: "stuck" };
 
-function StageRow({ bot, look, current, onChat, onShowWork }: {
-  bot: BotTasksBot; look: RowLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void;
+function panelAnchor(row: HTMLElement, y: number): PanelAnchor {
+  const box = row.getBoundingClientRect();
+  const side = row.closest(".stage")?.getBoundingClientRect().right ?? box.right;
+  return { x: side + 8, y };
+}
+
+function StageRow({ bot, look, current, onChat, onShowWork, onShowDesks }: {
+  bot: BotTasksBot; look: RowLook; current: boolean; onChat: () => void; onShowWork: (anchor: PanelAnchor) => void; onShowDesks: (anchor: PanelAnchor) => void;
 }) {
   const press = useDeskPress();
   const name = shortBotName(bot.name);
+  const desks = deskBadge(bot.desks);
+  const desksLabel = desks ? `${desks.count} ${desks.count === 1 ? "desk needs" : "desks need"} you` : "";
   const spoken = [look.badge ? BADGE_WORDS[look.badge] : "", look.line, look.extra].filter(Boolean).join(", ");
   return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-kind={look.kind}
       style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} {...press}
@@ -118,19 +126,15 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
         if (event.defaultPrevented) return;
         event.preventDefault();
         event.stopPropagation();
-        const box = event.currentTarget.getBoundingClientRect();
-        const side = event.currentTarget.closest(".stage")?.getBoundingClientRect().right ?? box.right;
-        onShowWork({ x: side + 8, y: Math.max(box.top, event.clientY - 40) });
+        onShowWork(panelAnchor(event.currentTarget, Math.max(event.currentTarget.getBoundingClientRect().top, event.clientY - 40)));
       }}
       onKeyDown={event => {
         if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) {
           event.preventDefault();
-          const box = event.currentTarget.getBoundingClientRect();
-          const side = event.currentTarget.closest(".stage")?.getBoundingClientRect().right ?? box.right;
-          onShowWork({ x: side + 8, y: box.top });
+          onShowWork(panelAnchor(event.currentTarget, event.currentTarget.getBoundingClientRect().top));
         }
       }}>
-      <button type="button" className="stage-chat" aria-current={current ? "page" : undefined} aria-label={`${name}: ${spoken}. Open chat`} onClick={onChat}>
+      <button type="button" className="stage-chat" aria-current={current ? "page" : undefined} aria-label={`${name}: ${[spoken, desksLabel].filter(Boolean).join(", ")}. Open chat`} onClick={onChat}>
         <span className="stage-figure">
           <StageFace botKey={bot.key} name={bot.name} pose={look.pose} />
           {look.badge && look.kind === "calm" ? <span className="stage-badge" data-badge={look.badge} aria-hidden="true" /> : null}
@@ -140,6 +144,15 @@ function StageRow({ bot, look, current, onChat, onShowWork }: {
           <span className="stage-line"><bdi>{look.line}</bdi>{look.extra ? <> <span className="stage-extra" dir="ltr">{look.extra}</span></> : null}</span>
         </span>
       </button>
+      {desks ? <button type="button" className="stage-desk-badge" data-tone={desks.tone} aria-label={`${desksLabel}. Open ${name}'s desks`} title={`${desksLabel}: open desks`}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={event => {
+          event.stopPropagation();
+          const row = event.currentTarget.closest<HTMLElement>(".stage-row") ?? event.currentTarget;
+          onShowDesks(panelAnchor(row, row.getBoundingClientRect().top));
+        }}>
+        <span className="stage-desk-count">{desks.count}</span><span className="stage-desk-word">{desks.count === 1 ? "desk" : "desks"}</span>
+      </button> : null}
     </div>;
 }
 
@@ -152,6 +165,7 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
   const snapshot = useDispatchWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
+  const [focusDesks, setFocusDesks] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
@@ -164,12 +178,13 @@ export function DispatchBoard({ data, state, activeThreadId, isCompactViewport, 
       const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now });
       return <StageRow key={b.key} bot={b} look={look} current={activeThreadId === b.coordinatorThreadId}
         onChat={() => onOpen(b.coordinatorThreadId)}
-        onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setSheet(b.key); }} />;
+        onShowWork={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setFocusDesks(false); setSheet(b.key); }}
+        onShowDesks={point => { opener.current = document.activeElement as HTMLElement; setAnchor(point); setFocusDesks(true); setSheet(b.key); }} />;
     })}
     {<details className="radar-other"><summary>Other <span>{claims.other.length}</span></summary><ClaimedThreads threads={claims.other} onOpen={onOpen} />{!claims.other.length ? <p className="radar-census">No other threads</p> : null}</details>}
     <p className="radar-census" data-only-threads={claims.ready ? claims.onlyThreads : undefined}>Only in Threads: {claims.ready ? claims.onlyThreads : "checking…"}</p>
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · Threads</button> : null}
-    {bot ? <BotWorkPanel bot={bot} anchor={anchor} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined}
       onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); onOpen(id); }} onClose={close} /> : null}
@@ -188,16 +203,23 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
   };
 }
 
-export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads }: {
-  bot: BotTasksBot; anchor?: PanelAnchor; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads }: {
+  bot: BotTasksBot; anchor?: PanelAnchor; focusDesks?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: (id: string) => void; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
   const panel = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const desksRef = useRef<HTMLElement>(null);
   const target = useCoordinatorTarget(bot.coordinatorThreadId);
   const drag = useRef<number | null>(null);
   const [openAsks, setOpenAsks] = useState<ReadonlySet<string>>(() => new Set());
-  useEffect(() => { panel.current?.focus(); }, []);
+  useEffect(() => {
+    const section = desksRef.current;
+    if (!focusDesks || !section || !body.current) { panel.current?.focus(); return; }
+    body.current.scrollTop += section.getBoundingClientRect().top - body.current.getBoundingClientRect().top - 4;
+    (section.querySelector<HTMLElement>(".radar-desk-row:not(:disabled)") ?? panel.current)?.focus({ preventScroll: true });
+  }, [focusDesks]);
   useEffect(() => {
     if (!isCompactViewport) return;
     const elements = [document.documentElement, document.body, document.querySelector<HTMLElement>(".radar-list-body")].filter((node): node is HTMLElement => !!node);
@@ -265,10 +287,10 @@ export function BotWorkPanel({ bot, anchor, snapshot, activeThreadId, isCompactV
       <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>
       <ThreadActionsMenu thread={target} inline={[{ key: "radar-sidebar/all-threads", group: "open", action: { label: "All threads", icon: "List", run: () => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); onClose(); } } }]} side="bottom" align="end" trigger={props => <button {...props} type="button" className="dispatch-more"><Icon name="MoreHorizontal" aria-hidden="true" />More</button>} />
     </nav>
-    <div className="dispatch-panel-body">
+    <div className="dispatch-panel-body" ref={body}>
     {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Blocked · {taskHeadline(t.title)}</b><p>{rowDetail(t, now) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
     {tasks.length || bot.unlinked.length ? <><header className="dispatch-section-head"><h3>Tasks</h3><span>{tasks.length + bot.unlinked.length}</span></header><div className="dispatch-open">{tasks.map(taskRow)}{bot.unlinked.map(w => <article className="dispatch-task-group" data-tone="busy" key={w.threadId}><button className="dispatch-task" onClick={() => onNavigate(w.threadId)}><span className="dispatch-status-line"><i aria-hidden="true" />Work without a task</span><b dir="auto">{taskHeadline(w.title || "Worker")}</b></button></article>)}</div></> : <p className="dispatch-idle">{chatting ? IN_CHAT : "Nothing running"}{recent[0]?.completedAt ? ` · last completed ${ago(recent[0].completedAt, now)}` : ""}</p>}
-    <DeskThreads desks={bot.desks} now={now} onOpen={onNavigate} />
+    <DeskThreads ref={desksRef} desks={bot.desks} now={now} onOpen={onNavigate} />
     <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={onNavigate} />
     <header className="dispatch-section-head"><h3>Recent</h3>{recent.length ? <span>{recent.length}</span> : null}</header>{recent.length ? <div className="dispatch-recent">{recent.map(taskRow)}</div> : <p className="dispatch-idle">No recent tasks</p>}
     </div>

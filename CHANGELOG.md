@@ -6,6 +6,13 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-11-05, Salem: "Desks group only" and "i need a visual way to know that i need to right click the erbaeeq bot")
+
+- A bot's row in Bots wears a colored badge with the number of desks that need you (🟢 draft or 🟠 blocked): orange when any is blocked, green otherwise. Tapping it opens that bot's work panel at its Desks, without a right-click.
+- Desks list 🟢 and 🟠 first, oldest waiting first, then ⏳ working, ⚪ info and ⏸ deferred; done stays folded. The header says "N need you · N working".
+- Desk rows drop a leading status emoji from the title and never show raw `@thread:` references.
+- Bots no longer shows a Needs-you lane, and no Radar lane ever shows a desk-keyed (`desk:`) item.
+
 ### Fixed (2026-11-02, Salem: "i still see the bots thread under the thread tab in the sidebar")
 
 - Bot chats and their workers stay out of Threads while bots core is crashed or restarting. The sidebar keeps the last bot list until bots core says it is uninstalled or off, instead of dropping it after two minutes of errors.
