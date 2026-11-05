@@ -88,12 +88,13 @@ export function ThreadsSection({ activeThreadId, now, onOpen, onShowAll }: { act
                   <div className="radar-thread-item" data-current={thread.id === activeThreadId || undefined} data-menu={menuFor === thread.id || undefined}>
                     <button type="button" className="radar-thread-row" data-rove={thread.id} data-thread-id={thread.id} data-mark={mark} data-depth={depth || undefined}
                       aria-current={thread.id === activeThreadId ? "page" : undefined}
-                      aria-label={[thread.displayTitle, MARK_WORDS[mark], project ? `${project} project` : "no project", age ? `last activity ${age === "now" ? "just now" : `${age} ago`}` : ""].filter(Boolean).join(", ")} title={thread.displayTitle}
+                      aria-label={[thread.displayTitle, thread.pinnedAt ? "pinned" : "", MARK_WORDS[mark], project ? `${project} project` : "no project", age ? `last activity ${age === "now" ? "just now" : `${age} ago`}` : ""].filter(Boolean).join(", ")} title={thread.displayTitle}
                       onClick={() => onOpen(thread.id)}>
                       <span className="radar-thread-copy">
                         <span className="radar-thread-head">
                           <b dir="auto">{thread.displayTitle}</b>
                           <span className="radar-thread-aside" aria-hidden="true">
+                            {thread.pinnedAt ? <Icon name="Pin" className="radar-thread-pin" aria-hidden="true" /> : null}
                             {age ? <span className="radar-thread-time" title={`Last activity ${new Date(thread.latestAttentionAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}`}>{age}</span> : null}
                             {mark !== "none" ? <span className="radar-thread-mark" title={MARK_TITLES[mark]} /> : null}
                           </span>

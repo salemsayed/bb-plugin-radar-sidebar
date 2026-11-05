@@ -139,7 +139,7 @@ export function plainWorkerTitle(title: string): string {
     out = out.slice(match?.[0].length ?? 0);
     if (kind) out = `${kind[0]!.toUpperCase()}${kind.slice(1).toLowerCase().replace("recheck", "re-check")}: ${out}`;
   }
-  out = out.replace(/^merge request/, "Merge request");
+  out = out.replace(/^merge request/, "Merge request").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your").replace(/(?<![\w-])Salem\b(?![-\w])/g, "you");
   return capitalFirst(out);
 }
 

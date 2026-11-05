@@ -72,6 +72,7 @@
 .radar-thread-head { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding-inline-end: 24px; }
 .radar-thread-aside { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .radar-thread-time { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.radar-thread-pin { flex: none; width: 12px; height: 12px; color: var(--muted-foreground); }
 .radar-thread-row[data-mark="unread"] .radar-thread-time { color: var(--stage-news); font-weight: 600; }
 .radar-thread-project { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .radar-thread-project > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

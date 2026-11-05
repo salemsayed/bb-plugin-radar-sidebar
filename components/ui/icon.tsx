@@ -38,6 +38,7 @@ import InformationCircleIcon from "@hugeicons/core-free-icons/InformationCircleI
 import Loading03Icon from "@hugeicons/core-free-icons/Loading03Icon";
 import MessageQuestionIcon from "@hugeicons/core-free-icons/MessageQuestionIcon";
 import MoreHorizontalIcon from "@hugeicons/core-free-icons/MoreHorizontalIcon";
+import Pin02Icon from "@hugeicons/core-free-icons/Pin02Icon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
@@ -190,6 +191,7 @@ const CORE_ICON_MAP = {
   MessageSquarePlus: BubbleChatAddIcon,
   MessageSquare: BubbleChatIcon,
   MoreHorizontal: MoreHorizontalIcon,
+  Pin: Pin02Icon,
   Palette: PaletteIcon,
   PanelLeft: SidebarLeftIcon,
   Plus: PlusSignIcon,
