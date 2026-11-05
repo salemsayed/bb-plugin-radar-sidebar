@@ -338,6 +338,7 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
 const RECENT_SHOWN = 3;
 const OUTCOME_CAP = 300;
 const CARD_ASK = 120;
+const CARD_ASK_PHONE = 90;
 const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
@@ -382,7 +383,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const name = stageTitle(task.title);
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
-    const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now), CARD_ASK) : cardStatus(task, running, now);
+    const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now);
     const reason = detailReason(stageText(task.needs?.question ?? task.line));
     const ask = task.ask ? askLine(task.ask, now, askerOf) : "";
     const parts = task.ask ? askParts(task.ask, now, askerOf) : null;
