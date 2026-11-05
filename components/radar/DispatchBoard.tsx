@@ -66,7 +66,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
     const first = [...running].sort((a, b) => (a.startedAt ?? now) - (b.startedAt ?? now))[0];
     if (!first) return "Bot working";
     const who = first.model ? dispatchModel(first.model) : "Worker";
-    return [`${who} working`, first.startedAt != null ? elapsed(first.startedAt, now) : "", running.length > 1 ? `+${running.length - 1} more` : ""].filter(Boolean).join(" · ");
+    return [`${who} working`, first.startedAt != null ? elapsed(first.startedAt, now) : "", running.length > 1 ? `${running.length - 1} more ${running.length === 2 ? "worker" : "workers"}` : ""].filter(Boolean).join(" · ");
   }
   if (isClosed(state)) return taskStatus(task, now).split(" · ").slice(0, 2).join(" · ");
   if (state === "waiting" && task.wakeAt !== undefined) {
