@@ -26,6 +26,7 @@ export function toSidebarThread(raw: ListedThread, feed: readonly PluginSidebarT
     titleFallback: raw.titleFallback,
     displayTitle: raw.title ?? raw.titleFallback ?? raw.id,
     parentThreadId: raw.parentThreadId,
+    ...{ parentNotifications: raw.parentNotifications },
     lifecycleOwnerThreadId: raw.lifecycleOwnerThreadId,
     sourceThreadId: raw.sourceThreadId,
     sectionId: raw.sectionId,
