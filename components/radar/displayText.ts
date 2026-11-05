@@ -118,7 +118,8 @@ export function withoutModels(text: string): string {
     return kept && end && !/[.!?]$/.test(kept) ? `${kept}${end}` : kept;
   }).filter(Boolean).join(" ");
   out = tidy(out).replace(/^[a-z]/, letter => letter.toUpperCase());
-  return MODEL.test(out) ? tidy(out.replace(new RegExp(`\\s*\\b${MODEL_WORD}\\b`, "gi"), "")) : out;
+  const kept = MODEL.test(out) ? tidy(out.replace(new RegExp(`\\s*\\b${MODEL_WORD}\\b`, "gi"), "")) : out;
+  return kept.split(/\s+/).filter(word => /\p{L}{2,}/u.test(word) && !/^models?$/i.test(word)).length ? kept : "Model choice";
 }
 
 export function botWords(text: string): string {

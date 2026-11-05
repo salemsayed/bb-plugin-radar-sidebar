@@ -639,7 +639,7 @@ export function BotWorkPanel({ bot, offList = [], anchor, focusDesks = false, ke
     const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now, waitsOn), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now, waitsOn);
     const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
     const told = task.ask ? askParts(task.ask, now, askerOf, bot.name, originalOf) : null;
-    const offTopic = told?.kind === "update" && !sameJob(told.quote, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
+    const offTopic = told?.kind === "update" && !sameJob(task.ask!.full ?? task.ask!.excerpt, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
     const parts = offTopic ? null : told;
     const ask = task.ask && parts ? askLine(task.ask, now, askerOf, ASK_PREVIEW, bot.name, originalOf) : "";
     const bare = (text: string) => text.replace(/\u2026$/, "").trim();
