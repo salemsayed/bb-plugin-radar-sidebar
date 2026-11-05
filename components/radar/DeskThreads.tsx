@@ -1,6 +1,9 @@
 import { forwardRef } from "react";
 import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
 import { elapsed } from "./DispatchBoard";
+import { deskNeedLine } from "./stage";
+import { Isolated } from "./Isolated";
+import { askedAgo } from "./NeedsSummary";
 
 const DAY_MS = 86_400_000;
 const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
@@ -18,12 +21,14 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   const open = sortDesks(visible.filter(desk => desk.status !== "done"));
   const done = sortDesks(visible.filter(desk => desk.status === "done"));
   const row = (desk: BotDesk) => {
-    const title = deskTitle(desk);
+    const asking = needsYou(desk);
+    const title = asking ? deskNeedLine(desk) : deskTitle(desk);
     return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={needsYou(desk) || undefined}
       disabled={!desk.threadId} onClick={() => desk.threadId && onOpen(desk.threadId)}>
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />
-      <span className="radar-desk-copy"><b dir="auto">{title}</b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : null}</span>
-      <small><span className="radar-desk-state">{DESK_WORDS[desk.status]}</span> · {elapsed(desk.updatedAt, now)}</small>
+      <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : null}</span>
+      {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
+        : <small><span className="radar-desk-state">{DESK_WORDS[desk.status]}</span> · {elapsed(desk.updatedAt, now)}</small>}
     </button>;
   };
   if (!visible.length) return null;

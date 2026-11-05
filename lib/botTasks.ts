@@ -18,7 +18,7 @@ const taskSchema = z.object({
   bot: z.string().default(""),
   title: z.string().default(""),
   outcome: z.string().optional(),
-  ask: z.object({ excerpt: z.string(), label: z.string(), ref: z.object({ threadId: z.string(), seq: z.number() }), at: z.number().optional() }).optional(),
+  ask: z.object({ excerpt: z.string(), full: z.string().optional(), label: z.string(), ref: z.object({ threadId: z.string(), seq: z.number() }), at: z.number().optional() }).optional(),
   displayState,
   line: z.string().default(""),
   waitFor: z.string().optional(),

@@ -6,6 +6,7 @@ import { botStyle } from "./bots";
 import { useRoving } from "./useRoving";
 import { OPEN_THREADS_EVENT, THREADS_OPEN_KEY } from "./ThreadsSection";
 import { writeStored } from "./useListSettings";
+import { Isolated } from "./Isolated";
 
 export interface CollapsedBot {
   key: string;
@@ -14,6 +15,7 @@ export interface CollapsedBot {
   status: string;
   needs: number;
   unread: boolean;
+  working?: boolean;
   current: boolean;
   threadId: string;
 }
@@ -104,7 +106,7 @@ function useCollapsedPlace(root: RefObject<HTMLElement | null>): Place {
 }
 
 function spoken(bot: CollapsedBot): string {
-  return [bot.name, bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.status].filter(Boolean).join(", ");
+  return [bot.name, bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.working ? "working now" : "", bot.status].filter(Boolean).join(", ");
 }
 
 function useRailHost(active: boolean): HTMLElement | null {
@@ -202,9 +204,11 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
       {bots.map(bot => <button key={bot.key} type="button" className="radar-rail-bot" data-rove={bot.key} data-current={bot.current || undefined}
         aria-current={bot.current ? "page" : undefined} aria-label={`${spoken(bot)}. Open chat`}
         style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} onClick={() => { hide(); onOpen(bot.threadId); }}
-        {...tipProps(bot.name, [bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : bot.unread ? "New reply" : "", bot.status])}>
+        {...tipProps(bot.name, [[bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : ""].filter(Boolean).join(" · ").replace(/^n/, "N"), bot.status])}>
         <StageFace botKey={bot.key} name={bot.name} pose={bot.pose} size={30} bare />
-        {bot.needs ? <span className="radar-rail-needs" aria-hidden="true">{bot.needs}</span> : bot.unread ? <span className="radar-rail-unread" aria-hidden="true" /> : null}
+        {bot.needs ? <span className="radar-rail-needs" aria-hidden="true">{bot.needs}</span> : null}
+        {bot.unread ? <span className="radar-rail-unread" data-with-needs={bot.needs ? "" : undefined} aria-hidden="true" /> : null}
+        {bot.working ? <span className="radar-rail-working" aria-hidden="true" /> : null}
       </button>)}
       {threads ? <button type="button" className="radar-rail-threads" data-rove="radar-threads" data-tone={threads.tone ?? undefined}
         aria-label={`Other threads${threadsTip ? `, ${threadsTip}` : ""}. Show in the sidebar`}
@@ -214,7 +218,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
       </button> : null}
     </nav>, host ?? document.body)}
     {tip ? createPortal(<div className="radar-rail-tip" data-bb-plugin={scope} role="tooltip" style={{ top: tip.top, left: tip.left } as CSSProperties}>
-      <b>{tip.title}</b>{tip.lines.map(line => <span key={line}>{line}</span>)}
+      <b>{tip.title}</b>{tip.lines.map(line => <span key={line}><Isolated text={line} /></span>)}
     </div>, document.body) : null}
   </>;
 }

@@ -59,13 +59,34 @@ const ASK_CLAUSE = /\?|^you\b|\b(?:decide|approve|confirm|choose|pick|whether|go
 const ASK_LONG = 80;
 const DECIDE = /^you (?:decide|choose|pick|say|tell me|confirm) (?:whether|if) (?:to )?(.+)$/i;
 const YOU_ACT = /^you (?:can |could |should |need to |may )?((?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|wait)\b.*)$/i;
-const DANGLING = /\b(?:it|them|this|that|these|those)\b/i;
+const SECOND_VERB = /\b(or|and) ((?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|wait|drop|stop|leave|delete|remove|archive|retry|skip|hold|start|restart|move)(?:e?s))\b/gi;
+const DANGLING = /\b(?:it|them)\b|\b(?:this|that|these|those)\b(?=\s*(?:[?.!,;]|$|(?:or|and|now|today|tonight|first|instead)\b))/i;
+const SUBJECT = /\b((?:the|this|that|your|its|our) (?:[\w-]+ ){0,3}?[\w-]+) (?:is|are|was|were|has|have|had|can|cannot|can't|could|couldn't|will|won't|would|should|does|doesn't|did|didn't|still|keeps|needs|fails|failed|passes|passed|runs|works|stays|looks|went|got|rose|dropped|changed)\b/i;
+
+function antecedent(parts: readonly string[], plural: boolean): string {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const clauses = parts[i]!.split(/,\s+|;\s+|\s+(?:so|but|and|because|which)\s+/i).reverse();
+    for (const clause of clauses) {
+      const noun = SUBJECT.exec(clause)?.[1];
+      if (!noun) continue;
+      const many = /[^su]s$/i.test(noun);
+      if (many === plural) return noun.replace(/^(?:This|That|Your|Its|Our|The)\b/, word => word.toLowerCase());
+    }
+  }
+  return "";
+}
+
+function carryNoun(lead: string, noun: string): string {
+  const pair = /^(\w+) (or|and) (\w+) (it|them|this|that)\b/i.exec(lead);
+  if (pair) return `${pair[1]} ${noun} ${pair[2]} ${pair[3]} ${pair[4]}${lead.slice(pair[0].length)}`;
+  return lead.replace(DANGLING, noun);
+}
 
 function decisionLead(clause: string): string {
   const bare = clause.replace(/^so\s+/i, "").replace(/[.;,]\s*$/, "").trim();
   const decide = DECIDE.exec(bare) ?? YOU_ACT.exec(bare);
   if (!decide) return capitalFirst(bare);
-  const lead = decide[1]!.trim();
+  const lead = decide[1]!.trim().replace(SECOND_VERB, (_, join: string, word: string) => `${join} ${word.replace(/(?:(?<=(?:ss|sh|ch|x))es|s)$/, "")}`);
   return `${capitalFirst(lead)}${/[?!]$/.test(lead) ? "" : "?"}`;
 }
 
@@ -79,7 +100,10 @@ export function askFirst(text: string, title = ""): string {
   const head = title.trim();
   const rest = parts.filter((_, i) => i !== at).reduce((out, part) => !out ? part : /^so\s/i.test(part) ? `${out.replace(/[.;]$/, "")}, ${part}` : `${out} ${part}`, "").replace(/[;,]\s*$/, "");
   const named = (text: string) => text.toLowerCase().includes(head.toLowerCase());
-  if (head && DANGLING.test(lead) && !named(lead) && !rest.toLowerCase().startsWith(head.toLowerCase())) lead = `${head}: ${lead[0]!.toLowerCase()}${lead.slice(1)}`;
+  const pronoun = DANGLING.exec(lead)?.[0];
+  const noun = pronoun ? antecedent(parts.slice(0, at), /^(?:them|these|those)$/i.test(pronoun)) : "";
+  if (noun) lead = carryNoun(lead, noun);
+  else if (head && pronoun && !named(lead) && !rest.toLowerCase().startsWith(head.toLowerCase())) lead = `${head}: ${lead[0]!.toLowerCase()}${lead.slice(1)}`;
   return rest ? `${lead} · ${rest}` : lead;
 }
 
@@ -177,8 +201,29 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
 export type RowKind = "ask" | "live" | "calm";
 export type RowBadge = "ask" | "wait" | "unread" | "blocked" | null;
 
-export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title">): string {
-  return `${desk.status === "draft" ? "Go-ahead needed" : "Answer needed"}: ${plainNote(deskTitle(desk))}`;
+const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)$/i;
+const SEND_FIRST = /^(nudge|reminder|follow-up|followup|reply|message|note|update|offer)\s+(?:on|about|re|for|regarding)\s+(.+)$/i;
+const SENDABLE = /\b(?:nudge|reminder|follow-up|followup|reply|message|note|update|offer|invite|invitation|quote|email|answer)$/i;
+
+function lowerFirst(text: string): string {
+  return /^[A-Z][a-z]/.test(text) && !/^[A-Z][a-z]+(?:\s+[A-Z]|$)/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
+export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title"> & Partial<Pick<BotDesk, "desk">>): string {
+  const parts = plainNote(deskTitle(desk)).split(/\s+·\s+/).map(part => part.trim()).filter(Boolean);
+  if (parts.length > 1 && (CHANNEL_TAG.test(parts[0]!) || parts[0]!.toLowerCase() === desk.label.trim().toLowerCase())) parts.shift();
+  const conversation = desk.desk === undefined || desk.desk === "chat" || desk.desk === "whatsapp";
+  if (conversation && parts.length >= 2) {
+    const [name, ...rest] = parts;
+    const subject = rest.join(" · ");
+    if (desk.status === "blocked") return `${name} is waiting on your answer · ${subject}`;
+    const flipped = SEND_FIRST.exec(subject);
+    const thing = flipped ? `${flipped[2]} ${flipped[1]!.toLowerCase()}` : subject;
+    return SENDABLE.test(thing) ? `Send the ${flipped ? thing : lowerFirst(thing)} to ${name}?` : `Send your reply to ${name}? · ${subject}`;
+  }
+  const rest = parts.join(" · ");
+  if (!rest) return desk.status === "draft" ? "Approve the bot's draft?" : "The bot needs your answer";
+  return desk.status === "draft" ? `Approve ${lowerFirst(rest)}?` : `${rest} · needs your answer`;
 }
 
 export function needsCount(bot: BotTasksBot): number {

@@ -4,19 +4,52 @@ const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit)\\s+${HASH}\\b`, "g");
 const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
 const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
+const REPO_MERGE_REQUEST = /\b[a-z][\w-]*!(\d+)\b/gi;
+
 export function plainNote(text: string): string {
   return text
+    .replace(REPO_MERGE_REQUEST, "merge request $1")
     .replace(TECHNICAL_ID, "")
     .replace(COMMENT_ID, "")
     .replace(HASH_AT, "")
     .replace(HASH_ALONE, "")
     .replace(/\bonto (?:master|main)\b/g, "onto the main branch")
+    .replace(/\b(into|on|to|from|against) (?:the )?master\b/g, "$1 the main branch")
     .replace(/\(\s*[,;]\s*/g, "(")
     .replace(/\s*[,;]\s*\)/g, ")")
     .replace(/\(\s*\)/g, "")
     .replace(/\s+([,;:.)])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+const ROUTING_WORDS = /\b(?:model|profile|capacity|quota|spawn|eligible|route|routing|slot|downgrade|rate limit|account pool)\b/i;
+
+export function plainQueue(line: string): string {
+  const queued = /^Queued\b\s*[:·-]?\s*(.*)$/i.exec(line.trim());
+  if (!queued) return line;
+  const [reason = "", ...tail] = queued[1]!.split(" · ");
+  const retry = tail.filter(part => /^retry\b/i.test(part)).join(" · ");
+  const rest = tail.filter(part => !/^retry\b/i.test(part));
+  if (reason && !ROUTING_WORDS.test(reason)) return line;
+  const why = /\bbrowser\b/i.test(reason) ? "Waiting for a free browser worker" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Waiting for its machine" : "Waiting for a free worker";
+  return [why, retry, ...rest].filter(Boolean).join(" · ");
+}
+
+const SOURCE_CUT = 170;
+
+export function cutAtWord(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const clipped = /(?:\u2026|\.\.\.)$/.test(flat);
+  const body = flat.replace(/(?:\u2026|\.\.\.)$/, "").trimEnd();
+  if (!clipped && body.length <= max) return body;
+  let cut = body.length <= max ? body : body.slice(0, max + 1);
+  const tail = /\S+$/.exec(cut)?.[0] ?? "";
+  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z])$/i.test(tail);
+  const space = cut.lastIndexOf(" ");
+  if (partial) cut = space > 0 ? cut.slice(0, space) : cut.slice(0, max);
+  const kept = cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");
+  return `${kept || cut}\u2026`;
 }
 
 const MARKDOWN = [
@@ -128,7 +161,13 @@ const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?
 const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b(?:\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))?/g;
 const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
 
-export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined): string {
+export interface AskParts { head: string; quote: string; full: string }
+
+function cleanAsk(text: string): string {
+  return plainNote(plainMarkdown(text.replace(RELAYED_WORDS, "")).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+}
+
+export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined): AskParts {
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
   const asker = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
@@ -138,8 +177,16 @@ export function askLine(ask: { excerpt: string; label: string; at?: number }, no
   const via = relayed && asker ? ` via ${asker}` : "";
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const excerpt = plainNote(plainMarkdown(bare.replace(RELAYED_WORDS, "")).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
-  return excerpt ? `${who} ${when}${via}: \u201c${excerpt}\u201d` : `${who} ${when}${via}`;
+  const quote = cleanAsk(bare);
+  const full = ask.full ? cleanAsk(ask.full.replace(ASKER, "")) : quote;
+  return { head: `${who} ${when}${via}`, quote, full: /(?:\u2026|\.\.\.)$/.test(full) ? cutAtWord(full, full.length) : full };
+}
+
+export const ASK_PREVIEW = 84;
+
+export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW): string {
+  const { head, quote } = askParts(ask, now, askerOf);
+  return quote ? `${head}: \u201c${cutAtWord(quote, max)}\u201d` : head;
 }
 
 const CARD_RANK: Record<string, number> = { needs: 0, overdue: 1, offline: 1, retrying: 1, working: 2, queued: 3, checking: 3 };
