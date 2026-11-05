@@ -433,7 +433,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-more:focus-visible { outline: none; }
 .stage-needs-more:focus-visible .stage-needs-more-pill { outline: 2px solid var(--ring); outline-offset: 0; }
 .stage-needs ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.stage-needs[data-open] ul { max-height: min(32vh, 290px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.stage-needs[data-open] ul { max-height: min(24vh, 220px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .stage-needs li { position: relative; border-radius: 9px; user-select: none; -webkit-touch-callout: none; }
 .stage-needs li[data-current] { background: color-mix(in oklab, var(--stage-ask-fill) 20%, transparent); box-shadow: inset 3px 0 0 var(--stage-selection); }
 .stage-needs-item:active { background: color-mix(in oklab, var(--stage-ask-fill) 24%, transparent); }
