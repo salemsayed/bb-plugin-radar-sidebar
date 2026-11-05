@@ -218,14 +218,14 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
-  const asker = named && named !== own ? named : undefined;
+  const asker = named && named !== own ? named : named ? "Its own chat" : found?.[1] ? "Another chat" : undefined;
   const bare = ask.excerpt.replace(ASKER, "");
   const relayed = RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare);
   const mine = relayed || label !== "Bot request";
   const kind: AskParts["kind"] = mine ? "yours" : askKind(bare);
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const via = relayed && named ? ` via ${named}` : "";
+  const via = relayed && named && named !== own ? ` via ${named}` : "";
   const who = relayed ? "You asked" : kind === "note" ? `${asker ? `Note from ${asker}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${asker}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
   const source = relayed ? relayedQuote(bare) : bare;
   const quoteShown = WAKE_ONLY.test(bare) ? { text: "", cut: false } : cleanAsk(source, mine);

@@ -24,11 +24,16 @@ const PATH = /(?:~|\/(?:home|Users|root|tmp|var|etc|opt|srv|mnt))(?:\/[\w.@%+-]+
 const PATH_ASIDE = /\s*\((?:[^()]*?\s)?(?:~|\/(?:home|Users|root|tmp|var|etc|opt|srv|mnt))\/[^()]*\)/g;
 const URL = /\bhttps?:\/\/([\w.-]+)(?:\/[^\s)"”]*)?/g;
 
-const CLI_ASIDE = /\s*\((?:[^()]*?,\s*)?bb [a-z][\w-]*(?: [a-z][\w-]*){0,3}(?:,[^()]*)?\)/g;
-const CLI_VIA = /\s*\b(?:through|via|with|using|by running) bb [a-z][\w-]*(?: [a-z][\w-]*){0,3}\b/g;
+const BB_COMMAND = "bb (?:saelmbot|bot-automation|thread|plugin|memory|secret|secrets|browser-automation|own-chrome|voice|connect|guide|status|pool|composer-predictions)(?: [a-z][\\w-]*){0,3}";
+const CLI_ASIDE = new RegExp(`\\s*\\((?:[^()]*?,\\s*)?${BB_COMMAND}(?:,[^()]*)?\\)`, "g");
+const CLI_VIA = new RegExp(`\\s*\\b(?:through|via|with|using|by running) ${BB_COMMAND}\\b`, "g");
+const CLI_ALONE = new RegExp(`\\b${BB_COMMAND}\\b`, "g");
+const AUTOMATION_NAMED = /\bauto_[\w-]{6,}\s*\(([^()]{3,40})\)/g;
 const AUTOMATION_AFTER_NOUN = /(\b(?:job|watcher|automation|watch|run|check|schedule)) auto_[\w-]{6,}\b/gi;
+const LONG_ID = /\s*\b(?:(?:msg|message|conversation|id|ref)\s+)?(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{20,}\b/g;
 const AUTOMATION_ALONE = /\bauto_[\w-]{6,}\b/g;
 const THREAD_MENTION = /(?:\s+(?:on|in|at|from|see))?\s*@thread:\S*/g;
+const THREAD_OBJECT = /@thread:\S+(?=\s+thread\b)/g;
 
 export interface Shown { text: string; cut: boolean }
 
@@ -43,7 +48,8 @@ function tidy(text: string): string {
     .replace(/\(\s*[,;:]\s*/g, "(")
     .replace(/\s*[,;:]\s*\)/g, ")")
     .replace(/\(\s*\)/g, "")
-    .replace(/\s+([,;:.!?)])/g, "$1")
+    .replace(/\s+([,;:.)])/g, "$1")
+    .replace(/\s+([!?])(?=$|["\u201d\u2019)])/g, "$1")
     .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
     .replace(/:\s*([.;])/g, "$1")
     .replace(/(^|[.!?]\s+)[,;:]\s*/g, "$1")
@@ -66,10 +72,14 @@ function machine(text: string): Shown {
       return path.endsWith("/") ? `the ${last} folder` : last;
     })
     .replace(URL, (_, host: string) => host.replace(/^www\./, ""))
+    .replace(THREAD_OBJECT, "the linked")
     .replace(THREAD_MENTION, "")
     .replace(CLI_ASIDE, "")
     .replace(CLI_VIA, "")
+    .replace(CLI_ALONE, "")
+    .replace(AUTOMATION_NAMED, "the $1")
     .replace(AUTOMATION_AFTER_NOUN, "$1")
+    .replace(LONG_ID, "")
     .replace(AUTOMATION_ALONE, "its scheduled job")
     .replace(/>=\s*/g, "≥")
     .replace(/<=\s*/g, "≤");
@@ -95,7 +105,7 @@ export function withoutModels(text: string): string {
   if (lead) out = `${lead[1] ? `${lead[1][0]!.toUpperCase()}${lead[1].slice(1).toLowerCase()}: ` : ""}${out.slice(lead[0].length)}`;
   out = out
     .replace(MODEL_ROUTE, "")
-    .replace(MODEL_ROLE, (_, article: string | undefined, _effort: string | undefined, at: number) => article ? `${article[0] === "A" ? "A" : "a"} ` : at === 0 ? "A " : "")
+    .replace(MODEL_ROLE, (_, article: string | undefined, _effort: string | undefined, at: number) => article ? `${article[0] === "A" ? "A" : "a"} ` : "")
     .replace(MODEL_EFFORT, "")
     .replace(MODEL_NOUN, "");
   out = out.split(/(?<=[.!?])\s+/).map(sentence => {
@@ -154,10 +164,14 @@ export function askKind(text: string): AskKind {
 
 const NUMBER_TAIL = /[\d.,]$/;
 
+const CUT_TAIL = /(?:^|\s)(?:the|a|an|of|to|for|with|through|whether|that|on|in|at|by|from|and|or|\d[\d.,]*)$/i;
+const CLAUSE_WORD = /\s(?:whether|that|has|have|had|is|are|was|were|skips|waits|keeps|gets|can|will|does)\s/i;
+
 export function wholeTitle(title: string, outcome: string | undefined, max = 64): string {
   const head = title.trim();
   const full = (outcome ?? "").trim();
   if (!full || full.length <= head.length || !full.startsWith(head)) return head;
+  if (!CUT_TAIL.test(head) && !CLAUSE_WORD.test(` ${head} `)) return head;
   const next = full[head.length]!;
   if (NUMBER_TAIL.test(head) && /[\d.,]/.test(next)) {
     const token = /^[\d.,]+\d/.exec(full.slice(head.length))?.[0] ?? "";

@@ -370,13 +370,17 @@ function workerNames(attempts: readonly Attempt[]): Map<string, string> {
   for (const name of base.values()) count.set(name, (count.get(name) ?? 0) + 1);
   const seen = new Map<string, number>();
   const names = new Map<string, string>();
+  const clock = (a: Attempt) => a.startedAt != null ? clockFormatter.format(new Date(a.startedAt)) : "";
+  const starts = new Map<string, Set<string>>();
+  for (const a of attempts) { const name = base.get(a.threadId)!; starts.set(name, (starts.get(name) ?? new Set()).add(clock(a))); }
   for (const a of [...attempts].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) {
     const name = base.get(a.threadId)!;
-    if ((count.get(name) ?? 0) < 2) { names.set(a.threadId, name); continue; }
+    const total = count.get(name) ?? 0;
+    if (total < 2) { names.set(a.threadId, name); continue; }
     const n = (seen.get(name) ?? 0) + 1;
     seen.set(name, n);
-    const started = a.startedAt != null ? clockFormatter.format(new Date(a.startedAt)) : "";
-    names.set(a.threadId, `${name} (${n} of ${count.get(name)}${started ? `, started ${started}` : ""})`);
+    const started = starts.get(name)!.size === total ? clock(a) : "";
+    names.set(a.threadId, started ? `${name}, started ${started}` : `${name} (${n} of ${total})`);
   }
   return names;
 }
@@ -454,9 +458,24 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
   const busy = (snapshot.byBot[bot.key]?.length ?? 0) > 0 || chatting || tasks.some(t => ["working", "queued"].includes(t.displayState));
   const currentDeskId = activeThreadId ? needDesks.find(desk => desk.threadId === activeThreadId)?.id : undefined;
   const currentTaskId = activeThreadId ? [...asks, ...others, ...recent].find(t => t.conversationThreadId === activeThreadId)?.id : undefined;
+  const titleOf = (task: BotTaskRow) => stageTitle(task.title, task.outcome);
+  const sameLook = new Map<string, number>();
+  for (const task of [...tasks, ...recent]) { const key = `${titleOf(task)}\n${taskStatus(task, now)}`; sameLook.set(key, (sameLook.get(key) ?? 0) + 1); }
+  const lookSeen = new Map<string, number>();
+  const shownTitle = (task: BotTaskRow) => {
+    const name = titleOf(task);
+    const key = `${name}\n${taskStatus(task, now)}`;
+    const total = sameLook.get(key) ?? 1;
+    if (total < 2) return name;
+    const goal = task.outcome ? stageTitle(task.outcome) : "";
+    if (goal && goal !== name && goal.toLowerCase().startsWith(name.toLowerCase()) && goal.length <= 70) return goal;
+    const n = (lookSeen.get(key) ?? 0) + 1;
+    lookSeen.set(key, n);
+    return `${name} (${n} of ${total})`;
+  };
   const taskRow = (task: BotTaskRow) => {
     const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : stateTone(task.displayState);
-    const name = stageTitle(task.title, task.outcome);
+    const name = shownTitle(task);
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now);
