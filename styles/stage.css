@@ -145,7 +145,7 @@
   .stage-chat { height: 64px; padding-inline-end: var(--stage-aside); }
   .stage-more { opacity: 1; align-self: center; width: 44px; height: 44px; margin: 0; box-shadow: none; background: transparent; }
   .stage-row:is(:hover, [data-hover], :focus-within, [data-current]) .stage-head > :is(.stage-time, .stage-unread-dot, .stage-needs-badge) { visibility: visible; }
-  .stage-line { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+  .stage-row .stage-line { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
   .stage-copy { gap: 1px; }
 }
 .stage-figure { position: relative; flex: none; display: grid; place-items: center; width: 50px; }

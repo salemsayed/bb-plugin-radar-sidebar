@@ -21,13 +21,14 @@ type Place =
   | null;
 
 function hiddenNow(element: HTMLElement): boolean {
+  if (element.closest("[inert]")) return true;
   const box = element.getBoundingClientRect();
   if (box.width < 1 || box.right <= 0 || box.left >= window.innerWidth) return true;
   return getComputedStyle(element).visibility === "hidden";
 }
 
 function visible(element: Element | null): element is HTMLElement {
-  if (!(element instanceof HTMLElement)) return false;
+  if (!(element instanceof HTMLElement) || element.closest("[inert]")) return false;
   const box = element.getBoundingClientRect();
   return box.width > 0 && box.height > 0 && box.right > 0 && box.left < window.innerWidth;
 }
