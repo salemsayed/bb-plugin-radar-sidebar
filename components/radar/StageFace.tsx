@@ -135,7 +135,9 @@ function props(pose: StagePose, p: Palette, [ax1, ax2, ay]: [number, number, num
   return { arms: <>{left}{right}</>, before, after };
 }
 
-export function StageFace({ botKey, name, pose, size = 88 }: { botKey: string; name: string; pose: StagePose; size?: number }) {
+const BARE_POSES: ReadonlySet<StagePose> = new Set(["asking", "unread"]);
+
+export function StageFace({ botKey, name, pose, size = 88, bare = false }: { botKey: string; name: string; pose: StagePose; size?: number; bare?: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const { mascot, hue } = botStyle(botKey, name);
   const grey = pose === "offline";
@@ -144,7 +146,9 @@ export function StageFace({ botKey, name, pose, size = 88 }: { botKey: string; n
   const arms = mascot ? ARMS[mascot] : [7.4, 36.6, 26] as [number, number, number];
   const [cx, cy, rx, ry] = body.box;
   const fill = `stage-fill-${id}`, clip = `stage-clip-${id}`;
-  const { arms: limbs, before, after } = props(pose, palette, arms);
+  const drawn = props(pose, palette, arms);
+  const { arms: limbs, before } = drawn;
+  const after = bare && BARE_POSES.has(pose) ? null : drawn.after;
   return (
     <svg className="stage-face" data-pose={pose} data-mascot={mascot ?? "letter"} width={size} height={size * 46 / 48} viewBox="-2 0 48 46" aria-hidden="true" focusable="false" opacity={grey ? 0.8 : undefined}>
       <defs>

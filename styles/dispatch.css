@@ -4,7 +4,7 @@
 .dispatch-tally { font-size: 13px; line-height: 1.6; margin: 6px 0 0; color: var(--muted-foreground); }
 .dispatch section { margin-top: 18px; }
 .dispatch-heading { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
-.dispatch-heading h3 { font: italic 16px Georgia, 'Times New Roman', serif; margin: 0; }
+.dispatch-heading h3 { font-family: inherit; font-style: normal; font-size: 13px; font-weight: 650; line-height: 1.3; letter-spacing: 0; margin: 0; }
 .dispatch-heading>span { font-size: 12px; color: var(--muted-foreground); }
 .dispatch-row { display: grid; grid-template-columns: minmax(0,1fr) 64px; border-bottom: 1px solid var(--border); user-select: none; -webkit-touch-callout: none; }
 .dispatch-ask { background: color-mix(in oklab, var(--attention) 10%, transparent); border-radius: 14px; margin-top: 6px; border: 0; }
@@ -18,7 +18,7 @@
 .dispatch-top { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted-foreground); }
 .dispatch-top b { font-size: 15px; font-weight: 600; color: var(--foreground); }
 .dispatch-line { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dispatch-quote { font: 17px/1.25 Georgia, 'Times New Roman', serif; overflow-wrap: anywhere; }
+.dispatch-quote { font-family: inherit; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
 .dispatch-sub { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
 .dispatch-status { color: var(--destructive-text, var(--destructive)); }
 .dispatch-model { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: 12px; overflow-wrap: anywhere; }
@@ -72,11 +72,11 @@
 .dispatch-panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 4px 16px 20px; }
 .dispatch-section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 20px 2px 10px; }
 .dispatch-panel-body>.dispatch-section-head:first-child,.dispatch-block-card+.dispatch-section-head { margin-top: 12px; }
-.dispatch-section-head h3 { font: italic 17px Georgia, 'Times New Roman', serif; margin: 0; }
+.dispatch-section-head h3 { font-family: inherit; font-style: normal; font-size: 13px; font-weight: 650; line-height: 1.3; letter-spacing: 0; margin: 0; }
 .dispatch-section-head>span { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .dispatch-ask-card,.dispatch-block-card { border-radius: 14px; padding: 12px 14px; margin: 12px 0; background: color-mix(in oklab, var(--attention) 10%, transparent); }
 .dispatch-ask-card>span { color: var(--warning-text); font-size: 12px; }
-.dispatch-ask-card .dispatch-question { font: 20px/1.3 Georgia, serif; margin: 8px 0; padding: 0; border: 0; border-radius: 0; display: block; width: 100%; }
+.dispatch-ask-card .dispatch-question { font-family: inherit; font-size: 16px; line-height: 1.35; margin: 8px 0; padding: 0; border: 0; border-radius: 0; display: block; width: 100%; }
 .dispatch-ask-card button { border: 1px solid var(--border); border-radius: 22px; padding: 0 14px; margin-inline-end: 6px; }
 .dispatch-block-card { background: color-mix(in oklab, var(--tone-blocked) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tone-blocked) 22%, transparent); }
 .dispatch-block-card b { color: var(--tone-blocked); font-weight: 600; }

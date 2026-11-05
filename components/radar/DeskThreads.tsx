@@ -3,7 +3,7 @@ import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
 import { elapsed } from "./DispatchBoard";
 
 const DAY_MS = 86_400_000;
-const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "draft for your go", blocked: "needs your answer", working: "working", info: "for your info", done: "done", deferred: "waiting for capacity" };
+const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
   const need = desks.filter(needsYou).length;

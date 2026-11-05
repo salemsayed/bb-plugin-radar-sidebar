@@ -72,7 +72,7 @@ export function deskTitle(desk: Pick<BotDesk, "label" | "title">): string {
   const title = cleanDeskText(desk.title);
   if (!title) return label;
   if (!label || title.toLowerCase().startsWith(label.toLowerCase())) return title;
-  return `${label} · ${title}`;
+  return `${label}${title.startsWith("#") ? " " : " · "}${title}`;
 }
 
 const count = z.number().int().nonnegative().default(0);

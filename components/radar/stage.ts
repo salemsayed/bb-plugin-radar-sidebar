@@ -57,7 +57,11 @@ export function stageText(text: string): string {
   return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 ")));
 }
 
+const MERGE_REQUEST = /^([a-z][\w-]*)!(\d+)$/i;
+
 export function stageTitle(raw: string): string {
+  const request = MERGE_REQUEST.exec(raw.trim());
+  if (request) return `Merge request ${request[2]} in ${request[1]}`;
   return plainNote(secondPerson(flatten(taskHeadline(raw)).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you")));
 }
 
@@ -72,8 +76,8 @@ export function nextCheck(at: number, now: number): string {
   const days = Math.round((day(at) - day(now)) / 86_400_000);
   const time = clockFormatter.format(new Date(at));
   if (days === 0) return `Next check ${time}`;
-  if (days === 1) return `Next check ${time} tomorrow`;
-  if (days < 7) return `Next check ${time} ${clearsWeekdayFormatter.format(new Date(at))}`;
+  if (days === 1) return `Next check tomorrow ${time}`;
+  if (days < 7) return `Next check ${clearsWeekdayFormatter.format(new Date(at))} ${time}`;
   return `Next check ${when}`;
 }
 
@@ -110,7 +114,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     const why = blocked.displayState === "overdue" ? "missed its check" : "keeps failing";
     return { pose: "blocked", line: `${stageTitle(blocked.title)} ${why}`, extra: retry, tone: "blocked", quiet: false };
   }
-  if (ctx.unread) return { pose: "unread", line: "New reply for you", extra: "", tone: "news", quiet: false };
+  if (ctx.unread) return { pose: "unread", line: "New reply", extra: "", tone: "news", quiet: false };
   const offline = open.find(task => task.displayState === "offline");
   const working = open.filter(task => task.displayState === "working" || task.displayState === "queued");
   if (offline && !working.length && !ctx.running) {
@@ -148,7 +152,7 @@ export type RowKind = "ask" | "live" | "calm";
 export type RowBadge = "ask" | "wait" | "unread" | "blocked" | null;
 
 export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title">): string {
-  return `${desk.status === "draft" ? "Your go" : "Your answer"}: ${plainNote(deskTitle(desk))}`;
+  return `${desk.status === "draft" ? "Go-ahead needed" : "Answer needed"}: ${plainNote(deskTitle(desk))}`;
 }
 
 export function needsCount(bot: BotTasksBot): number {

@@ -34,12 +34,16 @@ export function youWords(text: string): string {
 const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
+const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?\s*:\s*["\u201c]?/i;
+const INTERNAL_REF = /\s*\(?(?:\bthr_[a-z0-9]+\s+(?:seq|msg)\s*#?\d+(?:\/\d+)?|\b(?:seq|msg)\s*#?\d+(?:\/\d+)?\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))\)?/g;
+
 export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number): string {
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
-  const who = label === "Bot request" ? "A bot asked" : label;
+  const relayed = RELAYED_WORDS.exec(ask.excerpt);
+  const who = relayed ? "You asked" : label === "Bot request" ? "A bot asked" : label;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const excerpt = plainNote(ask.excerpt.replace(/^\s*\[bb message from thread:[^\]]*\]?\s*/i, "").replace(/^\s*\S*\s*[\w ]{1,30}? asks:\s*/u, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+  const excerpt = plainNote(ask.excerpt.replace(RELAYED_WORDS, "").replace(INTERNAL_REF, "").replace(/^\s*\[bb message from thread:[^\]]*\]?\s*/i, "").replace(/^\s*\S*\s*[\w ]{1,30}? asks:\s*/u, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
   return excerpt ? `${who} ${when}: \u201c${excerpt}\u201d` : `${who} ${when}`;
 }
 
