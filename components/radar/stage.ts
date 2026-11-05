@@ -53,6 +53,20 @@ function flatten(text: string): string {
     .replace(/[,;:]?\s*\b(?:see|on|in|at|from)\s*$/i, "");
 }
 
+const ASK_CLAUSE = /\?|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b/i;
+const ASK_LONG = 80;
+
+export function askFirst(text: string): string {
+  if (text.length <= ASK_LONG) return text;
+  const parts = text.split(/(?<=[.;!?])\s+|,\s+(?=so\s)/i).map(part => part.trim()).filter(Boolean);
+  let at = -1;
+  for (let i = parts.length - 1; i >= 0; i--) if (ASK_CLAUSE.test(parts[i]!)) { at = i; break; }
+  if (at <= 0) return text;
+  const lead = parts[at]!.replace(/^so\s+/i, "").replace(/[.;,]\s*$/, "");
+  const rest = parts.filter((_, i) => i !== at).join(" ").replace(/[;,]\s*$/, "");
+  return `${lead[0]!.toUpperCase()}${lead.slice(1)} · ${rest}`;
+}
+
 export function stageText(text: string): string {
   return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 ")));
 }
@@ -101,7 +115,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const needs = open.filter(task => task.displayState === "needs");
   if (needs.length) {
     const first = needs[0]!;
-    const question = stageText(first.needs?.question || first.line || first.title);
+    const question = askFirst(stageText(first.needs?.question || first.line || first.title));
     return { pose: "asking", line: question || "Has a question for you", extra: needs.length > 1 ? `${needs.length} questions for you` : "", tone: "ask", quiet: false };
   }
   const desks = sortDesks(bot.desks.filter(needsYou));

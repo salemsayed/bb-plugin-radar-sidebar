@@ -67,8 +67,18 @@ export function splitStatus(status: string): { state: string; meta: string; note
   return { state, meta: meta.join(" · "), note: note.join(" · ") };
 }
 
+const YOU_VERBS: Record<string, string> = { is: "are", was: "were", has: "have", does: "do", says: "say", goes: "go" };
+const NOT_VERBS = new Set(["always", "sometimes", "perhaps", "thus", "plus", "unless", "across", "towards", "besides", "this", "its", "his", "as", "us", "yes", "less"]);
+
+function youVerb(word: string): string {
+  const lower = word.toLowerCase();
+  if (YOU_VERBS[lower]) return YOU_VERBS[lower]!;
+  if (NOT_VERBS.has(lower) || word.length <= 3 || !/[^s]s$/.test(lower) || /[A-Z]/.test(word)) return word;
+  return /(?:ss|sh|ch|x|o)es$/.test(lower) ? word.slice(0, -2) : /ies$/.test(lower) ? `${word.slice(0, -3)}y` : word.slice(0, -1);
+}
+
 export function youWords(text: string): string {
-  const out = text.replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
+  const out = text.replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)(?:(\s+)([A-Za-z]+)\b)?/g, (_, gap?: string, word?: string) => word ? `you${gap}${youVerb(word)}` : "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
   return out ? out[0]!.toUpperCase() + out.slice(1) : out;
 }
 

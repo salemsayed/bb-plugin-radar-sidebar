@@ -18,7 +18,7 @@ import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
-import { needsCount, rowLook, stageText, stageTitle, type RowLook } from "./stage";
+import { askFirst, needsCount, rowLook, stageText, stageTitle, type RowLook } from "./stage";
 import type { BotTasksState } from "./useBotTasks";
 
 export function dispatchModel(model: string) {
@@ -62,7 +62,7 @@ const CHECKING = /not checked|checks needed|check failed|hasn't (?:checked|close
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): string {
   const state = task.displayState;
   if (state === "needs") {
-    const ask = stageText(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, "");
+    const ask = askFirst(stageText(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, ""));
     return ask ? `Waiting on you: ${ask}` : "Waiting on you";
   }
   if (state === "working" || state === "retrying" && running.length) {

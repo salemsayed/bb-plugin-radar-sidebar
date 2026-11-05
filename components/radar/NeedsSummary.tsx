@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
 import { Icon } from "@/components/ui/icon";
-import { deskNeedLine, since, stageText } from "./stage";
+import { askFirst, deskNeedLine, since, stageText } from "./stage";
 import { BotTaskFace } from "./BotsView";
 
 export interface NeedItem {
@@ -19,7 +19,7 @@ export function needItems(data: BotTasksData): NeedItem[] {
   const items: NeedItem[] = [];
   for (const bot of orderedBots(data)) {
     for (const task of bot.tasks.filter(task => task.displayState === "needs")) {
-      const question = stageText(task.needs?.question || task.line || task.title);
+      const question = askFirst(stageText(task.needs?.question || task.line || task.title));
       items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: question || "Has a question for you", kind: "ask",
         at: task.observedAt !== undefined ? task.observedAt - task.ageMs : undefined,
         threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId });
