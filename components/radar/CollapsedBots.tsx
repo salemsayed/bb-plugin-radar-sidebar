@@ -135,15 +135,15 @@ function useOwnInert(root: RefObject<HTMLElement | null>, on: boolean) {
   }, [root, on]);
 }
 
-function useDescribedToggle(id: string, on: boolean) {
+function useNamedToggle(label: string) {
   useEffect(() => {
-    if (!on) return;
+    if (!label) return;
     const toggle = document.querySelector<HTMLElement>(TOGGLE);
-    if (!toggle) return;
-    const before = toggle.getAttribute("aria-describedby");
-    toggle.setAttribute("aria-describedby", [before, id].filter(Boolean).join(" "));
-    return () => { if (before) toggle.setAttribute("aria-describedby", before); else toggle.removeAttribute("aria-describedby"); };
-  }, [id, on]);
+    const before = toggle?.getAttribute("aria-label");
+    if (!toggle || !before) return;
+    toggle.setAttribute("aria-label", `${before}, ${label}`);
+    return () => { toggle.setAttribute("aria-label", before); };
+  }, [label]);
 }
 
 interface Tip { top: number; left: number; title: string; lines: string[] }
@@ -174,14 +174,14 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
   useOwnInert(root, place?.kind === "rail");
   const needs = bots.reduce((sum, bot) => sum + bot.needs, 0);
   const unread = bots.filter(bot => bot.unread).length;
-  useDescribedToggle(badgeId, place?.kind === "toggle" && (needs > 0 || unread > 0));
+  const badgeLabel = [needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "", unread ? `${unread} new ${unread === 1 ? "reply" : "replies"}` : ""].filter(Boolean).join(", ");
+  useNamedToggle(place?.kind === "toggle" ? badgeLabel : "");
   const roving = useRoving(list, { item: ".radar-rail-bot, .radar-rail-threads", row: ".radar-rail-bot, .radar-rail-threads", preferred: bots.find(bot => bot.current)?.key ?? null });
   useEffect(() => { if (!place) setTip(null); }, [place]);
   if (!place) return null;
   if (place.kind === "toggle") {
     if (!needs && !unread) return null;
-    const label = [needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "", unread ? `${unread} new ${unread === 1 ? "reply" : "replies"}` : ""].filter(Boolean).join(", ");
-    return createPortal(<span id={badgeId} className="radar-toggle-badge" data-bb-plugin={scope} data-tone={needs ? "needs" : "unread"} role="status" aria-label={`Bots: ${label}`}
+    return createPortal(<span id={badgeId} className="radar-toggle-badge" data-bb-plugin={scope} data-tone={needs ? "needs" : "unread"} aria-hidden="true"
       style={{ left: place.x - 12, top: place.y - 4 } as CSSProperties}>{needs ? needs : ""}</span>, document.body);
   }
   const show = (element: HTMLElement, title: string, lines: string[]) => {

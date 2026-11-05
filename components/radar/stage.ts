@@ -1,6 +1,6 @@
 import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
-import { plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
+import { capitalFirst, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 
 export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
@@ -8,6 +8,7 @@ export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
 export interface StageLook {
   pose: StagePose;
   line: string;
+  ask?: string;
   extra: string;
   tone: StageTone;
   quiet: boolean;
@@ -20,6 +21,7 @@ export interface StageContext {
   chatting: boolean;
   unread: boolean;
   now: number;
+  lastReply?: number;
 }
 
 const BLOCKED = new Set(["overdue", "retrying"]);
@@ -53,18 +55,31 @@ function flatten(text: string): string {
     .replace(/[,;:]?\s*\b(?:see|on|in|at|from)\s*$/i, "");
 }
 
-const ASK_CLAUSE = /\?|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b/i;
+const ASK_CLAUSE = /\?|^you\b|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b/i;
 const ASK_LONG = 80;
+const DECIDE = /^you (?:decide|choose|pick|say|tell me|confirm) (?:whether|if) (?:to )?(.+)$/i;
+const YOU_ACT = /^you (?:can |could |should |need to |may )?((?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|wait)\b.*)$/i;
+const DANGLING = /\b(?:it|them|this|that|these|those)\b/i;
 
-export function askFirst(text: string): string {
-  if (text.length <= ASK_LONG) return text;
+function decisionLead(clause: string): string {
+  const bare = clause.replace(/^so\s+/i, "").replace(/[.;,]\s*$/, "").trim();
+  const decide = DECIDE.exec(bare) ?? YOU_ACT.exec(bare);
+  if (!decide) return capitalFirst(bare);
+  const lead = decide[1]!.trim();
+  return `${capitalFirst(lead)}${/[?!]$/.test(lead) ? "" : "?"}`;
+}
+
+export function askFirst(text: string, title = ""): string {
   const parts = text.split(/(?<=[.;!?])\s+|,\s+(?=so\s)/i).map(part => part.trim()).filter(Boolean);
   let at = -1;
-  for (let i = parts.length - 1; i >= 0; i--) if (ASK_CLAUSE.test(parts[i]!)) { at = i; break; }
-  if (at <= 0) return text;
-  const lead = parts[at]!.replace(/^so\s+/i, "").replace(/[.;,]\s*$/, "");
-  const rest = parts.filter((_, i) => i !== at).join(" ").replace(/[;,]\s*$/, "");
-  return `${lead[0]!.toUpperCase()}${lead.slice(1)} · ${rest}`;
+  for (let i = parts.length - 1; i >= 0; i--) if (ASK_CLAUSE.test(parts[i]!.replace(/^so\s+/i, ""))) { at = i; break; }
+  if (at < 0) return text;
+  if (at === 0 && text.length <= ASK_LONG && !DECIDE.test(parts[0]!) && !YOU_ACT.test(parts[0]!)) return text;
+  let lead = decisionLead(parts[at]!);
+  const head = title.trim();
+  if (head && DANGLING.test(lead) && !lead.toLowerCase().includes(head.toLowerCase())) lead = `${head}: ${lead[0]!.toLowerCase()}${lead.slice(1)}`;
+  const rest = parts.filter((_, i) => i !== at).reduce((out, part) => !out ? part : /^so\s/i.test(part) ? `${out.replace(/[.;]$/, "")}, ${part}` : `${out} ${part}`, "").replace(/[;,]\s*$/, "");
+  return rest ? `${lead} · ${rest}` : lead;
 }
 
 export function stageText(text: string): string {
@@ -113,14 +128,11 @@ function notStarted(task: BotTaskRow): boolean {
 export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const open = bot.tasks.filter(task => !isClosed(task.displayState));
   const needs = open.filter(task => task.displayState === "needs");
-  if (needs.length) {
-    const first = needs[0]!;
-    const question = askFirst(stageText(first.needs?.question || first.line || first.title));
-    return { pose: "asking", line: question || "Has a question for you", extra: needs.length > 1 ? `${needs.length} questions for you` : "", tone: "ask", quiet: false };
-  }
   const desks = sortDesks(bot.desks.filter(needsYou));
-  if (desks.length) {
-    return { pose: "asking", line: deskNeedLine(desks[0]!), extra: desks.length > 1 ? `${desks.length} desks need you` : "", tone: "ask", quiet: false };
+  if (needs.length || desks.length) {
+    const first = needs[0];
+    const ask = first ? askFirst(stageText(first.needs?.question || first.line || first.title), stageTitle(first.title)) || "Has a question for you" : deskNeedLine(desks[0]!);
+    return { pose: "asking", line: `Waiting on you · ${needs.length + desks.length}`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {
@@ -176,6 +188,7 @@ export interface RowLook extends StageLook {
   kind: RowKind;
   badge: RowBadge;
   time: string;
+  timeTitle?: string;
   helpers: number;
 }
 
@@ -192,20 +205,25 @@ function lastActivity(bot: BotTasksBot): number | undefined {
   return times.length ? Math.max(...times) : undefined;
 }
 
+const replyClock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const replyDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+function replyTime(bot: BotTasksBot, ctx: StageContext): Pick<RowLook, "time" | "timeTitle"> {
+  const at = ctx.lastReply ?? lastActivity(bot);
+  if (at === undefined) return { time: "" };
+  const title = `${ctx.lastReply !== undefined ? "Last reply" : "Last activity"} ${isSameLocalDay(at, ctx.now) ? replyClock.format(new Date(at)) : replyDay.format(new Date(at))}`;
+  return { time: since(at, ctx.now), timeTitle: title };
+}
+
 export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   const look = stageLook(bot, ctx);
   const helpers = ctx.running;
-  if (look.pose === "asking") {
-    const first = bot.tasks.find(task => task.displayState === "needs");
-    const desk = sortDesks(bot.desks.filter(needsYou))[0];
-    const asked = first?.observedAt !== undefined ? first.observedAt - first.ageMs : desk?.updatedAt;
-    return { ...look, kind: "ask", badge: "ask", time: asked !== undefined ? since(asked, ctx.now) : "", helpers };
-  }
-  if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", time: "", helpers };
+  const when = replyTime(bot, ctx);
+  if (look.pose === "asking") return { ...look, kind: "ask", badge: "ask", ...when, helpers };
+  if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", ...when, helpers };
   if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
-  if (look.pose === "offline") return { ...look, kind: "calm", badge: null, time: "", helpers };
-  if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", time: "", helpers };
-  const last = lastActivity(bot);
-  if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", time: last !== undefined ? since(last, ctx.now) : "", helpers };
-  return { ...look, kind: "calm", badge: null, time: last !== undefined ? since(last, ctx.now) : "", helpers };
+  if (look.pose === "offline") return { ...look, kind: "calm", badge: null, ...when, helpers };
+  if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", ...when, helpers };
+  if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", ...when, helpers };
+  return { ...look, kind: "calm", badge: null, ...when, helpers };
 }

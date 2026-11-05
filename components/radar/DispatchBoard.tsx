@@ -63,7 +63,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   const state = task.displayState;
   if (state === "needs") {
     const ask = askFirst(stageText(task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, ""));
-    return ask ? `Waiting on you: ${ask}` : "Waiting on you";
+    return ask || "Waiting on you";
   }
   if (state === "working" || state === "retrying" && running.length) {
     const first = [...running].sort((a, b) => (a.startedAt ?? now) - (b.startedAt ?? now))[0];
@@ -75,7 +75,8 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
     const when = checksLine(task.wakeAt, now);
     const line = when.startsWith("next check ") ? `Next check ${when.slice(11)}` : `Check ${when}`;
     if (task.waitFor !== "someone else") return line;
-    return `${waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else"} · ${line[0]!.toLowerCase()}${line.slice(1)}`;
+    const who = waitingOn(task.line, task.outcome);
+    return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · ${line[0]!.toLowerCase()}${line.slice(1)}`;
   }
   const line = task.line;
   if (/^Its machine is off/.test(line)) return "Machine off · resumes when it is back";
@@ -85,7 +86,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
   if (/^With the bot/.test(line)) return "With the bot";
   if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
-  if (task.waitFor === "someone else") return `${waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else"} · no date`;
+  if (task.waitFor === "someone else") { const who = waitingOn(task.line, task.outcome); return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · no date`; }
   if (state === "offline") return "Machine off";
   if (state === "queued") return "Queued";
   return "Waiting · no date";
@@ -123,8 +124,9 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
   const press = useDeskPress();
   const name = bot.name;
   const needsLabel = needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "";
-  const full = [look.line, look.extra].filter(Boolean).join(" · ");
-  const spoken = [needsLabel, unread ? "new reply" : "", full, look.time && look.time !== "now" ? `${look.time} ago` : ""].filter(Boolean).join(", ");
+  const full = look.ask ?? [look.line, look.extra].filter(Boolean).join(" · ");
+  const when = look.time && look.time !== "now" ? `last reply ${look.time} ago` : "";
+  const spoken = [needsLabel, unread ? "new reply" : "", full, when].filter(Boolean).join(", ");
   const row = (element: Element) => element.closest<HTMLElement>(".stage-row") ?? (element as HTMLElement);
   const [hover, setHover] = useState(false);
   return <div className="stage-row" data-bot={bot.key} data-tone={look.tone} data-kind={look.kind} data-current={current || undefined}
@@ -154,9 +156,8 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
           <span className="stage-head">
             <b>{name}</b>
             {opening ? <span className="stage-opening" aria-hidden="true" />
-              : needs ? <span className="stage-needs-badge" aria-hidden="true" title={needsLabel}>{needs}</span>
               : <span className="stage-aside" aria-hidden="true">
-                {look.time ? <span className="stage-time">{look.time}</span> : null}
+                {look.time ? <span className="stage-time" title={look.time === "now" ? "Working now" : look.timeTitle}>{look.time}</span> : null}
                 {unread ? <span className="stage-unread-dot" title="New reply" /> : null}
               </span>}
           </span>
@@ -171,6 +172,22 @@ function StageRow({ bot, look, current, opening, unread, needs, panelOpen, onCha
         <Icon name="MoreHorizontal" aria-hidden="true" />
       </button>
     </div>;
+}
+
+function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<string, PluginSidebarThread>): string | undefined {
+  const byCoordinator = new Map(data.bots.map(b => [b.coordinatorThreadId, b.name]));
+  let id: string | null | undefined = threadId;
+  for (let hop = 0; id && hop < 4; hop++) {
+    const name = byCoordinator.get(id);
+    if (name) return name;
+    const thread = threads.get(id);
+    id = thread?.lifecycleOwnerThreadId ?? thread?.parentThreadId;
+  }
+  return undefined;
+}
+
+function detailReason(text: string): string {
+  return text.replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/(?:\s*·\s*(?:wakes (?:\d{1,2}:\d{2}|on [\w-]+)|next check [^·]+|no wake set|untouched \w+))+\s*$/i, "").replace(/\s*·\s*$/, "").trim();
 }
 
 function deskAnswered(desk: BotDesk, coordinatorThreadId: string, threads: ReadonlyMap<string, PluginSidebarThread>): boolean {
@@ -193,7 +210,7 @@ function useAnswered(data: BotTasksData) {
       });
       return desks.some((desk, i) => desk !== bot.desks[i]) ? { ...bot, desks } : bot;
     });
-    return { data: answered.length ? { ...data, bots } : data, answered };
+    return { data: answered.length ? { ...data, bots } : data, answered, byId };
   }, [data, threads]);
 }
 
@@ -202,7 +219,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
 }) {
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const { data, answered } = useAnswered(raw);
+  const { data, answered, byId } = useAnswered(raw);
   const visible = useVisibleSurface(root);
   const snapshot = useDispatchWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
@@ -223,7 +240,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   }, [opening, activeThreadId]);
   const open = (id: string) => { if (id !== activeThreadId) setOpening(id); onOpen(id); };
   const threadNeeds = (claims.ready ? claims.loose : []).filter(thread => thread.hasPendingInteraction || thread.indicator === "waiting-for-input")
-    .map(thread => ({ id: `thread:${thread.id}`, botKey: "", botName: thread.displayTitle, what: "Answer needed", kind: "thread" as const, at: thread.latestAttentionAt, threadId: thread.id }));
+    .map(thread => ({ id: `thread:${thread.id}`, botKey: "", botName: thread.displayTitle, what: "Answer needed", kind: "thread" as const, at: thread.latestAttentionAt, threadId: thread.id, thread }));
   const bot = data.bots.find(b => b.key === sheet);
   const showPanel = (key: string, desks: boolean) => (point: PanelAnchor) => {
     opener.current = document.activeElement as HTMLElement;
@@ -239,7 +256,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const rows = orderedBots(data).map(b => {
     const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
     const workers = snapshot.byBot[b.key] ?? [];
-    const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now });
+    const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
     const current = opening ? opening === b.coordinatorThreadId : activeThreadId === b.coordinatorThreadId;
     return { bot: b, unread, look, current, needs: needsCount(b) };
   });
@@ -249,7 +266,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => setKeysIn((event.target as HTMLElement).matches(":focus-visible"))}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
-    <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} onOpen={open} />
+    <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} onOpen={open}
+      onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }} />
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
     {rows.map(({ bot: b, unread, look, current, needs }) =>
       <div role="listitem" key={b.key}><StageRow bot={b} look={look} current={current} opening={opening === b.coordinatorThreadId} unread={unread} needs={needs} panelOpen={sheet === b.key}
@@ -259,9 +277,9 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     {data.notFiled.length ? <button className="dispatch-unfiled" onClick={onShowThreads}>{data.notFiled.length} not filed · All threads</button> : null}
     <ThreadsSection activeThreadId={activeThreadId} now={now} onOpen={open} onShowAll={onShowThreads} />
     <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, needs }) => ({
-      key: b.key, name: b.name, pose: look.pose, status: [look.line, look.extra].filter(Boolean).join(" · "), needs, unread, current, threadId: b.coordinatorThreadId,
+      key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.line, look.extra].filter(Boolean).join(" · "), needs, unread, current, threadId: b.coordinatorThreadId,
     }))} />
-    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} askerOf={threadId => botOfThread(threadId, data, byId)} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id); }} onClose={close} /> : null}
@@ -296,8 +314,8 @@ function anchoredStyle(anchor: PanelAnchor): CSSProperties {
 const RECENT_SHOWN = 3;
 const SETTLE_MS = 450;
 
-export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads }: {
-  bot: BotTasksBot; anchor?: PanelAnchor; focusDesks?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads, askerOf }: {
+  bot: BotTasksBot; anchor?: PanelAnchor; askerOf?: (threadId: string) => string | undefined; focusDesks?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: (id: string) => void; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -338,11 +356,11 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const status = cardStatus(task, running, now);
-    const reason = stageText(task.needs?.question ?? task.line);
-    const ask = task.ask ? askLine(task.ask, now) : "";
+    const reason = detailReason(stageText(task.needs?.question ?? task.line));
+    const ask = task.ask ? askLine(task.ask, now, askerOf) : "";
     const askOpen = openAsks.has(task.id);
     const outcome = task.outcome && task.outcome !== task.title ? task.outcome : "";
-    const extra = reason && !status.includes(reason) ? reason : "";
+    const extra = reason && !status.includes(reason) && !reason.startsWith(status) ? reason : "";
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone}>
       <div className="dispatch-card-head">
         <button type="button" className="dispatch-task" aria-current={task.conversationThreadId === activeThreadId ? "page" : undefined} onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>

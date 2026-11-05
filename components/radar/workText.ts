@@ -1,8 +1,18 @@
-const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif)_[a-z0-9]{6,}\b/gi;
+const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]{6,}\b/gi;
+const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
+const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit)\\s+${HASH}\\b`, "g");
+const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
+const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
 export function plainNote(text: string): string {
   return text
     .replace(TECHNICAL_ID, "")
+    .replace(COMMENT_ID, "")
+    .replace(HASH_AT, "")
+    .replace(HASH_ALONE, "")
+    .replace(/\bonto (?:master|main)\b/g, "onto the main branch")
+    .replace(/\(\s*[,;]\s*/g, "(")
+    .replace(/\s*[,;]\s*\)/g, ")")
     .replace(/\(\s*\)/g, "")
     .replace(/\s+([,;:.)])/g, "$1")
     .replace(/\s{2,}/g, " ")
@@ -15,7 +25,10 @@ const MARKDOWN = [
   [/\[\d+\]\s*/g, ""],
   [/\[([^\]]+)\]\([^)]*\)/g, "$1"],
   [/\*\*|__|`/g, ""],
+  [/(^|[\s(])_([^_\n]+)_(?=$|[\s.,;:!?)])/g, "$1$2"],
   [/\s+(?:\d+[.)]|[-*•])\s+(?=\S)/g, " · "],
+  [/(\S)\*+(?=$|[\s.,;:!?…])/g, "$1"],
+  [/(^|\s)\*+(?=\S)/g, "$1"],
   [/^(?:\d+[.)]|[-*•])\s+/, ""],
   [/(?:\s*·\s*){2,}/g, " · "],
 ] as const;
@@ -37,17 +50,40 @@ export function plainWorkerTitle(title: string): string {
     if (kind) out = `${kind[0]!.toUpperCase()}${kind.slice(1).toLowerCase().replace("recheck", "re-check")}: ${out}`;
   }
   out = out.replace(/^merge request/, "Merge request");
-  return out ? out[0]!.toUpperCase() + out.slice(1) : out;
+  return capitalFirst(out);
+}
+
+export function capitalFirst(text: string): string {
+  if (!text || /^[a-z]+[A-Z]/.test(text)) return text;
+  return text[0]!.toUpperCase() + text.slice(1);
 }
 
 const WAITING_ON = /\b(?:waiting|wait) (?:on|for) ((?:[A-Z][\w-]+)(?: [A-Z][\w-]+)?)(?:'s\b ?([\w-]+(?: [\w-]+)?)?)?/;
+const BOT_NAME = /^(?:Lab|Bricks|Home|Work|Personal|Security|ERBareeq) Bot$/;
+const NEXT_THING = /\b(?:until|for|on|wait for|waiting for|:)?\s*the next (?:new )?((?:[a-z][\w-]* ){0,2}(?:ticket|order|reply|message|report|run|email|payment|delivery|build|release|image|update|answer|review))s?\b/i;
+const UPSTREAM = /\b(?:no|until (?:an?|the)|waits? for (?:an?|the)) (?:clean |new |fixed |supported )?(?:official|upstream|vendor) (image|release|build|fix|patch|update)s?\b/i;
+const GROUP = /\b(merchants|customers|clients|suppliers|vendors|installers|technicians|reviewers)\b/i;
 
-export function waitingOn(line: string): string {
+function personWait(line: string): string {
   const match = WAITING_ON.exec(line);
   if (!match) return "";
   const who = match[1]!.replace(/^Salem$/, "you");
-  if (/^(?:the|a|an|it|its|this|that|bot|Lab|Bricks|Home|Work|Personal|Security|ERBareeq)$/.test(who.split(" ")[0]!)) return "";
+  if (BOT_NAME.test(who)) return who;
+  if (/^(?:the|a|an|it|its|this|that|bot|Lab|Bricks|Home|Work|Personal|Security|ERBareeq|Salem|You)$/.test(who.split(" ")[0]!)) return "";
   return match[2] ? `${who}'s ${match[2]}` : who;
+}
+
+export function waitingOn(line: string, outcome = ""): string {
+  const reason = line.replace(/^Waiting for [^:]{1,30}:\s*/, "");
+  const person = personWait(reason);
+  if (person) return person;
+  const next = NEXT_THING.exec(reason);
+  if (next) return `the next ${next[1]!.toLowerCase()}`;
+  const upstream = UPSTREAM.exec(reason);
+  if (upstream) return `an upstream ${upstream[1]!.toLowerCase()}`;
+  const group = GROUP.exec(reason) ?? GROUP.exec(outcome);
+  if (group) return group[1]!.toLowerCase();
+  return "";
 }
 
 export function taskHeadline(title: string): string {
@@ -78,8 +114,11 @@ function youVerb(word: string): string {
 }
 
 export function youWords(text: string): string {
-  const out = text.replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)(?:(\s+)([A-Za-z]+)\b)?/g, (_, gap?: string, word?: string) => word ? `you${gap}${youVerb(word)}` : "you").replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
-  return out ? out[0]!.toUpperCase() + out.slice(1) : out;
+  const out = text.replace(/(?<![\w-])Salem's\b/g, "your")
+    .replace(/(?<![\w-])Salem\b(?!-)(?:(\s+)([A-Za-z]+)\b)?(?:(\s+(?:or|and)\s+)([A-Za-z]+)\b)?/g, (_, gap?: string, word?: string, join?: string, second?: string) =>
+      word ? `you${gap}${youVerb(word)}${join && second ? `${join}${youVerb(second)}` : ""}` : "you")
+    .replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim();
+  return capitalFirst(out);
 }
 
 const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -87,11 +126,12 @@ const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "shor
 
 const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?\s*:\s*["\u201c]?/i;
 const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b(?:\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))?/g;
-const ASKER = /^\s*(?:\[bb message from thread:[^\]]*\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
+const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
 
-export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number): string {
+export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined): string {
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
-  const asker = ASKER.exec(ask.excerpt)?.[1]?.trim();
+  const found = ASKER.exec(ask.excerpt);
+  const asker = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
   const bare = ask.excerpt.replace(ASKER, "");
   const relayed = RELAYED_WORDS.test(bare);
   const who = relayed ? "You asked" : label === "Bot request" ? `${asker || "A bot"} asked` : label;
