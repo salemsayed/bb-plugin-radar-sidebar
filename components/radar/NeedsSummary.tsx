@@ -205,7 +205,7 @@ const STALE_FONT = "500 11.5px";
 
 function StaleLine({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Bots can't be reached · showing ${stale.asOf}`, `Can't reach the bots · ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`];
+  const forms = [`Bots can't be reached · showing ${stale.asOf}`, `Bots can't be reached · ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;

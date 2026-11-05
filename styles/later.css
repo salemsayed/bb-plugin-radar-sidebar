@@ -9,7 +9,7 @@
 .stage-needs li:is(:hover, :focus-within) .stage-needs-later { opacity: 1; }
 .stage-needs-later-mark { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
 .stage-needs-later-mark [data-icon-root], .stage-needs-later-mark svg { width: 12px; height: 12px; }
-.stage-needs li:has(.stage-needs-later) .stage-needs-who { padding-inline-end: 80px; }
+.stage-needs li:has(.stage-needs-later) .stage-needs-who { padding-inline-end: 78px; }
 @media (pointer: coarse) {
   .radar-not-now { height: 44px; line-height: 28px; }
   .radar-not-now-pill { height: 28px; }

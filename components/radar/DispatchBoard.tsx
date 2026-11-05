@@ -542,7 +542,7 @@ const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
 export function offListLine(count: number): string {
-  return `${count === 1 ? "1 question" : `${count} questions`} · not in Needs you`;
+  return `${count === 1 ? "1 open question" : `${count} open questions`} for you`;
 }
 
 function OffListCard({ item, now, onOpen }: { item: NeedsItem; now: number; onOpen: (id: string) => void }) {
@@ -550,8 +550,8 @@ function OffListCard({ item, now, onOpen }: { item: NeedsItem; now: number; onOp
   return <article className="dispatch-task-group dispatch-card" data-tone="quiet">
     <div className="dispatch-card-head">
       <button type="button" className="dispatch-task" disabled={!item.source.threadId} onClick={() => item.source.threadId && onOpen(item.source.threadId)}>
-        <b dir="auto"><Isolated text={plainNote(item.text)} /></b>
-        <span className="dispatch-status-line"><i aria-hidden="true" /><span>{Number.isFinite(at) ? `Asked ${dayAndTime(at, now)}` : "Asked"} · filed by its checks</span></span>
+        <b dir="auto"><Isolated text={stageText(item.text)} /></b>
+        <span className="dispatch-status-line"><i aria-hidden="true" /><span>{Number.isFinite(at) ? `Asked ${dayAndTime(at, now)}` : "Asked"}{item.source.automationId ? " · filed by its checks" : ""}</span></span>
       </button>
     </div>
   </article>;
@@ -712,7 +712,7 @@ export function BotWorkPanel({ bot, offList = [], anchor, focusDesks = false, ke
     </section> : null}
     {offList.length ? <section className="dispatch-offlist" aria-label="Questions not in Needs you">
       <header className="dispatch-section-head"><h3>Questions not in Needs you</h3><span>{offList.length}</span></header>
-      <p className="dispatch-offlist-note">{bot.name} filed {offList.length === 1 ? "this" : "these"} as a notification, not as a Needs you ask. Open the chat to answer.</p>
+      <p className="dispatch-offlist-note">{bot.name} filed {offList.length === 1 ? "this" : "these"} as a notification, not as a Needs you ask. Open {offList.length === 1 ? "it" : "one"} to answer in its chat.</p>
       <div className="dispatch-open">{offList.map(item => <OffListCard key={item.id} item={item} now={now} onOpen={onNavigate} />)}</div>
     </section> : null}
     {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Stuck · <Isolated text={stageTitle(t.title)} /></b><p>{detailReason(rowDetail(t, now)) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}

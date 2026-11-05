@@ -2,7 +2,7 @@ import { askKind, botWords, botWordsShown, keepsCase, requestsSomething, userWor
 
 const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]{6,}\b/gi;
 const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
-const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit)\\s+${HASH}\\b`, "g");
+const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit|head)\\s+${HASH}\\b`, "g");
 const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
 const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
@@ -174,6 +174,8 @@ export function clauseCut(text: string, max: number): string {
 export function capCut(text: string, cap: number): string {
   const flat = text.trim();
   if (flat.length < cap - 1 || /[.!?]$/.test(flat)) return flat;
+  const sentences = /^(.*[.!?])(?=["\u201d\u2019)]?\s)/.exec(flat)?.[1];
+  if (sentences && sentences.length >= 40) return `${sentences}\u2026`;
   return clauseCut(flat, flat.length - 1) || cutAtWord(`${flat}\u2026`, flat.length);
 }
 
@@ -381,6 +383,12 @@ function firstPlain(text: string): string {
 }
 
 function relayedQuote(text: string): string {
+  const words = RELAYED_WORDS.exec(text);
+  if (words && /["\u201c]\s*$/.test(words[0])) {
+    const body = text.slice(words[0].length);
+    const close = /["\u201d](?=[.,;:!?]?(?:\s|$))/.exec(body);
+    if (close) return body.slice(0, close.index);
+  }
   if (RELAYED_ASKED.test(text)) {
     const body = text.replace(RELAYED_ASKED, "");
     const quoted = /^(["\u201c'\u2018])([^"\u201c\u201d'\u2018\u2019]{2,})["\u201d'\u2019]/.exec(body);
@@ -419,7 +427,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const form = !/^Bot request/.test(ask.label) ? formAnswers((ask.full ?? ask.excerpt).replace(ASKER, "")) : null;
   if (form) {
     const long = form.answers.length > FORM_CAP;
-    const answers = long ? cutAtWord(form.answers, FORM_CAP) : form.answers;
+    const answers = long ? clauseCut(form.answers, FORM_CAP) || cutAtWord(form.answers, FORM_CAP) : form.answers;
     const parts = askParts({ ...ask, label: "You asked", excerpt: answers, full: answers }, now, askerOf, own);
     return { ...parts, head: parts.head.replace(/^You asked\b/, "You answered"), excerpt: long || parts.excerpt, kind: "yours", ...(long ? { part: "excerpt" } : {}) };
   }
