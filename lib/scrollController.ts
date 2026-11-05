@@ -12,6 +12,8 @@ const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
 const HELD_MAX_MS = 15000;
 const FINGER_MS = 120;
+const INTENT_MS = 1500;
+const CHAIN_MS = 250;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 const PLACED_PX = 1;
 const FLASH_MS = 2000;
@@ -61,6 +63,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let requested = false, stable = 0, settledAt = 0, lastFixAt = 0;
   let fingerRef: { seq: number; offset: number } | null = null, fingerMovedAt = -Infinity, fingerMoved = false;
   let fine: { element: Element; offset: number } | null = null;
+  let guardRef: { seq: number; offset: number } | null = null, intentAt = -Infinity;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0;
   let muted: HTMLElement | null = null;
@@ -134,6 +137,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "live";
     observer.disconnect();
     measure();
+    guardRef = firstVisible();
     trace("live", { reason, keepSaved });
   };
   const abandon = (reason: string) => {
@@ -237,6 +241,17 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     trace("finger-hold", { from: Math.round(container.scrollTop), to: Math.round(target) });
     write(target);
   };
+  const userDriven = () => held() || now() - intentAt < INTENT_MS || now() - userScrollAt < CHAIN_MS || /^#msg=/.test(location.hash);
+  const guard = (source: string) => {
+    if (phase !== "live" || !container || deferredByHost()) return;
+    if (pinned || userDriven() || !guardRef) { guardRef = firstVisible(); return; }
+    const anchor = anchorFor(guardRef.seq);
+    if (!anchor) { guardRef = firstVisible(); return; }
+    const target = targetFor(anchor, guardRef.offset);
+    if (Math.abs(target - container.scrollTop) <= 2) return;
+    trace("guard", { source, from: Math.round(container.scrollTop), to: Math.round(target) });
+    write(target);
+  };
   const capture = (force = false) => {
     if (disposed || frozen || phase !== "live" || keepSaved || !force && !isActive()) return;
     const found = bind();
@@ -262,7 +277,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const onScroll = () => {
     if (!container) return;
     const ours = ownTop !== null && Math.abs(container.scrollTop - ownTop) < 1;
-    if (!ours && (held() || now() - gestureAt < MOMENTUM_MS)) userScrollAt = now();
+    if (!ours && (held() || now() - gestureAt < MOMENTUM_MS || now() - userScrollAt < CHAIN_MS || now() - intentAt < INTENT_MS)) userScrollAt = now();
     if (phase === "restoring") { attempt(); return; }
     if (phase === "settling") { keep(); return; }
     if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
@@ -271,6 +286,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       if (fingerMoved || now() - fingerMovedAt < FINGER_MS) { fingerMoved = false; fingerRef = firstVisible(); }
       else keepFinger();
     }
+    if (!ours) guard("scroll");
     measure();
     capture();
     clearTimeout(saveTimer);
@@ -294,7 +310,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     } else if (widthChanged && !pinned && !gestureActive() && !keepSaved) {
       hold("width");
       return;
-    }
+    } else if (!widthChanged) guard("resize");
     measure();
   };
   const bind = () => {
@@ -333,6 +349,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const onInput = (event: Event) => {
     if (!event.isTrusted) return;
     const t = now();
+    if (event.type !== "touchmove") intentAt = t;
     const inside = container !== null && event.target instanceof Node && container.contains(event.target);
     switch (event.type) {
       case "touchend": case "touchcancel": if (touching) { touching = (event as TouchEvent).touches.length > 0; gestureAt = t; } return;
