@@ -1,5 +1,5 @@
 import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
-import { clockFormatter, clearsLine } from "./BotsView";
+import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
 import { plainNote, taskHeadline, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 
@@ -68,7 +68,13 @@ function plural(n: number, one: string, many: string): string {
 export function nextCheck(at: number, now: number): string {
   const when = clearsLine(at, now);
   if (when.startsWith("overdue")) return `Check overdue since ${when.slice("overdue since ".length)}`;
-  return `Next check ${when.replace(/^(?:today|tonight) /, "")}`;
+  const day = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
+  const days = Math.round((day(at) - day(now)) / 86_400_000);
+  const time = clockFormatter.format(new Date(at));
+  if (days === 0) return `Next check ${time}`;
+  if (days === 1) return `Next check ${time} tomorrow`;
+  if (days < 7) return `Next check ${time} ${clearsWeekdayFormatter.format(new Date(at))}`;
+  return `Next check ${when}`;
 }
 
 function waitLine(task: BotTaskRow, now: number): string {
