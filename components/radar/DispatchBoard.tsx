@@ -379,11 +379,11 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
           onNavigate(bot.coordinatorThreadId);
         }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Continue</span></button>
       </div>
-      {ask ? fullAsk || outcome || extra || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={toggleDetails}><Isolated text={ask} /></button>
-        : <p className="dispatch-ask-line" dir="auto"><Isolated text={ask} /></p> : null}
+      {ask ? fullAsk || outcome || extra || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={toggleDetails}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
+        : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || attempts.length || fullAsk ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
+        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.head}, in full</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span><Isolated text={youWords(plainNote(outcome))} /></p> : null}
         {extra ? <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <ul className="dispatch-worker-list">{attempts.map(a => {

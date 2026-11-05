@@ -144,8 +144,10 @@
 .dispatch-continue-pill { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 9px; border: 1px solid var(--border); border-radius: 15px; background: var(--popover, var(--background)); font-size: 12.5px; font-weight: 550; white-space: nowrap; }
 .dispatch-continue-pill [data-icon-root],.dispatch-continue-pill svg { width: 14px; height: 14px; }
 .dispatch-panel button.dispatch-task-continue:is(:hover,:focus-visible) .dispatch-continue-pill { background: var(--state-hover); }
-.dispatch-ask-line { display: block; width: 100%; min-height: 32px; margin-top: -8px; padding: 6px 0; border: 0; background: none; text-align: start; font-size: 12.5px; line-height: 1.45; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.dispatch-ask-line[aria-expanded=true] { white-space: normal; overflow-wrap: anywhere; color: var(--foreground); }
+.dispatch-ask-line { display: block; width: 100%; min-height: 32px; margin: -8px 0 0; padding: 6px 0; border: 0; background: none; text-align: start; font-size: 12.5px; line-height: 1.45; color: var(--muted-foreground); cursor: pointer; }
+p.dispatch-ask-line { cursor: default; }
+.dispatch-ask-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.dispatch-ask-line[aria-expanded=true] { color: var(--foreground); }
 .dispatch-card .dispatch-details { margin-bottom: 2px; }
 .dispatch-card .dispatch-details>summary { min-height: 36px; margin-top: -2px; }
 .dispatch-full>span { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 2px; }
