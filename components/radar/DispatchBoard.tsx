@@ -96,7 +96,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
   if (/^With the bot/.test(line)) return "With the bot";
   const criteria = CRITERIA.exec(line);
-  if (criteria) return `Checking the result · ${criteria[1]} of ${criteria[2]} goals met`;
+  if (criteria) return `Result check: ${criteria[1]} of ${criteria[2]} goals met`;
   if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
   const scheduled = scheduledWait(line);
   if (scheduled) return scheduled;
