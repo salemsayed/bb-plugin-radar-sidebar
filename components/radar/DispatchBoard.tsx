@@ -327,7 +327,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     {state.cached || state.status === "error" ? <p className="stage-stale" role="status">Bots core isn't answering. Showing what we knew at {asOf(data.observedAt, now)}.</p> : null}
     <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={open}
       onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
-      onNotNow={item => { if (item.notNowKey) void notNow(item.notNowKey, item.botName ? `${item.botName}: ${item.what}` : item.what); }} />
+      onNotNow={item => { if (item.notNowKey) void notNow(item.notNowKey, item.botName ? `${item.botName}: ${item.what}` : item.what); }}
+      parked={key => later.pending(key) !== null || later.laterAt(key) !== null} />
     <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
     {rows.map(({ bot: b, unread, look, current, here, needs }) =>

@@ -2,6 +2,8 @@
 .stage-needs-later:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 12%, transparent); }
 .stage-needs-later:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; opacity: 1; }
 .stage-needs li:is(:hover, :focus-within) .stage-needs-later { opacity: 1; }
+.stage-needs-later-mark { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
+.stage-needs-later-mark [data-icon-root], .stage-needs-later-mark svg { width: 12px; height: 12px; }
 .stage-needs li:has(.stage-needs-later):is(:hover, :focus-within) .stage-needs-who { padding-inline-end: 96px; }
 @media (pointer: coarse) {
   .stage-needs-later { top: 2px; right: 44px; height: 28px; opacity: 1; }

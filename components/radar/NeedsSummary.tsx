@@ -42,7 +42,7 @@ export interface NeedItem {
   at?: number;
   threadId: string;
   thread?: PluginSidebarThread;
-  state?: "answered" | "gone";
+  state?: "answered" | "gone" | "later";
   notNowKey?: string;
 }
 
@@ -64,13 +64,13 @@ export function needItems(data: BotTasksData): NeedItem[] {
 }
 
 
-function useHeld(live: NeedItem[], hold: boolean): NeedItem[] {
+function useHeld(live: NeedItem[], hold: boolean, parked: (key: string) => boolean = () => false): NeedItem[] {
   const [frozen, setFrozen] = useState<NeedItem[] | null>(null);
   if (hold && frozen === null) setFrozen(live);
   if (!hold && frozen !== null) setFrozen(null);
   if (!hold || frozen === null) return live;
   const now = new Map(live.map(item => [item.id, item]));
-  return frozen.map(item => now.get(item.id) ?? { ...item, state: "gone" as const });
+  return frozen.map(item => now.get(item.id) ?? { ...item, state: item.notNowKey && parked(item.notNowKey) ? "later" as const : "gone" as const });
 }
 
 function sideKeys(event: KeyboardEvent<HTMLElement>, onMenu: () => void) {
@@ -83,7 +83,7 @@ function sideKeys(event: KeyboardEvent<HTMLElement>, onMenu: () => void) {
   if (to) { event.preventDefault(); to.focus(); }
 }
 
-export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, onOpen, onMenu, onNotNow }: {
+export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, onOpen, onMenu, onNotNow, parked }: {
   data: BotTasksData;
   activeThreadId: string | null;
   extra: readonly NeedItem[];
@@ -93,10 +93,11 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   onOpen: (threadId: string) => void;
   onMenu: (item: NeedItem, at: HTMLElement) => void;
   onNotNow?: (item: NeedItem) => void;
+  parked?: (key: string) => boolean;
 }) {
   const [all, setAll] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
-  const items = useHeld([...needItems(data), ...extra, ...answered], hold);
+  const items = useHeld([...needItems(data), ...extra, ...answered], hold, parked);
   const faces = new Map(data.bots.map(bot => [bot.key, bot]));
   const waiting = items.filter(item => !item.state).length;
   const more = items.length - 1;
@@ -160,12 +161,12 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
       onClick={() => onOpen(item.threadId)}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{item.botName}</b>
-          {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age"><span className="stage-needs-age-verb">asked </span>{asked.replace(/^asked /, "")}</span> : null}
+          {item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span> : item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age"><span className="stage-needs-age-verb">asked </span>{asked.replace(/^asked /, "")}</span> : null}
         </span>
         <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
       </span>
