@@ -1,4 +1,5 @@
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { useWholeItems } from "./useWholeItems";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { threadActionTarget } from "./threadActions";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
@@ -88,6 +89,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   onMenu: (item: NeedItem, at: HTMLElement) => void;
 }) {
   const [all, setAll] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
   const items = useHeld([...needItems(data), ...extra, ...answered], hold);
   const faces = new Map(data.bots.map(bot => [bot.key, bot]));
   const waiting = items.filter(item => !item.state).length;
@@ -100,6 +102,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const hiddenNames = hiddenBots.map(item => item.botName);
   const moreLabel = `Show ${more} more${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}`;
   const state = !items.length ? "empty" : waiting ? "waiting" : "settled";
+  useWholeItems(listRef, open, shown.length);
   const title = state === "empty" ? "Needs you" : waiting ? "Needs you" : "Nothing left for you";
   return <section className="stage-needs" data-state={state} data-open={open || undefined}
     aria-label={waiting ? `Needs you: ${waiting}` : "Needs you: nothing right now"}>
@@ -116,7 +119,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
     {state === "empty" ? <p className="stage-needs-empty" role="status">
       <Icon name="Check" aria-hidden="true" />
       <span><b>Nothing right now</b><span>Bot questions and approvals show here</span></span>
-    </p> : <ul>
+    </p> : <ul ref={listRef}>
       {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} />)}
     </ul>}
   </section>;
@@ -155,7 +158,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu }: {
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{item.botName}</b>
-          {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age">{asked}</span> : null}
+          {item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : asked ? <span className="stage-needs-age"><span className="stage-needs-age-verb">asked </span>{asked.replace(/^asked /, "")}</span> : null}
         </span>
         <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
       </span>

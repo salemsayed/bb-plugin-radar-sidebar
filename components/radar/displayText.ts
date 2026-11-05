@@ -100,7 +100,8 @@ function dropModelClauses(sentence: string): string {
 
 export function withoutModels(text: string): string {
   if (!MODEL.test(text)) return text;
-  let out = text.replace(MODEL_ASIDE, "");
+  let out = text.replace(MODEL_ASIDE, "").replace(/(^|[.!?]\s+)([^:.!?;]{12,}?):\s+([^.;!?]*)/g, (whole, start: string, lead: string, list: string) =>
+    MODEL.test(list) && !MODEL.test(lead) && lead.trim().split(/\s+/).length >= 3 ? `${start}${lead}` : whole);
   const lead = MODEL_LEAD.exec(out);
   if (lead) out = `${lead[1] ? `${lead[1][0]!.toUpperCase()}${lead[1].slice(1).toLowerCase()}: ` : ""}${out.slice(lead[0].length)}`;
   out = out
@@ -148,7 +149,7 @@ export function keepsCase(text: string): boolean {
   return KEEP_CASE.test(text) || /^[a-z][\w-]*\.[a-z]/.test(text) || /^[a-z]+[A-Z]/.test(text);
 }
 
-const NOTE = /^(?:FYI\b|heads[- ]up\b|for your info\b|note:|clarification:)|\b(?:no (?:reply|action|response|answer)(?: (?:to me|from you))? (?:is )?(?:needed|required)|nothing (?:for you )?to do)\b/i;
+const NOTE = /^(?:FYI\b|heads[- ]up\b|for your info\b|note:|clarification:|[A-Z][\w-]*(?: Bot)? (?:disabled|enabled|removed|closed|blocked|moved|fixed|deployed|restored|rotated|turned off)\b)|\bnotice\b|\b(?:no (?:reply|action|response|answer)(?: (?:to me|from you))? (?:is )?(?:needed|required)|nothing (?:for you )?to do)\b/i;
 const FINISHED = /^\s*[↳⤷]|\b(?:finished|completed|is done|wake due|wake-up due)\s*\.?$/i;
 const REQUEST = /\?|\b(?:please|can you|could you|would you|need(?:s)? you to|decide|approve|confirm|choose|pick|your call|go-ahead|reply)\b/i;
 
@@ -167,25 +168,38 @@ const NUMBER_TAIL = /[\d.,]$/;
 const CUT_TAIL = /(?:^|\s)(?:the|a|an|of|to|for|with|through|whether|that|on|in|at|by|from|and|or|\d[\d.,]*)$/i;
 const CLAUSE_WORD = /\s(?:whether|that|has|have|had|is|are|was|were|skips|waits|keeps|gets|can|will|does)\s/i;
 
-export function wholeTitle(title: string, outcome: string | undefined, max = 64): string {
+const PHRASE_STOP = /\s(?=(?:before|after|through|under|without|while|when|because|until|unless|so that|so|which|versus|and that|and whether)\s)|,\s(?=(?:and|so|but|which|with|while|then)\s)|;\s|\s\(|\s[–—-]\s/g;
+const TITLE_SHORT = 64;
+const TITLE_LONG = 92;
+const TITLE_MIN = 24;
+
+function clauseOf(full: string, from: number): string {
+  const end = /[;:.!?(]|\s[–—-]\s|,\s(?=(?:and|so|but|which)\s)/.exec(full.slice(from));
+  return (end ? full.slice(0, from + end.index) : full).trim();
+}
+
+function stopBefore(text: string, min: number, max: number): string {
+  let best = "";
+  for (const match of text.matchAll(PHRASE_STOP)) {
+    const at = match.index!;
+    if (at < min || at > max) continue;
+    const head = text.slice(0, at).replace(/[\s,;:]+$/, "");
+    if (!CUT_TAIL.test(head) && (head.match(/\(/g)?.length ?? 0) === (head.match(/\)/g)?.length ?? 0)) best = head;
+  }
+  return best;
+}
+
+export function wholeTitle(title: string, outcome: string | undefined): string {
   const head = title.trim();
   const full = (outcome ?? "").trim();
   if (!full || full.length <= head.length || !full.startsWith(head)) return head;
   if (!CUT_TAIL.test(head) && !CLAUSE_WORD.test(` ${head} `)) return head;
   const next = full[head.length]!;
-  if (NUMBER_TAIL.test(head) && /[\d.,]/.test(next)) {
-    const token = /^[\d.,]+\d/.exec(full.slice(head.length))?.[0] ?? "";
-    return extend(full, head.length + token.length, max);
-  }
-  if (/[,;:.!?)]/.test(next)) return head;
-  return extend(full, head.length, max);
-}
-
-function extend(full: string, from: number, max: number): string {
-  const end = /[;:.!?(]|\s[–—-]\s/.exec(full.slice(from));
-  const stop = end ? from + end.index : full.length;
-  if (stop <= max) return full.slice(0, stop).trim();
-  const window = full.slice(0, max + 1);
-  const space = window.lastIndexOf(" ");
-  return `${window.slice(0, space > from ? space : max).replace(/[\s,;:(-]+$/, "")}…`;
+  let from = head.length;
+  if (NUMBER_TAIL.test(head) && /[\d.,]/.test(next)) from += (/^[\d.,]+\d/.exec(full.slice(head.length))?.[0] ?? "").length;
+  else if (/[,;:.!?)]/.test(next)) return head;
+  const clause = clauseOf(full, from);
+  if (clause.length <= TITLE_SHORT) return clause;
+  return stopBefore(clause, from, TITLE_SHORT) || stopBefore(clause, TITLE_MIN, TITLE_SHORT)
+    || (clause.length <= TITLE_LONG ? clause : stopBefore(clause, from, TITLE_LONG)) || head.replace(/(?:\s+(?:the|a|an|of|to|for|with|through|whether|that|on|in|at|by|from|and|or))+$/i, "");
 }

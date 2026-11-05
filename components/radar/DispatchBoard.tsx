@@ -9,7 +9,7 @@ import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, sh
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askLine, askParts, capCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, stateTone, taskHeadline, waitingOn, youWords, ASK_PREVIEW } from "./workText";
+import { askLine, askParts, capCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
@@ -58,7 +58,7 @@ export function taskStatus(task: BotTaskRow, now: number): string {
   const detail = rowDetail(task, now);
   if (!isClosed(task.displayState)) return [STATE_LABEL[task.displayState], detail].filter(Boolean).join(" · ");
   const parts = detail ? detail.split(" · ") : [];
-  const label = /^(Cancelled|Stopped)\b/.test(parts[0] ?? "") ? parts.shift()! : STATE_LABEL[task.displayState];
+  const label = /^(Cancelled|Stopped)\b/.test(parts[0] ?? "") ? parts.shift()! : /^Closed by (?:Salem|you)\b/i.test(parts[0] ?? "") ? (parts.shift(), "Closed by you") : STATE_LABEL[task.displayState];
   return [label, task.completedAt !== undefined ? dayAndTime(task.completedAt, now) : "", ...parts].filter(Boolean).join(" · ");
 }
 const CHECKING = /not checked|checks needed|check failed|hasn't (?:checked|closed|finished)|evidence needs review|owner review/i;
@@ -96,7 +96,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
   if (/^With the bot/.test(line)) return "With the bot";
   const criteria = CRITERIA.exec(line);
-  if (criteria) return `Result check: ${criteria[1]} of ${criteria[2]} goals met`;
+  if (criteria) return `Checking its ${criteria[2]} ${criteria[2] === "1" ? "goal" : "goals"}`;
   if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
   const scheduled = scheduledWait(line);
   if (scheduled) return scheduled;
@@ -214,6 +214,19 @@ function ownerOf(threadId: string, data: BotTasksData, snapshot: WorkerSnapshot,
   return null;
 }
 
+const CLOSED_ONLY = /^(?:Done|Closed by (?:you|Salem)|Cancelled|Stopped)(?: (?:today|yesterday|on)?\s*(?:\d{1,2} [A-Z][a-z]{2}|[A-Z][a-z]{2} \d{1,2})?)?\.?$/i;
+const CLOSED_SAYS: [RegExp, string][] = [
+  [/^Recorded done · owner review needed$/i, "Result not confirmed yet"],
+  [/^Recorded done · evidence needs review$/i, "Proof not checked yet"],
+];
+
+function closedNote(task: BotTaskRow, reason: string): string {
+  if (!isClosed(task.displayState)) return reason;
+  if (CLOSED_ONLY.test(reason.trim())) return "";
+  for (const [pattern, words] of CLOSED_SAYS) if (pattern.test(reason.trim())) return words;
+  return reason;
+}
+
 function detailReason(text: string): string {
   return capitalFirst(plainQueue(text).replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes?\b[^·]*|next check [^·]+|no wake set|untou\w*[^·]*|retry\b[^·]*))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
 }
@@ -258,6 +271,16 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const [keysIn, setKeysIn] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const claims = useThreadClaims();
+  const originalOf = useMemo<OriginalOf>(() => {
+    const yours = data.bots.flatMap(b => b.tasks).flatMap(t => t.ask && /^You asked/.test(t.ask.label) ? [{ threadId: t.ask.ref.threadId, seq: t.ask.ref.seq, text: t.ask.full ?? t.ask.excerpt }] : []);
+    return (threadId, seq, words) => {
+      const same = yours.find(o => o.threadId === threadId && o.seq === seq);
+      if (same) return same.text;
+      if (words.length < 16) return undefined;
+      for (const o of yours) { const at = o.text.indexOf(words); if (at >= 0) return o.text.slice(at); }
+      return undefined;
+    };
+  }, [data.bots]);
   useRailHomeCurrent(!!activeThreadId);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
@@ -311,7 +334,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, here, needs }) => ({
       key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, here, threadId: b.coordinatorThreadId,
     }))} />
-    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusDesks={focusDesks} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={id => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id); }} onClose={close} /> : null}
@@ -412,7 +435,7 @@ function WorkerList({ attempts, now, onOpen }: { attempts: readonly Attempt[]; n
   return <ul className="dispatch-worker-list">
     {shown.map(item)}
     {fold ? <li><button type="button" className="dispatch-worker-fold" aria-expanded={all} onClick={() => setAll(value => !value)}>
-      <span>{all ? "Show fewer workers" : foldWords(rest, running.length > 0)}</span><span className="dispatch-worker-fold-action">{all ? "Hide" : "Show"}</span>
+      <span>{all ? foldWords(attempts, false) : foldWords(rest, running.length > 0)}<span className="dispatch-worker-fold-action"> · {all ? "Hide" : "Show"}</span></span>
     </button></li> : null}
   </ul>;
 }
@@ -422,8 +445,8 @@ const CARD_ASK_PHONE = 84;
 const LINE_CAP = 240;
 const SETTLE_MS = 450;
 
-export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads, askerOf }: {
-  bot: BotTasksBot; anchor?: PanelAnchor; askerOf?: (threadId: string) => string | undefined; focusDesks?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
+  bot: BotTasksBot; anchor?: PanelAnchor; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusDesks?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: (id: string) => void; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -439,7 +462,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const section = desksRef.current;
     if (!focusDesks || !section || !body.current) { panel.current?.focus(); return; }
     body.current.scrollTop += section.getBoundingClientRect().top - body.current.getBoundingClientRect().top - 4;
-    (section.querySelector<HTMLElement>(".radar-desk-row:not(:disabled), .dispatch-task") ?? panel.current)?.focus({ preventScroll: true });
+    (section.querySelector<HTMLElement>(".radar-desk-row:not(:disabled), .dispatch-task") ?? panel.current)?.focus({ preventScroll: true, focusVisible: !isCompactViewport } as FocusOptions);
   }, [focusDesks]);
   useEffect(() => {
     if (!isCompactViewport) return;
@@ -481,16 +504,23 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const status = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now);
     const reason = detailReason(stageText(task.needs?.question ?? task.line));
-    const ask = task.ask ? askLine(task.ask, now, askerOf, ASK_PREVIEW, bot.name) : "";
-    const parts = task.ask ? askParts(task.ask, now, askerOf, bot.name) : null;
+    const told = task.ask ? askParts(task.ask, now, askerOf, bot.name, originalOf) : null;
+    const offTopic = told?.kind === "update" && !sameJob(told.quote, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
+    const parts = offTopic ? null : told;
+    const ask = task.ask && parts ? askLine(task.ask, now, askerOf, ASK_PREVIEW, bot.name, originalOf) : "";
     const bare = (text: string) => text.replace(/\u2026$/, "").trim();
     const fullAsk = parts && parts.full && bare(parts.full).length > bare(cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 ? parts : null;
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
-    const goal = task.outcome && task.outcome !== task.title && stageTitle(task.outcome) !== name ? youWords(plainNote(task.outcome)) : "";
+    const shownWorkers = new Set(attempts.map(a => plainWorkerTitle(a.title).toLowerCase()));
+    const goalText = task.outcome && task.outcome !== task.title && stageTitle(task.outcome) !== name ? readerWords(plainNote(task.outcome)) : "";
+    const goal = goalText && !shownWorkers.has(goalText.toLowerCase()) ? goalText : "";
     const outcome = goal ? capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
     const goalCut = !!outcome && /\u2026$/.test(outcome);
-    const extra = reason && !CRITERIA.test(reason) && !status.includes(reason) && !reason.startsWith(status) ? capCut(reason, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
+    const said = closedNote(task, reason);
+    const extra = said && !CRITERIA.test(said) && !status.includes(said) && !said.startsWith(status) ? capCut(said, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
+    const extraCut = /\u2026$/.test(extra);
+    const yours = parts?.kind === "yours";
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone}>
       <div className="dispatch-card-head">
         <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>
@@ -506,19 +536,19 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || attempts.length || fullAsk ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · excerpt` : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
-        {fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open dispatch-ask-open-inline" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open the whole ask in chat</button> : null}
+        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · ${fullAsk.part ?? "excerpt"}` : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
+        {fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open dispatch-ask-open-inline" onClick={() => onNavigate(task.ask!.ref.threadId)}>{yours ? "Open your whole ask in chat" : "Open in chat"}</button> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>{goalCut ? "Goal · excerpt" : "Goal"}</span><Isolated text={outcome} /></p> : null}
-        {extra ? <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
+        {extra ? extraCut ? <p className="dispatch-full" dir="auto"><span>Latest note · excerpt</span><Isolated text={extra} /></p> : <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <WorkerList attempts={attempts} now={now} onOpen={onNavigate} /> : null}
-        {task.ask && !fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open your ask in chat</button> : null}
+        {task.ask && !fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>{yours ? "Open your ask in chat" : "Open in chat"}</button> : null}
       </details> : null}
     </article>;
   };
   const hue = botStyle(bot.key, bot.name).hue;
   const blockedNow = tasks.some(t => BLOCKED.includes(t.displayState));
   const anchored = anchor && !isCompactViewport;
-  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClickCapture={event => { if (isCompactViewport && performance.now() - openedAt.current < SETTLE_MS) { event.preventDefault(); event.stopPropagation(); } }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" data-caret={anchored && anchor?.rowCenter !== undefined || undefined} style={{ "--bot-hue": hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: work`} onKeyDown={event => {
+  return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope} onClickCapture={event => { if (isCompactViewport && performance.now() - openedAt.current < SETTLE_MS) { event.preventDefault(); event.stopPropagation(); } }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="dispatch-panel" data-caret={anchored && anchor?.rowCenter !== undefined || undefined} style={{ "--bot-hue": hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: tasks and desks`} onKeyDown={event => {
     if (!(event.target instanceof Node) || !panel.current?.contains(event.target)) return;
     if (event.key === "Escape") { event.stopPropagation(); onClose(); }
     if (event.key === "Tab") { const buttons = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], summary, [tabindex="0"]')).filter(node => { const closed = node.closest("details:not([open])"); return !closed || node.parentElement === closed && node.tagName === "SUMMARY"; }).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1); const first = buttons[0], last = buttons.at(-1); if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }

@@ -185,7 +185,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
   if (place.kind === "toggle") {
     if (!needs && !unread) return null;
     return createPortal(<span id={badgeId} className="radar-toggle-badge" data-bb-plugin={scope} data-tone={needs ? "needs" : "unread"} aria-hidden="true"
-      style={{ left: place.x - 12, top: place.y - 4 } as CSSProperties}>{needs ? needs : ""}</span>, document.body);
+      style={{ left: place.x - 12, top: Math.max(place.y - 4, 4) } as CSSProperties}>{needs ? needs : ""}</span>, document.body);
   }
   const show = (element: HTMLElement, title: string, lines: string[]) => {
     const box = element.getBoundingClientRect();
