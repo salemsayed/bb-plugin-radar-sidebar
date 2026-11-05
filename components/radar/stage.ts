@@ -1,6 +1,6 @@
 import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
-import { plainNote, taskHeadline, youWords } from "./workText";
+import { plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 
 export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
@@ -61,8 +61,8 @@ const MERGE_REQUEST = /^([a-z][\w-]*)!(\d+)$/i;
 
 export function stageTitle(raw: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
-  if (request) return `Merge request ${request[2]} in ${request[1]}`;
-  return plainNote(secondPerson(flatten(taskHeadline(raw)).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you")));
+  if (request) return `Merge request ${request[2]}`;
+  return plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(raw))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you")));
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -83,7 +83,7 @@ export function nextCheck(at: number, now: number): string {
 
 function waitLine(task: BotTaskRow, now: number): string {
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
-  if (task.waitFor && task.waitFor !== "the bot") return "Waiting on someone else";
+  if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
   if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a worker";
   return "Waiting, no date set";
 }
@@ -114,7 +114,6 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     const why = blocked.displayState === "overdue" ? "missed its check" : "keeps failing";
     return { pose: "blocked", line: `${stageTitle(blocked.title)} ${why}`, extra: retry, tone: "blocked", quiet: false };
   }
-  if (ctx.unread) return { pose: "unread", line: "New reply", extra: "", tone: "news", quiet: false };
   const offline = open.find(task => task.displayState === "offline");
   const working = open.filter(task => task.displayState === "working" || task.displayState === "queued");
   if (offline && !working.length && !ctx.running) {
@@ -190,7 +189,6 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   }
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", time: "", helpers };
   if (look.tone === "busy") return { ...look, kind: "live", badge: null, time: "now", helpers };
-  if (look.pose === "unread") return { ...look, kind: "calm", badge: null, time: "", helpers };
   if (look.pose === "offline") return { ...look, kind: "calm", badge: null, time: "", helpers };
   if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", time: "", helpers };
   const last = lastActivity(bot);

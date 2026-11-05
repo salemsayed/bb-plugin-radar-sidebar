@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { experimental_useThreadActions as useThreadActions, type PluginThreadActionEntry, type PluginThreadActionTarget } from "@get-bb/plugin-sdk/app";
+import { experimental_Icon as HostIcon, experimental_useThreadActions as useThreadActions, type PluginThreadActionEntry, type PluginThreadActionTarget } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 
 const HIDDEN = new Set(["bb--core/pin", "bb--core/rename", "bb--core/regenerateTitle", "bb--core/archive", "bb--core/delete", "bb--core/parentNotifications"]);
@@ -60,13 +60,14 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
               close();
               void action.run();
             }}>
+            <HostIcon name={action.icon} aria-hidden="true" className="bot-menu-icon" />
             <span className="bot-menu-label">{action.label}{action.detail ? <small>{action.detail}</small> : null}</span>
             {action.choices ? <Icon name="ChevronRight" aria-hidden="true" className="bot-menu-chevron" data-open={expanded || undefined} /> : null}
           </button>
           {action.choices && expanded ? <div role="group" aria-label={action.choices.heading ?? action.label} className="bot-menu-choices">
             {action.choices.items.map(choice => <button key={choice.id} type="button" role="menuitemradio" aria-checked={!!choice.selected} disabled={choice.disabled} className="bot-menu-item bot-menu-choice"
               onClick={() => { close(); void action.run(choice.id); }}>
-              <span className="bot-menu-check" aria-hidden="true">{choice.selected ? <Icon name="Check" /> : null}</span>
+              <span className="bot-menu-check bot-menu-icon" aria-hidden="true">{choice.selected ? <Icon name="Check" /> : null}</span>
               <span className="bot-menu-label">{choice.label}</span>
             </button>)}
             {action.choices.hint ? <p className="bot-menu-hint">{action.choices.hint}</p> : null}
@@ -75,6 +76,7 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
       })}
       {entries.length ? <div className="bot-menu-separator" role="separator" /> : null}
       <button type="button" role="menuitem" className="bot-menu-item" onClick={() => { setOpen(false); onShowThreads(); onClose(); }}>
+        <Icon name="MessageSquare" aria-hidden="true" className="bot-menu-icon" />
         <span className="bot-menu-label">All threads</span>
       </button>
     </div> : null}

@@ -9,6 +9,47 @@ export function plainNote(text: string): string {
     .trim();
 }
 
+const MARKDOWN = [
+  [/^\s*#{1,6}\s+/, ""],
+  [/\s+#{1,6}\s+/g, " · "],
+  [/\[\d+\]\s*/g, ""],
+  [/\[([^\]]+)\]\([^)]*\)/g, "$1"],
+  [/\*\*|__|`/g, ""],
+  [/\s+(?:\d+[.)]|[-*•])\s+(?=\S)/g, " · "],
+  [/^(?:\d+[.)]|[-*•])\s+/, ""],
+  [/(?:\s*·\s*){2,}/g, " · "],
+] as const;
+
+export function plainMarkdown(text: string): string {
+  return MARKDOWN.reduce((out, [pattern, to]) => out.replace(pattern, to), text).replace(/\s{2,}/g, " ").trim();
+}
+
+const MERGE_REQUEST_REF = /\b[a-z][\w-]*!(\d+)\b/gi;
+const ROUTE_PREFIX = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:\s*/i;
+const ROUTE_ONLY = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(?:review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:/i;
+
+export function plainWorkerTitle(title: string): string {
+  let out = title.trim().replace(MERGE_REQUEST_REF, "merge request $1");
+  if (ROUTE_ONLY.test(out)) {
+    const match = ROUTE_PREFIX.exec(out);
+    const kind = match?.[1];
+    out = out.slice(match?.[0].length ?? 0);
+    if (kind) out = `${kind[0]!.toUpperCase()}${kind.slice(1).toLowerCase().replace("recheck", "re-check")}: ${out}`;
+  }
+  out = out.replace(/^merge request/, "Merge request");
+  return out ? out[0]!.toUpperCase() + out.slice(1) : out;
+}
+
+const WAITING_ON = /\b(?:waiting|wait) (?:on|for) ((?:[A-Z][\w-]+)(?: [A-Z][\w-]+)?)(?:'s\b ?([\w-]+(?: [\w-]+)?)?)?/;
+
+export function waitingOn(line: string): string {
+  const match = WAITING_ON.exec(line);
+  if (!match) return "";
+  const who = match[1]!.replace(/^Salem$/, "you");
+  if (/^(?:the|a|an|it|its|this|that|bot|Lab|Bricks|Home|Work|Personal|Security|ERBareeq)$/.test(who.split(" ")[0]!)) return "";
+  return match[2] ? `${who}'s ${match[2]}` : who;
+}
+
 export function taskHeadline(title: string): string {
   const full = title.trim().replace(/\s+/g, " ");
   const bare = full.replace(/\s*\([^()]{12,}\)/g, "").replace(/\s{2,}/g, " ").trim();
@@ -47,7 +88,7 @@ export function askLine(ask: { excerpt: string; label: string; at?: number }, no
   const via = relayed && asker ? ` via ${asker}` : "";
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const excerpt = plainNote(bare.replace(RELAYED_WORDS, "").replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+  const excerpt = plainNote(plainMarkdown(bare.replace(RELAYED_WORDS, "")).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
   return excerpt ? `${who} ${when}${via}: \u201c${excerpt}\u201d` : `${who} ${when}${via}`;
 }
 

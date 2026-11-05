@@ -44,8 +44,7 @@
 .radar-threads-toggle:focus-visible, .radar-thread-row:focus-visible, .radar-thread-more:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
 .radar-threads-chevron { flex: none; width: 16px; height: 16px; transition: transform 120ms ease; }
 .radar-threads-toggle[aria-expanded="true"] .radar-threads-chevron { transform: rotate(90deg); }
-.radar-threads-label { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; color: var(--foreground); white-space: nowrap; overflow: hidden; }
-.radar-threads-toggle:has(.radar-threads-summary) .radar-threads-hint { display: none; }
+.radar-threads-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; color: var(--foreground); line-height: 1.25; white-space: nowrap; overflow: hidden; }
 .radar-threads-hint { font-size: 12px; font-weight: 450; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radar-threads-summary { flex: none; font-size: 12px; font-weight: 600; color: var(--stage-news); }
 .radar-threads-summary[data-tone="needs"] { color: var(--stage-ask); }
@@ -58,17 +57,22 @@
 .radar-threads-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; }
 .radar-threads-empty { margin: 0; padding: 6px 12px 10px; color: var(--muted-foreground); font-size: 12px; }
 .radar-thread-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); border-radius: 10px; }
-.radar-thread-row { grid-area: 1 / 1; display: flex; align-items: flex-start; gap: 8px; width: 100%; min-height: 44px; padding: 7px 34px 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; }
+.radar-thread-row { grid-area: 1 / 1; display: flex; align-items: flex-start; gap: 8px; width: 100%; min-height: 44px; padding: 7px 10px 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; }
 .radar-thread-item:hover .radar-thread-row { background: var(--muted); }
 .radar-thread-more { grid-area: 1 / 1; align-self: center; justify-self: end; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; margin-inline-end: 4px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); cursor: pointer; opacity: 0; }
 .radar-thread-more svg, .radar-thread-more [data-icon-root] { width: 16px; height: 16px; }
-.radar-thread-item:is(:hover, :focus-within, [data-current]) .radar-thread-more { opacity: 1; }
+.radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-more { opacity: 1; }
+.radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-row { padding-inline-end: 38px; }
+.radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-mark { visibility: hidden; }
+.radar-thread-item[data-menu]:not([data-current]) .radar-thread-row { background: var(--muted); }
 .radar-thread-more:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 9%, transparent); }
 .radar-thread-row[aria-current="page"] { position: relative; background: var(--stage-selection-fill); }
 .radar-thread-row[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--stage-selection); }
 .radar-thread-row[data-depth="1"] { padding-inline-start: 26px; }
 .radar-thread-row[data-depth="2"], .radar-thread-row[data-depth="3"] { padding-inline-start: 42px; }
-.radar-thread-mark { flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.radar-thread-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.radar-thread-head b { flex: 1; }
+.radar-thread-mark { flex: none; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
 .radar-thread-row[data-mark="unread"] .radar-thread-mark { background: var(--stage-news); }
 .radar-thread-row[data-mark="needs"] .radar-thread-mark { background: var(--stage-ask); }
 .radar-thread-row[data-mark="failed"] .radar-thread-mark { background: var(--stage-blocked); }
@@ -83,4 +87,4 @@
 .radar-back-to-bots:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
 .radar-back-to-bots svg, .radar-back-to-bots [data-icon-root] { width: 16px; height: 16px; }
 .radar-all-threads-title { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .radar-threads-toggle { min-height: 44px; } .radar-thread-row { padding-block: 10px; padding-inline-end: 48px; } .radar-thread-more { opacity: 1; width: 44px; height: 44px; margin: 0; } .radar-back-to-bots { min-height: 44px; } .radar-threads-all { min-height: 44px; } }
+@media (pointer: coarse) { .radar-threads-toggle { min-height: 44px; } .radar-thread-row, .radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-row { padding-block: 10px; padding-inline-end: 48px; } .radar-thread-item:is(:hover, :focus-within, [data-current], [data-menu]) .radar-thread-mark { visibility: visible; } .radar-thread-copy b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; } .radar-thread-more { opacity: 1; width: 44px; height: 44px; margin: 0; } .radar-back-to-bots { min-height: 44px; } .radar-threads-all { min-height: 44px; } }
