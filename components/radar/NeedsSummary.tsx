@@ -108,6 +108,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const listRef = useRef<HTMLUListElement>(null);
   const headRef = useRef<HTMLHeadingElement>(null);
   const focusAt = useRef<number | null>(null);
+  const restore = useRef<string | null>(null);
   const isParked = parked ?? (() => false);
   if (!hold && skip.size) setSkip(new Set());
   const items = useHeld([...needItems(data), ...extra, ...answered], hold, parked).filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)));
@@ -124,6 +125,16 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const state = !items.length ? checking ? "checking" : "empty" : waiting ? "waiting" : "settled";
   useWholeItems(listRef, open, shown.length);
   useLayoutEffect(() => {
+    const back = restore.current;
+    if (back && items.some(item => item.id === back && !item.state && !(item.notNowKey && isParked(item.notNowKey)))) {
+      restore.current = null;
+      const active = document.activeElement;
+      if (!active || active === document.body || listRef.current?.contains(active) || active === headRef.current) {
+        const index = shown.findIndex(item => item.id === back);
+        listRef.current?.querySelectorAll<HTMLElement>(".stage-needs-item")[index]?.focus();
+      }
+      return;
+    }
     const at = focusAt.current;
     if (at === null) return;
     focusAt.current = null;
@@ -133,7 +144,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
     if (!onNotNow) return;
-    if (keyboard) { setSkip(prev => new Set(prev).add(item.id)); focusAt.current = index; }
+    if (keyboard) { setSkip(prev => new Set(prev).add(item.id)); focusAt.current = index; restore.current = item.id; }
     onNotNow(item);
   };
   return <section className="stage-needs" data-state={state} data-open={open || undefined}

@@ -35,8 +35,20 @@ const REPO_BEFORE = /\b(?:the |its |a )?([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s+(branc
 const PROJECT_SLUG = /\bproject ([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b(?!-)/g;
 const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
-export function botFiles(text: string): string {
+export function botTokens(text: string): string {
   return text
+    .replace(CHECKER, "task checker")
+    .replace(CHECKER_LEAD, "Checker")
+    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker")
+    .replace(IP_EXIT, "the new exit address")
+    .replace(IP_AFTER, "")
+    .replace(IP_ALONE, "")
+    .replace(REPO_BEFORE, (whole, _slug: string, noun: string) => /^(?:the|its|a) /.test(whole) ? `${whole.split(" ")[0]} ${noun}` : noun)
+    .replace(PROJECT_SLUG, "the $1 project");
+}
+
+export function botFiles(text: string): string {
+  return botTokens(text)
     .replace(FILE_ITEM, "")
     .replace(FILE_NAME, (_, name: string) => FILE_NOUN[name.toUpperCase()] ?? `${name.toLowerCase().replace(/[-_]+/g, " ")} file`)
     .replace(REDACTED_AFTER, "$1 the $2")
@@ -64,14 +76,6 @@ export function plainText(text: string): string {
     .replace(HTTP_ASIDE, "")
     .replace(HTTP_CODE, "an error")
     .replace(BUILD_TAG, "")
-    .replace(CHECKER, "task checker")
-    .replace(CHECKER_LEAD, "Checker")
-    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker")
-    .replace(IP_EXIT, "the new exit address")
-    .replace(IP_AFTER, "")
-    .replace(IP_ALONE, "")
-    .replace(REPO_BEFORE, (whole, _slug: string, noun: string) => /^(?:the|its|a) /.test(whole) ? `${whole.split(" ")[0]} ${noun}` : noun)
-    .replace(PROJECT_SLUG, "the $1 project")
     .replace(TECHNICAL_ID, "")
     .replace(COMMENT_ID, "")
     .replace(HASH_AT, "")
@@ -159,7 +163,7 @@ const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorer|builder|reviewer|judge|worker|takeover|re-check|recheck|review|check|fix|build)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
-  let out = botWords(title.trim()).replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botTokens(botWords(title.trim())).replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -299,6 +303,7 @@ const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "shor
 
 const RELAYED_WORDS = /^\s*Salem,?\s+(?:(?:(?:thr_[a-z0-9]+|msg|seq)\s*#?\d*\s*)+(?:\([^)]*\))?,?\s*(?:word for word)?|(?:\d{1,2} [A-Z][a-z]{2}(?: \d{4})?,?\s*)?word for word)\s*:\s*["\u201c]?/i;
 const RELAYED_ASIDE = /^\s*Salem\s*\([^()]{0,60}\)\s*:\s*["\u201c]/;
+const RELAYED_ASKED = /^\s*Salem asked(?: (?:on|from|in|via) (?:his|your|the) [\w-]+)?\s*\([^()]{0,80}\)\s*:\s*/;
 const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b(?:\s*\(\d{1,2} [A-Z][a-z]{2} \d{4}\))?/g;
 const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
 const WAKE_ONLY = /^\s*(?:\p{Extended_Pictographic}\uFE0F?\s*)?wake(?:-up)? due\.?\s*$/iu;
@@ -317,7 +322,7 @@ const HANDED_FROM = /\bhand(?:off|over|ed (?:this|it) (?:off|over)) from (?:the 
 const HANDOVER_CAP = 220;
 
 function cleanAsk(text: string, mine: boolean, receiver?: string): { text: string; cut: boolean } {
-  const source = text.replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "");
+  const source = text.replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
   const shown = (mine ? userWordsShown : botWordsShown)(mine ? source : botFiles(source));
   const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
   return { text: mine ? flat : botToBotWords(flat, receiver), cut: shown.cut };
@@ -334,6 +339,11 @@ function firstPlain(text: string): string {
 }
 
 function relayedQuote(text: string): string {
+  if (RELAYED_ASKED.test(text)) {
+    const body = text.replace(RELAYED_ASKED, "");
+    const quoted = /^(["\u201c'\u2018])([^"\u201c\u201d'\u2018\u2019]{2,})["\u201d'\u2019]/.exec(body);
+    return quoted ? quoted[2]! : body;
+  }
   if (!RELAYED_ASIDE.test(text)) return text;
   const body = text.replace(RELAYED_ASIDE, "");
   const close = body.search(/["\u201d]/);
@@ -358,7 +368,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
   const asker = named && named !== own ? named : named ? "Its own chat" : found?.[1] ? "Another chat" : undefined;
   const bare = ask.excerpt.replace(ASKER, "");
-  const relayed = RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare);
+  const relayed = RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare) || RELAYED_ASKED.test(bare);
   const mine = relayed || label !== "Bot request";
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);
