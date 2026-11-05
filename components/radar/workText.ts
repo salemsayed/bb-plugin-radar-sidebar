@@ -45,7 +45,7 @@ export function cutAtWord(text: string, max: number): string {
   if (!clipped && body.length <= max) return body;
   let cut = body.length <= max ? body : body.slice(0, max + 1);
   const tail = /\S+$/.exec(cut)?.[0] ?? "";
-  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z])$/i.test(tail);
+  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z]{1,3})$/i.test(tail);
   const space = cut.lastIndexOf(" ");
   if (partial) cut = space > 0 ? cut.slice(0, space) : cut.slice(0, max);
   const kept = cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");

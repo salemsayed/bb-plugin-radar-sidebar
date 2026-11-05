@@ -101,7 +101,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu 
       <span className="stage-needs-heading">{title}</span>
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : moreLabel} title={open ? undefined : moreLabel} onClick={() => setAll(value => !value)}>
         <span className="stage-needs-more-pill"><span>{open ? "Show less" : `+${more} more`}</span>
-          {open ? null : <span className="stage-needs-more-faces" aria-hidden="true">{hiddenBots.slice(0, 3).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
+          {open ? null : <span className="stage-needs-more-faces" aria-hidden="true">{hiddenBots.slice(0, 2).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
           <Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
       {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`}>{waiting}</span> : null}
