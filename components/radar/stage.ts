@@ -111,7 +111,8 @@ export function askFirst(text: string, title = ""): string {
   return rest ? `${lead} · ${rest}` : lead;
 }
 
-const IMPERATIVE = /^(?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab|answer)\b/i;
+const IMPERATIVE = /^(?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab)\b(?!\s+(?:is|was|are|were|has|have|had|will|would|can|could|cannot|can't|should|did|does|do|got|gets|went|looks|passed|failed|stays|works|landed|shipped|deployed|ran|runs|needs|needed)\b)/i;
+const CLOSES_ON_YOU = /\b(?:it|this|the task)\s+(?:only\s+)?(?:closes|can close|will close|can be closed|closes only) (?:on|with|after) your (?:word|say-so|go|ok|okay|confirmation)\b/i;
 const YOU_TO = /\b(?:waiting (?:on|for) you to|waits (?:on|for) you to|needs? you to|for you to|you need to|you should|asks? you to)\s+([^.;·?]{3,80})/i;
 
 export function isDecision(text: string): boolean {
@@ -126,6 +127,7 @@ export function needAsk(raw: string, title: string): string {
   const wanted = YOU_TO.exec(text)?.[1]?.trim().replace(/[,\s]+$/, "");
   const rest = first.split(/(?<=[.;!?])\s+/).filter(part => !YOU_TO.test(part) && !/^Waiting (?:on|for) you\b/i.test(part)).join(" ").trim().replace(/\s*[;,:]$/, ".");
   if (wanted) return `${capitalFirst(wanted.replace(/\s*\/\s*/g, " or "))}?${rest ? ` · ${rest}` : ""}`;
+  if (CLOSES_ON_YOU.test(text)) return `Close ${title || "it"}? · ${first}`;
   return `Reply needed on ${title || "this task"}${rest ? ` · ${rest}` : ""}`;
 }
 
