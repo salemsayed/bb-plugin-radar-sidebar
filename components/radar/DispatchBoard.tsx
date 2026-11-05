@@ -71,7 +71,7 @@ export interface IdleWait { title: string; running: boolean; idleFor?: string }
 
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, waitsOn?: IdleWait | null): string {
   const state = task.displayState;
-  if (task.later) return task.later.reason === "answered" ? "You answered · bot to follow up" : "Not now · back when the bot asks again";
+  if (task.later) return task.later.reason === "answered" ? "You answered · bot to follow up" : "Back when the bot asks again";
   if (state === "needs") {
     const ask = needAsk((task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, ""), stageTitle(task.title, task.outcome));
     return ask || "Waiting on you";
@@ -449,7 +449,7 @@ function DeskNeedCard({ desk, now, current, onOpen, botName }: { desk: BotDesk; 
   const where = /^whatsapp$/i.test(channel) ? "WhatsApp chat" : capitalFirst(channel || "Desk");
   const meta = `${where}${person ? ` with ${person}` : ""} · ${askedAgo(elapsed(desk.updatedAt, now))}`;
   const parked = desk.later !== undefined;
-  const ask = parked ? "Not now · back when the desk changes" : deskNeedLine(desk);
+  const ask = parked ? "Back when the desk changes" : deskNeedLine(desk);
   const open = () => { if (desk.threadId) onOpen(desk.threadId); };
   const key = `desk:${desk.id}`;
   return <article className="dispatch-task-group dispatch-card" data-tone={parked ? "quiet" : "needs"}>

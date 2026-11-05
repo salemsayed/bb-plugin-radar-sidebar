@@ -13,7 +13,10 @@ function editable(target: EventTarget | null): boolean {
 function placement(): CSSProperties {
   const sidebar = document.querySelector<HTMLElement>('[data-testid="nav-rail-sidebar-body"]')?.getBoundingClientRect();
   const wide = window.innerWidth >= 768;
-  if (wide && sidebar && sidebar.width > 0 && sidebar.right + 260 < window.innerWidth) return { left: `${Math.round(sidebar.right + GAP)}px`, bottom: `calc(${GAP}px + env(safe-area-inset-bottom, 0px))` };
+  if (!wide && document.querySelector(".dispatch-phone .dispatch-panel")) return { left: `${GAP}px`, top: `calc(${GAP}px + env(safe-area-inset-top, 0px))`, bottom: "auto" };
+  const panel = wide ? document.querySelector<HTMLElement>(".dispatch-panel")?.getBoundingClientRect() : undefined;
+  const edge = Math.max(sidebar && sidebar.width > 0 ? sidebar.right : 0, panel && panel.width > 0 ? panel.right : 0);
+  if (wide && edge > 0 && edge + 280 < window.innerWidth) return { left: `${Math.round(edge + GAP)}px`, bottom: `calc(${GAP}px + env(safe-area-inset-bottom, 0px))` };
   const footer = Array.from(document.querySelectorAll<HTMLElement>('button[aria-label^="Settings"], #sidebar-updates-badge-bb')).map(node => node.getBoundingClientRect()).filter(box => box.height > 0 && box.top > window.innerHeight / 2);
   const top = footer.length ? Math.min(...footer.map(box => box.top)) : window.innerHeight;
   return { left: `${GAP}px`, bottom: `${Math.round(window.innerHeight - top + 8)}px` };
