@@ -9,7 +9,7 @@ import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, sh
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askLine, askParts, capCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
+import { askLine, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
@@ -545,12 +545,14 @@ export function offListLine(count: number): string {
   return `${count === 1 ? "1 open question" : `${count} open questions`} for you`;
 }
 
+const OFF_LIST_TITLE = 110;
+
 function OffListCard({ item, now, onOpen }: { item: NeedsItem; now: number; onOpen: (id: string) => void }) {
   const at = Date.parse(item.createdAt);
   return <article className="dispatch-task-group dispatch-card" data-tone="quiet">
     <div className="dispatch-card-head">
       <button type="button" className="dispatch-task" disabled={!item.source.threadId} onClick={() => item.source.threadId && onOpen(item.source.threadId)}>
-        <b dir="auto"><Isolated text={stageText(item.text)} /></b>
+        <b dir="auto" title={stageText(item.text)}><Isolated text={readableCut(stageText(item.text), OFF_LIST_TITLE)} /></b>
         <span className="dispatch-status-line"><i aria-hidden="true" /><span>{Number.isFinite(at) ? `Asked ${dayAndTime(at, now)}` : "Asked"}{item.source.automationId ? " · filed by its checks" : ""}</span></span>
       </button>
     </div>
