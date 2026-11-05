@@ -394,8 +394,8 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stage-ask-fill); }
 .stage-needs:is([data-state="empty"], [data-state="settled"]) .stage-needs-dot { background: var(--stage-good); }
 .stage-needs-count { flex: none; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--stage-ask-fill); color: var(--stage-ask-ink); font-size: 11.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
-.stage-needs-more { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 84px; height: 24px; margin-block: -1px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.stage-needs-more-pill { display: inline-flex; align-items: center; justify-content: center; gap: 3px; width: 84px; height: 24px; padding: 0 6px 0 9px; border-radius: 12px; background: color-mix(in oklab, var(--stage-ask-fill) 16%, transparent); }
+.stage-needs-more { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 84px; white-space: nowrap; height: 24px; margin-block: -1px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stage-needs-more-pill { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 84px; white-space: nowrap; height: 24px; padding: 0 6px 0 9px; border-radius: 12px; background: color-mix(in oklab, var(--stage-ask-fill) 16%, transparent); }
 .stage-needs-more [data-icon-root], .stage-needs-more svg { width: 14px; height: 14px; transition: transform 120ms ease; }
 .stage-needs-more[aria-expanded="true"] [data-icon-root], .stage-needs-more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .stage-needs-more:hover .stage-needs-more-pill { background: color-mix(in oklab, var(--stage-ask-fill) 28%, transparent); }
