@@ -28,6 +28,7 @@ const taskSchema = z.object({
   retryAt: z.number().optional(),
   conversationThreadId: z.string().nullable().default(null),
   needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional() }).optional(),
+  later: z.object({ reason: z.enum(["answered", "not-now"]).catch("not-now"), at: z.number() }).optional(),
   tags: z.array(z.string()).default([]),
   origin: z.enum(["verified", "unverified", "imported"]).catch("unverified"),
   observedAt: z.number().optional(),
@@ -38,6 +39,7 @@ export const deskSchema = z.object({
   label: z.string(), key: z.string(), threadId: z.string().nullable(), title: z.string(),
   status: z.enum(["draft", "blocked", "working", "info", "done", "deferred"]),
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
+  later: z.number().optional(),
 });
 export type BotDesk = z.infer<typeof deskSchema>;
 
@@ -46,8 +48,8 @@ const DESK_RANK: Record<BotDesk["status"], number> = { draft: 0, blocked: 0, wor
 const LEADING_MARKS = /^(?:(?:🟢|🟠|🟡|🔴|⏳|⚪|✅|⏸|⚠)\uFE0F?\s*)+/u;
 const THREAD_REF = /(?:\s+(?:on|in|at|from|see))?\s*@thread:\S+/g;
 
-export function needsYou(desk: Pick<BotDesk, "status">): boolean {
-  return desk.status === "draft" || desk.status === "blocked";
+export function needsYou(desk: Pick<BotDesk, "status" | "later">): boolean {
+  return desk.later === undefined && (desk.status === "draft" || desk.status === "blocked");
 }
 
 export function sortDesks(desks: readonly BotDesk[]): BotDesk[] {
@@ -99,6 +101,7 @@ export const botTasksSchema = z.object({
   needs: z.array(z.object({ bot: z.string(), taskId: z.string(), threadId: z.string(), interactionId: z.string(), question: z.string() })).default([]),
   notFiled: z.array(z.object({ threadId: z.string(), title: z.string().default(""), suggestedBot: z.string().optional() })).default([]),
   observedAt: z.number().default(() => Date.now()),
+  notNow: z.array(z.object({ key: z.string(), at: z.number() })).optional(),
 });
 
 export type BotTasksData = z.infer<typeof botTasksSchema>;

@@ -6,7 +6,7 @@ import Clock01Icon from "@hugeicons/core-free-icons/Clock01Icon";
 import { BotFace } from "./BotFace";
 import { shortBotName, type RosterBot } from "./bots";
 import { openNeeds, type NeedsItem } from "@/lib/needs";
-import { CAIRO, cairoLocal, dueLabel, snoozedLabel } from "@/lib/reminderTimes";
+import { CAIRO, cairoLocal, dueLabel, reminderChoices, snoozedLabel } from "@/lib/reminderTimes";
 import { shortAgo } from "./time";
 import type { SwipeActionView } from "@/lib/swipe";
 import { useRowSwipe } from "./useRowSwipe";
@@ -24,22 +24,26 @@ export function recommendLabel(text: string): string {
   return flat.length > RECOMMEND_CHARS ? `${flat.slice(0, RECOMMEND_CHARS - 1).trimEnd()}…` : flat;
 }
 const UNDO_MS = 6_000;
-type Completion = { item: NeedsItem; position: number; expiresAt: number; busy: boolean; error: boolean };
+type Completion = { item: NeedsItem; position: number; expiresAt: number; busy: boolean; error: boolean; later?: boolean };
+export function notNowUntil(now: number): string {
+  return reminderChoices(now)[1]!.until;
+}
 
-function NeedsRow({ item, roster, now, onUpdate, onOpen, onReply }: {
+function NeedsRow({ item, roster, now, onUpdate, onOpen, onReply, onNotNow }: {
   item: NeedsItem; roster: readonly RosterBot[]; now: number;
   onUpdate: (id: string, action: NeedsAction, until?: string) => Promise<void>;
+  onNotNow: (id: string) => Promise<void>;
   onOpen: (threadId: string) => void;
   onReply?: (threadId: string, text: string) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [snooze, setSnooze] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [retry, setRetry] = useState<{ action: "done" | "snooze"; until?: string } | null>(null);
-  const act = async (action: "done" | "snooze", until?: string) => {
+  const [retry, setRetry] = useState<{ action: "done" | "snooze" | "later"; until?: string } | null>(null);
+  const act = async (action: "done" | "snooze" | "later", until?: string) => {
     if (busy) return;
     setBusy(true); setRetry(null);
-    try { await onUpdate(item.id, action, until); setSnooze(false); }
+    try { if (action === "later") await onNotNow(item.id); else await onUpdate(item.id, action, until); setSnooze(false); }
     catch { setRetry({ action, until }); }
     finally { setBusy(false); }
   };
@@ -80,8 +84,9 @@ function NeedsRow({ item, roster, now, onUpdate, onOpen, onReply }: {
           <button className="radar-needs-snooze" type="button" disabled={busy} aria-label={`Snooze: ${item.text}`} title="Snooze" aria-expanded={snooze} onClick={() => setSnooze(value => !value)}><HugeiconsIcon icon={Clock01Icon} aria-hidden="true" /></button>
         </div>
         {item.state === "snoozed" && item.snoozeUntil ? <span className="radar-needs-snoozed-until">{snoozedLabel(item.snoozeUntil)}</span> : null}
-        {recommend || alert ? <div className="radar-needs-actions">
+        {recommend || alert || item.state !== "snoozed" ? <div className="radar-needs-actions">
           {recommend && replyThread ? <button type="button" className="radar-needs-action radar-needs-action-primary" disabled={busy} title={`Reply: ${recommend}`} aria-label={`Reply: ${recommend}`} onClick={reply}>{recommendLabel(recommend)}</button> : null}
+          {item.state !== "snoozed" ? <button type="button" className="radar-needs-action" disabled={busy} title="Not now: snooze until tomorrow 09:00" aria-label={`Not now: ${item.text}`} onClick={() => void act("later")}>Not now</button> : null}
           {alert ? <>
             <button type="button" className="radar-needs-action" disabled={busy} aria-label={`Seen: ${item.text}`} onClick={() => void act("done")}>Seen</button>
             {item.source.threadId ? <button type="button" className="radar-needs-action" disabled={busy} aria-label={`Open: ${item.text}`} onClick={() => onOpen(item.source.threadId!)}>Open</button> : null}
@@ -113,6 +118,12 @@ export function NeedsYouList({ items, roster, now, onUpdate, onOpen, onReply, he
       Math.max(0, Math.min(...expiring.map(item => item.expiresAt)) - Date.now()));
     return () => clearTimeout(timer);
   }, [completed]);
+  const later = async (id: string) => {
+    const item = items?.find(item => item.id === id);
+    const position = ordered.findIndex(item => item.id === id);
+    await onUpdate(id, "snooze", notNowUntil(Date.now()));
+    if (item) setCompleted(previous => [...previous.filter(done => done.item.id !== id), { item, position: Math.max(0, position), expiresAt: Date.now() + UNDO_MS, busy: false, error: false, later: true }]);
+  };
   const update = async (id: string, action: NeedsAction, until?: string) => {
     const item = items?.find(item => item.id === id);
     const position = ordered.findIndex(item => item.id === id);
@@ -137,9 +148,9 @@ export function NeedsYouList({ items, roster, now, onUpdate, onOpen, onReply, he
   const render = (item: NeedsItem) => {
     const done = completed.find(done => done.item.id === item.id);
     return done ? <li key={item.id} className="radar-needs-undo" role="status">
-      <Icon name="Check" /><span>Done: {done.item.text}</span><button type="button" disabled={done.busy} onClick={() => void undo(item.id)}>Undo</button>
+      <Icon name={done.later ? "Clock" : "Check"} /><span>{done.later ? "Later (tomorrow 09:00)" : "Done"}: {done.item.text}</span><button type="button" disabled={done.busy} onClick={() => void undo(item.id)}>Undo</button>
       {done.error ? <p role="alert">Couldn’t undo. Try again.</p> : <span key={done.expiresAt} className="radar-needs-undo-progress" aria-hidden="true" />}
-    </li> : <NeedsRow key={item.id} item={item} roster={roster} now={now} onUpdate={update} onOpen={onOpen} onReply={onReply} />;
+    </li> : <NeedsRow key={item.id} item={item} roster={roster} now={now} onUpdate={update} onNotNow={later} onOpen={onOpen} onReply={onReply} />;
   };
   return <section className={cn("radar-needs", className)} aria-label="Needs you">
     {heading ? <h3>Needs you <small><b>{waiting.length}</b>{snoozed.length ? ` · ${snoozed.length} snoozed` : ""}</small></h3> : null}

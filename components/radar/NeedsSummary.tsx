@@ -8,6 +8,7 @@ import { askFirst, deskNeedLine, since, stageText, stageTitle } from "./stage";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { Isolated } from "./Isolated";
 import { clauseCut, cutAtWord } from "./workText";
+import { taskNotNowKey } from "@/lib/notNow";
 
 const SHORT_WHAT = 62;
 const OPEN_WHAT = 96;
@@ -42,6 +43,7 @@ export interface NeedItem {
   threadId: string;
   thread?: PluginSidebarThread;
   state?: "answered" | "gone";
+  notNowKey?: string;
 }
 
 export function needItems(data: BotTasksData): NeedItem[] {
@@ -51,11 +53,11 @@ export function needItems(data: BotTasksData): NeedItem[] {
       const question = askFirst(stageText(task.needs?.question || task.line || task.title), stageTitle(task.title));
       items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: question || "Has a question for you", kind: "ask",
         at: task.observedAt !== undefined ? task.observedAt - task.ageMs : undefined,
-        threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId });
+        threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId, notNowKey: taskNotNowKey(task) });
     }
     for (const desk of sortDesks(bot.desks.filter(needsYou))) {
       items.push({ id: `desk:${desk.id}`, botKey: bot.key, botName: bot.name, what: deskNeedLine(desk), kind: "desk", at: desk.updatedAt,
-        threadId: desk.threadId ?? bot.coordinatorThreadId });
+        threadId: desk.threadId ?? bot.coordinatorThreadId, notNowKey: `desk:${desk.id}` });
     }
   }
   return items;
@@ -74,11 +76,14 @@ function useHeld(live: NeedItem[], hold: boolean): NeedItem[] {
 function sideKeys(event: KeyboardEvent<HTMLElement>, onMenu: () => void) {
   const item = event.currentTarget.closest("li");
   if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) { event.preventDefault(); onMenu(); return; }
-  if (event.key === "ArrowRight" && event.target === item?.querySelector(".stage-needs-item")) { event.preventDefault(); item?.querySelector<HTMLElement>(".stage-needs-menu")?.focus(); }
-  if (event.key === "ArrowLeft" && event.target === item?.querySelector(".stage-needs-menu")) { event.preventDefault(); item?.querySelector<HTMLElement>(".stage-needs-item")?.focus(); }
+  const order = [".stage-needs-item", ".stage-needs-later", ".stage-needs-menu"].map(selector => item?.querySelector<HTMLElement>(selector)).filter((node): node is HTMLElement => !!node);
+  const at = order.indexOf(event.target as HTMLElement);
+  if (at < 0) return;
+  const to = event.key === "ArrowRight" ? order[at + 1] : event.key === "ArrowLeft" ? order[at - 1] : undefined;
+  if (to) { event.preventDefault(); to.focus(); }
 }
 
-export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, onOpen, onMenu }: {
+export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, onOpen, onMenu, onNotNow }: {
   data: BotTasksData;
   activeThreadId: string | null;
   extra: readonly NeedItem[];
@@ -87,6 +92,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   now: number;
   onOpen: (threadId: string) => void;
   onMenu: (item: NeedItem, at: HTMLElement) => void;
+  onNotNow?: (item: NeedItem) => void;
 }) {
   const [all, setAll] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
@@ -120,12 +126,12 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       <Icon name="Check" aria-hidden="true" />
       <span><b>Nothing right now</b><span>Bot questions and approvals show here</span></span>
     </p> : <ul ref={listRef}>
-      {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} />)}
+      {shown.map(item => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow} />)}
     </ul>}
   </section>;
 }
 
-function NeedRow({ item, bot, open, now, current, onOpen, onMenu }: {
+function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   item: NeedItem;
   bot: BotTasksData["bots"][number] | undefined;
   open: boolean;
@@ -133,6 +139,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu }: {
   current: boolean;
   onOpen: (threadId: string) => void;
   onMenu: (item: NeedItem, at: HTMLElement) => void;
+  onNotNow?: (item: NeedItem) => void;
 }) {
   const press = useDeskPress();
   const what = item.what;
@@ -163,6 +170,9 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu }: {
         <span className="stage-needs-what" dir="auto"><Isolated text={fitWhat(what, open ? OPEN_WHAT : SHORT_WHAT)} /></span>
       </span>
     </button>
+    {onNotNow && item.notNowKey && !item.state ? <button type="button" className="stage-needs-later" tabIndex={-1} aria-label={`Not now: ${item.botName}: ${what}`} title="Not now: move to Later until the bot asks again"
+      onPointerDown={event => event.stopPropagation()}
+      onClick={event => { event.stopPropagation(); onNotNow(item); }}>Not now</button> : null}
     {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
       trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={-1} aria-label={menuLabel} title="Actions"
         onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>

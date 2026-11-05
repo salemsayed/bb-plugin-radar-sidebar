@@ -1,0 +1,26 @@
+.stage-needs-later { position: absolute; top: 3px; right: 28px; height: 24px; padding: 0 9px; border: 0; border-radius: 12px; background: color-mix(in oklab, var(--foreground) 7%, transparent); color: var(--muted-foreground); font: inherit; font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: pointer; opacity: 0; }
+.stage-needs-later:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 12%, transparent); }
+.stage-needs-later:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; opacity: 1; }
+.stage-needs li:is(:hover, :focus-within) .stage-needs-later { opacity: 1; }
+.stage-needs li:has(.stage-needs-later):is(:hover, :focus-within) .stage-needs-who { padding-inline-end: 96px; }
+@media (pointer: coarse) {
+  .stage-needs-later { top: 2px; right: 44px; height: 28px; opacity: 1; }
+  .stage-needs-later::before { content: ""; position: absolute; inset: -8px -4px; }
+  .stage-needs li:has(.stage-needs-later) .stage-needs-who { padding-inline-end: 74px; }
+}
+
+.dispatch-card-head { grid-auto-flow: column; grid-auto-columns: auto; }
+.dispatch-panel button.dispatch-later-action { align-self: start; min-height: 44px; margin-top: 4px; padding: 0 2px; border: 0; background: none; color: var(--muted-foreground); font: inherit; font-size: 12.5px; font-weight: 550; white-space: nowrap; cursor: pointer; }
+.dispatch-panel button.dispatch-later-action:is(:hover, :focus-visible) { color: var(--foreground); text-decoration: underline; text-underline-offset: 3px; }
+.dispatch-later .dispatch-card .dispatch-status-line { color: var(--muted-foreground); }
+
+.radar-later-toast { position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 95; display: flex; align-items: center; gap: 8px; width: max-content; max-width: min(380px, calc(100vw - 24px)); min-height: 40px; padding: 4px 4px 4px 12px; border-radius: 12px; background: var(--popover, var(--background)); color: var(--popover-foreground, var(--foreground)); box-shadow: 0 8px 28px rgb(0 0 0 / .18), 0 0 0 1px var(--border); font-size: 12.5px; }
+.radar-later-toast > [data-icon-root], .radar-later-toast > svg { flex: none; width: 15px; height: 15px; color: var(--muted-foreground); }
+.radar-later-toast[data-error] > [data-icon-root], .radar-later-toast[data-error] > svg { color: var(--destructive, #c0392b); }
+.radar-later-toast-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-later-toast button { flex: none; height: 32px; padding: 0 12px; border: 0; border-radius: 9px; background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); font: inherit; font-weight: 650; cursor: pointer; }
+.radar-later-toast button:hover { background: color-mix(in oklab, var(--foreground) 14%, transparent); }
+.radar-later-toast button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-later-toast .radar-later-toast-close { display: grid; place-items: center; width: 32px; padding: 0; background: transparent; color: var(--muted-foreground); }
+.radar-later-toast .radar-later-toast-close [data-icon-root], .radar-later-toast .radar-later-toast-close svg { width: 14px; height: 14px; }
+@media (pointer: coarse) { .radar-later-toast { min-height: 52px; } .radar-later-toast button { height: 44px; } .radar-later-toast .radar-later-toast-close { width: 44px; } }
