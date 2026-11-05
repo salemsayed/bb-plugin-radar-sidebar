@@ -1,23 +1,15 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { useBotsPush } from "@/lib/botsPush";
 import { NEEDS_CHANGED, needsChanged } from "@/lib/needsClient";
 import { botTasksSchema, type BotTasksData } from "@/lib/botTasks";
+import { createSharedRead } from "@/lib/sharedRead";
 const isPluginAbsentError = (error: unknown) => /unknown plugin|has no rpc method|not installed|is disabled|plugin not found/i.test(error instanceof Error ? error.message : String(error));
 
 const TASKS_PLUGIN = "orchestrator-mode";
 /** A fallback: bb-salem-bots pushes each change (the roster's signal), which reloads through radar:needs-changed. */
 export const BOT_TASKS_REFRESH_MS = 60_000;
 const CACHE_KEY = "radar.botTasks.v1";
-let pending: Promise<BotTasksData> | null = null;
-function loadTasks(sdk: ReturnType<typeof useSdk>) {
-  if (!pending) {
-    pending = sdk.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: botTasksSchema });
-    queueMicrotask(() => { pending = null; });
-  }
-  return pending;
-}
-
 export type BotTasksStatus =
   /** Nothing loaded yet; a cached copy may already be painted. */
   | "loading"
@@ -51,6 +43,29 @@ function writeCache(data: BotTasksData | null): void {
   }
 }
 
+function tasksKey(data: BotTasksData): string {
+  return JSON.stringify(data, (name, value: unknown) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+    const row = value as { observedAt?: unknown; ageMs?: unknown };
+    if (name === "") return { ...row, observedAt: undefined };
+    if (typeof row.observedAt === "number" && typeof row.ageMs === "number") return { ...row, observedAt: undefined, ageMs: undefined, startedAt: row.observedAt - row.ageMs };
+    return value;
+  });
+}
+let latestSdk: ReturnType<typeof useSdk> | null = null;
+const tasks = createSharedRead<BotTasksData>({
+  load: () => latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: botTasksSchema }),
+  readCache,
+  writeCache,
+  absent: isPluginAbsentError,
+  refreshMs: BOT_TASKS_REFRESH_MS,
+  events: ["focus", NEEDS_CHANGED],
+  key: tasksKey,
+});
+const IDLE: BotTasksState = { data: null, status: "loading", cached: false };
+const idleState = () => IDLE;
+const idleSubscribe = () => () => {};
+
 /**
  * Every bot's tasks from orchestrator-mode `bot_tasks`. Refreshes on the same
  * push the roster and Needs use (bots_version), on focus and after Radar's
@@ -58,49 +73,7 @@ function writeCache(data: BotTasksData | null): void {
  * "missing" so the view can say so instead of showing an empty list.
  */
 export function useBotTasks(enabled: boolean): BotTasksState {
-  const sdk = useSdk();
+  latestSdk = useSdk();
   useBotsPush(enabled, needsChanged);
-  const [state, setState] = useState<BotTasksState>(() => {
-    const cached = enabled ? readCache() : null;
-    return { data: cached, status: "loading", cached: cached !== null };
-  });
-  useEffect(() => {
-    if (!enabled) {
-      setState({ data: null, status: "loading", cached: false });
-      return;
-    }
-    let cancelled = false;
-    let request = 0;
-    const load = async () => {
-      const current = ++request;
-      try {
-        const data = await loadTasks(sdk);
-        if (cancelled || current !== request) return;
-        writeCache(data);
-        setState(previous => previous.status === "ready" && JSON.stringify(previous.data) === JSON.stringify(data)
-          ? previous
-          : { data, status: "ready", cached: false });
-      } catch (error) {
-        if (cancelled || current !== request) return;
-        if (isPluginAbsentError(error)) {
-          writeCache(null);
-          setState({ data: null, status: "missing", cached: false });
-        } else {
-          setState(previous => ({ ...previous, status: "error" }));
-        }
-      }
-    };
-    const reload = () => void load();
-    void load();
-    const timer = setInterval(reload, BOT_TASKS_REFRESH_MS);
-    window.addEventListener("focus", reload);
-    window.addEventListener(NEEDS_CHANGED, reload);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      window.removeEventListener("focus", reload);
-      window.removeEventListener(NEEDS_CHANGED, reload);
-    };
-  }, [sdk, enabled]);
-  return state;
+  return useSyncExternalStore(enabled ? tasks.subscribe : idleSubscribe, enabled ? tasks.get : idleState);
 }

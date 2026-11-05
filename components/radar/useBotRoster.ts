@@ -1,21 +1,22 @@
 import { useBotTasks } from "./useBotTasks";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { rosterSchema, type RosterBot } from "./bots";
 import { useBotsPush } from "@/lib/botsPush";
-import { needsChanged } from "@/lib/needsClient";
+import { NEEDS_CHANGED, needsChanged } from "@/lib/needsClient";
+import { createSharedRead } from "@/lib/sharedRead";
 
 const ROSTER_PLUGIN = "orchestrator-mode";
 /** A fallback: bb-salem-bots pushes each change (bb 0.47), which reloads through radar:needs-changed. */
 const REFRESH_MS = 60_000;
 const CACHE_KEY = "radar.botRoster.v1";
 
-function readCache(): RosterBot[] {
+function readCache(): RosterBot[] | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? rosterSchema.parse(JSON.parse(raw)).bots.filter(bot => bot.key !== "crew") : [];
+    return raw ? rosterSchema.parse(JSON.parse(raw)).bots.filter(bot => bot.key !== "crew") : null;
   } catch {
-    return [];
+    return null;
   }
 }
 function writeCache(bots: RosterBot[]): void {
@@ -38,6 +39,20 @@ export function isPluginAbsentError(error: unknown): boolean {
   return /unknown plugin|has no rpc method|not installed|is disabled|plugin not found/i.test(message);
 }
 
+let rosterSdk: ReturnType<typeof useSdk> | null = null;
+const roster = createSharedRead<RosterBot[]>({
+  load: async () => (await rosterSdk!.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema })).bots.filter(bot => bot.key !== "crew"),
+  readCache,
+  writeCache: bots => bots ? writeCache(bots) : clearCache(),
+  absent: isPluginAbsentError,
+  refreshMs: REFRESH_MS,
+  events: ["focus", NEEDS_CHANGED],
+});
+const NO_BOTS: RosterBot[] = [];
+const IDLE = { data: null, status: "loading" as const, cached: false };
+const idleState = () => IDLE;
+const idleSubscribe = () => () => {};
+
 /**
  * The registered coordinators, from bb-salem-bots. An absent or failing plugin
  * yields an empty roster on a fresh client; a validated cached roster survives
@@ -45,47 +60,16 @@ export function isPluginAbsentError(error: unknown): boolean {
  * reports itself absent.
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
-  const sdk = useSdk();
+  rosterSdk = useSdk();
   const desks = useBotTasks(enabled).data;
   useBotsPush(enabled, needsChanged);
-  // The last roster paints immediately, so coordinators never flash as pinned rows before the RPC answers.
-  const [bots, setBots] = useState<RosterBot[]>(() => (enabled ? readCache() : []));
+  const shown = useSyncExternalStore(enabled ? roster.subscribe : idleSubscribe, enabled ? roster.get : idleState);
+  const bots = shown.data ?? NO_BOTS;
+  const lastKey = useRef(refreshKey);
   useEffect(() => {
-    if (!enabled) {
-      setBots([]);
-      return;
-    }
-    let cancelled = false;
-    let request = 0;
-    const load = async () => {
-      const current = ++request;
-      try {
-        const result = await sdk.plugins.callRpc({ pluginId: ROSTER_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
-        if (cancelled || current !== request) return;
-        const specialists = result.bots.filter(bot => bot.key !== "crew");
-        // Polls return fresh objects. Equal facts must not invalidate the
-        // sidebar's family filtering, grouping and row projections.
-        setBots(previous => JSON.stringify(previous) === JSON.stringify(specialists) ? previous : specialists);
-        writeCache(specialists);
-      } catch (error) {
-        if (cancelled || current !== request) return;
-        if (isPluginAbsentError(error)) {
-          setBots([]);
-          clearCache();
-        }
-      }
-    };
-    void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
-    const onFocus = () => void load();
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("radar:needs-changed", onFocus);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("radar:needs-changed", onFocus);
-    };
-  }, [sdk, enabled, refreshKey]);
+    if (!enabled || lastKey.current === refreshKey) return;
+    lastKey.current = refreshKey;
+    void roster.refresh();
+  }, [enabled, refreshKey]);
   return useMemo(() => bots.map(bot => ({ ...bot, deskThreadIds: desks?.bots.find(row => row.key === bot.key)?.desks.map(desk => desk.threadId).filter((id): id is string => !!id) ?? [] })), [bots, desks]);
 }
