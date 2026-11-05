@@ -348,8 +348,8 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
   cursor: pointer;
 }
 .radar-rail-bot:hover { background: color-mix(in oklab, var(--foreground) 8%, transparent); }
-.radar-rail-bot[data-current] { background: light-dark(#e9effd, #1f2840); box-shadow: inset 0 0 0 2px var(--stage-selection); }
-.radar-rail-bot[data-here] { background: color-mix(in oklab, light-dark(#e9effd, #1f2840) 60%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--stage-selection) 70%, transparent); }
+.radar-rail-bot[data-current] { background: light-dark(#e9effd, #1f2840); box-shadow: inset 0 0 0 2px light-dark(#3b6cf6, #82a5ff); }
+.radar-rail-bot[data-here] { background: color-mix(in oklab, light-dark(#e9effd, #1f2840) 60%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in oklab, light-dark(#3b6cf6, #82a5ff) 70%, transparent); }
 .radar-rail-bot:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; }
 .radar-rail-needs {
   position: absolute;
