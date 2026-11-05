@@ -49,8 +49,8 @@ export async function notNow(key: string, label: string) {
   try {
     await call(key, true);
     needsChanged();
-  } catch (error) {
-    const failed = { ...toast, error: `Couldn't move it to Later: ${error instanceof Error ? error.message : String(error)}`, expiresAt: Date.now() + UNDO_MS };
+  } catch {
+    const failed = { ...toast, error: "Couldn't move it to Later. Try again in a moment.", expiresAt: Date.now() + UNDO_MS };
     set({ local: withLocal(key, null), toast: failed });
     scheduleToastEnd(failed);
   }
@@ -64,8 +64,8 @@ export async function bringBack(key: string, label?: string) {
     await call(key, false);
     if (state.toast?.key === key) set({ toast: null });
     needsChanged();
-  } catch (error) {
-    const failed: NotNowToast = { key, label: label ?? current?.label ?? "this", expiresAt: Date.now() + UNDO_MS, busy: false, error: `Couldn't bring it back: ${error instanceof Error ? error.message : String(error)}` };
+  } catch {
+    const failed: NotNowToast = { key, label: label ?? current?.label ?? "this", expiresAt: Date.now() + UNDO_MS, busy: false, error: "Couldn't bring it back. Try Bring back in the bot's panel." };
     set({ local: withLocal(key, { on: true, at: Date.now() }), toast: failed });
     scheduleToastEnd(failed);
   }

@@ -77,3 +77,7 @@ export function useBotTasks(enabled: boolean): BotTasksState {
   useBotsPush(enabled, needsChanged);
   return useSyncExternalStore(enabled ? tasks.subscribe : idleSubscribe, enabled ? tasks.get : idleState);
 }
+
+export function refreshBotTasks(): Promise<void> {
+  return tasks.refresh();
+}

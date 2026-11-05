@@ -56,7 +56,7 @@ function flatten(text: string): string {
     .replace(/[,;:]?\s*\b(?:see|on|in|at|from)\s*$/i, "");
 }
 
-const ASK_CLAUSE = /\?|^you\b(?! (?:chose|said|asked|picked|approved|decided|wanted|agreed|told|replied|confirmed|already)\b)|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b|\b(?:awaits?|waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|answer|approval|call|decision|sign-off|reply)\b/i;
+const ASK_CLAUSE = /\?|^you\b(?! (?:[a-z]+ed|chose|said|asked|picked|approved|decided|wanted|agreed|told|replied|confirmed|already|made|ran|sent|took|gave|wrote|set|put|got|began|left|let|saw|did|were|have|had)\b)|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b|\b(?:awaits?|waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|answer|approval|call|decision|sign-off|reply)\b/i;
 const AWAITS_GO = /^(.+?)\s+(?:awaits?|is waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|approval|sign-off)\b\.?$/i;
 const ASK_LONG = 80;
 const DECIDE = /^you (?:decide|choose|pick|say|tell me|confirm) (?:whether|if) (?:to )?(.+)$/i;
@@ -111,6 +111,24 @@ export function askFirst(text: string, title = ""): string {
   return rest ? `${lead} · ${rest}` : lead;
 }
 
+const IMPERATIVE = /^(?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab|answer)\b/i;
+const YOU_TO = /\b(?:waiting (?:on|for) you to|waits (?:on|for) you to|needs? you to|for you to|you need to|you should|asks? you to)\s+([^.;·?]{3,80})/i;
+
+export function isDecision(text: string): boolean {
+  const lead = text.split(" · ")[0]!.trim();
+  return /\?/.test(lead) || IMPERATIVE.test(lead);
+}
+
+export function needAsk(raw: string, title: string): string {
+  const text = stageText(raw);
+  const first = askFirst(text, title);
+  if (!first || isDecision(first)) return first;
+  const wanted = YOU_TO.exec(text)?.[1]?.trim().replace(/[,\s]+$/, "");
+  const rest = first.split(/(?<=[.;!?])\s+/).filter(part => !YOU_TO.test(part) && !/^Waiting (?:on|for) you\b/i.test(part)).join(" ").trim();
+  if (wanted) return `${capitalFirst(wanted.replace(/\s*\/\s*/g, " or "))}?${rest ? ` · ${rest}` : ""}`;
+  return `Reply needed on ${title || "this task"}${rest ? ` · ${rest}` : ""}`;
+}
+
 export function stageText(text: string): string {
   return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 "))).replace(/([.!?]\s+)(you|your)\b/g, (_, end: string, word: string) => `${end}${word[0]!.toUpperCase()}${word.slice(1)}`);
 }
@@ -149,8 +167,14 @@ export function nextCheck(at: number, now: number): string {
   return `Next check ${when}`;
 }
 
+export function laterLine(later: { reason: string }): string {
+  return later.reason === "answered" ? "You answered · bot to follow up" : "Later · back when it asks again";
+}
+
 function waitLine(task: BotTaskRow, now: number): string {
+  if (task.later) return laterLine(task.later);
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
+  if (task.waitFor === "you") return "Waiting on you";
   if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
   const scheduled = scheduledWait(task.line);
   if (scheduled) return scheduled;
@@ -171,7 +195,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const desks = sortDesks(bot.desks.filter(needsYou));
   if (needs.length || desks.length) {
     const first = needs[0];
-    const ask = first ? askFirst(stageText(first.needs?.question || first.line || first.title), stageTitle(first.title)) || "Has a question for you" : deskNeedLine(desks[0]!);
+    const ask = first ? needAsk(first.needs?.question || first.line || first.title, stageTitle(first.title, first.outcome)) || "Has a question for you" : deskNeedLine(desks[0]!);
     return { pose: "asking", line: `Waiting on you · ${plural(needs.length + desks.length, "ask", "asks")}`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
@@ -201,7 +225,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   }
   if (ctx.chatting) return { pose: "working", line: "Chatting with you", extra: "", tone: "busy", quiet: false };
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
-    .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
+    .sort((a, b) => Number(!!a.later) - Number(!!b.later) || (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   if (waiting.length) {
     return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }

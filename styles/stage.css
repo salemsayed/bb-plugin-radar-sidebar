@@ -16,15 +16,29 @@
   color: var(--foreground);
   container-type: inline-size;
 }
+.stage-needs-slot { position: relative; }
 .stage-stale {
-  margin: 0 2px 4px;
-  padding: 9px 12px;
+  position: absolute;
+  inset: 0 2px 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
   border-radius: 14px;
-  background: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
+  background: color-mix(in oklab, var(--muted) 92%, var(--sidebar, var(--background)));
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.35;
 }
+.stage-stale > [data-icon-root], .stage-stale > svg { flex: none; width: 16px; height: 16px; color: var(--muted-foreground); }
+.stage-stale p { flex: 1; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.stage-stale b { font-size: 12.5px; font-weight: 600; color: var(--foreground); }
+.stage-stale button { flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: color-mix(in oklab, var(--foreground) 9%, transparent); color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; }
+.stage-stale button:hover { background: color-mix(in oklab, var(--foreground) 14%, transparent); }
+.stage-stale button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+@media (pointer: coarse) { .stage-stale button { height: 36px; } .stage-stale button::before { content: ""; position: absolute; inset: -4px; } .stage-stale button { position: relative; } }
 .stage-bots { display: flex; flex-direction: column; gap: 2px; }
 .stage-bots-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 34px 0 60px; font-size: 11.5px; font-weight: 600; line-height: 16px; color: var(--muted-foreground); }
 @media (pointer: coarse) { .stage-bots-head { padding-inline: 50px 44px; } }
@@ -413,12 +427,14 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 }
 
 .stage-needs { --stage-needs-slot: 64px; margin: 0 2px 6px; padding: 7px 6px 6px; border-radius: 14px; background: color-mix(in oklab, var(--stage-ask-fill) 12%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--stage-ask-fill) 35%, transparent); }
-.stage-needs:is([data-state="empty"], [data-state="settled"]) { background: color-mix(in oklab, var(--foreground) 3%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 1px var(--border); }
+.stage-needs:is([data-state="empty"], [data-state="settled"], [data-state="checking"]) { background: color-mix(in oklab, var(--foreground) 3%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 1px var(--border); }
+.stage-needs-title:focus { outline: none; }
+.stage-needs-title:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
 .stage-needs-title { display: flex; align-items: center; gap: 5px; height: 22px; margin: 0 2px 4px 4px; font-size: 12.5px; font-weight: 650; color: var(--stage-ask); }
-.stage-needs:is([data-state="empty"], [data-state="settled"]) .stage-needs-title { color: var(--muted-foreground); }
+.stage-needs:is([data-state="empty"], [data-state="settled"], [data-state="checking"]) .stage-needs-title { color: var(--muted-foreground); }
 .stage-needs-heading { flex: 1 0 auto; white-space: nowrap; }
 .stage-needs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stage-ask-fill); }
-.stage-needs:is([data-state="empty"], [data-state="settled"]) .stage-needs-dot { background: var(--stage-good); }
+.stage-needs:is([data-state="empty"], [data-state="settled"], [data-state="checking"]) .stage-needs-dot { background: var(--stage-good); }
 .stage-needs-count { flex: none; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--stage-ask-fill); color: var(--stage-ask-ink); font-size: 11.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
 .stage-needs-more { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; height: 24px; margin-block: -1px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .stage-needs-more-pill { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; overflow: hidden; white-space: nowrap; height: 24px; padding: 0 4px 0 7px; border-radius: 12px; background: color-mix(in oklab, var(--stage-ask-fill) 16%, transparent); }
@@ -455,8 +471,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-what { grid-column: 1 / -1; font-size: 12.5px; line-height: 16px; color: var(--foreground); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .stage-needs[data-open] .stage-needs-what { -webkit-line-clamp: 3; line-clamp: 3; }
 .stage-needs-thread-icon { color: var(--muted-foreground); }
-.stage-needs-age { flex: 0 1 auto; min-width: 0; margin-inline-start: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-@container (max-width: 164px) { .stage-needs-age-verb { display: none; } }
+.stage-needs-age { flex: none; margin-inline-start: auto; white-space: nowrap; font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .stage-needs-item[data-state] { color: var(--muted-foreground); }
 .stage-needs-item[data-state] .stage-needs-what { color: var(--muted-foreground); }
 .stage-needs-item[data-state="gone"] .stage-needs-what { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--muted-foreground) 60%, transparent); }

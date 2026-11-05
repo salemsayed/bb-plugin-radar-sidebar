@@ -137,6 +137,7 @@
 
 .dispatch-card-head { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 8px; }
 .dispatch-card .dispatch-task { gap: 3px; padding: 11px 0 6px; text-align: start; }
+.dispatch-panel button.dispatch-task:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 10px; }
 .dispatch-card .dispatch-task b { -webkit-line-clamp: 3; line-clamp: 3; }
 .dispatch-card .dispatch-status-line { align-items: flex-start; font-size: 13px; font-weight: 550; }
 .dispatch-card .dispatch-status-line i { margin-top: 5px; }

@@ -18,6 +18,21 @@ const REDACTED_AFTER = /\b(on|in|for|of|to|from|with|by|at) ([a-z]+) \[redacted\
 const REDACTED = /\s*\[redacted\]/gi;
 const SKILL_WITH = /\s*,?\s*\b(?:with|using|via|through|by) (?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
 const SKILL_SLUG = /\b(?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
+const SEQ_REF = /\s*\(?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\)?/gi;
+const ASK_REF = /[,;]?\s*\b(?:(?:asked|filed|raised|tracked|sent|logged)\s+)?(?:in|as|via|under)\s+bask_[a-z0-9]+\b/gi;
+const ASK_ID = /\s*\(?\bbask_[a-z0-9]+\b\)?/gi;
+const HTTP_ASIDE = /\s*\((?:HTTP|status)\s*\d{3}\)/gi;
+const HTTP_CODE = /\b(?:an? )?HTTP\s*\d{3}(?: error)?\b/gi;
+const BUILD_TAG = /\s*\b(?:prod|staging|release|build)-[0-9a-f]{6,}\b/gi;
+const CHECKER = /\bJev(?:['\u2019]s)?\s+(?:task\s+|core\s+)?(?:judges?|checks?|checker)\b/g;
+const CHECKER_LEAD = /^Jev\b/;
+const CHECKER_ALONE = /\b((?:on|to|from|by|with|via|for|of|in|restore|restores|restored|fix|fixes|fixed)\s+)?Jev\b/g;
+const IP = "\\d{1,3}(?:\\.\\d{1,3}){3}(?:\\/\\d{1,2})?(?::\\d{2,5})?";
+const IP_EXIT = new RegExp(`\\bexit\\s+(?:IP\\s+)?${IP}`, "g");
+const IP_AFTER = new RegExp(`\\s*(?:\\((?:at|on|via|IP|address)\\s+${IP}\\)|\\b(?:at|on|via|IP|address)\\s+${IP}\\b)`, "g");
+const IP_ALONE = new RegExp(`\\s*(?:\\(${IP}\\)|\\b${IP}\\b)`, "g");
+const REPO_BEFORE = /\b(?:the |its |a )?([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s+(branch|repo|repository|worktree|checkout)\b/g;
+const PROJECT_SLUG = /\bproject ([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b(?!-)/g;
 const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
 export function botFiles(text: string): string {
@@ -43,6 +58,20 @@ export function plainText(text: string): string {
     .replace(NO_MODEL, "no AI")
     .replace(BREADCRUMB, (_, area: string, page: string, noun = "") => `${page}${noun} under ${area}`)
     .replace(TRAILING_HEADING, "$1")
+    .replace(ASK_REF, "")
+    .replace(ASK_ID, "")
+    .replace(SEQ_REF, "")
+    .replace(HTTP_ASIDE, "")
+    .replace(HTTP_CODE, "an error")
+    .replace(BUILD_TAG, "")
+    .replace(CHECKER, "task checker")
+    .replace(CHECKER_LEAD, "Checker")
+    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker")
+    .replace(IP_EXIT, "the new exit address")
+    .replace(IP_AFTER, "")
+    .replace(IP_ALONE, "")
+    .replace(REPO_BEFORE, (whole, _slug: string, noun: string) => /^(?:the|its|a) /.test(whole) ? `${whole.split(" ")[0]} ${noun}` : noun)
+    .replace(PROJECT_SLUG, "the $1 project")
     .replace(TECHNICAL_ID, "")
     .replace(COMMENT_ID, "")
     .replace(HASH_AT, "")
@@ -70,8 +99,6 @@ export function plainQueue(line: string): string {
   return [why, retry, ...rest].filter(Boolean).join(" · ");
 }
 
-const SOURCE_CUT = 170;
-
 export function cutAtWord(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
   const clipped = /(?:\u2026|\.\.\.)$/.test(flat);
@@ -79,7 +106,7 @@ export function cutAtWord(text: string, max: number): string {
   if (!clipped && body.length <= max) return body;
   let cut = body.length <= max ? body : body.slice(0, max + 1);
   const tail = /\S+$/.exec(cut)?.[0] ?? "";
-  const partial = body.length > max || body.length >= SOURCE_CUT || /^(?:\d[\d.,:/-]*|[a-z]{1,3}|[^\p{L}\p{N}]+)$/iu.test(tail);
+  const partial = body.length > max || clipped && !/[.!?;:,)\]"\u201d\u2019']$/.test(tail);
   const space = cut.lastIndexOf(" ");
   if (partial) cut = space > 0 ? cut.slice(0, space) : cut.slice(0, max);
   const kept = cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");
@@ -203,8 +230,10 @@ function youVerb(word: string): string {
   return /(?:ss|sh|ch|x|o)es$/.test(lower) ? word.slice(0, -2) : /ies$/.test(lower) ? `${word.slice(0, -3)}y` : word.slice(0, -1);
 }
 
+const YOUR_NOUN = /(?<![\w-])Salem(?:['\u2019]s)? (approval|go-ahead|go|OK|okay|answer|decision|call|sign-off|reply|review|pick|choice|input|confirmation|consent|permission|word|words|request|ask)\b/g;
+
 export function youWords(text: string): string {
-  const out = text.replace(/(?<![\w-])Salem['\u2019]s\b/g, "your")
+  const out = text.replace(YOUR_NOUN, "your $1").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your")
     .replace(/(?<![\w-])Salem\b(?!-)(?:(\s+)((?:[a-z]+ly\s+)?)([A-Za-z]+)\b)?(?:(\s+(?:or|and)\s+)([A-Za-z]+)\b)?/g, (_, gap?: string, adverb?: string, word?: string, join?: string, second?: string) =>
       word ? `you${gap}${adverb ?? ""}${youVerb(word)}${join && second ? `${join}${youVerb(second)}` : ""}` : "you")
     .replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim()
@@ -274,7 +303,7 @@ const INTERNAL_REF = /\s*(?:\bthr_[a-z0-9]+\s+)?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\
 const ASKER = /^\s*(?:\[bb message from thread:([^\]\s]*)\]?\s*)?(?:\S*\s*([\w ]{1,30}?) asks:\s*)?/u;
 const WAKE_ONLY = /^\s*(?:\p{Extended_Pictographic}\uFE0F?\s*)?wake(?:-up)? due\.?\s*$/iu;
 
-export interface AskParts { head: string; quote: string; full: string; excerpt: boolean; kind: "ask" | "note" | "update" | "yours" | "handover"; part?: string }
+export interface AskParts { head: string; quote: string; full: string; excerpt: boolean; kind: "ask" | "note" | "update" | "yours" | "handover" | "brief"; part?: string }
 export type OriginalOf = (threadId: string | undefined, seq: number | undefined, words: string) => string | undefined;
 
 const SOURCE_REF = /\b(thr_[a-z0-9]+)\s+(?:seq|msg)\s*#?(\d+)/;
@@ -282,6 +311,9 @@ const HANDOVER = /\b(?:please take ownership|take ownership|do not (?:produce|im
 const HAS_FILE = /\b[A-Za-z][\w-]*\.(?:md|json|ya?ml|toml|tsx?|py|sh|txt)\b/;
 const ORDER = /^(?:please|do not|don't|never|start|continue|take|read|check|inspect|give|ask|reply|make|use|keep|open|judge|first|tonight|then|also|this is a)\b|\bin your coordinator\b|\bdo not\b|\byou (?:must|should|need to)\b/i;
 const QUOTE_ONLY = /^[^"\u201c]{0,40}:\s*["\u201c]/;
+const AGENT_BRIEF = /\b(?:do the work(?: yourself)?|never delegate|(?:message|messaging) the parent thread|parent thread|final reply is|your final reply|your report\b|first read \S*(?:AGENTS|CLAUDE)\.md|you are the (?:[\w-]+ ){0,3}(?:builder|worker|scorer|reviewer)\b|do not score your own)/i;
+const YOU_HANDED = /\bSalem (?:\w+ly )?(?:requests?|requested|asked for|wants|wanted|approved) (?:this|the) hand(?:off|over)\b/i;
+const HANDED_FROM = /\bhand(?:off|over|ed (?:this|it) (?:off|over)) from (?:the |a |his |your )?((?:[\w-]+ ){0,2}?)(thread|chat desk|chat|desk)\b/i;
 const HANDOVER_CAP = 220;
 
 function cleanAsk(text: string, mine: boolean, receiver?: string): { text: string; cut: boolean } {
@@ -312,7 +344,15 @@ function relayedWords(text: string): string {
   return relayedQuote(text).replace(RELAYED_WORDS, "").replace(/["\u201c\u201d]/g, "").replace(/(?:\u2026|\.\.\.)$/, "").replace(/\s*\S*$/, "").trim();
 }
 
-export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): AskParts {
+function handedFrom(text: string): string {
+  const from = HANDED_FROM.exec(text);
+  if (!from) return "";
+  const name = from[1]!.trim().replace(/\b(?:thr|env|proj)_\S+/g, "").trim();
+  if (!name || /^(?:this|that|another|other|a|an)$/i.test(name)) return from[2] === "thread" ? "" : `A ${from[2]}`;
+  return `The ${name} ${from[2] === "thread" ? "chat" : from[2]}`;
+}
+
+export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number; ref?: { threadId: string } }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): AskParts {
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
@@ -322,11 +362,15 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const mine = relayed || label !== "Bot request";
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);
-  const kind: AskParts["kind"] = mine ? "yours" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
+  const kind: AskParts["kind"] = mine ? "yours" : AGENT_BRIEF.test(rawFull) ? "brief" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
   const via = relayed && named && named !== own ? ` via ${named}` : "";
-  const who = relayed ? "You asked" : kind === "handover" ? `${asker ?? "Another chat"} handed this over` : kind === "note" ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
+  const starter = named ?? (ask.ref ? askerOf?.(ask.ref.threadId) : undefined) ?? own;
+  if (kind === "brief") return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind };
+  const from = !asker || asker === "Another chat" ? handedFrom(rawFull) : "";
+  const handedBy = YOU_HANDED.test(rawFull) ? `You handed this over${from ? ` from ${from[0]!.toLowerCase()}${from.slice(1)}` : ""}` : `${from || asker || "Another chat"} handed this over`;
+  const who = relayed ? "You asked" : kind === "handover" ? handedBy : kind === "note" ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
   const ref = relayed ? SOURCE_REF.exec(bare) : null;
   const original = relayed && originalOf ? originalOf(ref?.[1], ref ? Number(ref[2]) : undefined, relayedWords(bare)) : undefined;
   const source = original ?? (relayed ? relayedQuote(bare) : bare);
@@ -335,9 +379,10 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const fullShown = fullSource && !WAKE_ONLY.test(bare) ? cleanAsk(fullSource, mine, own) : quoteShown;
   const head = WAKE_ONLY.test(bare) ? `Scheduled check ${when}` : `${who} ${when}${via}`;
   if (kind === "handover") {
-    const first = firstPlain(fullShown.text.replace(/(?:\u2026|\.\.\.)["\u201d\u2019]?$/, ""));
+    const said = YOU_HANDED.test(rawFull) ? /["\u201c]([^"\u201c\u201d]{12,})["\u201d]/.exec(fullShown.text)?.[1] : undefined;
+    const first = said ? said.trim() : firstPlain(fullShown.text.replace(/(?:\u2026|\.\.\.)["\u201d\u2019]?$/, ""));
     const line = first.length > HANDOVER_CAP ? cutAtWord(first, HANDOVER_CAP) : first;
-    return { head, quote: line, full: line, excerpt: true, kind, part: "first sentence" };
+    return { head, quote: line, full: line, excerpt: true, kind, part: said ? "your words" : "first sentence" };
   }
   const trailing = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
   const cut = trailing || fullShown.cut;
