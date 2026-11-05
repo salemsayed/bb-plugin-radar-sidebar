@@ -394,10 +394,13 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stage-ask-fill); }
 .stage-needs:is([data-state="empty"], [data-state="settled"]) .stage-needs-dot { background: var(--stage-good); }
 .stage-needs-count { flex: none; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--stage-ask-fill); color: var(--stage-ask-ink); font-size: 11.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
-.stage-needs-more { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 84px; height: 24px; margin-block: -1px; padding: 0 6px 0 9px; border: 0; border-radius: 12px; background: color-mix(in oklab, var(--stage-ask-fill) 16%, transparent); color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stage-needs-more { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 84px; height: 24px; margin-block: -1px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stage-needs-more-pill { display: inline-flex; align-items: center; justify-content: center; gap: 3px; width: 84px; height: 24px; padding: 0 6px 0 9px; border-radius: 12px; background: color-mix(in oklab, var(--stage-ask-fill) 16%, transparent); }
 .stage-needs-more [data-icon-root], .stage-needs-more svg { width: 14px; height: 14px; transition: transform 120ms ease; }
 .stage-needs-more[aria-expanded="true"] [data-icon-root], .stage-needs-more[aria-expanded="true"] svg { transform: rotate(180deg); }
-.stage-needs-more:hover { background: color-mix(in oklab, var(--stage-ask-fill) 28%, transparent); }
+.stage-needs-more:hover .stage-needs-more-pill { background: color-mix(in oklab, var(--stage-ask-fill) 28%, transparent); }
+.stage-needs-more:focus-visible { outline: none; }
+.stage-needs-more:focus-visible .stage-needs-more-pill { outline: 2px solid var(--ring); outline-offset: 0; }
 .stage-needs ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .stage-needs li { position: relative; }
 .stage-needs-menu { position: absolute; top: 3px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted-foreground); cursor: pointer; opacity: 0; }
@@ -409,7 +412,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); grid-template-rows: 18px auto; column-gap: 6px; row-gap: 2px; align-content: start; width: 100%; height: var(--stage-needs-slot); padding: 6px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; overflow: hidden; }
 .stage-needs[data-open] .stage-needs-item { height: auto; min-height: var(--stage-needs-slot); }
 .stage-needs-item:hover { background: color-mix(in oklab, var(--stage-ask-fill) 18%, transparent); }
-.stage-needs-item:focus-visible, .stage-needs-more:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.stage-needs-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .stage-needs-copy { display: contents; }
 .stage-needs-item > .radar-tasks-face, .stage-needs-item > .stage-needs-thread-icon { grid-area: 1 / 1; align-self: center; }
 .stage-needs-who { grid-area: 1 / 2; display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -429,7 +432,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-empty b { font-size: 12.5px; font-weight: 600; color: var(--foreground); }
 .stage-needs-empty span span { font-size: 12px; line-height: 1.3; }
 @media (pointer: coarse) {
-  .stage-needs-more { height: 44px; margin-block: -11px; padding-inline: 12px 8px; }
+  .stage-needs-more { height: 44px; margin-block: -11px; }
   .stage-needs-menu { top: 50%; right: 0; width: 44px; height: 44px; transform: translateY(-50%); opacity: 1; }
   .stage-needs-item { padding-inline-end: 44px; }
   .stage-needs li:is(:hover, :focus-within) .stage-needs-age { visibility: visible; }

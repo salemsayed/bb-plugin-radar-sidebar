@@ -77,8 +77,9 @@ export function askFirst(text: string, title = ""): string {
   if (at === 0 && text.length <= ASK_LONG && !DECIDE.test(parts[0]!) && !YOU_ACT.test(parts[0]!)) return text;
   let lead = decisionLead(parts[at]!);
   const head = title.trim();
-  if (head && DANGLING.test(lead) && !lead.toLowerCase().includes(head.toLowerCase())) lead = `${head}: ${lead[0]!.toLowerCase()}${lead.slice(1)}`;
   const rest = parts.filter((_, i) => i !== at).reduce((out, part) => !out ? part : /^so\s/i.test(part) ? `${out.replace(/[.;]$/, "")}, ${part}` : `${out} ${part}`, "").replace(/[;,]\s*$/, "");
+  const named = (text: string) => text.toLowerCase().includes(head.toLowerCase());
+  if (head && DANGLING.test(lead) && !named(lead) && !rest.toLowerCase().startsWith(head.toLowerCase())) lead = `${head}: ${lead[0]!.toLowerCase()}${lead.slice(1)}`;
   return rest ? `${lead} · ${rest}` : lead;
 }
 

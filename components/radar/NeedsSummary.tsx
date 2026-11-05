@@ -76,7 +76,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu 
       <span className="stage-needs-dot" aria-hidden="true" />
       <span className="stage-needs-heading">{title}</span>
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : `Show ${more} more`} onClick={() => setAll(value => !value)}>
-        <span>{open ? "Show less" : `+${more} more`}</span><Icon name="ChevronDown" aria-hidden="true" />
+        <span className="stage-needs-more-pill"><span>{open ? "Show less" : `+${more} more`}</span><Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
       {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`}>{waiting}</span> : null}
     </h2>
