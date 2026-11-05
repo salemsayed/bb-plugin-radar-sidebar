@@ -10,9 +10,8 @@ export const remindMeAction: PluginMessageActionRegistration = {
   id: "remind-me", title: "Remind me", icon: "Bell",
   run: context => {
     const { threadId, message, selectedText } = context;
-    const { openPanel } = context as typeof context & { openPanel(options: { actionId: string; title: string; params: { threadId: string; messageId: string; text: string } }): boolean };
     const text = selectedText?.trim() ? selectedText.trim().replace(/\s+/g, " ").slice(0, 120) : reminderText(message.text);
-    if (!openPanel({ actionId: "remind-when", title: "Remind me", params: { threadId, messageId: message.id, text } })) {
+    if (!context.experimental_panel.openTab({ tab: { id: "remind-when", context: { kind: "thread" }, availability: "action" }, title: "Remind me", params: { threadId, messageId: message.id, text } })) {
       throw new Error("Open the message in its thread to set a reminder.");
     }
   },

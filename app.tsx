@@ -10,7 +10,7 @@ import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { migrateLegacyPreferences } from "./components/storage";
 import { RadarThreadList } from "./components/radar/RadarThreadList";
 import { RemindMePanel, remindMeAction } from "./components/radar/RemindMePanel";
-import { BotWorkHeaderAction } from "./components/radar/BotWorkHeaderAction";
+import { botWorkAction } from "./components/radar/BotWorkHeaderAction";
 import { BotPanelTab, BOT_TAB, useIsBotThread } from "./components/radar/BotPanelTab";
 import "./app.css";
 
@@ -21,10 +21,9 @@ primeScrollRoute();
 
 export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({ id: "thread-presence", component: ThreadPresence });
-  // Same id as the retired threadPanelAction, so saved tabs and remindMeAction's openPanel({ actionId }) still match.
   app.slots.experimental_tab({ context: { kind: "thread" }, availability: "action", id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
-  app.slots.experimental_threadHeaderAction({ id: "bot-work", title: "Bot work", component: BotWorkHeaderAction });
+  app.slots.experimental_threadAction(botWorkAction);
   app.slots.experimental_tab({ ...BOT_TAB, title: "Bot", icon: "Bot", layout: "flush", useVisible: useIsBotThread, component: BotPanelTab });
   app.slots.experimental_threadList({
     id: "radar",
