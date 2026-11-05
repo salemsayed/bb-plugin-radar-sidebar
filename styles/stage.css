@@ -301,6 +301,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs[data-settled] .stage-needs-dot { background: var(--stage-good); }
 .stage-needs-copy span { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .stage-needs-item[data-state] { color: var(--muted-foreground); }
+.stage-needs-item[data-state="gone"] .stage-needs-copy span { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--muted-foreground) 60%, transparent); }
 .stage-needs-item[data-state] .radar-tasks-face { opacity: .6; }
 .stage-needs-done { flex: none; width: 14px; height: 14px; color: var(--stage-good); }
 .radar-rail-bots {

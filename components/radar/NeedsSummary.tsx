@@ -64,11 +64,11 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen }: {
     <ul>
       {shown.map(item => {
         const bot = faces.get(item.botKey);
-        const what = item.state === "gone" ? "Done, nothing more needed" : item.what;
+        const what = item.what;
         const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
         return <li key={item.id}>
           <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
-            aria-label={`${item.botName}: ${what}${age ? `, ${age} ago` : ""}. Open`}
+            aria-label={`${item.botName}: ${what}${item.state === "gone" ? ", done" : ""}${age ? `, ${age} ago` : ""}. Open`}
             onClick={() => onOpen(item.threadId)}>
             {bot ? <BotTaskFace bot={bot} size={20} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
             <span className="stage-needs-copy"><b>{item.botName}</b><span dir="auto">{what}</span></span>

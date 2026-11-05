@@ -19,7 +19,8 @@ export function useRoving(container: RefObject<HTMLElement | null>, { item, row,
   };
   useLayoutEffect(settle);
   const onFocus = (event: FocusEvent<HTMLElement>) => {
-    const target = (event.target as HTMLElement).closest<HTMLElement>(row)?.querySelector<HTMLElement>(item);
+    const host = (event.target as HTMLElement).closest<HTMLElement>(row);
+    const target = host?.matches(item) ? host : host?.querySelector<HTMLElement>(item);
     if (!target?.dataset.rove) return;
     last.current = target.dataset.rove;
     settle();

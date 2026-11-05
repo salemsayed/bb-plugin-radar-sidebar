@@ -90,7 +90,7 @@ function useCollapsedPlace(root: RefObject<HTMLElement | null>): Place {
 }
 
 function spoken(bot: CollapsedBot): string {
-  return [bot.name, bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.status].filter(Boolean).join(", ");
+  return [bot.name, bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread && bot.status !== "New reply" ? "new reply" : "", bot.status].filter(Boolean).join(", ");
 }
 
 export function CollapsedBots({ root, bots, scope, onOpen }: {
