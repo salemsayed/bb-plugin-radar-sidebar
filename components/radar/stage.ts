@@ -56,7 +56,8 @@ function flatten(text: string): string {
     .replace(/[,;:]?\s*\b(?:see|on|in|at|from)\s*$/i, "");
 }
 
-const ASK_CLAUSE = /\?|^you\b|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b/i;
+const ASK_CLAUSE = /\?|^you\b(?! (?:chose|said|asked|picked|approved|decided|wanted|agreed|told|replied|confirmed|already)\b)|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b|\b(?:awaits?|waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|answer|approval|call|decision|sign-off|reply)\b/i;
+const AWAITS_GO = /^(.+?)\s+(?:awaits?|is waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|approval|sign-off)\b\.?$/i;
 const ASK_LONG = 80;
 const DECIDE = /^you (?:decide|choose|pick|say|tell me|confirm) (?:whether|if) (?:to )?(.+)$/i;
 const YOU_ACT = /^you (?:can |could |should |need to |may )?((?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|wait)\b.*)$/i;
@@ -85,6 +86,8 @@ function carryNoun(lead: string, noun: string): string {
 
 function decisionLead(clause: string): string {
   const bare = clause.replace(/^so\s+/i, "").replace(/[.;,]\s*$/, "").trim();
+  const awaits = AWAITS_GO.exec(bare);
+  if (awaits) return `Go ahead with ${lowerFirst(awaits[1]!)}?`;
   const decide = DECIDE.exec(bare) ?? YOU_ACT.exec(bare);
   if (!decide) return capitalFirst(bare);
   const lead = decide[1]!.trim().replace(SECOND_VERB, (_, join: string, word: string) => `${join} ${word.replace(/(?:(?<=(?:ss|sh|ch|x))es|s)$/, "")}`);
