@@ -11,6 +11,7 @@ const PIN_GAP = 4;
 const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
 const HELD_MAX_MS = 15000;
+const FINGER_MS = 60;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 const PLACED_PX = 1;
 const FLASH_MS = 2000;
@@ -58,6 +59,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let container: HTMLElement | null = null, boundAt = 0, resize: ResizeObserver | null = null, frame = 0;
   let veil: { element: HTMLElement; visibility: string; behavior: string } | null = null, veiledAt = 0;
   let requested = false, stable = 0, settledAt = 0, lastFixAt = 0;
+  let fingerRef: { seq: number; offset: number } | null = null, fingerMovedAt = -Infinity;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0;
   let muted: HTMLElement | null = null;
@@ -163,7 +165,6 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     }
     const target = targetFor(anchor, position.offset);
     if (Math.abs(target - found.scrollTop) > PLACED_PX) {
-      hide();
       trace("adjust", { from: Math.round(found.scrollTop), to: Math.round(target) });
       write(target);
       stable = 0;
@@ -171,9 +172,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       return;
     }
     if (frameTick) stable++;
-    if (!requested && !veil) { settle(); return; }
-    hide();
-    if (stable >= (requested ? 2 : 1) || expired) settle();
+    if (!veil) { settle(); return; }
+    if (stable >= 2 || expired) settle();
   };
   const keep = () => {
     if (disposed || phase !== "settling") return;
@@ -202,10 +202,32 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     keep();
   };
 
+  const firstVisible = () => {
+    if (!container) return null;
+    const top = container.getBoundingClientRect().top + container.clientTop;
+    let best: { seq: number; offset: number } | null = null;
+    for (const anchor of messageAnchors(threadId)) {
+      if (!container.contains(anchor)) continue;
+      const bounds = anchor.getBoundingClientRect();
+      if (bounds.bottom <= top || bounds.top >= top + container.clientHeight) continue;
+      if (!best || bounds.top - top < best.offset) best = { seq: Number(anchor.dataset.notificationMessage), offset: bounds.top - top };
+    }
+    return best;
+  };
+  const keepFinger = () => {
+    if (!container || !fingerRef || deferredByHost()) return;
+    const anchor = anchorFor(fingerRef.seq);
+    if (!anchor) return;
+    const target = targetFor(anchor, fingerRef.offset);
+    if (Math.abs(target - container.scrollTop) <= 0.5) return;
+    trace("finger-hold", { from: Math.round(container.scrollTop), to: Math.round(target) });
+    write(target);
+  };
   const capture = (force = false) => {
     if (disposed || frozen || phase !== "live" || keepSaved || !force && !isActive()) return;
     const found = bind();
     if (!found?.isConnected) return;
+    if (Math.abs(found.clientWidth - lastWidth) >= 1) return;
     const anchors = messageAnchors(threadId).filter(e => found.contains(e));
     if (!anchors.length) return;
     const rect = found.getBoundingClientRect();
@@ -228,6 +250,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!ours && (held() || now() - gestureAt < MOMENTUM_MS)) userScrollAt = now();
     if (phase === "restoring") { attempt(); return; }
     if (phase === "settling") { keep(); return; }
+    if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
+    if (held() && touching) {
+      if (ours) return;
+      if (now() - fingerMovedAt < FINGER_MS) fingerRef = firstVisible();
+      else keepFinger();
+    }
     measure();
     capture();
     clearTimeout(saveTimer);
@@ -238,6 +266,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (phase === "restoring") { attempt(); return; }
     if (phase === "settling") { keep(); return; }
     if (phase !== "live") { measure(); return; }
+    if (held() && touching && fingerRef) { keepFinger(); measure(); return; }
     const widthChanged = Math.abs(container.clientWidth - lastWidth) >= 1;
     const changed = widthChanged || lastHeight !== container.clientHeight || lastScrollHeight !== container.scrollHeight;
     if (changed && pinned && !gestureActive()) {
@@ -293,14 +322,15 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     switch (event.type) {
       case "touchend": case "touchcancel": if (touching) { touching = (event as TouchEvent).touches.length > 0; gestureAt = t; } return;
       case "pointerup": case "pointercancel": if (pointerDown) { pointerDown = false; gestureAt = t; } return;
-      case "touchstart": if (inside) { touching = true; touchAt = t; } break;
+      case "touchmove": if (touching) fingerMovedAt = t; return;
+      case "touchstart": if (inside) { touching = true; touchAt = t; fingerRef = phase === "live" ? firstVisible() : null; } break;
       case "pointerdown": if (inside && (event as PointerEvent).pointerType !== "touch") { pointerDown = true; touchAt = t; } break;
       case "wheel": if (inside) gestureAt = t; break;
       case "keydown": if (scrollKeys.has((event as KeyboardEvent).key)) gestureAt = t; break;
     }
     if (inside || event.type === "keydown" || event.type === "beforeinput") interacted(event.type);
   };
-  const inputEvents = ["touchstart", "touchend", "touchcancel", "pointerdown", "pointerup", "pointercancel", "wheel", "keydown", "beforeinput"];
+  const inputEvents = ["touchstart", "touchmove", "touchend", "touchcancel", "pointerdown", "pointerup", "pointercancel", "wheel", "keydown", "beforeinput"];
   for (const type of inputEvents) document.addEventListener(type, onInput, { capture: true, passive: true });
   const freeze = () => { frozen = true; clearTimeout(saveTimer); };
   const thaw = (event: PageTransitionEvent) => { if (event.persisted) frozen = false; };
