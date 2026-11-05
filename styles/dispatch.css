@@ -45,7 +45,7 @@
 .dispatch-cue { animation: dispatch-hop 500ms ease-out 1; }
 @keyframes dispatch-hop { 50% { transform: translateY(-4px); } }
 .dispatch-overlay { position: fixed; inset: 0; background: rgb(0 0 0 / .28); z-index: 90; display: flex; align-items: flex-start; justify-content: flex-start; padding: 80px 20px 20px 80px; }
-.dispatch-panel { --bot-ink: light-dark(hsl(var(--bot-hue) 62% 30%), hsl(var(--bot-hue) 85% 74%)); --bot-wash: hsl(var(--bot-hue) 85% 55% / .13); --tone-busy: light-dark(#285ca3, #8ab8f5); --tone-needs: light-dark(#805900, #eec263); --tone-blocked: var(--destructive-text, var(--destructive)); --tone-done: light-dark(#2d7346, #7fd19b); --tone-quiet: var(--muted-foreground);
+.dispatch-panel { --bot-ink: light-dark(hsl(var(--bot-hue) 62% 30%), hsl(var(--bot-hue) 85% 74%)); --bot-wash: hsl(var(--bot-hue) 85% 55% / .13); --tone-busy: var(--bot-ink); --tone-needs: light-dark(#805900, #eec263); --tone-blocked: var(--destructive-text, var(--destructive)); --tone-done: light-dark(#2d7346, #7fd19b); --tone-quiet: var(--muted-foreground);
   display: flex; flex-direction: column; width: 400px; max-width: 100%; max-height: min(80dvh, calc(100dvh - 100px)); background: linear-gradient(180deg, var(--bot-wash), transparent 150px) no-repeat, var(--popover, var(--background)); color: var(--foreground); border: 1px solid var(--border); border-radius: 22px; box-shadow: 0 18px 60px rgb(0 0 0 / .25); overflow: hidden; font-size: 13px; }
 .dispatch-grabber { flex: none; width: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; }
 .dispatch-grabber span { width: 36px; height: 5px; border-radius: 5px; background: color-mix(in oklab, var(--foreground) 22%, transparent); }
@@ -91,9 +91,10 @@
 .dispatch-recent .dispatch-task-group:last-child { border-bottom: 0; }
 .dispatch-task { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 12px 0 10px; }
 .dispatch-status-line { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--tone); }
-.dispatch-status-line i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.dispatch-status-line i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.dispatch-task-group:is([data-tone=busy], [data-tone=done]) .dispatch-status-line { color: var(--foreground); }
 .dispatch-task-group[data-tone=busy] .dispatch-status-line i { box-shadow: 0 0 0 3px color-mix(in oklab, var(--tone) 22%, transparent); }
-.dispatch-task-group[data-tone=quiet] .dispatch-status-line i,.dispatch-task-group[data-tone=ended] .dispatch-status-line i { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+.dispatch-task-group[data-tone=quiet] .dispatch-status-line i,.dispatch-task-group[data-tone=ended] .dispatch-status-line i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted-foreground); }
 .dispatch-task b { font-size: 15px; line-height: 1.35; font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .dispatch-recent .dispatch-task b { font-size: 14px; font-weight: 500; -webkit-line-clamp: 2; }
 .dispatch-note { font-size: 13px; line-height: 1.45; color: var(--muted-foreground); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
