@@ -5,8 +5,8 @@ const LATE_MS = 300;
 const HIDE_MAX_MS = 1200;
 const FIND_MAX_MS = 10000;
 const WAIT_MAX_MS = 5000;
-const SETTLE_QUIET_MS = 500;
-const SETTLE_MAX_MS = 2500;
+const SETTLE_QUIET_MS = 1200;
+const SETTLE_MAX_MS = 4000;
 const PIN_GAP = 4;
 const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
@@ -60,6 +60,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let veil: { element: HTMLElement; visibility: string; behavior: string } | null = null, veiledAt = 0;
   let requested = false, stable = 0, settledAt = 0, lastFixAt = 0;
   let fingerRef: { seq: number; offset: number } | null = null, fingerMovedAt = -Infinity;
+  let fine: { element: Element; offset: number } | null = null;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0;
   let muted: HTMLElement | null = null;
@@ -139,10 +140,23 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (requested && phase === "restoring") store.cancelAnchor?.();
     goLive(reason);
   };
+  const pickFine = () => {
+    fine = null;
+    if (!container || !position || position.atBottom) return;
+    const message = anchorFor(position.messageSeq);
+    if (!message) return;
+    const bounds = container.getBoundingClientRect();
+    const top = bounds.top + container.clientTop;
+    if (message.getBoundingClientRect().top >= top) return;
+    const hit = document.elementFromPoint(bounds.left + bounds.width / 2, top + 6);
+    if (!hit || hit === message || !message.contains(hit)) return;
+    fine = { element: hit, offset: hit.getBoundingClientRect().top - top };
+  };
   const settle = () => {
     show();
     phase = "settling";
     settledAt = lastFixAt = now();
+    pickFine();
     if (requested) store.anchorReady?.();
     trace("placed", { position, top: container ? Math.round(container.scrollTop) : null });
     measure();
@@ -182,9 +196,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const t = now();
     if (t - settledAt > SETTLE_MAX_MS || t - lastFixAt > SETTLE_QUIET_MS) { goLive("settled"); return; }
     if (deferredByHost()) return;
-    const anchor = anchorFor(position.messageSeq);
+    const pin = fine?.element.isConnected ? fine : null;
+    const anchor = pin ? pin.element as HTMLElement : anchorFor(position.messageSeq);
     if (!anchor) return;
-    const target = targetFor(anchor, position.offset);
+    const target = targetFor(anchor, pin ? pin.offset : position.offset);
     if (Math.abs(target - container.scrollTop) > PLACED_PX) {
       trace("keep", { from: Math.round(container.scrollTop), to: Math.round(target) });
       write(target);
@@ -197,6 +212,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "settling";
     settledAt = lastFixAt = now();
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    fine = null;
     trace("hold", { reason, position });
     frame = requestAnimationFrame(tick);
     keep();
