@@ -20,6 +20,7 @@ export function plainNote(text: string): string {
 export function plainText(text: string): string {
   return text
     .replace(REPO_MERGE_REQUEST, "merge request $1")
+    .replace(/(^|[\s(])!(\d{3,})\b/g, "$1merge request $2")
     .replace(MEMORY_SLUG_ASIDE, "")
     .replace(MEMORY_SLUG, "a saved rule")
     .replace(NO_MODEL, "no AI")

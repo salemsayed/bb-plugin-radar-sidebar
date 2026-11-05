@@ -73,7 +73,8 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (state === "working" || state === "retrying" && running.length) {
     const first = [...running].sort((a, b) => (a.startedAt ?? now) - (b.startedAt ?? now))[0];
     if (!first) return "Bot working";
-    return ["Working", running.length > 1 ? `${running.length} workers` : "", first.startedAt != null ? `for ${elapsed(first.startedAt, now)}` : ""].filter(Boolean).join(" · ");
+    const span = first.startedAt != null ? ` for ${elapsed(first.startedAt, now)}` : "";
+    return running.length > 1 ? `${running.length} workers · working${span}` : `Working${span}`;
   }
   if (isClosed(state)) return taskStatus(task, now).split(" · ").slice(0, 2).join(" · ");
   if (state === "waiting" && task.wakeAt !== undefined) {
@@ -486,7 +487,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, snapshot, active
     const fullAsk = parts && parts.full && bare(parts.full).length > bare(cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 ? parts : null;
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
-    const goal = task.outcome && task.outcome !== task.title ? youWords(plainNote(task.outcome)) : "";
+    const goal = task.outcome && task.outcome !== task.title && stageTitle(task.outcome) !== name ? youWords(plainNote(task.outcome)) : "";
     const outcome = goal ? capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
     const goalCut = !!outcome && /\u2026$/.test(outcome);
     const extra = reason && !CRITERIA.test(reason) && !status.includes(reason) && !reason.startsWith(status) ? capCut(reason, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
