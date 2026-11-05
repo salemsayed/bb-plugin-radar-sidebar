@@ -401,10 +401,12 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
 }
 
 export const ASK_PREVIEW = 84;
+const PREVIEW_LINES = 100;
 
 export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW, own?: string, originalOf?: OriginalOf): string {
   const { head, quote } = askParts(ask, now, askerOf, own, originalOf);
-  return quote ? `${head}: \u201c${cutAtWord(quote, max)}\u201d` : head;
+  const room = Math.max(32, Math.min(max, PREVIEW_LINES - head.length));
+  return quote ? `${head}: \u201c${cutAtWord(quote, room)}\u201d` : head;
 }
 
 const CARD_RANK: Record<string, number> = { needs: 0, overdue: 1, offline: 1, retrying: 1, working: 2, queued: 3, checking: 3 };
