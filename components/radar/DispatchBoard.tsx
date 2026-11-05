@@ -419,7 +419,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
 const PANEL_WIDTH = 400;
 const EDGE = 12;
 
-const PREFERRED_PANEL = 560;
+const PREFERRED_PANEL = 760;
 
 function anchoredStyle(anchor: PanelAnchor): CSSProperties {
   const left = anchor.align === "end" ? anchor.x - PANEL_WIDTH : anchor.x;
