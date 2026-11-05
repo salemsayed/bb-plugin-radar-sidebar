@@ -121,7 +121,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, onOpen, onMenu 
           if (item.kind === "thread") menu?.click(); else onMenu(item, event.currentTarget);
         })}>
           <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
-            aria-label={`${item.botName}: ${what}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
+            aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : ""}${asked ? `, ${asked}` : ""}. Open`} aria-keyshortcuts="ArrowRight"
             onClick={() => onOpen(item.threadId)}>
             {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
             <span className="stage-needs-copy">
