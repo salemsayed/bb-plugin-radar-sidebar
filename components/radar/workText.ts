@@ -436,7 +436,8 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
   const asker = named && named !== own ? named : named ? "Its own chat" : found?.[1] ? "Another chat" : undefined;
   const bare = ask.excerpt.replace(ASKER, "");
-  const relayed = RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare) || RELAYED_ASKED.test(bare);
+  const paraphrase = RELAYED_ASKED.test(bare) && !/^["\u201c'\u2018]/.test(bare.replace(RELAYED_ASKED, ""));
+  const relayed = !paraphrase && (RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare) || RELAYED_ASKED.test(bare));
   const mine = relayed || label !== "Bot request";
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);
@@ -449,12 +450,12 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   if (kind === "brief") return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind };
   const from = !asker || asker === "Another chat" ? handedFrom(rawFull) : "";
   const handedBy = YOU_HANDED.test(rawFull) ? `You handed this over${from ? ` from ${from[0]!.toLowerCase()}${from.slice(1)}` : ""}` : `${from || asker || "Another chat"} handed this over`;
-  const who = relayed ? "You asked" : kind === "handover" ? handedBy : kind === "note" || notice ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
+  const who = relayed ? "You asked" : paraphrase ? `${asker && asker !== "Another chat" ? asker : "A bot"} passed on your ask` : kind === "handover" ? handedBy : kind === "note" || notice ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
   const ref = relayed ? SOURCE_REF.exec(bare) : null;
   const original = relayed && originalOf ? originalOf(ref?.[1], ref ? Number(ref[2]) : undefined, relayedWords(bare)) : undefined;
-  const source = original ?? (relayed ? relayedQuote(bare) : bare);
+  const source = original ?? (relayed ? relayedQuote(bare) : paraphrase ? bare.replace(RELAYED_ASKED, "") : bare);
   const quoteShown = WAKE_ONLY.test(bare) ? { text: "", cut: false } : cleanAsk(source, mine, own);
-  const fullSource = original ?? (ask.full ? (relayed ? relayedQuote(ask.full.replace(ASKER, "")) : ask.full.replace(ASKER, "")) : "");
+  const fullSource = original ?? (ask.full ? (relayed ? relayedQuote(ask.full.replace(ASKER, "")) : ask.full.replace(ASKER, "").replace(paraphrase ? RELAYED_ASKED : /$^/, "")) : "");
   const fullShown = fullSource && !WAKE_ONLY.test(bare) ? cleanAsk(fullSource, mine, own) : quoteShown;
   const head = WAKE_ONLY.test(bare) ? `Scheduled check ${when}` : `${who} ${when}${via}`;
   if (kind === "update") {
