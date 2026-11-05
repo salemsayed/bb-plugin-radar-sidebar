@@ -90,8 +90,8 @@ export function nextCheck(at: number, now: number): string {
   const days = Math.round((day(at) - day(now)) / 86_400_000);
   const time = clockFormatter.format(new Date(at));
   if (days === 0) return `Next check ${time}`;
-  if (days === 1) return `Next check tomorrow ${time}`;
-  if (days < 7) return `Next check ${clearsWeekdayFormatter.format(new Date(at))} ${time}`;
+  if (days === 1) return `Next check tomorrow\u00a0${time}`;
+  if (days < 7) return `Next check ${clearsWeekdayFormatter.format(new Date(at))}\u00a0${time}`;
   return `Next check ${when}`;
 }
 

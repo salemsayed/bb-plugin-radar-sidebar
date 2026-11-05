@@ -375,7 +375,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stage-ask-fill); }
 .stage-needs:is([data-state="empty"], [data-state="settled"]) .stage-needs-dot { background: var(--stage-good); }
 .stage-needs-count { flex: none; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--stage-ask-fill); color: var(--stage-ask-ink); font-size: 11.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
-.stage-needs-more { flex: none; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stage-needs-more { flex: none; height: 24px; margin-block: -1px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--stage-ask); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .stage-needs-more:hover { background: color-mix(in oklab, var(--stage-ask-fill) 18%, transparent); }
 .stage-needs ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .stage-needs-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); grid-template-rows: 18px auto; column-gap: 6px; row-gap: 2px; align-content: start; width: 100%; height: var(--stage-needs-slot); padding: 6px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; overflow: hidden; }
