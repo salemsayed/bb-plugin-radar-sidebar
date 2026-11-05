@@ -174,7 +174,7 @@ export function clauseCut(text: string, max: number): string {
 export function capCut(text: string, cap: number): string {
   const flat = text.trim();
   if (flat.length < cap - 1 || /[.!?]$/.test(flat)) return flat;
-  const sentences = /^(.*[.!?])(?=["\u201d\u2019)]?\s)/.exec(flat)?.[1];
+  const sentences = /^(.*(?<!\b(?:e\.g|i\.e|etc|vs|approx))[.!?])(?=["\u201d\u2019)]?\s)/.exec(flat)?.[1];
   if (sentences && sentences.length >= 40) return `${sentences}\u2026`;
   return clauseCut(flat, flat.length - 1) || cutAtWord(`${flat}\u2026`, flat.length);
 }
@@ -442,7 +442,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);
   const notice = told === "ask" && label === "Bot request" && !requestsSomething(rawFull);
-  const kind: AskParts["kind"] = mine ? "yours" : AGENT_BRIEF.test(rawFull) ? "brief" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
+  const kind: AskParts["kind"] = mine ? "yours" : paraphrase ? "ask" : AGENT_BRIEF.test(rawFull) ? "brief" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
   const via = relayed && named && named !== own ? ` via ${named}` : "";
@@ -475,7 +475,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   return { head, quote: quoteShown.cut ? full : quoteShown.text, full, excerpt: cut, kind };
 }
 
-const SENTENCE_END = /[.!?](?=["\u201d\u2019)]?\s)/g;
+const SENTENCE_END = /(?<!\b(?:e\.g|i\.e|etc|vs|approx))[.!?](?=["\u201d\u2019)]?\s)/g;
 
 export function wholeSentences(text: string): string {
   const body = text.replace(/(?:\u2026|\.\.\.)$/, "").trimEnd();
@@ -488,7 +488,7 @@ export function wholeSentences(text: string): string {
 export function readableCut(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
   if (flat.length <= max && !/(?:\u2026|\.\.\.)$/.test(flat)) return flat;
-  const first = /^(.+?[.!?])(?=["\u201d\u2019)]?\s|$)/.exec(flat)?.[1];
+  const first = /^(.+?(?<!\b(?:e\.g|i\.e|etc|vs|approx))[.!?])(?=["\u201d\u2019)]?\s|$)/.exec(flat)?.[1];
   if (first && first.length <= max && first.length >= 12) return first;
   return clauseCut(flat.replace(/(?:\u2026|\.\.\.)$/, ""), max) || cutAtWord(flat, max);
 }
