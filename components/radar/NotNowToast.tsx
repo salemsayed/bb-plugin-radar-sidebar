@@ -22,9 +22,9 @@ function placement(): CSSProperties {
   return { left: `${GAP}px`, bottom: `${Math.round(window.innerHeight - top + 8)}px` };
 }
 
-export function NotNowToastView({ toast, scope }: { toast: NotNowToast | null; scope?: string }) {
+export function NotNowToastView({ toast, scope, layout = "" }: { toast: NotNowToast | null; scope?: string; layout?: string }) {
   const [style, setStyle] = useState<CSSProperties>({});
-  useLayoutEffect(() => { if (toast) setStyle(placement()); }, [toast?.key, toast?.error]);
+  useLayoutEffect(() => { if (toast) setStyle(placement()); }, [toast?.key, toast?.error, layout]);
   useEffect(() => {
     if (!toast) return;
     const onKey = (event: KeyboardEvent) => {

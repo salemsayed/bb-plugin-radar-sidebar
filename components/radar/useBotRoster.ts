@@ -19,6 +19,9 @@ function readCache(): RosterBot[] | null {
     return null;
   }
 }
+export function cachedRoster(): RosterBot[] {
+  return readCache() ?? [];
+}
 function writeCache(bots: RosterBot[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ bots }));

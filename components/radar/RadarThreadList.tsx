@@ -1,3 +1,4 @@
+import { showMessage } from "@/lib/messageLink";
 import { hasUnresolvedActivity } from "./botScope";
 import {
   useCallback,
@@ -91,8 +92,9 @@ function RadarSwitchedList(props: PluginThreadListProps) {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const openThread = useCallback((threadId: string) => {
+  const openThread = useCallback((threadId: string, messageSeq?: number) => {
     actions.open(threadId);
+    if (messageSeq !== undefined) showMessage(threadId, messageSeq);
     navigation.current();
   }, [actions]);
   const backButton = useRef<HTMLButtonElement>(null);

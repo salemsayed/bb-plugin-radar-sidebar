@@ -1,6 +1,6 @@
 import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
-import { capitalFirst, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
+import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
 
@@ -121,26 +121,37 @@ export function isDecision(text: string): boolean {
 }
 
 export function needAsk(raw: string, title: string): string {
-  const text = stageText(raw);
+  const text = stageText(raw, true);
   const first = askFirst(text, title);
   if (!first || isDecision(first)) return first;
   const wanted = YOU_TO.exec(text)?.[1]?.trim().replace(/[,\s]+$/, "");
   const rest = first.split(/(?<=[.;!?])\s+/).filter(part => !YOU_TO.test(part) && !/^Waiting (?:on|for) you\b/i.test(part)).join(" ").trim().replace(/\s*[;,:]$/, ".");
-  if (wanted) return `${capitalFirst(wanted.replace(/\s*\/\s*/g, " or "))}?${rest ? ` · ${rest}` : ""}`;
+  if (wanted) {
+    const verbs = wanted.replace(/\s*\/\s*/g, " or ");
+    const object = /^[a-z]+(?: (?:or|and) [a-z]+)?$/i.test(verbs) && title ? ` ${title}` : "";
+    return `${capitalFirst(verbs)}${object}?${rest ? ` · ${rest}` : ""}`;
+  }
   if (CLOSES_ON_YOU.test(text)) return `Close ${title || "it"}? · ${first}`;
   return `Reply needed on ${title || "this task"}${rest ? ` · ${rest}` : ""}`;
 }
 
-export function stageText(text: string): string {
-  return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 "))).replace(/([.!?]\s+)(you|your)\b/g, (_, end: string, word: string) => `${end}${word[0]!.toUpperCase()}${word.slice(1)}`);
+export function stageText(text: string, keepNames = false): string {
+  return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 ")), keepNames).replace(/([.!?]\s+)(you|your)\b/g, (_, end: string, word: string) => `${end}${word[0]!.toUpperCase()}${word.slice(1)}`);
 }
 
 const MERGE_REQUEST = /^([a-z][\w-]*)!(\d+)$/i;
 
+function participleEnd(title: string, outcome: string): string {
+  const full = outcome.trim().replace(/^(?:the|a|an)\s+/i, "");
+  if (!full.toLowerCase().startsWith(title.trim().toLowerCase())) return title;
+  const next = /^\s+([a-z]{3,}ed)\b/.exec(full.slice(title.trim().length));
+  return next ? `${title.trim()} ${next[1]}` : title;
+}
+
 export function stageTitle(raw: string, outcome?: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
   if (request) return `Merge request ${request[2]}`;
-  const whole = outcome ? wholeTitle(raw, outcome) : raw;
+  const whole = outcome ? participleEnd(wholeTitle(raw, outcome), outcome) : raw;
   return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))));
 }
 
@@ -191,6 +202,17 @@ function notStarted(task: BotTaskRow): boolean {
   return task.displayState === "ready" || (task.displayState === "waiting" && NOT_STARTED_LINE.test(task.line));
 }
 
+export const ROW_LINE = 40;
+
+export function rowFit(lead: string, title: string, tail = ""): string {
+  const whole = `${lead}${title}${tail}`;
+  if (whole.length <= ROW_LINE) return whole;
+  const room = ROW_LINE - lead.length - tail.length;
+  const head = /^(.{6,}?)(?::\s|\s[—–]\s|;\s)/.exec(title)?.[1];
+  if (head && head.length <= room) return `${lead}${head}${tail}`;
+  return `${lead}${cutAtWord(title, Math.max(12, room - 1))}${tail}`;
+}
+
 export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const open = bot.tasks.filter(task => !isClosed(task.displayState));
   const needs = open.filter(task => task.displayState === "needs");
@@ -204,7 +226,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (blocked) {
     const retry = blocked.retryAt ? `· retrying ${clockFormatter.format(new Date(blocked.retryAt))}` : "";
     const why = blocked.displayState === "overdue" ? "missed its check" : "keeps failing";
-    return { pose: "blocked", line: `${stageTitle(blocked.title)} ${why}`, extra: retry, tone: "blocked", quiet: false };
+    return { pose: "blocked", line: rowFit("", stageTitle(blocked.title), ` ${why}`), extra: retry, tone: "blocked", quiet: false };
   }
   const offline = open.find(task => task.displayState === "offline");
   const working = open.filter(task => task.displayState === "working" || task.displayState === "queued");
@@ -216,14 +238,14 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (moving || ctx.running) {
     const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
     const queued = moving?.displayState === "queued" && !ctx.running;
-    const line = queued ? `Queued: ${what}` : what ? `Working on ${what}` : "Working";
+    const line = queued ? rowFit("Queued: ", what) : what ? rowFit("Working on ", what) : "Working";
     return { pose: "working", line, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
   if (checking && !ctx.chatting) {
     const failed = ctx.failedChecks?.has(checking.id) || /check failed|evidence needs review/i.test(checking.line);
     const status = failed ? "check didn't pass yet" : "waiting on its check";
-    return { pose: "idle", line: `${stageTitle(checking.title)}: ${status}`, extra: "", tone: "quiet", quiet: true };
+    return { pose: "idle", line: rowFit("", stageTitle(checking.title), `: ${status}`), extra: "", tone: "quiet", quiet: true };
   }
   if (ctx.chatting) return { pose: "working", line: "Chatting with you", extra: "", tone: "busy", quiet: false };
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
@@ -232,10 +254,10 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
-  if (todo) return { pose: "idle", line: `Not started yet: ${stageTitle(todo.title)}`, extra: "", tone: "quiet", quiet: true };
+  if (todo) return { pose: "idle", line: rowFit("Not started yet: ", stageTitle(todo.title)), extra: "", tone: "quiet", quiet: true };
   const last = bot.tasks.filter(task => task.completedAt !== undefined && task.displayState === "done")
     .sort((a, b) => b.completedAt! - a.completedAt!)[0];
-  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", line: `Done: ${stageTitle(last.title)}`, extra: "", tone: "good", quiet: false };
+  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", line: rowFit("Done: ", stageTitle(last.title)), extra: "", tone: "good", quiet: false };
   return { pose: "idle", line: "Idle, nothing waiting", extra: "", tone: "quiet", quiet: true };
 }
 
@@ -308,7 +330,7 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   const when = replyTime(bot, ctx);
   if (look.pose === "asking") return { ...look, kind: "ask", badge: "ask", ...when, helpers };
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", ...when, helpers };
-  if (look.tone === "busy") return { ...look, kind: "live", badge: null, ...when, helpers };
+  if (look.tone === "busy") return { ...look, kind: "live", badge: null, ...(when.time === "now" ? { time: "", timeTitle: "Working now" } : when), helpers };
   if (look.pose === "offline") return { ...look, kind: "calm", badge: null, ...when, helpers };
   if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", ...when, helpers };
   if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", ...when, helpers };

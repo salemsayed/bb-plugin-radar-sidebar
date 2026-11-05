@@ -11,6 +11,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BotFace } from "./BotFace";
 import { botStyle, shortBotName, type BotState } from "./bots";
 import { DispatchBoard } from "./DispatchBoard";
+import { StageFace } from "./StageFace";
+import { Icon } from "@/components/ui/icon";
+import { cachedRoster } from "./useBotRoster";
 import type { BotTasksState } from "./useBotTasks";
 
 // 24-hour, like the waiting rows' "tonight 20:30" (a finished row read "5:54 PM" next to them).
@@ -204,6 +207,31 @@ export function useDeskPress() {
   };
 }
 
+const SKELETON_ROWS = 7;
+
+function BoardSkeleton() {
+  const roster = cachedRoster();
+  const rows = roster.length ? roster.map(bot => ({ key: bot.key, name: bot.name })) : Array.from({ length: SKELETON_ROWS }, (_, i) => ({ key: `row-${i}`, name: "" }));
+  return <div className="stage stage-skeleton" aria-busy="true">
+    <div className="stage-needs-slot">
+      <section className="stage-needs" data-state="checking" aria-label="Needs you: checking">
+        <h2 className="stage-needs-title"><span className="stage-needs-dot" aria-hidden="true" /><span className="stage-needs-heading">Needs you</span></h2>
+        <p className="stage-needs-empty" role="status"><Icon name="Clock" aria-hidden="true" /><span><b>Checking for new asks…</b><span>Loading the bots</span></span></p>
+      </section>
+    </div>
+    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
+    <div className="stage-bots" aria-hidden="true">
+      {rows.map(row => <div className="stage-row" data-skeleton="" key={row.key}><div className="stage-chat">
+        <span className="stage-figure">{row.name ? <StageFace botKey={row.key} name={row.name} pose="idle" bare /> : <span className="stage-skel-face" />}</span>
+        <span className="stage-copy">
+          <span className="stage-head">{row.name ? <b>{row.name}</b> : <span className="stage-skel-bar" data-w="name" />}</span>
+          <span className="stage-skel-bar" data-w="line" />
+        </span>
+      </div></div>)}
+    </div>
+  </div>;
+}
+
 export function BotsView({
   state,
   activeThreadId,
@@ -218,7 +246,7 @@ export function BotsView({
   activeThreadId: string | null;
   isCompactViewport: boolean;
   now: number;
-  onOpen: (threadId: string) => void;
+  onOpen: (threadId: string, messageSeq?: number) => void;
   onShowThreads: () => void;
   /** The bot menu each desk wears (long-press, right-click, or its "⋯"); the plugin passes bb's thread menu. */
   deskMenu?: DeskMenu;
@@ -233,14 +261,15 @@ export function BotsView({
       </div>
     );
   }
-  if (!data) {
+  if (!data && status === "error") {
     return (
       <div className="radar-tasks-fallback" role="status">
-        <p>{status === "error" ? "Bot tasks didn't load. Retrying automatically." : "Loading the bots' tasks…"}</p>
+        <p>Bot tasks didn't load. Retrying automatically.</p>
         <button type="button" className="radar-tasks-fallback-action" onClick={onShowThreads}>Show threads</button>
       </div>
     );
   }
+  if (!data) return <BoardSkeleton />;
   return <DispatchBoard data={data} state={state} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
     onOpen={onOpen} onShowThreads={onShowThreads} deskMenu={deskMenu} unreadChats={unreadChats} />;
 }

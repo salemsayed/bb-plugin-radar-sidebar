@@ -27,7 +27,7 @@ const taskSchema = z.object({
   wakeAt: z.number().optional(),
   retryAt: z.number().optional(),
   conversationThreadId: z.string().nullable().default(null),
-  needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional() }).optional(),
+  needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional(), askedAt: z.number().optional(), messageSeq: z.number().optional() }).optional(),
   later: z.object({ reason: z.enum(["answered", "not-now"]).catch("not-now"), at: z.number() }).optional(),
   tags: z.array(z.string()).default([]),
   origin: z.enum(["verified", "unverified", "imported"]).catch("unverified"),
@@ -98,7 +98,7 @@ const botSchema = z.object({
 
 export const botTasksSchema = z.object({
   bots: z.array(botSchema.transform(bot => ({ ...bot, unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) }))),
-  needs: z.array(z.object({ bot: z.string(), taskId: z.string(), threadId: z.string(), interactionId: z.string(), question: z.string() })).default([]),
+  needs: z.array(z.object({ bot: z.string(), taskId: z.string(), threadId: z.string(), interactionId: z.string(), question: z.string(), askedAt: z.number().optional(), messageSeq: z.number().optional() })).default([]),
   notFiled: z.array(z.object({ threadId: z.string(), title: z.string().default(""), suggestedBot: z.string().optional() })).default([]),
   observedAt: z.number().default(() => Date.now()),
   notNow: z.array(z.object({ key: z.string(), at: z.number() })).optional(),

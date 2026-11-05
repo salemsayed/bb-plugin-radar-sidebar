@@ -6,7 +6,7 @@ export interface TaskRow {
   waitFor?: string; ageMs: number; completedAt?: number; conversationThreadId: string | null;
   /** Timestamps behind the line's times (a wake, a queued start's retry), for clients that format them locally. */
   wakeAt?: number; retryAt?: number;
-  needs?: { threadId: string; interactionId: string; question: string; options?: string[] };
+  needs?: { threadId: string; interactionId: string; question: string; options?: string[]; askedAt?: number; messageSeq?: number };
   tags: string[]; origin: "verified" | "unverified" | "imported"; observedAt: number;
 }
 export interface BotTasks {
@@ -15,7 +15,7 @@ export interface BotTasks {
   tasksV2: boolean; summary: { needs: number; working: number; queued: number; offline: number; waiting: number; done: number; notStarted: number };
   tasks: TaskRow[]; unlinked: { threadId: string; title: string }[];
 }
-export interface BotTasksOutput { bots: BotTasks[]; needs: { bot: string; taskId: string; threadId: string; interactionId: string; question: string }[]; notFiled: { threadId: string; title: string; suggestedBot?: string }[]; observedAt: number }
+export interface BotTasksOutput { bots: BotTasks[]; needs: { bot: string; taskId: string; threadId: string; interactionId: string; question: string; askedAt?: number; messageSeq?: number }[]; notFiled: { threadId: string; title: string; suggestedBot?: string }[]; observedAt: number }
 /** refused: the bot this part is for has tasks v2 off; it is never sent from Tell the bots (send it in that bot's chat). */
 export interface RouteSuggestion { parts: { bot: string; kind: MessageKind; taskId?: string; outcome: string; confidence: "high" | "medium" | "low"; reason: string; refused?: string }[]; ask: boolean }
 export interface IntakeSubmitInput { clientSubmissionId: string; text: string; input?: unknown[] /* bb PromptInput[] from the composer: attachments and mentions, delivered intact */; parts: { bot: string; kind: MessageKind; taskId?: string; outcome: string }[]; threadId?: string }

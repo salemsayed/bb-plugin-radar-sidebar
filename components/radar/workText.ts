@@ -10,6 +10,8 @@ const REPO_MERGE_REQUEST = /\b[a-z][\w-]*!(\d+)\b/gi;
 const MEMORY_SLUG_ASIDE = /\s*\((?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\)/gi;
 const MEMORY_SLUG = /\b(?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\b/gi;
 const NO_MODEL = /\bno (?:AI |LLM )?model\b/gi;
+const NO_MODEL_LISTED = /,\s*no (?:AI |LLM )?model\b/gi;
+const NO_MODEL_LEAD = /(?<=\()no (?:AI |LLM )?model,\s*/gi;
 const BREADCRUMB = /\b([A-Z][\w-]*(?: [A-Z][\w-]*)?) > ([A-Z][\w-]*(?: [A-Z][\w-]*)?)( (?:pages?|tabs?|screens?|sections?|menus?|lists?))?/g;
 const FILE_NOUN: Record<string, string> = { AGENTS: "agent instructions", CLAUDE: "agent instructions", README: "readme", HANDOFF: "handoff notes", AUDIT: "change log", CHANGELOG: "change log", MEMORY: "memory notes", USER: "profile notes", SOUL: "persona notes", PLUGINS: "plugin map", SHARED: "shared notes", LOOP: "runbook" };
 const FILE_NAME = /\b([A-Za-z][\w-]*)\.(?:md|json|jsonl|ya?ml|toml|tsx?|py|sh|txt|env|log|sql|csv)\b/g;
@@ -35,11 +37,35 @@ const REPO_BEFORE = /\b(?:the |its |a )?([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s+(branc
 const PROJECT_SLUG = /\bproject ([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b(?!-)/g;
 const TRAILING_HEADING = /([.!?])\s+(?:Final result|Results?|Next steps?|Summary|Evidence|Proof|Status|Notes?|Details|Outcome|Open items|What changed|Findings)\s*:?\s*$/;
 
-export function botTokens(text: string): string {
-  return text
+const COMPONENT_ASIDE = /\s*\((?:Lab|bots?|Bots|the bots) core\)/g;
+const TYPESAFE = /\b(?:the |its )?TypeSafe skill\b/g;
+const AUTO_EFFORT = /\b(?:(through|via|with|using) )?Auto Effort\b/g;
+const API_PATH = / \/([a-z][\w-]*)(?= (?:returns|actually|endpoint|route|call|works|fails|responds)\b)/g;
+const RETURNS_OK = /\breturns (?:HTTP )?2\d\d\b/g;
+const RETURNS_ERROR = /\breturns (?:HTTP )?[45]\d\d\b/g;
+const ENUM = /\b([A-Z]{2,})((?:_[A-Z]{2,})+)\b/g;
+const ON_PROD = /\bon prod\b/g;
+const PACKAGE_ASIDE = /\s*\((?:com|org|net|io|app|dev)\.[a-z0-9]+(?:\.[a-z0-9]+)+\)/g;
+const PACKAGE_ID = /\s*\b(?:com|org|net)\.[a-z0-9]+(?:\.[a-z0-9]+)+\b/g;
+const TEST_ACCOUNT = /\s+(?:with|using|on account) \d{6,}\b/g;
+
+export function botTokens(text: string, keepNames = false): string {
+  const named = keepNames ? text : text
     .replace(CHECKER, "task checker")
     .replace(CHECKER_LEAD, "Checker")
-    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker")
+    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker");
+  return named
+    .replace(COMPONENT_ASIDE, "")
+    .replace(TYPESAFE, "the question-writing guide")
+    .replace(AUTO_EFFORT, (_, lead?: string) => lead ? "with the effort picker" : "the effort picker")
+    .replace(API_PATH, " $1 command")
+    .replace(RETURNS_OK, "reports success")
+    .replace(RETURNS_ERROR, "reports an error")
+    .replace(ENUM, (_, head: string, tail: string) => `${head[0]}${head.slice(1).toLowerCase()}${tail.replace(/_/g, " ").toLowerCase()}`)
+    .replace(ON_PROD, "in production")
+    .replace(PACKAGE_ASIDE, "")
+    .replace(PACKAGE_ID, "")
+    .replace(TEST_ACCOUNT, "")
     .replace(IP_EXIT, "the new exit address")
     .replace(IP_AFTER, "")
     .replace(IP_ALONE, "")
@@ -47,8 +73,8 @@ export function botTokens(text: string): string {
     .replace(PROJECT_SLUG, "the $1 project");
 }
 
-export function botFiles(text: string): string {
-  return botTokens(text)
+export function botFiles(text: string, keepNames = false): string {
+  return botTokens(text, keepNames)
     .replace(FILE_ITEM, "")
     .replace(FILE_NAME, (_, name: string) => FILE_NOUN[name.toUpperCase()] ?? `${name.toLowerCase().replace(/[-_]+/g, " ")} file`)
     .replace(REDACTED_AFTER, "$1 the $2")
@@ -57,8 +83,8 @@ export function botFiles(text: string): string {
     .replace(SKILL_SLUG, "a skill");
 }
 
-export function plainNote(text: string): string {
-  return plainText(botFiles(botWords(text)));
+export function plainNote(text: string, keepNames = false): string {
+  return plainText(botFiles(botWords(text), keepNames));
 }
 
 export function plainText(text: string): string {
@@ -67,6 +93,8 @@ export function plainText(text: string): string {
     .replace(/(^|[\s(])!(\d{3,})\b/g, "$1merge request $2")
     .replace(MEMORY_SLUG_ASIDE, "")
     .replace(MEMORY_SLUG, "a saved rule")
+    .replace(NO_MODEL_LISTED, "")
+    .replace(NO_MODEL_LEAD, "")
     .replace(NO_MODEL, "no AI")
     .replace(BREADCRUMB, (_, area: string, page: string, noun = "") => `${page}${noun} under ${area}`)
     .replace(TRAILING_HEADING, "$1")
@@ -99,7 +127,7 @@ export function plainQueue(line: string): string {
   const retry = tail.filter(part => /^retry\b/i.test(part)).join(" · ");
   const rest = tail.filter(part => !/^retry\b/i.test(part));
   if (reason && !ROUTING_WORDS.test(reason)) return line;
-  const why = /\bbrowser\b/i.test(reason) ? "Starts when a browser is free" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Starts when a worker is free";
+  const why = /\bbrowser\b/i.test(reason) ? "Waiting its turn for a browser" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Waiting its turn to start";
   return [why, retry, ...rest].filter(Boolean).join(" · ");
 }
 
@@ -362,7 +390,24 @@ function handedFrom(text: string): string {
   return `The ${name} ${from[2] === "thread" ? "chat" : from[2]}`;
 }
 
+const DECISION_FORM = /^Re:\s*([^·]+?)\s*·\s*Decisions\s*·\s*/;
+const FORM_CAP = 280;
+
+export function formAnswers(text: string): { subject: string; answers: string } | null {
+  const form = DECISION_FORM.exec(text.trim());
+  if (!form) return null;
+  const answers = text.trim().slice(form[0].length).split(/\s+·\s+/).map(part => /→\s*(.+)$/.exec(part)?.[1]?.trim()).filter((part): part is string => !!part);
+  return answers.length ? { subject: form[1]!.trim(), answers: answers.join("; ") } : null;
+}
+
 export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number; ref?: { threadId: string } }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): AskParts {
+  const form = !/^Bot request/.test(ask.label) ? formAnswers((ask.full ?? ask.excerpt).replace(ASKER, "")) : null;
+  if (form) {
+    const long = form.answers.length > FORM_CAP;
+    const answers = long ? cutAtWord(form.answers, FORM_CAP) : form.answers;
+    const parts = askParts({ ...ask, label: "You asked", excerpt: answers, full: answers }, now, askerOf, own);
+    return { ...parts, head: parts.head.replace(/^You asked\b/, "You answered"), excerpt: long || parts.excerpt, kind: "yours", ...(long ? { part: "excerpt" } : {}) };
+  }
   const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
