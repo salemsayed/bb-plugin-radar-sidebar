@@ -94,7 +94,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number): s
   if (/^Filed\. Not started/.test(line) || state === "ready") return "Not started";
   if (/^With the bot/.test(line)) return "With the bot";
   const criteria = CRITERIA.exec(line);
-  if (criteria) return `Waiting on the bot to verify · ${criteria[1]} of ${criteria[2]} criteria met · ${NO_CHECK}`;
+  if (criteria) return `Bot verifying · ${criteria[1]} of ${criteria[2]} criteria met · ${NO_CHECK}`;
   if (CHECKING.test(line) || state === "checking") return "Result waits for the bot's check";
   if (task.waitFor === "someone else") { const who = waitingOn(task.line, task.outcome); return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · ${NO_CHECK}`; }
   if (state === "offline") return "Machine off";
