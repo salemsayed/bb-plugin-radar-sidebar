@@ -112,7 +112,7 @@ export function askFirst(text: string, title = ""): string {
 }
 
 export function stageText(text: string): string {
-  return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 ")));
+  return plainNote(secondPerson(youWords(flatten(text)).replace(/^You to (?:say|tell me|confirm) (whether|if) /, "Tell me $1 "))).replace(/([.!?]\s+)(you|your)\b/g, (_, end: string, word: string) => `${end}${word[0]!.toUpperCase()}${word.slice(1)}`);
 }
 
 const MERGE_REQUEST = /^([a-z][\w-]*)!(\d+)$/i;
