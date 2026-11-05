@@ -186,7 +186,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       {staleShown ? <>
         <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" />
         <span className="stage-needs-heading" role="alert" title={`Can't reach the bots right now. Showing what we had at ${staleShown.asOf}`}>
-          <span aria-hidden="true">Not updating · as of {staleShown.asOf}</span>
+          <span aria-hidden="true">Offline · as of {staleShown.asOf}</span>
           <span className="stage-needs-sr">Needs you. Can't reach the bots right now, showing what we had at {staleShown.asOf}</span>
         </span>
         <button type="button" className="stage-needs-retry" disabled={staleShown.retrying} onClick={staleShown.onRetry}>{staleShown.retrying ? "Trying…" : "Retry"}</button>
