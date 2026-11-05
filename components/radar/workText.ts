@@ -35,10 +35,11 @@ const askTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2
 const askDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
 export function askLine(ask: { excerpt: string; label: string; at?: number }, now: number): string {
-  const who = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
+  const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
+  const who = label === "Bot request" ? "A bot asked" : label;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
   const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
-  const excerpt = ask.excerpt.replace(/\s+/g, " ").trim();
+  const excerpt = plainNote(ask.excerpt.replace(/^\s*\[bb message from thread:[^\]]*\]?\s*/i, "").replace(/^\s*\S*\s*[\w ]{1,30}? asks:\s*/u, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+…?/gi, "").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
   return excerpt ? `${who} ${when}: \u201c${excerpt}\u201d` : `${who} ${when}`;
 }
 

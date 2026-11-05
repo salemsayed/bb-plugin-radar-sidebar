@@ -1,4 +1,4 @@
-import { isClosed, isSameLocalDay, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
+import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { clockFormatter, clearsLine } from "./BotsView";
 import { plainNote, taskHeadline, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
@@ -65,14 +65,17 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+export function nextCheck(at: number, now: number): string {
+  const when = clearsLine(at, now);
+  if (when.startsWith("overdue")) return `Check overdue since ${when.slice("overdue since ".length)}`;
+  return `Next check ${when.replace(/^(?:today|tonight) /, "")}`;
+}
+
 function waitLine(task: BotTaskRow, now: number): string {
-  if (task.wakeAt !== undefined) {
-    const when = clearsLine(task.wakeAt, now);
-    return when.startsWith("overdue") ? `Check was due ${when.slice("overdue since ".length)}` : `Checks again ${when}`;
-  }
-  if (task.waitFor && task.waitFor !== "the bot") return "Waiting on someone";
-  if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a helper";
-  return "Waiting · no date";
+  if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
+  if (task.waitFor && task.waitFor !== "the bot") return "Waiting on someone else";
+  if (/wakes on thread-idle/i.test(task.line)) return "Waiting on a worker";
+  return "Waiting, no date set";
 }
 
 function isChecking(task: BotTaskRow): boolean {
@@ -89,7 +92,11 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (needs.length) {
     const first = needs[0]!;
     const question = stageText(first.needs?.question || first.line || first.title);
-    return { pose: "asking", line: question || "Has a question for you", extra: needs.length > 1 ? `· +${needs.length - 1} more` : "", tone: "ask", quiet: false };
+    return { pose: "asking", line: question || "Has a question for you", extra: needs.length > 1 ? `${needs.length} questions for you` : "", tone: "ask", quiet: false };
+  }
+  const desks = sortDesks(bot.desks.filter(needsYou));
+  if (desks.length) {
+    return { pose: "asking", line: deskNeedLine(desks[0]!), extra: desks.length > 1 ? `${desks.length} desks need you` : "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {
@@ -103,12 +110,13 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (offline && !working.length && !ctx.running) {
     return { pose: "offline", line: "Its machine is off", extra: "", tone: "quiet", quiet: true };
   }
-  const helpers = ctx.running ? `· ${plural(ctx.running, "helper", "helpers")}` : "";
+  const helpers = ctx.running ? plural(ctx.running, "worker running", "workers running") : "";
   const moving = working[0] ?? (ctx.running ? open.find(task => !isClosed(task.displayState) && !notStarted(task) && task.displayState !== "waiting") : undefined);
   if (moving || ctx.running) {
-    const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "Working";
-    const queued = moving?.displayState === "queued" && !ctx.running ? "· queued" : "";
-    return { pose: "working", line: what, extra: helpers || queued, tone: "busy", quiet: false };
+    const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
+    const queued = moving?.displayState === "queued" && !ctx.running;
+    const line = queued ? `Queued: ${what}` : what ? `Working on ${what}` : "Working";
+    return { pose: "working", line, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
   if (checking && !ctx.chatting) {
@@ -120,18 +128,26 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   if (waiting.length) {
-    return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: waiting.length > 1 ? `· +${waiting.length - 1} more` : "", tone: "quiet", quiet: true };
+    return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
   if (todo) return { pose: "idle", line: `Not started yet: ${stageTitle(todo.title)}`, extra: "", tone: "quiet", quiet: true };
   const last = bot.tasks.filter(task => task.completedAt !== undefined && task.displayState === "done")
     .sort((a, b) => b.completedAt! - a.completedAt!)[0];
   if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", line: `Done: ${stageTitle(last.title)}`, extra: "", tone: "good", quiet: false };
-  return { pose: "idle", line: "Resting", extra: "", tone: "quiet", quiet: true };
+  return { pose: "idle", line: "Idle, nothing waiting", extra: "", tone: "quiet", quiet: true };
 }
 
 export type RowKind = "ask" | "live" | "calm";
 export type RowBadge = "ask" | "wait" | "unread" | "blocked" | null;
+
+export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title">): string {
+  return `${desk.status === "draft" ? "Your go" : "Your answer"}: ${plainNote(deskTitle(desk))}`;
+}
+
+export function needsCount(bot: BotTasksBot): number {
+  return bot.tasks.filter(task => task.displayState === "needs").length + bot.desks.filter(needsYou).length;
+}
 
 export interface RowLook extends StageLook {
   kind: RowKind;
@@ -158,7 +174,8 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   const helpers = ctx.running;
   if (look.pose === "asking") {
     const first = bot.tasks.find(task => task.displayState === "needs");
-    const asked = first?.observedAt !== undefined ? first.observedAt - first.ageMs : undefined;
+    const desk = sortDesks(bot.desks.filter(needsYou))[0];
+    const asked = first?.observedAt !== undefined ? first.observedAt - first.ageMs : desk?.updatedAt;
     return { ...look, kind: "ask", badge: "ask", time: asked !== undefined ? since(asked, ctx.now) : "", helpers };
   }
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", time: "", helpers };

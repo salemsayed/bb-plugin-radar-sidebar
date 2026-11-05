@@ -6,6 +6,19 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-11-05, Salem: "i want a ui/ux/interaction/text/clarity hillclimb on the bots sidebar", round 1)
+
+- A "Needs you" box at the top lists every question, desk and thread waiting on you, with the bot and age; one tap opens it. When nothing waits it says so.
+- One "needs you" signal: an amber count on the bot's row (it opens what the bot needs), amber status text, the same amber in the box, the panel and Other threads. New replies are a blue dot and a bold name.
+- Every bot row is the same height with a one-line status that leads with what matters: "Next check 21:20", "Working on Campaigns page redesign", "Your go: Redemption #126". The full line and counts are in the tooltip.
+- Each bot row has a ⋯ button (on hover and keyboard focus, always on touch) that opens its panel; right-click and long-press still work.
+- The selected row is a soft fill with a side bar, no ring; the ring shows only for keyboard focus. Rows have a hover fill and a spinner while a chat opens.
+- The bot panel opens beside its row with a pointer to it, stays above the composer when there is room, and shows "Needs you" first, then Tasks, Desks, Started by you and the last 3 recent tasks (Show all).
+- The panel's More menu no longer offers Delete, Archive, Pin, Rename or Regenerate title for a bot's chat.
+- Plain words: "workers" not "helpers", no "+1 more", "Other threads (not run by a bot)", desk states in words instead of emoji, Sonnet and Haiku named like other models, bot-to-bot asks without transport prefixes or thread ids.
+- Other threads sits right under the bots, so opening it no longer moves its header, and it ends with an "All threads" link.
+- On phones the panel ignores taps for a moment after it opens, so lifting the long-press finger does not tap whatever is under it.
+
 ### Changed (2026-11-05, Salem: "lets stop using a dedicated threads tab, its just bots up top and threads at bottom by default collapsed. make sure the bots threads dont leak into the threads view at bottom")
 
 - The Bots | Threads switch is gone. The sidebar is one list: bots on top, a Threads section at the bottom, collapsed by default and remembered per device.

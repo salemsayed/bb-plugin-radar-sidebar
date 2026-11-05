@@ -42,25 +42,27 @@ function withDepth(threads: readonly PluginSidebarThread[]) {
   return threads.map(thread => ({ thread, depth: Math.min(depth(thread), 3) }));
 }
 
-export function ThreadsSection({ activeThreadId, now, onOpen }: { activeThreadId: string | null; now: number; onOpen: (id: string) => void }) {
+export function ThreadsSection({ activeThreadId, now, onOpen, onShowAll }: { activeThreadId: string | null; now: number; onOpen: (id: string) => void; onShowAll?: () => void }) {
   const claims = useThreadClaims();
   const [open, setOpen] = useThreadsOpen();
   const listId = useId();
   const rows = useMemo(() => withDepth(claims.loose), [claims.loose]);
   const loud = (claims.ready ? claims.loose : []).map(markOf).filter(mark => mark === "needs" || mark === "failed" || mark === "unread");
   const count = claims.ready ? claims.loose.length : null;
+  const needs = loud.filter(mark => mark === "needs").length;
+  const summary = needs ? `${needs} ${needs === 1 ? "needs" : "need"} you` : loud.length ? `${loud.length} new` : "";
   return (
-    <section className="radar-threads" aria-label="Threads" data-open={open || undefined} data-thread-count={count ?? undefined}>
+    <section className="radar-threads" aria-label="Other threads" data-open={open || undefined} data-thread-count={count ?? undefined}>
       <button type="button" className="radar-threads-toggle" aria-expanded={open} aria-controls={listId} onClick={() => setOpen(value => !value)}>
         <Icon name="ChevronRight" aria-hidden="true" className="radar-threads-chevron" />
-        <span className="radar-threads-label">Threads</span>
-        {!open && loud.length ? <span className="radar-threads-dot" data-tone={loud.includes("needs") ? "needs" : loud.includes("failed") ? "failed" : "unread"} aria-label={`${loud.length} need a look`} /> : null}
-        <span className="radar-threads-count">{count ?? "…"}</span>
+        <span className="radar-threads-label">Other threads<span className="radar-threads-hint">not run by a bot</span></span>
+        {summary ? <span className="radar-threads-summary" data-tone={needs ? "needs" : loud.includes("failed") ? "failed" : "unread"}>{summary}</span> : null}
+        <span className="radar-threads-count" aria-label={count === null ? "loading" : `${count} ${count === 1 ? "thread" : "threads"}`}>{count ?? "…"}</span>
       </button>
       {open ? (
         <div id={listId} className="radar-threads-list">
           {count === null ? <p className="radar-threads-empty">Checking which threads are yours…</p>
-            : rows.length === 0 ? <p className="radar-threads-empty">No threads outside the bots</p>
+            : rows.length === 0 ? <p className="radar-threads-empty">Every thread belongs to a bot</p>
             : rows.map(({ thread, depth }) => {
               const mark = markOf(thread);
               const project = claims.projectName.get(thread.projectId);
@@ -83,6 +85,7 @@ export function ThreadsSection({ activeThreadId, now, onOpen }: { activeThreadId
                 </ThreadActionsContextMenu>
               );
             })}
+          {onShowAll ? <button type="button" className="radar-threads-all" onClick={onShowAll}>All threads, including the bots'<Icon name="ChevronRight" aria-hidden="true" /></button> : null}
         </div>
       ) : null}
     </section>
