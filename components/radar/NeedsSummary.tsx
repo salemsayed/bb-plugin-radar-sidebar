@@ -431,26 +431,8 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
         <FitLines className="stage-needs-what" forms={askForms(what, OPEN_FORMS, fitWhat, item.title, item.options?.length ?? 0)} />
       </span>
     </button>
-    {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
-    <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      {answers.length && !sentAs ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
-        {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
-          onPointerDown={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
-      </div> : null}
-      {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
-      <span className="stage-needs-tools">
-        {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
-          aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
-          onPointerDown={event => event.stopPropagation()}
-          onClick={event => {
-            event.stopPropagation();
-            if (offline || !onNotNow) return;
-            const keyboard = event.detail === 0;
-            if (!keyboard) itemRef.current?.focus({ preventScroll: true });
-            onNotNow(keyboard);
-          }}><span className="radar-not-now-pill">Not now</span></button> : null}
-        {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
+    <span className="stage-needs-tools">
+      {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
           trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
             onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
             <Icon name="MoreHorizontal" aria-hidden="true" />
@@ -460,7 +442,25 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
             onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
             <Icon name="MoreHorizontal" aria-hidden="true" />
           </button> : null}
-      </span>
-    </div>
+    </span>
+    {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
+    {answers.length && !sentAs || note || canPark ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
+      {answers.length && !sentAs ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
+        {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
+      </div> : null}
+      {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
+      {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
+          aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => {
+            event.stopPropagation();
+            if (offline || !onNotNow) return;
+            const keyboard = event.detail === 0;
+            if (!keyboard) itemRef.current?.focus({ preventScroll: true });
+            onNotNow(keyboard);
+          }}><span className="radar-not-now-pill">Not now</span></button> : null}
+    </div> : null}
   </li>;
 }

@@ -198,13 +198,25 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb),
 const REPLY_BUTTON = /\bButton\(\s*"([^"\n]{2,90})"\s*(?:,\s*([A-Za-z]+)\s*\()?/g;
 const MAX_OPTIONS = 4;
 
+const FOLLOW_UP = /^\s*(?:tell me more|more about|more on|read more|show (?:me )?more|explain|go deeper|details? (?:on|about))\b/i;
+const ASKED_TEXT = /\b(?:Card|Heading|Text)\(\s*"((?:[^"\\\n]|\\.)*\?)\s*(?:\*\*)?"/;
+
 export function replyOptions(text: string): string[] {
   const blocks = text.match(/```ui[\s\S]*?```/g) ?? [];
   const labels = blocks.flatMap(block => [...block.matchAll(REPLY_BUTTON)].filter(match => !match[2] || /^(?:Reply|Send|Answer|Prompt)$/i.test(match[2])).map(match => match[1]!.trim()));
-  return [...new Set(labels)].slice(0, MAX_OPTIONS);
+  return [...new Set(labels)].filter(label => !FOLLOW_UP.test(label)).slice(0, MAX_OPTIONS);
 }
 
-export interface AskPlace { seq: number | null; options: string[]; taskId?: string }
+export function cardAsks(text: string): boolean {
+  const blocks = text.match(/```ui[\s\S]*?```/g) ?? [];
+  if (!blocks.length) return true;
+  const prose = text.replace(/```ui[\s\S]*?```/g, "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (prose.some(line => /\?\s*$/.test(line))) return true;
+  if (blocks.some(block => ASKED_TEXT.test(block) || /\bForm\(/.test(block))) return true;
+  return replyOptions(text).length >= 2;
+}
+
+export interface AskPlace { seq: number | null; options: string[]; taskId?: string; asks?: boolean }
 
 export function askTask(text: string): string | undefined {
   const fence = text.search(/```ui[\s\S]*?\bButton\(/);
@@ -213,7 +225,7 @@ export function askTask(text: string): string | undefined {
   return chips.at(-1)?.[1];
 }
 
-const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), ...(taskId ? { taskId } : {}) }; };
+const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), asks: cardAsks(text), ...(taskId ? { taskId } : {}) }; };
 
 type Said = { type?: string; text?: string; parentToolCallId?: string };
 
@@ -231,13 +243,16 @@ export function placeStore(bb: Pick<BbPluginApi, "storage">): PlaceStore {
   };
 }
 
+const GENUI_ASK = /(?:^|:)genui-question:/;
+
 export function createAskFinder(bb: BbPluginApi, store: PlaceStore | null = null) {
   const found = new Map<string, AskPlace & { at: number }>();
   return async function askPlace(item: NeedsItem): Promise<AskPlace> {
     const threadId = item.source.threadId;
     if (item.kind !== "decision" || !threadId) return { seq: null, options: [] };
     const hit = found.get(item.id) ?? (() => { const kept = store?.get(item.id); return kept ? { ...kept, at: Date.now() } : undefined; })();
-    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options, ...(hit.taskId ? { taskId: hit.taskId } : {}) };
+    const stale = !!hit && hit.seq !== null && hit.asks === undefined && GENUI_ASK.test(item.key ?? "");
+    if (hit && !stale && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options, ...(hit.asks !== undefined ? { asks: hit.asks } : {}), ...(hit.taskId ? { taskId: hit.taskId } : {}) };
     const needle = askNeedle(item.text);
     const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
     const named = /^message:(\d+)$/.exec(item.source.messageId ?? "")?.[1];
@@ -302,7 +317,8 @@ export function createNeedsServer(bb: BbPluginApi) {
   const answerOf = createAnswerFinder(bb, jevJudge(bb), answerStore(bb));
   const recovered = createRecoveryCheck(bb);
   const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
-    const [{ seq, options, taskId }, cleared] = await Promise.all([askSeq(item), recovered(item)]);
+    const [{ seq, options, taskId, asks }, recoveredAt] = await Promise.all([askSeq(item), recovered(item)]);
+    const cleared = recoveredAt ?? (asks === false && GENUI_ASK.test(item.key ?? "") ? { at: Date.parse(item.createdAt), why: "the card only offers follow-ups, it asks nothing" } : null);
     const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
     const check = seq !== null && item.source.threadId
       ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) })

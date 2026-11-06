@@ -491,7 +491,10 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-what { grid-column: 1 / -1; font-size: 12.5px; line-height: 16px; color: var(--foreground); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .stage-needs-thread-icon { color: var(--muted-foreground); }
 .stage-needs-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; padding: 6px 4px 6px 10px; font-size: 12px; line-height: 16px; color: var(--muted-foreground); cursor: pointer; }
-.stage-needs-tools { flex: none; display: inline-flex; align-items: center; gap: 2px; margin-inline-start: auto; }
+.stage-needs-tools { position: absolute; top: 4px; right: 4px; display: flex; align-items: center; }
+.stage-needs-item .stage-needs-who { padding-inline-end: 24px; }
+.stage-needs .stage-needs-later { opacity: 1; margin-inline-start: auto; }
+.stage-needs-foot:not(:has(.stage-needs-answer)) { padding-top: 2px; }
 .stage-needs-status { flex: none; display: inline-flex; align-items: center; margin-inline-start: auto; white-space: nowrap; }
 .stage-needs-sent { display: flex; align-items: flex-start; gap: 4px; margin: 0; padding: 6px 10px 0; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--muted-foreground); }
 .stage-needs-sent > span { min-width: 0; overflow-wrap: anywhere; }
@@ -517,8 +520,11 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 @media (pointer: coarse) {
   .stage-needs-more { height: 44px; margin-block: -11px; }
   .stage-needs-menu { width: 44px; height: 44px; opacity: 1; }
-  .stage-needs-item { padding: 8px 10px 0; }
-  .stage-needs-foot { padding: 6px 0 4px 10px; }
+  .stage-needs-item { padding: 8px 10px 0; grid-template-rows: 30px auto; }
+  .stage-needs-tools { top: 0; right: 0; }
+  .stage-needs-item .stage-needs-who { padding-inline-end: 34px; }
+  .stage-needs-foot { padding: 6px 0 6px 10px; }
+  .stage-needs-foot:not(:has(.stage-needs-answer)) { padding-top: 0; }
   .stage-needs[data-slim] .stage-needs-title { height: 44px; }
   .stage-needs[data-slim] .stage-needs-retry { height: 44px; margin-block: 0; background: transparent; }
   .stage-needs[data-slim] .stage-needs-retry::after { content: ""; position: absolute; inset: 9px 0; border-radius: 13px; background: color-mix(in oklab, var(--foreground) 9%, transparent); z-index: -1; }
