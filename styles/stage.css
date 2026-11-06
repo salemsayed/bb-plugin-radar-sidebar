@@ -608,3 +608,5 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
   .stage-needs-undo-button { height: 44px; background: transparent; isolation: isolate; }
   .stage-needs-undo-button::after { content: ""; position: absolute; inset: 8px 0; border-radius: 14px; background: color-mix(in oklab, var(--foreground) 9%, transparent); z-index: -1; }
 }
+.stage-needs-answers[data-pair] { display: grid; grid-template-columns: 1fr 1fr; }
+.stage-needs-answers[data-pair] .stage-needs-answer { text-align: center; padding-inline: 8px; }

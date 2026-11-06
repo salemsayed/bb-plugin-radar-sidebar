@@ -21,6 +21,7 @@ const OPEN_WHAT = 96;
 const MIN_CONTEXT = 18;
 const OPEN_FORMS = [OPEN_WHAT, 84, 72, 60, 48, 40];
 const BOX_ANSWERS = 3;
+const PAIR_CHARS = 32;
 const SENT_SHOWN_MS = 5 * 60_000;
 
 export function boxAnswers(item: Pick<NeedItem, "kind" | "state" | "inPanel" | "old" | "options">): string[] {
@@ -404,7 +405,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
         <FitLines className="stage-needs-what" forms={askForms(what, OPEN_FORMS, fitWhat, item.title, item.options?.length ?? 0)} />
       </span>
     </button>
-    {answers.length ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
+    {answers.length ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} data-pair={answers.length === 2 && answers.every(label => label.length <= PAIR_CHARS) || undefined}>
       {answers.map(label => <button key={label} type="button" className="stage-needs-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
         onPointerDown={event => event.stopPropagation()}
         onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
