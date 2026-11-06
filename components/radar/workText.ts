@@ -133,8 +133,17 @@ export function botFiles(text: string, keepNames = false): string {
     .replace(SKILL_SLUG, "a skill");
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function plainDates(text: string, now = Date.now()): string {
+  const year = new Date(now).getFullYear();
+  return text
+    .replace(/\((you|Salem) (20\d\d-\d\d-\d\d)\)/g, "($1, $2)")
+    .replace(/\b(20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b(?![-:T\d])/g, (_, y: string, m: string, d: string) => `${MONTH_NAMES[Number(m) - 1]} ${Number(d)}${Number(y) === year ? "" : `, ${y}`}`);
+}
+
 export function plainNote(text: string, keepNames = false): string {
-  return plainText(botFiles(botWords(text), keepNames));
+  return plainDates(plainText(botFiles(botWords(text), keepNames)));
 }
 
 const GITHUB_STATE: Record<string, string> = { MERGEABLE: "can merge", CONFLICTING: "has conflicts", UNSTABLE: "checks unstable", BEHIND: "behind the main branch" };
