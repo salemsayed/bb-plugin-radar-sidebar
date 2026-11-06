@@ -19,6 +19,9 @@ export const needsItemSchema = z.object({
   cleared: z.object({ at: z.number(), why: z.string() }).nullable().optional(),
   options: z.array(z.string()).optional(),
   taskId: z.string().optional(),
+  asked: z.string().optional(),
+  consequence: z.string().optional(),
+  advice: z.string().optional(),
 });
 export type NeedsItem = z.infer<typeof needsItemSchema>;
 export const needsListSchema = z.object({ items: z.array(needsItemSchema) });

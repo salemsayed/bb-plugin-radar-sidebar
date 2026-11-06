@@ -15,6 +15,8 @@ import { answerOptions } from "@/lib/botTasks";
 import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
 import { capitalFirst, plainNote } from "./workText";
+import { recommendedOption, withoutMarks } from "./recommend";
+import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
 
 const OPEN_WHAT = 96;
 
@@ -83,6 +85,22 @@ export interface NeedItem {
   old?: boolean;
   options?: string[];
   askedAt?: number;
+  consequence?: string;
+  recommended?: string;
+}
+
+export const ONE_FORM = 92;
+
+export function oneForm(what: string, title = "", count = 0): string {
+  const head = what.split(" \u00b7 ")[0]!.trim();
+  if (head.length <= ONE_FORM) return what;
+  const forms = askForms(head, OPEN_FORMS, fitWhat, title, count);
+  return forms.find(form => form.length <= ONE_FORM) ?? forms[forms.length - 1] ?? head;
+}
+
+export function oneForms(what: string, sizes: readonly number[], title = "", count = 0): string[] {
+  const short = oneForm(what, title, count);
+  return [...new Set([short, ...askForms(short, sizes, fitWhat, title, count)])];
 }
 
 export function needItems(data: BotTasksData): NeedItem[] {
@@ -93,7 +111,10 @@ export function needItems(data: BotTasksData): NeedItem[] {
       const question = taskAsk(task);
       const place = askPlace(task, bot.coordinatorThreadId);
       const options = answerOptions(task.needs?.options);
-      items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: question || "Has a question for you", kind: "ask", title, ...(options.length ? { options } : {}),
+      const recommended = task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "");
+      const what = recommended ? withoutMarks(question) : question;
+      items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: what || "Has a question for you", kind: "ask", title, ...(options.length ? { options } : {}),
+        ...(task.needs?.consequence ? { consequence: task.needs.consequence } : {}), ...(recommended && options.includes(recommended) ? { recommended } : {}),
         ...askTime(task), ...place, notNowKey: taskNotNowKey(task), ...(questionInPanel(task) ? { inPanel: true } : {}), ...(isOldAsk(task) ? { old: true } : {}) });
     }
     for (const desk of sortDesks(bot.desks.filter(needsYou))) {
@@ -299,31 +320,6 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const inThread = activeThreadId ? items.filter(item => item.threadId === activeThreadId) : [];
   const currentId = (inThread.find(item => item.messageSeq !== undefined && item.messageSeq === hashSeq) ?? inThread[0])?.id;
   const hiddenNames = hiddenBots.map(item => item.botName);
-  const [listCap, setListCap] = useState<number | null>(null);
-  const capKey = open ? `${shown.map(item => item.id).join("|")}:${[...unfolded].join("|")}` : "";
-  useLayoutEffect(() => { setListCap(null); }, [capKey]);
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (!list || !open || listCap !== null) return;
-    const rows = [...list.querySelectorAll<HTMLElement>(":scope > li:not(.stage-needs-undo)")];
-    const scroller = scrollParent(list);
-    if (rows.length < 3 || !scroller) return;
-    const over = scroller.scrollHeight - scroller.clientHeight;
-    if (over <= 0) return;
-    const box = list.getBoundingClientRect();
-    const two = rows[1]!.getBoundingClientRect().bottom - box.top + 22;
-    const cap = Math.round(Math.max(box.height - over, two));
-    if (cap < box.height - 4) setListCap(cap);
-  });
-  useEffect(() => {
-    const list = listRef.current;
-    const scroller = list ? scrollParent(list) : null;
-    if (!scroller || !open) return;
-    let height = scroller.clientHeight;
-    const observer = new ResizeObserver(() => { if (Math.abs(scroller.clientHeight - height) > 1) { height = scroller.clientHeight; setListCap(null); } });
-    observer.observe(scroller);
-    return () => observer.disconnect();
-  }, [open]);
   const hiddenOld = hidden.filter(item => item.old && !item.state).length;
   const onlyOld = hiddenOld > 0 && hiddenOld === hidden.length;
   const collapse = open && !arrivals.length;
@@ -405,7 +401,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
-    <ul ref={listRef} data-capped={open && listCap !== null || undefined} style={open && listCap !== null ? { maxHeight: listCap } : undefined}>
+    <ul ref={listRef}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
       {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)}
         folded={open && index > 0 && item.id !== currentId && !unfolded.has(item.id) && !!onAnswer && boxAnswers(item).length > 0}
@@ -413,14 +409,6 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
         onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer ? label => onAnswer(item, label) : undefined} />)}
     </ul>
   </section>;
-}
-
-function scrollParent(node: HTMLElement): HTMLElement | null {
-  for (let at = node.parentElement; at; at = at.parentElement) {
-    const overflow = getComputedStyle(at).overflowY;
-    if ((overflow === "auto" || overflow === "scroll") && at.clientHeight > 0) return at;
-  }
-  return null;
 }
 
 function RetryButton({ stale, at }: { stale: StaleNote; at: "head" | "line" }) {
@@ -464,6 +452,10 @@ function textWidth(text: string, font: string): number {
   if (!context) return text.length * 6;
   context.font = font;
   return Math.ceil(context.measureText(text).width);
+}
+
+export function isRecommended(item: Pick<NeedItem, "recommended">, label: string): boolean {
+  return !!item.recommended && plainNote(item.recommended) === label;
 }
 
 export function ageLabel(age: string, _since?: "asked" | "open"): string {
@@ -558,13 +550,14 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" ref={itemRef} className="stage-needs-item" data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel && !folded ? "dialog" : undefined} aria-expanded={folded ? false : undefined}
       onClick={event => { if (folded) onUnfold?.(); else if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
-        <FitLines className="stage-needs-what" forms={askForms(what, OPEN_FORMS, fitWhat, item.title, item.options?.length ?? 0)} />
+        <FitLines className="stage-needs-what" forms={oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)} />
+        {!folded && !item.state ? <AskImpact className="stage-needs-impact" text={item.consequence} /> : null}
         {folded ? <span className="stage-needs-unfold" aria-hidden="true">{`${boxAnswers(item).length} answers`}<Icon name="ChevronDown" aria-hidden="true" /></span> : null}
       </span>
     </button>
@@ -583,9 +576,9 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
     {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
     {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark !== null || undefined} style={parkOnly && inlinePark !== null ? { marginTop: -inlinePark } : undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
       {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} ref={answerSides}>
-        {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
+        {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send ${answerName(label, isRecommended(item, label))} to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
+          onClick={event => { event.stopPropagation(); onAnswer!(label); }}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
       </div> : null}
       {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><Isolated text={label} /></button>)}</div> : null}
       {note ? <span className="stage-needs-off" role="status">{note}</span> : null}

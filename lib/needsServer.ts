@@ -2,6 +2,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { rosterSchema, type RosterBot } from "../components/radar/bots";
 import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, normalizedNeedsText, type NeedsItem } from "./needs";
+import { askWords, type AskWords } from "./askWords";
 
 const ACTIVE = ["open", "snoozed", "reminded"] as const;
 
@@ -216,7 +217,9 @@ export function cardAsks(text: string): boolean {
   return replyOptions(text).length >= 2;
 }
 
-export interface AskPlace { seq: number | null; options: string[]; taskId?: string; asks?: boolean }
+export interface AskPlace extends AskWords { seq: number | null; options: string[]; taskId?: string; asks?: boolean; v?: number }
+
+const PLACE_VERSION = 2;
 
 export function askTask(text: string): string | undefined {
   const fence = text.search(/```ui[\s\S]*?\bButton\(/);
@@ -225,7 +228,7 @@ export function askTask(text: string): string | undefined {
   return chips.at(-1)?.[1];
 }
 
-const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), asks: cardAsks(text), ...(taskId ? { taskId } : {}) }; };
+const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), asks: cardAsks(text), ...askWords(text), v: PLACE_VERSION, ...(taskId ? { taskId } : {}) }; };
 
 type Said = { type?: string; text?: string; parentToolCallId?: string };
 
@@ -251,8 +254,8 @@ export function createAskFinder(bb: BbPluginApi, store: PlaceStore | null = null
     const threadId = item.source.threadId;
     if (item.kind !== "decision" || !threadId) return { seq: null, options: [] };
     const hit = found.get(item.id) ?? (() => { const kept = store?.get(item.id); return kept ? { ...kept, at: Date.now() } : undefined; })();
-    const stale = !!hit && hit.seq !== null && hit.asks === undefined && GENUI_ASK.test(item.key ?? "");
-    if (hit && !stale && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options, ...(hit.asks !== undefined ? { asks: hit.asks } : {}), ...(hit.taskId ? { taskId: hit.taskId } : {}) };
+    const stale = !!hit && hit.seq !== null && (hit.v !== PLACE_VERSION || hit.asks === undefined && GENUI_ASK.test(item.key ?? ""));
+    if (hit && !stale && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) { const { at: _at, ...kept } = hit; return kept; }
     const needle = askNeedle(item.text);
     const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
     const named = /^message:(\d+)$/.exec(item.source.messageId ?? "")?.[1];
@@ -317,13 +320,13 @@ export function createNeedsServer(bb: BbPluginApi) {
   const answerOf = createAnswerFinder(bb, jevJudge(bb), answerStore(bb));
   const recovered = createRecoveryCheck(bb);
   const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
-    const [{ seq, options, taskId, asks }, recoveredAt] = await Promise.all([askSeq(item), recovered(item)]);
+    const [{ seq, options, taskId, asks, asked, consequence, advice }, recoveredAt] = await Promise.all([askSeq(item), recovered(item)]);
     const cleared = recoveredAt ?? (asks === false && GENUI_ASK.test(item.key ?? "") ? { at: Date.parse(item.createdAt), why: "the card only offers follow-ups, it asks nothing" } : null);
     const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
     const check = seq !== null && item.source.threadId
       ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) })
       : null;
-    return { ...item, askSeq: seq, answered: check?.reply ?? null, followedUp: check?.followedUp ?? null, cleared, ...(options.length ? { options } : {}), ...(taskId ? { taskId } : {}) };
+    return { ...item, askSeq: seq, answered: check?.reply ?? null, followedUp: check?.followedUp ?? null, cleared, ...(options.length ? { options } : {}), ...(taskId ? { taskId } : {}), ...(asked ? { asked } : {}), ...(consequence ? { consequence } : {}), ...(advice ? { advice } : {}) };
   };
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });

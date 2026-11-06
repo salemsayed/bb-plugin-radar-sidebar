@@ -7,6 +7,8 @@ export interface AskStripEntry {
   options: string[];
   botName: string;
   askedAt?: number;
+  consequence?: string;
+  recommended?: string;
 }
 
 let current: AskStripEntry | null = null;

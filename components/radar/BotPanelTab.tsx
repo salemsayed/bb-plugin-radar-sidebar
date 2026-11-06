@@ -6,11 +6,15 @@ import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react"
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
+import { useNeedsYou } from "@/lib/needsClient";
+import { applyNotNow, useNotNow } from "@/lib/notNow";
+import { withQuestions } from "./questions";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./DispatchBoard";
 import { workerNames } from "./workText";
 import { StageFace } from "./StageFace";
-import { awaitedPerson, rowLook, stageText, stageTitle, waitLine } from "./stage";
+import { awaitedPerson, rowLook, stageText, stageTitle, taskAsk, waitLine } from "./stage";
+import { oneForm } from "./NeedsSummary";
 import { botStyle, shortBotName } from "./bots";
 
 export const BOT_TAB = { id: "bot", context: { kind: "thread" as const }, availability: "fixed" as const };
@@ -30,7 +34,10 @@ function useNow(): number {
 }
 
 export function BotPanelTab({ threadId }: { threadId: string }) {
-  const { data } = useBotTasks(true);
+  const { data: raw } = useBotTasks(true);
+  const bell = useNeedsYou(true);
+  const later = useNotNow(raw?.notNow);
+  const data = raw ? applyNotNow(withQuestions(raw, bell.items, later.laterAt).data, later) : raw;
   const bot = data?.bots.find(b => b.coordinatorThreadId === threadId);
   if (!data || !bot) return <p className="bot-panel-empty">This chat is not a bot's.</p>;
   return <BotPanel key={bot.key} bot={bot} here={threadId} />;
@@ -75,8 +82,8 @@ function busyWords(task: BotTaskRow, botName: string): string {
   return stageText(task.line) || "Stuck";
 }
 
-function Row({ title, meta, detail, target, here, done, live, ask, onOpen, onContinue }: {
-  title: string; meta: string; detail?: string; target: string | null; here: string; done?: boolean; live?: boolean; ask?: boolean;
+function Row({ title, meta, detail, impact, target, here, done, live, ask, onOpen, onContinue }: {
+  title: string; meta: string; detail?: string; impact?: string; target: string | null; here: string; done?: boolean; live?: boolean; ask?: boolean;
   onOpen: (id: string) => void; onContinue?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -85,12 +92,13 @@ function Row({ title, meta, detail, target, here, done, live, ask, onOpen, onCon
   const cls = ["bot-item", done ? "bot-item-done" : "", ask ? "bot-item-ask" : "", opens ? "bot-item-opens" : ""].filter(Boolean).join(" ");
   const body = <>
     <span className="bot-item-title">{live ? <i className="bot-live-dot" aria-hidden="true" /> : null}<span dir="auto">{title}</span></span>
+    {impact ? <span className="bot-item-impact" dir="auto">{impact}</span> : null}
     <span className="bot-item-meta" dir="auto">{meta}</span>
     {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ArrowUpRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
   </>;
   if (!opens && !more) return <div className={cls} role="listitem">{body}</div>;
   return <div className="bot-item-wrap" role="listitem" data-open={open || undefined}>
-    <button type="button" className={cls} aria-label={`${title}. ${meta}.${opens ? " Open its chat" : open ? " Hide details" : " Show details"}`} aria-expanded={opens ? undefined : open}
+    <button type="button" className={cls} aria-label={`${title}.${impact ? ` ${impact}` : ""} ${meta}.${opens ? " Open its chat" : open ? " Hide details" : " Show details"}`} aria-expanded={opens ? undefined : open}
       onClick={() => opens ? onOpen(target!) : setOpen(value => !value)}>{body}</button>
     {open ? <div className="bot-item-more">
       {detail ? <p dir="auto">{detail}</p> : null}
@@ -141,12 +149,12 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     <div className="bot-panel-body">
       {asks.length ? <section aria-label="Asking you">
         <h3>Asking you</h3>
-        <div role="list">{asks.map(t => <Row key={t.id} ask title={stageText(t.needs?.question || t.line || t.title)} meta={stageTitle(t.title)} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} />)}</div>
+        <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} />)}</div>
       </section> : null}
       <section aria-label="Now">
         <h3>Now</h3>
         {!known && (busyTasks.length || look.kind === "live") ? <p className="bot-quiet" aria-busy="true">{"\u00a0"}</p> : running.length || busyTasks.length ? <div role="list">
-          {running.map(a => <Row key={a.threadId} live title={titleOf(a)} meta={a.startedAt != null ? `Worker · started ${ago(a.startedAt, now)}` : "Worker"} target={a.threadId} here={here} onOpen={go} />)}
+          {running.map(a => <Row key={a.threadId} live title={titleOf(a)} meta={a.startedAt != null ? `Started ${ago(a.startedAt, now)}` : "Worker"} target={a.threadId} here={here} onOpen={go} />)}
           {busyTasks.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={busyWords(t, shortName)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}
         </div> : <p className="bot-quiet">{snapshot.chat.has(bot.key) ? `${shortName} is replying in this chat.` : "Nothing running right now."}</p>}
       </section>

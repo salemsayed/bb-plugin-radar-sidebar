@@ -10,9 +10,8 @@ import { plainNote } from "./workText";
 import { clockNow, since } from "./stage";
 import { answerHint, coarsePointer } from "./answerHint";
 import { FitLines } from "./FitLines";
-import { askForms } from "./choiceFit";
-import { fitWhat } from "./NeedsSummary";
-import { Isolated } from "./Isolated";
+import { oneForms } from "./NeedsSummary";
+import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
 import { ComposerFill } from "./ComposerFill";
 
 const POLL_MS = 400;
@@ -133,6 +132,7 @@ export function AskStrip() {
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;
   const shown = entry.options.map(option => plainNote(option));
+  const rec = (label: string) => !!entry.recommended && plainNote(entry.recommended) === label;
   const hint = shown.length ? coarsePointer() ? "Tap one to send" : answerHint() : "Type your answer below";
   const choose = async (label: string) => {
     if (!composer) { requestFill(entry.threadId, label, shown); return; }
@@ -157,11 +157,12 @@ export function AskStrip() {
       <span className="radar-ask-strip-who"><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
-    <FitLines className="radar-ask-strip-question" forms={askForms(entry.question, QUESTION_FORMS, fitWhat, entry.title, entry.options.length)} />
+    <FitLines className="radar-ask-strip-question" forms={oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length)} />
+    <AskImpact className="radar-ask-strip-impact" text={entry.consequence} />
     {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerSides}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
-        aria-label={`Send “${label}” to ${entry.botName}`} title="Sends this reply to the bot"
-        onClick={() => { void choose(label); }}><Isolated text={label} /></button>)}
+        aria-label={`Send ${answerName(label, rec(label))} to ${entry.botName}`} title="Sends this reply to the bot"
+        onClick={() => { void choose(label); }}><AnswerLabel label={label} recommended={rec(label)} /></button>)}
     </div> : null}
     {note ? <p className="radar-ask-strip-note" role="status">{note}</p> : null}
   </section>, host)}</>;

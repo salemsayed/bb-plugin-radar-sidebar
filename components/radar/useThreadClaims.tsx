@@ -4,6 +4,9 @@ import { useBotRoster } from "./useBotRoster";
 import { botScopeIds } from "./botScope";
 import type { RosterBot } from "./bots";
 import { useBotTasks } from "./useBotTasks";
+import { Icon } from "@/components/ui/icon";
+import { Isolated } from "./Isolated";
+import { shortAgo } from "./time";
 
 export function looseThreads(threads: readonly PluginSidebarThread[], bots: readonly RosterBot[]): PluginSidebarThread[] {
   const owned = new Set(bots.flatMap(bot => [...botScopeIds(threads, bot), ...(bot.deskThreadIds ?? [])]));
@@ -47,7 +50,23 @@ export function useThreadClaims() {
   }, [threads, projects, bots, desksLoaded, status]);
 }
 
+export function ChatCard({ title, status, onOpen, tone = "quiet" }: { title: string; status: string; onOpen: () => void; tone?: string }) {
+  return <article className="dispatch-task-group dispatch-card" data-tone={tone}>
+    <div className="dispatch-card-head">
+      <button type="button" className="dispatch-task" aria-label={`${title}. ${status}`} onClick={onOpen}><b dir="auto"><Isolated text={title} /></b></button>
+      <button type="button" className="dispatch-task-continue" aria-label={`Open the chat for ${title}`} title="Opens this chat" onClick={onOpen}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Open chat</span></button>
+    </div>
+    <div className="dispatch-card-ask" aria-hidden="true" onClick={onOpen}><span className="dispatch-status-line"><i aria-hidden="true" /><span dir="auto">{status}</span></span></div>
+  </article>;
+}
+
 export function ClaimedThreads({ threads, onOpen }: { threads: readonly PluginSidebarThread[]; onOpen: (id: string) => void }) {
   if (!threads.length) return null;
-  return <section className="radar-claimed" aria-label="Started by you"><header className="dispatch-section-head"><h3>Started by you</h3><span>{threads.length}</span></header>{threads.map(thread => <button type="button" className="radar-desk-row" key={thread.id} onClick={() => onOpen(thread.id)}><span className="radar-desk-copy" dir="auto">{thread.displayTitle}</span></button>)}</section>;
+  const now = Date.now();
+  return <section className="radar-claimed" aria-label="Started by you"><header className="dispatch-section-head"><h3>Started by you</h3><span>{threads.length}</span></header>
+    <div className="dispatch-open">{threads.map(thread => {
+      const age = shortAgo(thread.latestAttentionAt, now);
+      return <ChatCard key={thread.id} title={thread.displayTitle} status={`Your chat${age ? ` \u00b7 active ${age === "now" ? "just now" : `${age} ago`}` : ""}`} onOpen={() => onOpen(thread.id)} />;
+    })}</div>
+  </section>;
 }

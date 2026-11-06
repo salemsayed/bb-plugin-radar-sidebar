@@ -27,7 +27,7 @@ const taskSchema = z.object({
   wakeAt: z.number().optional(),
   retryAt: z.number().optional(),
   conversationThreadId: z.string().nullable().default(null),
-  needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional(), askedAt: z.number().optional(), messageSeq: z.number().optional() }).optional(),
+  needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional(), askedAt: z.number().optional(), messageSeq: z.number().optional(), consequence: z.string().optional(), recommended: z.string().optional() }).optional(),
   later: z.object({ reason: z.enum(["answered", "not-now"]).catch("not-now"), at: z.number(), threadId: z.string().optional(), messageSeq: z.number().optional() }).optional(),
   laterNote: z.object({ at: z.number(), text: z.string() }).optional(),
   tags: z.array(z.string()).default([]),

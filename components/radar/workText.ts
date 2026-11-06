@@ -731,7 +731,14 @@ export function askPreview(ask: { excerpt: string; full?: string; label: string;
   const source = parts.full && parts.full.length > parts.quote.length && parts.full.startsWith(parts.quote.replace(/(?:\u2026|\.\.\.)$/, "").slice(0, 24)) ? parts.full : parts.quote;
   const unit = previewUnit(source, room);
   const partial = unit.partial || parts.excerpt;
-  return { line: `${parts.head}${partial ? " \u00b7 excerpt" : ""}: \u201c${unit.text}\u201d`, shown: unit.text, partial };
+  const text = partial ? `${unit.text}${/[.!?]$/.test(unit.text) ? " \u2026" : "\u2026"}` : unit.text;
+  return { line: `${datedHead(parts.head)}: \u201c${text}\u201d`, shown: unit.text, partial };
+}
+
+const HEAD_WHEN = /\s((?:today|yesterday)(?: \d{1,2}:\d{2})?|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]* \d{1,2}:\d{2}|[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?)(?=(?: via .+)?$)/;
+
+export function datedHead(head: string): string {
+  return head.replace(HEAD_WHEN, " ($1)");
 }
 
 export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, _max = ASK_PREVIEW, own?: string, originalOf?: OriginalOf): string {

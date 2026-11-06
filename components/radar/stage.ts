@@ -4,10 +4,11 @@ import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, readableCut, read
 import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
 import { isQuestionRow } from "./questions";
+import { withoutMarks } from "./recommend";
 
 export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
-  if (isQuestionRow(task)) return task.needs?.question ?? task.title;
-  return needAsk(task.needs?.question || task.line || task.title, stageTitle(task.title, task.outcome));
+  const asked = isQuestionRow(task) ? task.needs?.question ?? task.title : needAsk((task.needs?.question || task.line || task.title).replace(/^(?:needs you|waiting for you)\s*[:\u00b7-]\s*/i, ""), stageTitle(task.title, task.outcome));
+  return task.needs?.recommended ? withoutMarks(asked) : asked;
 }
 
 export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";

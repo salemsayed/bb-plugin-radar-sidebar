@@ -44,7 +44,6 @@
 .radar-threads { margin: 10px 2px 0; padding-top: 6px; border-top: 1px solid var(--border); }
 .radar-threads:not([data-open]) { position: sticky; bottom: 0; z-index: 1; background: var(--sidebar, var(--background)); }
 .radar-threads:not([data-open]) { box-shadow: 0 80px 0 80px var(--sidebar, var(--background)); clip-path: inset(0 -2px -160px -2px); }
-.radar-list-compact .stage:has(.stage-needs[data-open]) .radar-threads:not([data-open]), .stage:has(.stage-needs:not([data-slim])) .radar-threads:not([data-open]) { position: static; box-shadow: none; clip-path: none; }
 .radar-threads-toggle { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 40px; padding: 6px 10px 6px 6px; border: 0; border-radius: 10px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 13px; font-weight: 600; text-align: start; cursor: pointer; }
 .radar-threads-toggle:hover { background: var(--muted); color: var(--foreground); }
 .radar-threads-toggle:focus-visible, .radar-thread-row:focus-visible, .radar-thread-more:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: -2px; }
