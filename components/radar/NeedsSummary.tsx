@@ -130,7 +130,8 @@ function sideKeys(event: KeyboardEvent<HTMLElement>, onMenu: () => void) {
 }
 
 export function notNowLabel(item: Pick<NeedItem, "botName" | "title" | "what">): string {
-  const title = cutAtWord((item.what || item.title || "").replace(/\s+·.*$/, ""), 56);
+  const whole = (item.what || item.title || "").replace(/\s+·.*$/, "");
+  const title = whole.length > 56 ? clauseCut(whole, 56) || cutAtWord(whole, 56) : whole;
   return item.botName ? `${title} · ${item.botName}` : title;
 }
 
