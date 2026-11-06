@@ -1,7 +1,7 @@
 import { isClosed, type BotTaskRow, type BotTasksData } from "@/lib/botTasks";
 import { normalizedNeedsText, type NeedsItem } from "@/lib/needs";
 import { askFirst, needAsk, stageText, stageTitle } from "./stage";
-import { capitalFirst, cutAtWord } from "./workText";
+import { capitalFirst, cutAtWord, plainText } from "./workText";
 
 export const QUESTION_TAG = "radar:question";
 export const IN_PANEL_TAG = "radar:question-in-panel";
@@ -74,7 +74,7 @@ export function needsTopic(question: string, fallback = ""): string {
   const head = asked ?? whole;
   if (!EITHER_OR.test(head)) return questionTopic(head);
   const named = NUMBERED.exec(head)?.[0];
-  if (named) return capitalFirst(named.replace(/^the\s+/i, "the ").trim());
+  if (named) return capitalFirst(plainText(named.replace(/^the\s+/i, "the ").trim()));
   return fallback || questionTopic(head);
 }
 

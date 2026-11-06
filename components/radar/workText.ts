@@ -141,7 +141,7 @@ export function plainText(text: string): string {
   return text
     .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "merge request $1")
     .replace(/\bthe !(\d{3,}) job\b/g, "merge request $1")
-    .replace(/\bthe (\d{3,}) job\b/g, "merge request $1")
+    .replace(/\b[Tt]he (\d{3,}) job\b/g, "merge request $1")
     .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
     .replace(RUN_ID, "$1")
     .replace(/\b(?:TS|CI|test|tests) runs? (?:is |are )?green\b/gi, "checks passed")
