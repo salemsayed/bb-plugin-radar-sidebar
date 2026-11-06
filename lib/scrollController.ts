@@ -42,7 +42,7 @@ export type ScrollStore = {
 type Phase = "waiting" | "restoring" | "settling" | "live";
 type Pin = { element: Element; offset: number; row: string | null; path: number[] | null; hash: number | null; inner: number };
 type Line = { message: HTMLElement | null; element: HTMLElement; offset: number; anchor: LineAnchor };
-type Track = { pin: Pin; base: number; comp: number; width: number };
+type Track = { pin: Pin; base: number; comp: number; width: number; height: number };
 const MESSAGE = "[data-notification-thread][data-notification-message]";
 const ROW = "[data-timeline-row-id]";
 const RAW_CARD = "pre > code.language-ui";
@@ -522,12 +522,13 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       chosen = top && !floating(top.element, container) ? top : visiblePin();
     }
     if (chosen && floating(chosen.element, container)) chosen = null;
-    track = chosen ? { pin: chosen, base: chosen.element.getBoundingClientRect().top - viewTop() + container.scrollTop, comp, width: Math.round(container.clientWidth) } : null;
+    track = chosen ? { pin: chosen, base: chosen.element.getBoundingClientRect().top - viewTop() + container.scrollTop, comp, width: Math.round(container.clientWidth), height: container.scrollHeight } : null;
   };
   const syncTrack = (why: string, correct: boolean, clean = true) => {
     if (!container) return;
     const state = guardState();
     if (state === "off") { track = null; return; }
+    if (why === "scroll") { if (state === "wait" || clean) arm(); return; }
     if (!track || track.width !== Math.round(container.clientWidth)) { if (clean || state === "wait") arm(); return; }
     let pin = track.pin;
     if (!pin.element.isConnected || !hasBox(pin.element)) {
@@ -537,8 +538,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     }
     const visual = pin.element.getBoundingClientRect().top - viewTop();
     if (visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5) { if (clean || state === "wait") arm(); return; }
-    if (state === "wait") { track.base = visual + container.scrollTop; track.comp = comp; return; }
+    if (state === "wait") { arm(); return; }
     if (!correct) return;
+    if (now() - userMovedAt < COAST_QUIET_MS && container.scrollHeight !== track.height) { arm(); return; }
     const from = container.scrollTop;
     const drift = visual + from - track.base - (comp - track.comp);
     if (Math.abs(drift) <= GUARD_PX) return;
