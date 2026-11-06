@@ -480,6 +480,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   .stage-needs-title .stage-needs-retry-icon { display: block; width: 16px; height: 16px; }
   .stage-needs-title .stage-needs-retry .stage-needs-retry-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .stage-needs-title .stage-needs-retry { display: inline-grid; place-items: center; }
+  .stage-needs[data-stale] .stage-needs-title .stage-needs-stale-icon { display: none; }
 }
 .stage-needs-retry:hover { background: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .stage-needs-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }

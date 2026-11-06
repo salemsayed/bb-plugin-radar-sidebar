@@ -23,7 +23,7 @@ import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
-import { answeredHere, laterNoteHead, since, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
+import { answeredHere, runBeforeCheck, laterNoteHead, since, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { FitLines, cutForms, fitWords } from "./FitLines";
 import { askForms } from "./choiceFit";
@@ -83,8 +83,12 @@ function dayAndTime(at: number, now: number) {
   const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000);
   return days === 0 ? `today ${clockFormatter.format(new Date(at))}` : days === 1 ? `yesterday ${clockFormatter.format(new Date(at))}` : dateFormatter.format(new Date(at));
 }
+function afterRun(task: BotTaskRow): string {
+  const run = task.wakeAt !== undefined ? runBeforeCheck(task.line, task.wakeAt) : "";
+  return run ? `, after the ${run} run` : "";
+}
 export function taskStatus(task: BotTaskRow, now: number): string {
-  if (task.displayState === "waiting" && task.wakeAt !== undefined) return `${STATE_LABEL.waiting} · ${checksLine(task.wakeAt, now)}`;
+  if (task.displayState === "waiting" && task.wakeAt !== undefined) return `${STATE_LABEL.waiting} · ${checksLine(task.wakeAt, now)}${afterRun(task)}`;
   const detail = rowDetail(task, now);
   if (!isClosed(task.displayState)) return [STATE_LABEL[task.displayState], detail].filter(Boolean).join(" · ");
   const parts = detail ? detail.split(" · ") : [];
@@ -118,7 +122,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, wa
   }
   if (state === "waiting" && task.wakeAt !== undefined) {
     const when = checksLine(task.wakeAt, now);
-    const line = when.startsWith("next check ") ? `Next check ${when.slice(11)}` : `Check ${when}`;
+    const line = when.startsWith("next check ") ? `Next check ${when.slice(11)}${afterRun(task)}` : `Check ${when}`;
     if (task.waitFor !== "someone else") return line;
     const who = waitingOn(task.line, task.outcome);
     return `${who ? `Waiting on ${who}` : "Waiting on someone else"} · ${line[0]!.toLowerCase()}${line.slice(1)}`;
