@@ -1,7 +1,7 @@
 import { useLayoutEffect, type RefObject } from "react";
 
-const CAP_SHARE = 0.46;
-const CAP_MAX = 420;
+const CAP_SHARE = 0.62;
+const CAP_MAX = 560;
 
 export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean, count: number) {
   useLayoutEffect(() => {
@@ -13,14 +13,8 @@ export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean
       node.style.maxHeight = "";
       node.style.scrollbarGutter = "";
       const items = Array.from(node.children) as HTMLElement[];
-      const scroller = node.closest<HTMLElement>(".radar-list-body");
-      const overflow = () => scroller ? Math.max(0, scroller.scrollHeight - scroller.clientHeight) : 0;
-      const squeeze = overflow() > 0 && window.innerWidth >= 500;
-      if (squeeze) node.style.scrollbarGutter = "stable";
-      const over = overflow();
-      const floor = items.length > 1 ? items[1]!.getBoundingClientRect().bottom - node.getBoundingClientRect().top : 0;
-      const room = squeeze && over > 0 ? Math.max(floor, node.scrollHeight - over) : Infinity;
-      const cap = Math.min(window.innerHeight * CAP_SHARE, CAP_MAX, room);
+      const cap = Math.min(window.innerHeight * CAP_SHARE, CAP_MAX);
+      if (node.scrollHeight > cap + 0.5) node.style.scrollbarGutter = "stable";
       const top = node.getBoundingClientRect().top - node.scrollTop;
       let used = 0;
       for (const item of items) {

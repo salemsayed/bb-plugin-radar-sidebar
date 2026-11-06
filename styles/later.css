@@ -4,7 +4,7 @@
 .radar-not-now:hover .radar-not-now-pill { background: color-mix(in oklab, var(--foreground) 12%, transparent); }
 .radar-not-now:focus-visible { outline: none; }
 .radar-not-now:focus-visible .radar-not-now-pill { outline: 2px solid var(--ring); outline-offset: 1px; }
-.stage-needs-later { position: absolute; bottom: 5px; right: 34px; opacity: 0; }
+.stage-needs-later { position: absolute; bottom: 3px; right: 34px; opacity: 0; }
 .stage-needs-later:focus-visible { opacity: 1; }
 .stage-needs li:is(:hover, :focus-within) .stage-needs-later { opacity: 1; }
 .stage-needs-later-mark { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
