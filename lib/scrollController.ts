@@ -139,7 +139,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   let veiledAt: number | null = veiledSince(threadId), rowsAt: number | null = null, quiet = false;
   let requested = primed?.requested ?? false, stable = 0, heights = 0, placedAt: number | null = null, settledAt = 0, lastFixAt = 0, changedAt = 0, lineReady = false, lineReadyAt: number | null = null, revealed = false;
   let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false, oldestSeq = Infinity, progressAt = -Infinity;
-  let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false, panned = false, touchX = 0, touchY = 0;
+  let touchGap = 0, fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false, panned = false, touchX = 0, touchY = 0;
   let fine: Pin | null = null, stuck = 0;
   let intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, dragAt = -Infinity, ownTop: number | null = null;
@@ -507,7 +507,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, Number(e.dataset.notificationMessage)), 0);
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
-    if (!container || !fingerRef || now() - touchAt < REST_MS) return;
+    if (!container || !fingerRef || now() - touchAt < REST_MS || touchGap > BOTTOM_GAP) return;
     if (container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight + 0.5) return;
     if (!fingerRef.element.isConnected || !hasBox(fingerRef.element)) { fingerRef = visiblePin(); return; }
     const target = targetFor(fingerRef.element, fingerRef.offset);
@@ -578,7 +578,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       return;
     }
     const away = visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5;
-    if (!correct || Math.abs(drift) <= GUARD_PX) { if (away && clean) arm(); return; }
+    const jumped = why === "write" && Math.abs(pushed) > PUSH_PX && Math.abs(pushed + drift) < 2;
+    if (!correct && !jumped || Math.abs(drift) <= GUARD_PX) { if (away && clean) arm(); return; }
     const max = Math.max(0, container.scrollHeight - container.clientHeight);
     const target = Math.min(Math.max(from + drift, 0), max);
     if (Math.abs(target - from) < 1) { arm(pin); return; }
@@ -806,7 +807,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
           if ((event as TouchEvent).touches.length === 1) settleHost("touch");
           const point = (event as TouchEvent).touches[0];
           track = null;
-          touching = true; touchAt = t; dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
+          touching = true; touchAt = t; touchGap = gap(); dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
           if (touchTarget !== target && target) {
             touchTarget?.removeEventListener("touchend", onTargetEnd);
             touchTarget?.removeEventListener("touchcancel", onTargetEnd);
