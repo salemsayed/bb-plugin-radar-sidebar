@@ -231,7 +231,7 @@ export function createRecoveryCheck(bb: BbPluginApi) {
     if (!automation || item.kind !== "decision") return null;
     const a = (await read())?.get(automation);
     const ok = a?.lastSuccessAt ? Date.parse(a.lastSuccessAt) : NaN;
-    return a && a.state === "healthy" && !a.waitingOn && ok > Date.parse(item.createdAt) ? { at: ok, why: "its check has run fine since" } : null;
+    return a && ok > Date.parse(item.createdAt) ? { at: ok, why: "its check has run fine since" } : null;
   };
   return Object.assign(cleared, { explain });
 }
