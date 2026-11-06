@@ -6,7 +6,7 @@ export function ComposerFill() {
   const request = useSyncExternalStore(subscribeFill, pendingFill, () => null);
   const composers = useComposers();
   useEffect(() => {
-    if (!request) return;
+    if (!request || pendingFill() !== request) return;
     const composer = composers.find(c => c.scope.kind === "thread" && c.scope.threadId === request.threadId);
     if (!composer) return;
     clearFill(request);
