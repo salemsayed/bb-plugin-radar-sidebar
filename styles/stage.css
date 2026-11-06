@@ -616,4 +616,5 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-status:has(.stage-needs-off) { display: block; line-height: 16px; }
 .stage-needs-status:has(.stage-needs-off) > * { display: inline; }
 .stage-needs-status:has(.stage-needs-off) > .stage-needs-off::before { margin-inline: 6px; }
-.stage-needs-status > .stage-needs-off[data-keep] { display: inline-block; white-space: nowrap; overflow-wrap: normal; }
+.stage-needs-status > .stage-needs-off[data-keep] { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage-needs-status > .stage-needs-off[data-keep]::before { content: none; }
