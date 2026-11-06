@@ -22,7 +22,7 @@ function placement(): CSSProperties {
   return { left: `${GAP}px`, bottom: `${Math.round(window.innerHeight - top + 8)}px` };
 }
 
-export function NotNowToastView({ toast, scope, layout = "" }: { toast: NotNowToast | null; scope?: string; layout?: string }) {
+export function NotNowToastView({ toast, scope, layout = "", inline = false }: { toast: NotNowToast | null; scope?: string; layout?: string; inline?: boolean }) {
   const [style, setStyle] = useState<CSSProperties>({});
   useLayoutEffect(() => { if (toast) setStyle(placement()); }, [toast?.key, toast?.error, layout]);
   useEffect(() => {
@@ -38,7 +38,7 @@ export function NotNowToastView({ toast, scope, layout = "" }: { toast: NotNowTo
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toast]);
-  if (!toast) return null;
+  if (!toast || inline) return null;
   return createPortal(<div className="radar-later-toast" data-bb-plugin={scope} role="status" aria-live="polite" data-error={toast.error ? "" : undefined} style={style}>
     <Icon name={toast.error ? "AlertCircle" : "Clock"} aria-hidden="true" />
     <span className="radar-later-toast-text" dir="auto">{toast.error ?? <>Moved to Later: <Isolated text={toast.label} /><span className="radar-later-toast-hint">. Press Control Z to undo, Escape to dismiss.</span></>}</span>

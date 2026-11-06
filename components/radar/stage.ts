@@ -380,6 +380,12 @@ export interface RowLook extends StageLook {
   helpers: number;
 }
 
+export const CLOCK_STEP_MS = 10_000;
+
+export function clockNow(): number {
+  return Math.floor(Date.now() / CLOCK_STEP_MS) * CLOCK_STEP_MS;
+}
+
 export function since(at: number, now: number): string {
   const minutes = Math.floor(Math.max(0, now - at) / 60_000);
   if (minutes < 1) return "now";

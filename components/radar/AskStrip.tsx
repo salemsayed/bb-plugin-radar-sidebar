@@ -6,7 +6,8 @@ import { askCardAnswers, askMessageShown, chatFooter, composerEditor, stripAncho
 import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry } from "@/lib/askStrip";
 import { requestFill } from "@/lib/composerFill";
 import { plainNote } from "./workText";
-import { since } from "./stage";
+import { clockNow, since } from "./stage";
+import { answerHint } from "./answerHint";
 import { FitLines } from "./FitLines";
 import { askForms } from "./choiceFit";
 import { fitWhat } from "./NeedsSummary";
@@ -49,7 +50,7 @@ export function AskStrip() {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [offered, setOffered] = useState(false);
   const [ready, setReady] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(clockNow);
   const [picked, setPicked] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const seen = useRef<string | null>(null);
@@ -85,7 +86,7 @@ export function AskStrip() {
       const landed = entry.messageSeq === undefined || askMessageShown(entry.messageSeq);
       if (!shown && (Date.now() - armed > SHOW_BY_MS || landed && Date.now() - offerSince >= SETTLE_MS)) shown = true;
       setReady(shown);
-      setNow(Date.now());
+      setNow(clockNow());
       timer = window.setTimeout(measure, POLL_MS);
     };
     measure();
@@ -122,7 +123,7 @@ export function AskStrip() {
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;
   const shown = entry.options.map(option => plainNote(option));
-  const hint = shown.length ? "Tap an answer to send it" : "Type your answer below";
+  const hint = shown.length ? answerHint() : "Type your answer below";
   const choose = async (label: string) => {
     if (!composer) { requestFill(entry.threadId, label, shown); return; }
     const draft = composer.text.trim();

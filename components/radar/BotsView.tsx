@@ -237,9 +237,8 @@ function BoardSkeleton() {
   const rows = roster.length ? roster.map(bot => ({ key: bot.key, name: bot.name })) : Array.from({ length: SKELETON_ROWS }, (_, i) => ({ key: `row-${i}`, name: "" }));
   return <div className="stage stage-skeleton" aria-busy="true">
     <div className="stage-needs-slot">
-      <section className="stage-needs" data-state="checking" aria-label="Needs you: checking">
-        <h2 className="stage-needs-title"><span className="stage-needs-dot" aria-hidden="true" /><span className="stage-needs-heading">Needs you</span></h2>
-        <p className="stage-needs-empty" role="status"><Icon name="Clock" aria-hidden="true" /><span><b>Checking for new questions…</b><span>Loading the bots</span></span></p>
+      <section className="stage-needs" data-state="checking" data-slim="" aria-label="Needs you: checking">
+        <h2 className="stage-needs-title stage-needs-line"><Icon name="Clock" aria-hidden="true" className="stage-needs-line-icon" /><span className="stage-needs-line-text" role="status">Checking for new questions…</span></h2>
       </section>
     </div>
     <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>

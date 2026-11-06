@@ -15,7 +15,8 @@ import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, withNamedWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
-import { NeedsSummary, askPlace, botMenuLabel, fitWhat, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
+import { NeedsSummary, askPlace, boxAnswers, botMenuLabel, fitWhat, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
+import { useGrowSlot, useTouchHold } from "./useGrowSlot";
 import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
@@ -26,6 +27,7 @@ import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestion
 import { FitLines, cutForms } from "./FitLines";
 import { askForms } from "./choiceFit";
 import { requestFill } from "@/lib/composerFill";
+import { answerHint } from "./answerHint";
 import { armAskStrip, clearAskStrip, currentAskStrip } from "@/lib/askStrip";
 import { askedAgo } from "./NeedsSummary";
 import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
@@ -363,6 +365,10 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
   const [pointerIn, setPointerIn] = useState(false);
+  const touchIn = useTouchHold(root);
+  const slot = useRef<HTMLDivElement>(null);
+  const slotInner = useRef<HTMLDivElement>(null);
+  useGrowSlot(slot, slotInner);
   const [keysIn, setKeysIn] = useState(false);
   const [mountedAt] = useState(() => Date.now());
   const [slow, setSlow] = useState(false);
@@ -427,7 +433,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const unreachable = state.status === "error" || state.cached && state.status === "loading" && slow;
   const retry = () => { setRetrying(true); void refreshBotTasks().finally(() => setRetrying(false)); };
   const staleNote = { asOf: asOf(data.observedAt, now), retrying, onRetry: retry };
-  const staleInBox = unreachable && (needItems(data).length > 0 || threadNeeds.length > 0 || answered.length > 0);
+  const inlineUndo = isCompactViewport && !sheet;
+  const armItem = (item: NeedItem) => armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at });
   const roving = useRoving(list, { item: ".stage-chat", row: ".stage-row", side: ".stage-more", preferred: hereKey });
   const scope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   const loose = threadsSummary(claims.ready ? claims.loose : []);
@@ -451,18 +458,16 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onPointerLeave={() => setPointerIn(false)}
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
-    <div className="stage-needs-slot">
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at }); open(id, seq); }}
+    <div className="stage-needs-slot" ref={slot}><div ref={slotInner}>
+      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
+        onAnswer={(item, label) => { armItem(item); requestFill(item.threadId, label, boxAnswers(item), true, item.id); open(item.threadId, item.messageSeq); }}
         checking={!bothFresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
+        inlineUndo={inlineUndo} undo={inlineUndo ? later.toast : null}
         onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
         onNotNow={item => { if (item.notNowKey) void notNow(item.notNowKey, notNowLabel(item)); }}
         parked={key => later.pending(key) !== null || later.laterAt(key) !== null} />
-      {unreachable && !staleInBox ? <div className="stage-stale" role="alert">
-        <Icon name="AlertCircle" aria-hidden="true" />
-        <p><b>Can't reach the bots right now</b><span>Showing what we had at {asOf(data.observedAt, now)}</span></p>
-        <button type="button" disabled={retrying} onClick={retry}>{retrying ? "Trying…" : "Retry"}</button>
-      </div> : null}
+      </div>
     </div>
     <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {
@@ -485,7 +490,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }} onClose={close} /> : null}
-    <NotNowToastView toast={later.toast} scope={scope} layout={sheet ?? ""} />
+    <NotNowToastView toast={later.toast} scope={scope} layout={sheet ?? ""} inline={inlineUndo} />
   </div>;
 }
 
@@ -757,7 +762,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       </div>
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
-        <span className="dispatch-options-label" aria-hidden="true">Tap an answer to send it</span>
+        <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span>
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);

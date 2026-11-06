@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useComposers } from "@get-bb/plugin-sdk/app";
-import { clearFill, pendingFill, subscribeFill } from "@/lib/composerFill";
+import { clearFill, pendingFill, reportFill, subscribeFill } from "@/lib/composerFill";
 
 export function ComposerFill() {
   const request = useSyncExternalStore(subscribeFill, pendingFill, () => null);
@@ -14,8 +14,10 @@ export function ComposerFill() {
     try {
       if (free) composer.replace({ text: request.text, mentions: [] });
       composer.focus();
-    } catch { return; }
-    if (free && request.send) requestAnimationFrame(() => { composer.submit().catch(() => {}); });
+    } catch { if (request.send) reportFill(request, "failed"); return; }
+    if (!request.send) return;
+    if (!free) { reportFill(request, "draft"); return; }
+    requestAnimationFrame(() => { composer.submit().then(() => reportFill(request, "sent"), () => reportFill(request, "failed")); });
   }, [request, composers]);
   return null;
 }

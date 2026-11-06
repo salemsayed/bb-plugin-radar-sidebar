@@ -67,6 +67,7 @@ import { BotsView } from "./BotsView";
 import { BotDeskMenu, BotDeskMenuProvider } from "./BotDeskMenu";
 import { useBotTasks } from "./useBotTasks";
 import { needRows } from "@/lib/botTasks";
+import { CLOCK_STEP_MS, clockNow } from "./stage";
 
 export type { StatusFilter } from "./useListSettings";
 export type { RowDragHandle } from "./RadarGroupList";
@@ -87,10 +88,12 @@ function RadarSwitchedList(props: PluginThreadListProps) {
   const actions = useRadarThreadActions();
   const navigation = useRef(hostOnNavigate);
   useLayoutEffect(() => { navigation.current = hostOnNavigate; }, [hostOnNavigate]);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(clockNow);
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
+    let timer = 0;
+    const tick = () => { setNow(clockNow()); timer = window.setTimeout(tick, CLOCK_STEP_MS - Date.now() % CLOCK_STEP_MS + 20); };
+    timer = window.setTimeout(tick, CLOCK_STEP_MS - Date.now() % CLOCK_STEP_MS + 20);
+    return () => clearTimeout(timer);
   }, []);
   const openThread = useCallback((threadId: string, messageSeq?: number) => {
     actions.open(threadId);
