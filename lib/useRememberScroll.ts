@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect } from "react";
 import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
-import { scrollContract } from "./scrollPosition";
+import { scrollContract, type ScrollPosition } from "./scrollPosition";
 import { explicitLink, mirrorScrollEnabled, releaseScrollAnchor, requestScrollAnchor, savedScroll, scrollEnabled } from "./primeScrollRoute";
 import { rememberScroll } from "./scrollController";
 import { flushScrollTrace } from "./scrollTrace";
+
+const SAVE_MS = 400;
 
 function browserId() {
   try {
@@ -34,8 +36,20 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     if (!deviceId) return;
     const key = `radar-scroll:${threadId}`;
     const cached = savedScroll(threadId);
-    let pending = Promise.resolve();
-    return rememberScroll(threadId, {
+    let latest: ScrollPosition | null = null, sending = false, timer: ReturnType<typeof setTimeout> | undefined;
+    const send = () => {
+      clearTimeout(timer);
+      timer = undefined;
+      if (sending || !latest) return;
+      const position = latest;
+      latest = null;
+      sending = true;
+      void rpc.call("scroll_set", { threadId, deviceId, position }).then(() => {}, () => {}).then(() => { sending = false; if (latest) timer = setTimeout(send, SAVE_MS); });
+    };
+    const flush = () => { if (document.visibilityState === "hidden") send(); };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", send);
+    const stop = rememberScroll(threadId, {
       cached: linked ? null : cached,
       load: linked || cached ? undefined : () => rpc.call("scroll_get", { threadId, deviceId }),
       loadAnchor: seq => requestScrollAnchor(threadId, seq),
@@ -43,8 +57,15 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
       cancelAnchor: () => releaseScrollAnchor(threadId, true),
       save: position => {
         try { localStorage.setItem(key, JSON.stringify(position)); } catch {}
-        pending = pending.then(() => rpc.call("scroll_set", { threadId, deviceId, position })).then(() => {}, () => {});
+        latest = position;
+        if (timer === undefined && !sending) timer = setTimeout(send, SAVE_MS);
       },
     });
+    return () => {
+      stop();
+      send();
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", send);
+    };
   }, [rpc, threadId, active, enabled]);
 }

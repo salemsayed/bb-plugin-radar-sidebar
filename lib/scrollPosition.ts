@@ -5,6 +5,7 @@ const lineSchema = z.object({
   path: z.array(z.number().int().min(0).max(100000)).max(64),
   offset: z.number().finite().min(-1000000).max(1000000),
   hash: z.number().int(),
+  inner: z.number().finite().min(-1000000).max(1000000).optional(),
 });
 export const positionSchema = z.discriminatedUnion("atBottom", [
   z.object({ atBottom: z.literal(true), messageSeq: z.null(), offset: z.literal(0) }),

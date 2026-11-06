@@ -1,5 +1,5 @@
 import { BOTTOM_GAP, positionSchema, type ScrollPosition } from "./scrollPosition";
-import { startScrollTrace } from "./scrollTrace";
+import { emitTrace, startScrollTrace } from "./scrollTrace";
 
 const ROUTE_KEY = "radar-scroll-route";
 const ENABLED_KEY = "radar-scroll-enabled";
@@ -7,9 +7,11 @@ const VEIL_ID = "radar-scroll-veil";
 const VIEWPORT = "[data-page-scroll-viewport]";
 const MESSAGE = "[data-notification-thread][data-notification-message]";
 export const LATE_MS = 300;
-export const LATE_CUT_MS = 2000;
-const VEIL_MIN_MS = 1200;
-const VEIL_MAX_MS = 3000;
+export const LATE_CUT_MS = 1000;
+export const VEIL_BUDGET_MS = 8000;
+export const VEIL_SAFETY_MS = 2000;
+const PRIME_CLAIM_MS = 4000;
+const UNVEIL = "radar-scroll-unveil";
 
 type RouteMarker = { threadId: string; hash: string; at: number };
 
@@ -71,14 +73,9 @@ export function savedScroll(threadId: string): ScrollPosition | null {
 export function explicitLink(threadId: string) {
   return /^#msg=/.test(location.hash) && ownedRouteHash(threadId) !== location.hash;
 }
-export function veilCap() {
-  const timings = [...performance.getEntriesByType("navigation"), ...performance.getEntriesByType("resource").filter(e => /\/api\/v1\/plugins$/.test(e.name))] as PerformanceResourceTiming[];
-  const rtt = Math.max(0, ...timings.map(t => t.responseStart > t.requestStart ? t.responseStart - t.requestStart : 0));
-  return Math.round(Math.min(VEIL_MAX_MS, Math.max(VEIL_MIN_MS, VEIL_MIN_MS + 2 * rtt)));
-}
-
-let veil: { threadId: string; at: number; timer: number } | null = null;
-export function veilChat(threadId: string, capMs = veilCap()) {
+let veil: { threadId: string; at: number; timer: number | null; lifted: boolean } | null = null;
+let unveilWatch = false;
+export function veilChat(threadId: string, capMs = VEIL_BUDGET_MS + VEIL_SAFETY_MS) {
   if (veil?.threadId === threadId) return veil.at;
   unveilChat(null);
   let style = document.getElementById(VEIL_ID);
@@ -87,14 +84,31 @@ export function veilChat(threadId: string, capMs = veilCap()) {
     style.id = VEIL_ID;
     document.head.appendChild(style);
   }
+  if (!unveilWatch) {
+    unveilWatch = true;
+    document.addEventListener("animationend", event => { if (event.animationName === UNVEIL && veil) veil.lifted = true; }, true);
+  }
   const id = CSS.escape(threadId);
-  style.textContent = `${VIEWPORT}:has([data-notification-thread="${id}"]) > * > :not([data-scroll-footer]) { opacity: 0; animation: radar-scroll-unveil 1ms linear ${capMs}ms forwards; } @keyframes radar-scroll-unveil { to { opacity: 1; } }`;
-  veil = { threadId, at: performance.now(), timer: window.setTimeout(() => unveilChat(threadId), capMs + 100) };
+  style.textContent = `${VIEWPORT}:has([data-notification-thread="${id}"]) > * > :not([data-scroll-footer]) { opacity: 0; animation: ${UNVEIL} 1ms linear ${capMs}ms forwards; } @keyframes ${UNVEIL} { to { opacity: 1; } }`;
+  veil = { threadId, at: performance.now(), timer: null, lifted: false };
   return veil.at;
+}
+export function armVeil(threadId: string, ms: number) {
+  if (!veil || veil.threadId !== threadId || veil.timer !== null) return;
+  const current = veil;
+  current.timer = window.setTimeout(() => {
+    if (veil !== current) return;
+    current.lifted = true;
+    const style = document.getElementById(VEIL_ID);
+    if (style) style.textContent = "";
+  }, ms);
+}
+export function veilLifted(threadId: string) {
+  return veil?.threadId === threadId && veil.lifted;
 }
 export function unveilChat(threadId: string | null) {
   if (!veil || threadId !== null && veil.threadId !== threadId) return false;
-  clearTimeout(veil.timer);
+  if (veil.timer !== null) clearTimeout(veil.timer);
   veil = null;
   const style = document.getElementById(VEIL_ID);
   if (style) style.textContent = "";
@@ -127,13 +141,17 @@ export function claimPrime(threadId: string) {
   return claimed;
 }
 
+function prewaiting() {
+  try { return document.getAnimations().some(animation => (animation as CSSAnimation).animationName === "radar-scroll-prewait" && animation.playState === "running"); } catch { return false; }
+}
 function primeVeil() {
   const threadId = /\/threads\/([^/?#]+)$/.exec(location.pathname)?.[1];
   if (!threadId || !scrollEnabled() || explicitLink(threadId)) return;
   const saved = savedScroll(threadId);
   if (!saved || saved.atBottom) return;
   const container = chatScroller(threadId);
-  if (container) {
+  const unseen = container !== null && prewaiting();
+  if (container && !unseen) {
     const shownAt = chatShownAt(container, threadId);
     if (shownAt !== null && (performance.now() - shownAt > LATE_CUT_MS || !untouchedSince(container, shownAt))) return;
   }
@@ -143,14 +161,14 @@ function primeVeil() {
     document.documentElement.setAttribute("data-radar-scroll-restore", "");
     requestScrollAnchor(threadId, saved.messageSeq);
   }
-  primed = { threadId, before: container === null, requested: !loaded, timer: window.setTimeout(() => {
+  primed = { threadId, before: container === null || unseen, requested: !loaded, timer: window.setTimeout(() => {
     primed = null;
     unveilChat(threadId);
     if (!loaded) {
       releaseScrollAnchor(threadId, true);
       document.documentElement.removeAttribute("data-radar-scroll-restore");
     }
-  }, veilCap()) };
+  }, PRIME_CLAIM_MS) };
 }
 
 const shown = new WeakMap<Element, { threadId: string; at: number }>();
@@ -211,4 +229,6 @@ export function primeScrollRoute() {
     } else if (marker && Date.now() - marker.at > 60000) sessionStorage.removeItem(ROUTE_KEY);
   } catch {}
   try { primeVeil(); } catch {}
+  emitTrace("ready", null, { prewaiting: prewaiting() });
+  document.documentElement.setAttribute("data-radar-scroll-ready", "");
 }
