@@ -3,6 +3,8 @@ import { startScrollTrace } from "./scrollTrace";
 import { installTouchCoast } from "./touchCoast";
 
 const ROUTE_KEY = "radar-scroll-route";
+const PENDING_KEY = "radar-scroll-pending";
+const PENDING_MS = 20000;
 const ENABLED_KEY = "radar-scroll-enabled";
 const VEIL_ID = "radar-scroll-veil";
 const VIEWPORT = "[data-page-scroll-viewport]";
@@ -71,6 +73,16 @@ export function mirrorScrollEnabled(value: boolean) {
 }
 export function savedScroll(threadId: string): ScrollPosition | null {
   try { return positionSchema.parse(JSON.parse(localStorage.getItem(`radar-scroll:${threadId}`) ?? "null")); } catch { return null; }
+}
+export function markPendingRestore(threadId: string) {
+  try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ threadId, at: Date.now() })); } catch {}
+}
+export function takePendingRestore(threadId: string) {
+  try {
+    const marker = JSON.parse(sessionStorage.getItem(PENDING_KEY) ?? "null");
+    sessionStorage.removeItem(PENDING_KEY);
+    return marker?.threadId === threadId && typeof marker.at === "number" && Date.now() - marker.at < PENDING_MS;
+  } catch { return false; }
 }
 export function explicitLink(threadId: string) {
   return /^#msg=/.test(location.hash) && ownedRouteHash(threadId) !== location.hash;

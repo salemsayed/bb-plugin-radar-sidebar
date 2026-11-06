@@ -1,6 +1,6 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
 import { emitTrace, ownWrite } from "./scrollTrace";
-import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, messageAnchors, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
+import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
 
@@ -570,11 +570,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   };
   const checkLate = (found: HTMLElement) => {
     lateChecked = true;
+    const resumed = takePendingRestore(threadId);
     const shownAt = primedBefore ? null : chatShownAt(found, threadId);
     const late = shownAt === null ? 0 : now() - shownAt;
     if (late <= LATE_MS) return;
-    if (veiledAt !== null || late <= LATE_CUT_MS && untouchedSince(found, shownAt!)) {
-      trace("late-restore", { shownMs: Math.round(late) });
+    if (resumed || veiledAt !== null || late <= LATE_CUT_MS && untouchedSince(found, shownAt!)) {
+      trace("late-restore", { shownMs: Math.round(late), resumed });
       hide();
       return;
     }
@@ -641,7 +642,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       case "touchstart":
         if (inside) {
           const point = (event as TouchEvent).touches[0];
-          touching = true; touchAt = t; dragged = false; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
+          touching = true; touchAt = t; dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
           if (touchTarget !== target && target) {
             touchTarget?.removeEventListener("touchend", onTargetEnd);
             touchTarget?.removeEventListener("touchcancel", onTargetEnd);
@@ -716,6 +717,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   return () => {
     trace("dispose", { phase });
+    if (phase === "restoring" && !frozen) markPendingRestore(threadId);
     if (phase === "live" && !frozen) capture(true);
     if (phase === "restoring" && requested) store.cancelAnchor?.();
     disposed = true;
