@@ -65,6 +65,17 @@ export function questionTopic(question: string): string {
   return capitalFirst(topic.length > 48 ? cutAtWord(topic, 48) : topic);
 }
 
+const EITHER_OR = /,?\s+or\s+[^?]*\?\s*$/i;
+const NUMBERED = /\b(?:the\s+)?(?:(?:merge request|pull request|MR|PR|job|ticket|issue|invoice|order|redemption|feedback)\s+#?\d+|\d{3,}\s+(?:job|ticket|order|invoice|merge request)|#\d+)/i;
+
+export function needsTopic(question: string, fallback = ""): string {
+  const head = question.split(" \u00b7 ")[0]!.trim();
+  if (!EITHER_OR.test(head)) return questionTopic(head);
+  const named = NUMBERED.exec(head)?.[0];
+  if (named) return capitalFirst(named.replace(/^the\s+/i, "the ").trim());
+  return fallback || questionTopic(head);
+}
+
 export function recordQuestion(text: string, title = "", options: readonly string[] = []): string {
   const body = stageText(text.replace(STATUS_TAG, "").trim(), true).replace(/\s*\([^()]*\b\d{6,}\b[^()]*\)/g, "").trim();
   if (options.length >= 2 && !/\?/.test(body)) return choice(options);
@@ -108,7 +119,7 @@ export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] 
       rows.push({
         id: item.id, bot: bot.key, title: question, displayState: later ? "waiting" : "needs", line: question, waitFor: "you",
         ageMs: Math.max(0, data.observedAt - askedAt), conversationThreadId: null,
-        needs: { threadId, interactionId: "", question, askedAt, ...(seq !== undefined ? { messageSeq: seq } : {}) },
+        needs: { threadId, interactionId: "", question, askedAt, ...(seq !== undefined ? { messageSeq: seq } : {}), ...(item.options?.length ? { options: item.options } : {}) },
         ...(later ? { later } : {}),
         tags: seq === undefined ? [QUESTION_TAG, IN_PANEL_TAG] : [QUESTION_TAG], origin: "verified", observedAt: data.observedAt,
       });

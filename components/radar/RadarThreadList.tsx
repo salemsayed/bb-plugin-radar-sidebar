@@ -1,4 +1,5 @@
 import { showMessage } from "@/lib/messageLink";
+import { ComposerFill } from "./ComposerFill";
 import { hasUnresolvedActivity } from "./botScope";
 import {
   useCallback,
@@ -74,8 +75,7 @@ void preloadExtendedIcons().catch(() => undefined);
 
 export function RadarThreadList(props: PluginThreadListProps) {
   const { botsSwitch } = useListSettings();
-  if (!botsSwitch) return <RadarThreadsList {...props} />;
-  return <RadarSwitchedList {...props} />;
+  return <><ComposerFill />{botsSwitch ? <RadarSwitchedList {...props} /> : <RadarThreadsList {...props} />}</>;
 }
 
 function RadarSwitchedList(props: PluginThreadListProps) {
