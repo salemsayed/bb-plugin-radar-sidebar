@@ -246,15 +246,15 @@ export function shorterForms(line: string): string[] {
   const lead = split?.[1] ?? "";
   const words = (split?.[2] ?? line).split(" ");
   if (words.length < 3 || words.some(word => !/^[\p{L}'\u2019-]+$/u.test(word))) return [];
+  if (words.length > 7) return [];
   const forms: { text: string; first: boolean }[] = [];
-  for (let from = 0; from < words.length - 1; from++) {
-    for (let to = from; to < words.length - 1; to++) {
-      const dropped = words.slice(from, to + 1);
-      const kept = [...words.slice(0, from), ...words.slice(to + 1)];
-      if (kept.length < 2 || dropped.some(word => KEEP_WORD.test(word))) continue;
-      const text = kept.join(" ");
-      forms.push({ text: `${lead}${text[0]!.toUpperCase()}${text.slice(1)}`, first: from > 0 });
-    }
+  const free = words.length - 1;
+  for (let mask = 1; mask < 1 << free; mask++) {
+    const kept = words.filter((word, i) => i === free || !(mask & 1 << i));
+    const dropped = words.filter((word, i) => i < free && mask & 1 << i);
+    if (kept.length < 2 || dropped.some(word => KEEP_WORD.test(word))) continue;
+    const text = kept.join(" ");
+    forms.push({ text: `${lead}${text[0]!.toUpperCase()}${text.slice(1)}`, first: !(mask & 1) });
   }
   return forms.sort((a, b) => b.text.length - a.text.length || Number(b.first) - Number(a.first)).map(form => form.text);
 }
