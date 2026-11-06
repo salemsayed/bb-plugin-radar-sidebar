@@ -183,6 +183,8 @@ export function plainText(text: string): string {
     .replace(/\b[Tt]he (\d{3,}) job\b/g, "merge request $1")
     .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
     .replace(RUN_ID, "$1")
+    .replace(/\s*\((?:reply |comment |chat )?note #?\d{6,}\)/gi, "")
+    .replace(/\b(?:Codex|Claude|GPT[\w.-]*|Opus|Sonnet)( prompt| model| session| worker| workers)\b/g, "AI$1")
     .replace(/\b(?:TS|CI|test|tests) runs? (?:is |are )?green\b/gi, "checks passed")
     .replace(SLASH_COMMAND, (_, lead: string, a: string, b: string) => `${lead}a ${a} ${b}`)
     .replace(CLI_FLAG, "")

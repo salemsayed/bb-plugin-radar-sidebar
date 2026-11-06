@@ -13,7 +13,7 @@ import { askPreview, askParts, capCut, readableCut, capitalFirst, cardOrder, cut
 import { Isolated } from "./Isolated";
 import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
-import { useDispatchWorkers, withNamedWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
+import { useBotWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
 import { NeedsSummary, askPlace, boxAnswers, botMenuLabel, fitWhat, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
 import { useGrowSlot, useTouchHold, useWatching } from "./useGrowSlot";
@@ -39,6 +39,24 @@ export function dispatchModel(model: string) {
   const family = /(?:^|[-/])(sol|astra|terra|opus|fable|sonnet|haiku)(?:[-/]|$)/i.exec(model)?.[1];
   return family ? family[0].toUpperCase() + family.slice(1).toLowerCase() : shortModel(model);
 }
+const BOT_PAGE = /\/plugins\/orchestrator-mode\/bots\/([a-z0-9-]+)\//;
+function useBotPage(watch: boolean): string | null {
+  const read = () => BOT_PAGE.exec(location.pathname)?.[1] ?? null;
+  const [key, setKey] = useState(read);
+  useEffect(() => {
+    setKey(read());
+    if (!watch) return;
+    const timer = setInterval(() => setKey(read()), 800);
+    return () => clearInterval(timer);
+  }, [watch]);
+  return watch ? key : null;
+}
+
+function quoteShown(text: string, cut: boolean): string {
+  const body = text.replace(/^You \([^)]*\) on the Needs you item [\u201c"][^\u201d"]*[\u201d"]:\s*/, "").replace(/^[\u201c"]([^\u201c\u201d"]+)[\u201d"]$/, "$1");
+  return cut && !/(?:\u2026|\.\.\.)$/.test(body) ? `${body.replace(/[.\s]+$/, "")}\u2026` : body;
+}
+
 export function elapsed(at: number, now: number) {
   const minutes = Math.floor(Math.max(0, now - at) / 60000);
   return minutes < 1 ? "now" : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
@@ -357,8 +375,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const questioned = withQuestions(seen, held.current ? held.current.items : bell.items, later.laterAt).data;
   const data = withOldAsks(applyNotNow(questioned, later), threadId => byId.get(threadId)?.latestAttentionAt ?? undefined);
   const visible = useVisibleSurface(root);
-  const linkedSnapshot = useDispatchWorkers(data, visible);
-  const snapshot = useMemo(() => withNamedWorkers(linkedSnapshot, data.bots, [...byId.values()].map(thread => ({ id: thread.id, title: thread.title, status: thread.status, parentThreadId: thread.parentThreadId, lifecycleOwnerThreadId: thread.lifecycleOwnerThreadId, createdAt: (thread as { createdAt?: number }).createdAt }))), [linkedSnapshot, data.bots, byId]);
+  const snapshot = useBotWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const [focusDesks, setFocusDesks] = useState(false);
@@ -429,7 +446,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     setSheet(key);
   };
   const currentKey = orderedBots(data).find(b => b.coordinatorThreadId === activeThreadId)?.key ?? null;
-  const hereKey = currentKey ?? (activeThreadId ? ownerOf(activeThreadId, data, snapshot, byId) : null);
+  const pageKey = useBotPage(!activeThreadId);
+  const hereKey = currentKey ?? (activeThreadId ? ownerOf(activeThreadId, data, snapshot, byId) : pageKey && data.bots.some(b => b.key === pageKey) ? pageKey : null);
   const needMarked = !!activeThreadId && (data.bots.some(b => b.tasks.some(t => t.displayState === "needs" && askPlace(t, b.coordinatorThreadId).threadId === activeThreadId) || b.desks.some(d => needsYou(d) && (d.threadId ?? b.coordinatorThreadId) === activeThreadId)) || threadNeeds.some(item => item.threadId === activeThreadId) || answered.some(item => item.threadId === activeThreadId));
   const unreachable = state.status === "error" || state.cached && state.status === "loading" && slow;
   const retry = () => { setRetrying(true); void refreshBotTasks().finally(() => setRetrying(false)); };
@@ -782,7 +800,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · ${fullAsk.part ?? "excerpt"}` : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
+        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.part === "your words" ? `${fullAsk.head}, in your words` : fullAsk.excerpt ? fullAsk.head : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${quoteShown(fullAsk.full, fullAsk.excerpt)}\u201d`} /></p> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>{goalCut ? "Goal · excerpt" : "Goal"}</span><Isolated text={afterStop(outcome)} /></p> : null}
         {laterNote ? <p className="dispatch-full" dir="auto"><span>{`From the bot, ${dayAndTime(laterNote.at, now)}`}</span><Isolated text={`\u201c${readerWords(plainNote(laterNote.text))}\u201d`} /></p> : null}
         {laterNote ? <p className="dispatch-full" dir="auto"><span>Before that</span><Isolated text={baseStatus.split(" \u00b7 ")[0]!} /></p> : null}

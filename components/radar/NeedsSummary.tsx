@@ -308,12 +308,15 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     const forms = arrivalForms(arrivals);
     const text = forms[0]!;
     const names = [...new Set(arrivals.map(item => item.botName))].join(" and ");
+    const single = arrivals.length === 1 ? arrivals[0]! : null;
+    const lead = single ? single.kind === "thread" ? single.botName : single.botName.replace(/\s+Bot$/, "") : "";
     return <section className="stage-needs" data-state="arrived" data-slim="" aria-label={`Needs you: ${arrivals.length}`}>
       <h2 className="stage-needs-title stage-needs-line" ref={headRef} tabIndex={-1}>
-        <button type="button" className="stage-needs-arrival" aria-label={`${text}${arrivals.length > 1 ? ` from ${names}` : ""}: show ${arrivals.length === 1 ? "it" : "them"}`}
+        <button type="button" className="stage-needs-arrival" title={single ? `${lead}: ${single.what}` : undefined}
+          aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}. Show` : `${text} from ${names}: show them`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
-          <FitOne className="stage-needs-line-text" forms={forms} />
+          {single ? <span className="stage-needs-arrival-text" dir="auto"><b>{lead}:</b> <Isolated text={single.what} /></span> : <FitOne className="stage-needs-line-text" forms={forms} />}
           <span className="stage-needs-more-pill" aria-hidden="true"><span>Show</span><Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
@@ -362,7 +365,7 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
 
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't reach bots · showing ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`, "Offline"];
+  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, `Not refreshed since ${stale.asOf}`, "Can't refresh"];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;
@@ -378,9 +381,9 @@ function StaleText({ stale }: { stale: StaleNote }) {
     observer.observe(box);
     return () => observer.disconnect();
   }, [stale.asOf]);
-  return <span className="stage-needs-stale-text" role="alert" ref={ref} title={`Bots can't be reached. Showing what we had at ${stale.asOf}`}>
+  return <span className="stage-needs-stale-text" role="alert" ref={ref} title={`Can't refresh the bots. Showing what we had at ${stale.asOf}`}>
     <span aria-hidden="true">{forms[fit]}</span>
-    <span className="stage-needs-sr">Bots can't be reached. Showing what we had at {stale.asOf}</span>
+    <span className="stage-needs-sr">Can't refresh the bots. Showing what we had at {stale.asOf}</span>
   </span>;
 }
 

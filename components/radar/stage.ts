@@ -235,7 +235,7 @@ function noteLook(task: BotTaskRow): Pick<StageLook, "line" | "alts" | "whole"> 
   return { line: all[0]!, alts: all.slice(1), whole: forms[0]! };
 }
 
-function waitLine(task: BotTaskRow, now: number): string {
+export function waitLine(task: BotTaskRow, now: number): string {
   if (task.later) return laterLine(task.later);
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
   if (task.waitFor === "you") return "Waiting on you";

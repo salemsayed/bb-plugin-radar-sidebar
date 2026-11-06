@@ -7,7 +7,7 @@ import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry }
 import { requestFill } from "@/lib/composerFill";
 import { plainNote } from "./workText";
 import { clockNow, since } from "./stage";
-import { answerHint } from "./answerHint";
+import { answerHint, coarsePointer } from "./answerHint";
 import { FitLines } from "./FitLines";
 import { askForms } from "./choiceFit";
 import { fitWhat } from "./NeedsSummary";
@@ -107,7 +107,11 @@ export function AskStrip() {
   const close = (refocus: boolean) => {
     if (!entry) return;
     clearAskStrip(entry.key);
-    if (refocus) requestAnimationFrame(() => { try { composer?.focus(); } catch {} });
+    if (refocus) requestAnimationFrame(() => {
+      try { composer?.focus(); } catch {}
+      const editor = composerEditor();
+      if (editor && !editor.contains(document.activeElement)) editor.focus({ preventScroll: true });
+    });
   };
   useEffect(() => {
     if (!visible || !entry) return;
@@ -128,7 +132,7 @@ export function AskStrip() {
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;
   const shown = entry.options.map(option => plainNote(option));
-  const hint = shown.length ? answerHint() : "Type your answer below";
+  const hint = shown.length ? coarsePointer() ? "tap one to send" : answerHint() : "Type your answer below";
   const choose = async (label: string) => {
     if (!composer) { requestFill(entry.threadId, label, shown); return; }
     const draft = composer.text.trim();
