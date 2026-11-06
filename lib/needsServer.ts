@@ -47,6 +47,7 @@ export function askNeedle(text: string): string {
 
 const TEST_MESSAGE = /^\s*UI\s+test\s*,\s*ignore\b/i;
 const REPLY_TTL_MS = 60_000;
+const PENDING_TTL_MS = 5_000;
 
 export function salemTurn(data: unknown): boolean {
   const d = data as { initiator?: string; senderThreadId?: string | null; originPluginId?: string | null; source?: string; systemMessageKind?: string; input?: { type?: string; text?: string; visibility?: string }[] };
@@ -96,22 +97,56 @@ export function jevJudge(bb: BbPluginApi): Judge {
   };
 }
 
-export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb)) {
+type AnswerStore = { get(key: string): { reply: AnswerCheck["reply"]; followedUp: AnswerCheck["followedUp"] } | null; put(key: string, check: AnswerCheck): void };
+
+export function answerStore(bb: Pick<BbPluginApi, "storage">): AnswerStore {
+  const db = bb.storage.database();
+  db.exec("CREATE TABLE IF NOT EXISTS radar_answers(ask_key TEXT PRIMARY KEY, reply TEXT NOT NULL, followed TEXT, at INTEGER NOT NULL)");
+  const read = db.prepare("SELECT reply, followed FROM radar_answers WHERE ask_key=?");
+  const write = db.prepare("INSERT INTO radar_answers VALUES(?,?,?,?) ON CONFLICT(ask_key) DO UPDATE SET reply=excluded.reply, followed=excluded.followed, at=excluded.at");
+  const prune = db.prepare("DELETE FROM radar_answers WHERE at<?");
+  prune.run(Date.now() - 60 * 86_400_000);
+  return {
+    get(key) {
+      const row = read.get(key) as { reply: string; followed: string | null } | undefined;
+      return row ? { reply: JSON.parse(row.reply), followedUp: row.followed ? JSON.parse(row.followed) : null } : null;
+    },
+    put(key, check) { if (check.reply) write.run(key, JSON.stringify(check.reply), check.followedUp ? JSON.stringify(check.followedUp) : null, Date.now()); },
+  };
+}
+
+export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb), store: AnswerStore | null = null) {
   const found = new Map<string, { check: AnswerCheck; at: number }>();
   const verdicts = new Map<string, { verdict: Verdict; p: number; at: number }>();
   const judging = new Set<string>();
-  async function check(ask: AnswerAsk): Promise<AnswerCheck> {
+  const running = new Map<string, Promise<AnswerCheck>>();
+  function check(ask: AnswerAsk): Promise<AnswerCheck> {
     const key = `${ask.id}#${ask.threadId}#${ask.askSeq}`;
     const hit = found.get(key);
-    if (hit && (hit.check.followedUp || Date.now() - hit.at < REPLY_TTL_MS)) return hit.check;
+    if (hit && (hit.check.followedUp || Date.now() - hit.at < REPLY_TTL_MS)) return Promise.resolve(hit.check);
+    const kept = !hit ? store?.get(key) ?? null : null;
+    if (kept?.reply && kept.followedUp) {
+      const check: AnswerCheck = { reply: kept.reply, followedUp: kept.followedUp, turns: [] };
+      found.set(key, { check, at: Date.now() });
+      return Promise.resolve(check);
+    }
+    const flight = running.get(key);
+    if (flight) return flight;
+    const next = read(ask, key, kept?.reply ?? null).finally(() => running.delete(key));
+    running.set(key, next);
+    return next;
+  }
+  async function read(ask: AnswerAsk, key: string, known: AnswerCheck["reply"]): Promise<AnswerCheck> {
+    const hit = found.get(key);
     const empty: AnswerCheck = { reply: null, followedUp: null, turns: [] };
     let rows: { seq: number; createdAt: number; type: string; data: unknown }[];
     try { rows = await bb.sdk.threads.events.list({ threadId: ask.threadId, afterSeq: String(ask.askSeq), order: "asc", limit: "100", types: ["client/turn/requested"] }); }
-    catch { return hit?.check ?? empty; }
+    catch { return hit?.check ?? (known ? { reply: known, followedUp: null, turns: [] } : empty); }
     const turns: AnswerTurn[] = [];
     let reply: AnswerCheck["reply"] = null;
     let judged = 0;
     const failed = new Map<number, string>();
+    if (known) reply = known;
     for (const row of rows) {
       if (reply) break;
       if (row.type !== "client/turn/requested" || !salemTurn(row.data)) continue;
@@ -150,7 +185,9 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb))
       } catch { followed = undefined; }
     }
     const result: AnswerCheck = { reply, followedUp: followed ? { seq: followed.seq, at: followed.createdAt } : null, turns };
-    found.set(key, { check: result, at: Date.now() });
+    const unsettled = !reply && turns.some(turn => turn.how === "pending");
+    found.set(key, { check: result, at: unsettled ? Date.now() - REPLY_TTL_MS + PENDING_TTL_MS : Date.now() });
+    store?.put(key, result);
     while (found.size > 500) found.delete(found.keys().next().value!);
     while (verdicts.size > 2000) verdicts.delete(verdicts.keys().next().value!);
     return result;
@@ -180,12 +217,26 @@ const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTas
 
 type Said = { type?: string; text?: string; parentToolCallId?: string };
 
-export function createAskFinder(bb: BbPluginApi) {
+type PlaceStore = { get(id: string): AskPlace | null; put(id: string, place: AskPlace): void };
+
+export function placeStore(bb: Pick<BbPluginApi, "storage">): PlaceStore {
+  const db = bb.storage.database();
+  db.exec("CREATE TABLE IF NOT EXISTS radar_ask_places(item_id TEXT PRIMARY KEY, place TEXT NOT NULL, at INTEGER NOT NULL)");
+  const read = db.prepare("SELECT place FROM radar_ask_places WHERE item_id=?");
+  const write = db.prepare("INSERT INTO radar_ask_places VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET place=excluded.place, at=excluded.at");
+  db.prepare("DELETE FROM radar_ask_places WHERE at<?").run(Date.now() - 60 * 86_400_000);
+  return {
+    get(id) { const row = read.get(id) as { place: string } | undefined; return row ? JSON.parse(row.place) as AskPlace : null; },
+    put(id, place) { if (place.seq !== null) write.run(id, JSON.stringify(place), Date.now()); },
+  };
+}
+
+export function createAskFinder(bb: BbPluginApi, store: PlaceStore | null = null) {
   const found = new Map<string, AskPlace & { at: number }>();
   return async function askPlace(item: NeedsItem): Promise<AskPlace> {
     const threadId = item.source.threadId;
     if (item.kind !== "decision" || !threadId) return { seq: null, options: [] };
-    const hit = found.get(item.id);
+    const hit = found.get(item.id) ?? (() => { const kept = store?.get(item.id); return kept ? { ...kept, at: Date.now() } : undefined; })();
     if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options, ...(hit.taskId ? { taskId: hit.taskId } : {}) };
     const needle = askNeedle(item.text);
     const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
@@ -212,6 +263,7 @@ export function createAskFinder(bb: BbPluginApi) {
       }
     } catch { place = { seq: null, options: [] }; }
     found.set(item.id, { ...place, at: Date.now() });
+    store?.put(item.id, place);
     while (found.size > 500) found.delete(found.keys().next().value!);
     return place;
   };
@@ -246,8 +298,8 @@ export function createRecoveryCheck(bb: BbPluginApi) {
 }
 
 export function createNeedsServer(bb: BbPluginApi) {
-  const askSeq = createAskFinder(bb);
-  const answerOf = createAnswerFinder(bb);
+  const askSeq = createAskFinder(bb, placeStore(bb));
+  const answerOf = createAnswerFinder(bb, jevJudge(bb), answerStore(bb));
   const recovered = createRecoveryCheck(bb);
   const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
     const [{ seq, options, taskId }, cleared] = await Promise.all([askSeq(item), recovered(item)]);
