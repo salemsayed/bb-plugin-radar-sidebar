@@ -3,7 +3,7 @@ import { LATE_CUT_MS, LATE_MS, chatScroller, chatShownAt, claimPrime, messageAnc
 
 export { chatScroller, messageAnchors };
 
-const FIND_MAX_MS = 10000;
+const FIND_MAX_MS = 30000;
 const WAIT_MAX_MS = 5000;
 const STABLE_MAX_MS = 120;
 const LINE_WAIT_MS = 600;
@@ -241,6 +241,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const attempt = (frameTick = false) => {
     if (disposed || phase !== "restoring") return;
+    if (!container?.isConnected && !document.querySelector(`[data-notification-thread="${CSS.escape(threadId)}"]`)) { if (now() - startedAt > FIND_MAX_MS) abandon("no-chat"); return; }
     const found = bind();
     if (phase !== "restoring") return;
     if (!found) { if (now() - startedAt > FIND_MAX_MS) abandon("no-chat"); return; }
