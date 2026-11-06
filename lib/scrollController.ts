@@ -54,6 +54,9 @@ function hasBox(el: Element) {
   const display = getComputedStyle(el).display;
   return !display.startsWith("inline") && display !== "contents" && el.getBoundingClientRect().height > 0;
 }
+function readable(el: Element) {
+  return (el.textContent ?? "").trim() !== "" && hasBox(el);
+}
 function blockOf(hit: Element, message: HTMLElement) {
   let el = hit as HTMLElement;
   while (el !== message && el.parentElement && !hasBox(el)) el = el.parentElement;
@@ -118,7 +121,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let requested = primed?.requested ?? false, stable = 0, heights = 0, placedAt: number | null = null, settledAt = 0, lastFixAt = 0, changedAt = 0, lineReady = false, lineReadyAt: number | null = null, revealed = false;
   let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false, oldestSeq = Infinity, progressAt = -Infinity;
   let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false, panned = false, touchX = 0, touchY = 0;
-  let fine: Pin | null = null;
+  let fine: Pin | null = null, stuck = 0;
   let intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, dragAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0, lastScrollTop = 0, behavior: string | null = null;
@@ -225,6 +228,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       const found = hit.closest<HTMLElement>(MESSAGE);
       const message = found && found.dataset.notificationThread === threadId && Number(found.dataset.notificationMessage) > 0 ? found : null;
       const element = blockOf(hit, root);
+      if (!readable(element)) continue;
       const path = pathOf(element, root);
       if (!path) continue;
       const offset = element.getBoundingClientRect().top - top;
@@ -257,7 +261,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!container) return null;
     const root = lineRoot(message, line, container);
     if (!root) return null;
-    if (lineCache && lineCache.root === root && lineCache.element.isConnected && root.contains(lineCache.element) && textHash(lineCache.element.textContent ?? "") === line.hash) return lineCache.element;
+    if (lineCache && lineCache.root === root && lineCache.element.isConnected && root.contains(lineCache.element) && hasBox(lineCache.element) && textHash(lineCache.element.textContent ?? "") === line.hash) return lineCache.element;
     const element = byPath(root, line) ?? byText(root, line);
     lineCache = element ? { root, element } : null;
     return element;
@@ -406,6 +410,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const t = now();
     if (t - settledAt > SETTLE_MAX_MS || t - Math.max(lastFixAt, changedAt) > SETTLE_QUIET_MS) { goLive("settled"); return; }
     if (deferredByHost()) { hostDefers = true; return; }
+    if (fine && fine.element.isConnected && !hasBox(fine.element)) { trace("pin-hidden", { row: fine.row?.slice(-14) ?? null }); fine = null; }
     if (fine && !fine.element.isConnected) {
       const again = refind(fine);
       trace(again ? "repin" : "pin-lost", { row: fine.row?.slice(-14) ?? null, line: fine.hash !== null });
@@ -425,8 +430,15 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (Math.abs(target - container.scrollTop) <= PLACED_PX) return;
     if (Math.abs(target - container.scrollTop) > container.clientHeight * 1.5) { trace("keep-skip", { from: Math.round(container.scrollTop), to: Math.round(target) }); goLive("keep-skip"); return; }
     trace("keep", { from: Math.round(container.scrollTop), to: Math.round(target), by: fine.hash !== null ? "line" : "message" });
+    const before = fine.element.getBoundingClientRect().top, from = container.scrollTop;
     write(target);
     lastFixAt = t;
+    const scrolledBy = container.scrollTop - from, movedBy = before - fine.element.getBoundingClientRect().top;
+    if (Math.abs(scrolledBy) >= 2 && Math.abs(movedBy - scrolledBy) > Math.abs(scrolledBy) / 2) {
+      trace("pin-stuck", { scrolledBy: Math.round(scrolledBy), movedBy: Math.round(movedBy) });
+      fine = null;
+      if (++stuck >= 2) goLive("pin-stuck");
+    }
   };
   const hold = (reason: string, anchor: ScrollPosition, pin: Pin | null) => {
     if (anchor.atBottom || !container) return;
@@ -452,6 +464,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       const root = hit?.closest<HTMLElement>(ROW);
       if (!hit || !root || !container.contains(root) || hit.closest("[data-scroll-footer]")) continue;
       const element = blockOf(hit, root);
+      if (!readable(element)) continue;
       const height = element.getBoundingClientRect().height;
       if (!best || height < best.height) best = { element, height };
     }
@@ -465,7 +478,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
     if (!container || !fingerRef) return;
-    if (!fingerRef.element.isConnected) { fingerRef = visiblePin(); return; }
+    if (!fingerRef.element.isConnected || !hasBox(fingerRef.element)) { fingerRef = visiblePin(); return; }
     const target = targetFor(fingerRef.element, fingerRef.offset);
     if (Math.abs(target - container.scrollTop) <= 0.5) return;
     trace("finger-hold", { from: Math.round(container.scrollTop), to: Math.round(target) });
