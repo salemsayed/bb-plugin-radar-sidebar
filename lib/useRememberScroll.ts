@@ -1,10 +1,8 @@
 import { useLayoutEffect } from "react";
 import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
-import { scrollContract, positionSchema } from "./scrollPosition";
-import { ownedRouteHash, releaseScrollAnchor, requestScrollAnchor } from "./primeScrollRoute";
+import { scrollContract } from "./scrollPosition";
+import { explicitLink, mirrorScrollEnabled, releaseScrollAnchor, requestScrollAnchor, savedScroll, scrollEnabled } from "./primeScrollRoute";
 import { rememberScroll } from "./scrollController";
-
-const ENABLED_KEY = "radar-scroll-enabled";
 
 function browserId() {
   try {
@@ -14,31 +12,27 @@ function browserId() {
     return id;
   } catch { return null; }
 }
-function mirroredSetting() {
-  try { return localStorage.getItem(ENABLED_KEY) !== "false"; } catch { return true; }
-}
 export function useRememberScroll(threadId: string | null, active: boolean) {
   const rpc = useRpc<typeof scrollContract>();
   const { values } = useSettings();
   const setting = typeof values?.rememberScroll === "boolean" ? values.rememberScroll : null;
-  const enabled = setting ?? mirroredSetting();
+  const enabled = setting ?? scrollEnabled();
   useLayoutEffect(() => {
     if (setting === null) return;
-    try { localStorage.setItem(ENABLED_KEY, String(setting)); } catch {}
+    mirrorScrollEnabled(setting);
     if (!setting) releaseScrollAnchor(null, true);
   }, [setting]);
   useLayoutEffect(() => {
     if (!enabled || !threadId || !active) return;
-    const explicitLink = /^#msg=/.test(location.hash) && ownedRouteHash(threadId) !== location.hash;
+    const linked = explicitLink(threadId);
     const deviceId = browserId();
     if (!deviceId) return;
     const key = `radar-scroll:${threadId}`;
-    let cached = null;
-    try { cached = positionSchema.parse(JSON.parse(localStorage.getItem(key) ?? "null")); } catch {}
+    const cached = savedScroll(threadId);
     let pending = Promise.resolve();
     return rememberScroll(threadId, {
-      cached: explicitLink ? null : cached,
-      load: explicitLink || cached ? undefined : () => rpc.call("scroll_get", { threadId, deviceId }),
+      cached: linked ? null : cached,
+      load: linked || cached ? undefined : () => rpc.call("scroll_get", { threadId, deviceId }),
       loadAnchor: seq => requestScrollAnchor(threadId, seq),
       anchorReady: () => releaseScrollAnchor(threadId, false),
       cancelAnchor: () => releaseScrollAnchor(threadId, true),
