@@ -17,6 +17,9 @@ function cachedNeeds(): NeedsItem[] | null {
 function saveNeeds(items: readonly NeedsItem[]) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ items })); } catch { return; }
 }
+const FIRST_TRIES = 3;
+const RETRY_MS = 1200;
+
 export function needsChanged() { window.dispatchEvent(new Event(NEEDS_CHANGED)); }
 
 /** Reloads when bb-salem-bots pushes a change (bb 0.47) and after a reminder or row action; a slow poll is the fallback. */
@@ -29,23 +32,34 @@ export function useNeedsYou(enabled = true) {
   useEffect(() => {
     if (!enabled) { setItems(null); setStatus("loading"); return; }
     let cancelled = false;
+    let answered = false;
+    let tries = 0;
+    let retry = 0;
+    const failed = (request: number) => {
+      if (cancelled || request !== generation.current) return;
+      if (!answered && tries < FIRST_TRIES) { retry = window.setTimeout(() => { void load(); }, RETRY_MS); return; }
+      setItems(null);
+      setStatus("unavailable");
+    };
     const load = async () => {
       const request = ++generation.current;
+      tries++;
       try {
         const result = await rpc.call("crew_needs_list", {});
-        if (!cancelled && request === generation.current) {
-          setItems(result.items === null ? null : openNeeds(result.items));
-          if (result.items !== null) saveNeeds(result.items);
-          setStatus(result.items === null ? "unavailable" : "ready");
-        }
-      } catch { if (!cancelled && request === generation.current) { setItems(null); setStatus("unavailable"); } }
+        if (cancelled || request !== generation.current) return;
+        if (result.items === null) { failed(request); return; }
+        answered = true;
+        setItems(openNeeds(result.items));
+        saveNeeds(result.items);
+        setStatus("ready");
+      } catch { failed(request); }
     };
     const reload = () => { void load(); };
     void load();
     const timer = setInterval(reload, 120_000);
     window.addEventListener("focus", reload);
     window.addEventListener(NEEDS_CHANGED, reload);
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("focus", reload); window.removeEventListener(NEEDS_CHANGED, reload); };
+    return () => { cancelled = true; clearInterval(timer); clearTimeout(retry); window.removeEventListener("focus", reload); window.removeEventListener(NEEDS_CHANGED, reload); };
   }, [rpc, enabled]);
   const update = useCallback(async (id: string, action: "done" | "snooze" | "reopen", until?: string) => {
     const result = await rpc.call("crew_needs_update", { id, action, ...(until ? { until } : {}) });

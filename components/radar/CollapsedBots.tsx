@@ -203,7 +203,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
     {createPortal(<nav ref={list} className="radar-rail-bots" data-bb-plugin={scope} aria-label="Bots"
       style={{ top: place.top, bottom: place.bottom, width: place.width } as CSSProperties} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
       {bots.map(bot => <button key={bot.key} type="button" className="radar-rail-bot" data-rove={bot.key} data-current={bot.current || undefined} data-here={bot.here && !bot.current || undefined}
-        aria-current={bot.current || bot.here ? "page" : undefined} aria-label={`${spoken(bot)}. Open chat`}
+        aria-current={bot.current || bot.here ? "page" : undefined} aria-label={`${spoken(bot).replace(/[.\s]+$/, "")}. Open chat`}
         style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} onClick={() => { hide(); onOpen(bot.threadId); }}
         {...tipProps(bot.name, [[bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : ""].filter(Boolean).join(" · ").replace(/^n/, "N"), bot.status])}>
         <StageFace botKey={bot.key} name={bot.name} pose={bot.pose} size={30} bare />

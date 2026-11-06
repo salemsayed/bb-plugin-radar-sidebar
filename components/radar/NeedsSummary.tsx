@@ -7,22 +7,15 @@ import { Icon } from "@/components/ui/icon";
 import { deskNeedLine, isOldAsk, since, stageTitle, taskAsk } from "./stage";
 import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
-import { Isolated } from "./Isolated";
 import { clauseCut, cutAtWord } from "./workText";
+import { FitLines, cutForms } from "./FitLines";
 import { taskNotNowKey } from "@/lib/notNow";
 
-const SHORT_WHAT = 62;
 const OPEN_WHAT = 96;
 
 const MIN_CONTEXT = 18;
-const CHOICE_WHAT = 64;
-
-export function shortChoice(what: string): string {
-  const head = what.split(" \u00b7 ")[0]!;
-  if (head.length <= SHORT_WHAT || !/,? or [^?]+\?$/.test(head)) return what;
-  const brief = head.replace(/\b(?:the|a|an) (?=\S)/gi, "");
-  return brief.length <= CHOICE_WHAT ? brief : what;
-}
+const OPEN_FORMS = [OPEN_WHAT, 84, 72, 60, 48, 40];
+const SHUT_FORMS = [OPEN_WHAT, 84, 76, 68, 60, 52, 44, 36];
 
 function outsideBrackets(cut: string, whole: string): string {
   const open = cut.lastIndexOf("(");
@@ -197,7 +190,10 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const inThread = activeThreadId ? items.filter(item => item.threadId === activeThreadId) : [];
   const currentId = (inThread.find(item => item.messageSeq !== undefined && item.messageSeq === hashSeq) ?? inThread[0])?.id;
   const hiddenNames = hiddenBots.map(item => item.botName);
-  const moreLabel = `Show ${more} more${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}`;
+  const hiddenOld = hidden.filter(item => item.old && !item.state).length;
+  const onlyOld = hiddenOld > 0 && hiddenOld === hidden.length;
+  const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} more${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
+  const moreText = onlyOld ? `Show ${hiddenOld} old` : "Show all";
   const state = checking && (cold || !items.length) ? "checking" : !items.length ? "empty" : waiting ? "waiting" : "settled";
   useWholeItems(listRef, open, shown.length);
   useLayoutEffect(() => {
@@ -230,7 +226,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       {staleShown ? <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" /> : <span className="stage-needs-dot" aria-hidden="true" />}
       <span className="stage-needs-heading">{title}</span>
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : moreLabel} title={open ? undefined : moreLabel} onClick={() => setAll(value => !value)}>
-        <span className="stage-needs-more-pill"><span>{open ? "Show less" : "Show all"}</span>
+        <span className="stage-needs-more-pill"><span>{open ? "Show less" : moreText}</span>
           {open ? null : <span className="stage-needs-more-faces" data-count={Math.min(hiddenBots.length, 3)} aria-hidden="true">{hiddenBots.slice(0, 3).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
           <Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
@@ -244,7 +240,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       <Icon name="Clock" aria-hidden="true" />
       <span><b>Checking for new questions…</b><span>Bot questions show here</span></span>
     </p> : <ul ref={listRef}>
-      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow ? keyboard => notNowFrom(item, index, keyboard) : undefined} />)}
+      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} />)}
     </ul>}
   </section>;
 }
@@ -308,11 +304,11 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const what = item.what;
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
   const sinceWord = item.since ?? "asked";
-  const fullAge = item.old && age ? `Old ask · ${age}` : age ? ageLabel(age, sinceWord) : "";
+  const fullAge = item.old && age ? `${age} old` : age ? ageLabel(age, sinceWord) : "";
   const shownAge = fullAge;
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? `waiting since ${age === "now" ? "just now" : `${age} ago`}` : askedAgo(age) : "";
+  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? age === "now" ? "waiting from just now" : `waiting ${age}` : askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
@@ -330,7 +326,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. ${item.inPanel ? "Show the question" : "Open"}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. ${item.inPanel ? "Show the question" : "Open"}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel ? "dialog" : undefined}
       onClick={event => { if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
@@ -338,7 +334,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
         <span className="stage-needs-who" ref={whoRef}><b ref={nameRef}>{shortName}</b>
           {item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span> : item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : shownAge ? <span className="stage-needs-age" aria-hidden="true">{shownAge}</span> : null}
         </span>
-        <span className="stage-needs-what" dir="auto"><Isolated text={open ? fitWhat(what, OPEN_WHAT) : fitWhat(shortChoice(what), CHOICE_WHAT)} /></span>
+        <FitLines className="stage-needs-what" forms={cutForms(what, fitWhat, open ? OPEN_FORMS : SHUT_FORMS)} />
       </span>
     </button>
     {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-label={`Not now: ${notNowLabel(item)}`} title="Not now: move to Later until the bot asks again"
