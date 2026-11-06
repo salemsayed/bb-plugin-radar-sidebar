@@ -180,7 +180,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
 }) {
   const press = useDeskPress();
   const name = bot.name;
-  const needsLabel = needs ? `${needs} ${needs === 1 ? "question" : "questions"} for you` : "";
+  const needsLabel = needs ? look.pose === "asking" && / for you$/.test(look.line) ? look.line : `${needs} ${needs === 1 ? "question" : "questions"} for you` : "";
   const full = look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · ");
   const when = look.time === "<1m" ? "last reply under a minute ago" : look.time ? `last reply ${look.time} ago` : "";
   const spoken = [needsLabel, unread ? "new reply" : "", full, when, here ? "you are in one of its chats" : ""].filter(Boolean).join(", ");
@@ -363,7 +363,7 @@ function idleWait(task: BotTaskRow, bot: BotTasksBot, snapshot: WorkerSnapshot, 
 }
 
 function detailReason(text: string): string {
-  return capitalFirst(plainQueue(text).replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes?\b[^·]*|next check [^·]+|no wake set|untou\w*[^·]*|retry\b[^·]*))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
+  return capitalFirst(plainQueue(text).replace(/^(?:You answered [^·:]{1,40} · bot to follow up|Later \(you chose Not now [^()]{1,40}\)):\s*/i, "It asked you: ").replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes?\b[^·]*|next check [^·]+|no wake set|untou\w*[^·]*|retry\b[^·]*))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
 }
 
 function deskAnswered(desk: BotDesk, coordinatorThreadId: string, threads: ReadonlyMap<string, PluginSidebarThread>): boolean {
