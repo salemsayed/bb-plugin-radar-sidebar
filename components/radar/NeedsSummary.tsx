@@ -316,8 +316,10 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const what = item.what;
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
   const sinceWord = item.since ?? "asked";
-  const fullAge = item.old && age ? `${age} old` : age ? ageLabel(age, sinceWord) : "";
-  const briefAge = item.old || !age ? fullAge : age === "now" ? "just now" : `${age} ago`;
+  const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  const shortAge = age === "now" ? "just now" : `${age} ago`;
+  const fullAge = item.old && age ? `${age} old` : age ? touch ? shortAge : ageLabel(age, sinceWord) : "";
+  const briefAge = item.old || !age ? fullAge : shortAge;
   const [tight, setTight] = useState(false);
   useLayoutEffect(() => { setTight(false); }, [fullAge, item.botName, open]);
   useLayoutEffect(() => {
@@ -328,7 +330,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const spokenAge = tight && !item.old && age ? briefAge : "";
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? askedAgo(age) : "";
+  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? touch ? shortAge : askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };

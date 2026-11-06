@@ -756,7 +756,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       </div>
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
-        <span className="dispatch-options-label" aria-hidden="true">Answer here or in chat</span>
+        <span className="dispatch-options-label" aria-hidden="true">Answer here or in the chat</span>
         {options.map(option => <button key={option} type="button" className="dispatch-option" aria-label={`Reply “${option}” in the chat: opens the chat with it typed, ready to send`} title="Opens the chat with this reply typed, ready to send" onClick={() => {
           const place = arm();
           requestFill(place.threadId, option, options);

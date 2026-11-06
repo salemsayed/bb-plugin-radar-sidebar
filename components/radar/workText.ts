@@ -62,7 +62,7 @@ const PIPELINE_WORDS: [RegExp, string][] = [
   [/\bcapacity shortfalls? queues?(?: with (?:their )?deadlines)?/g, "work waits for a free worker and keeps its deadline"],
   [/\b(?:our )?local sibling-bridge daemon patch\b/g, "our own local patch"],
   [/\b(?:model[- ])?routing status check\b/g, "check of which models the bots use"],
-  [/^Routing is live\b/g, "The new model setup is live"],
+  [/(^|:\s+|[.!?]\s+)Routing is live\b/g, "$1The new model setup is live"],
   [/\bclaims and census\b/g, "thread owners and counts"],
 ];
 
@@ -627,12 +627,13 @@ export function previewUnit(text: string, max: number): { text: string; partial:
   if (end >= PREVIEW_MIN && end < bare.length) return { text: bare.slice(0, end), partial: true };
   if (end >= PREVIEW_MIN) return { text: bare.slice(0, end), partial: clipped };
   for (const stop of [CLAUSE_STOP, PHRASE_BREAK]) {
-    let at = -1;
+    let best = "";
     for (const match of bare.slice(0, max + 1).matchAll(stop)) {
-      const head = dropFunctionTail(bare.slice(0, match.index!).replace(/[\s,;:\u2013\u2014-]+$/, ""));
-      if (head.length >= PREVIEW_MIN && balanced(head)) at = head.length;
+      const raw = bare.slice(0, match.index!).replace(/[\s,;:\u2013\u2014-]+$/, "");
+      const head = /["\u201d)]$/.test(raw) ? raw : dropFunctionTail(raw);
+      if (head.length >= PREVIEW_MIN && balanced(head)) best = head;
     }
-    if (at >= PREVIEW_MIN) return { text: dropFunctionTail(bare.slice(0, at)), partial: true };
+    if (best) return { text: best, partial: true };
   }
   return { text: cutAtWord(bare, max), partial: true };
 }
