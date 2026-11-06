@@ -504,7 +504,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-what { grid-column: 1 / -1; font-size: 12.5px; line-height: 16px; color: var(--foreground); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
 .stage-needs-thread-icon { color: var(--muted-foreground); }
 .stage-needs-foot { display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; row-gap: 4px; min-width: 0; padding: 6px 4px 6px 10px; font-size: 12px; line-height: 16px; color: var(--muted-foreground); cursor: pointer; }
-.stage-needs-tools { position: absolute; top: 4px; right: 6px; display: flex; align-items: center; gap: 2px; }
+.stage-needs-tools { position: absolute; top: 3px; right: 6px; display: flex; align-items: center; gap: 2px; }
 .stage-needs-item .stage-needs-who { padding-inline-end: 4px; }
 .stage-needs li[data-park] .stage-needs-item .stage-needs-who { padding-inline-end: 62px; }
 .stage-needs li[data-menu] .stage-needs-item .stage-needs-who { padding-inline-end: 28px; }
@@ -539,6 +539,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   .stage-needs-item { padding: 8px 10px 0; grid-template-rows: 30px auto; }
   .stage-needs { padding-bottom: 4px; }
   .stage-needs-tools { top: 0; right: 4px; }
+  .stage-needs-item { padding-top: 4px; grid-template-rows: 40px auto; }
   .stage-needs-item .stage-needs-who { padding-inline-end: 4px; }
   .stage-needs li[data-park] .stage-needs-item .stage-needs-who { padding-inline-end: 64px; }
   .stage-needs li[data-menu] .stage-needs-item .stage-needs-who { padding-inline-end: 48px; }
@@ -676,9 +677,12 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-unfold [data-icon-root], .stage-needs-unfold svg { width: 14px; height: 14px; }
 @media (pointer: coarse) { .stage-needs li[data-folded] .stage-needs-item { min-height: 44px; } }
 .radar-answers { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; width: 100%; min-width: 0; margin: 0; }
+.radar-answers[data-count="2"] { flex-wrap: nowrap; }
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { flex: 0 1 auto; width: auto; max-width: 100%; overflow-wrap: break-word; }
+.radar-answers > .radar-answer:has(.radar-answer-text[data-rec]) { border-color: color-mix(in oklab, var(--answer-tint) 80%, var(--border)); }
 .radar-answer-text { display: inline; min-width: 0; }
-.radar-answer-rec { font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
+.radar-answer-text[data-rec] { display: flex; flex-direction: column; align-items: flex-start; }
+.radar-answer-rec { font-size: 11.5px; line-height: 14px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
 .stage-needs-impact, .radar-ask-strip-impact, .dispatch-card-impact { --impact-lines: 3; display: flex; align-items: flex-end; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--muted-foreground); }
 .radar-impact-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--impact-lines); line-clamp: var(--impact-lines); overflow: hidden; overflow-wrap: anywhere; }
 .radar-impact[data-open] .radar-impact-text { -webkit-line-clamp: none; line-clamp: none; display: block; }

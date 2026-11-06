@@ -191,7 +191,7 @@ export function compactForms(what: string, title = "", count = 0): string[] {
   const parts = head.split(/(?<=[.!?])\s+(?=\S)/);
   const asked = parts.length > 1 ? [...parts].reverse().find(part => /\?\s*$/.test(part) && part.split(/\s+/).length >= 3) : undefined;
   const base = asked ?? head;
-  return [...new Set([head, base, ...askForms(base, OPEN_FORMS, fitWhat, title, count), fitWhat(base, 40)])];
+  return [...new Set([head, base, ...askForms(base, OPEN_FORMS, fitWhat, title, count), ...questionCuts(base), fitWhat(base, 40)])];
 }
 
 function ArrivalText({ what, title, answers }: { what: string; title?: string; answers: readonly string[] }) {
