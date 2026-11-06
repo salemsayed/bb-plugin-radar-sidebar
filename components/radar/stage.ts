@@ -15,6 +15,7 @@ export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
 export interface StageLook {
   pose: StagePose;
   line: string;
+  alts?: string[];
   ask?: string;
   extra: string;
   tone: StageTone;
@@ -214,13 +215,21 @@ function notStarted(task: BotTaskRow): boolean {
 
 export const ROW_LINE = 40;
 
-export function rowFit(lead: string, title: string, tail = ""): string {
+export function rowFit(lead: string, title: string, tail = "", max = ROW_LINE): string {
   const whole = `${lead}${title}${tail}`;
-  if (whole.length <= ROW_LINE) return whole;
-  const room = ROW_LINE - lead.length - tail.length;
+  if (whole.length <= max) return whole;
+  const room = max - lead.length - tail.length;
   const head = /^(.{6,}?)(?::\s|\s[—–]\s|;\s)/.exec(title)?.[1];
   if (head && head.length <= room) return `${lead}${head}${tail}`;
   return `${lead}${cutAtWord(title, Math.max(12, room - 1))}${tail}`;
+}
+
+const SHORTER = [30, 26, 22];
+
+function fitted(lead: string, title: string, tail = "", shortLead?: string): Pick<StageLook, "line" | "alts"> {
+  const line = rowFit(lead, title, tail);
+  const alts = [...(shortLead !== undefined ? [rowFit(shortLead, title, tail)] : []), ...SHORTER.map(max => rowFit(shortLead ?? lead, title, tail, max))];
+  return { line, alts: [...new Set(alts)].filter(alt => alt !== line) };
 }
 
 export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
@@ -230,13 +239,13 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (needs.length || desks.length) {
     const first = needs[0];
     const ask = first ? taskAsk(first) || "Has a question for you" : deskNeedLine(desks[0]!);
-    return { pose: "asking", line: `Waiting on you · ${plural(needs.length + desks.length, "question", "questions")}`, ask, extra: "", tone: "ask", quiet: false };
+    return { pose: "asking", line: `${plural(needs.length + desks.length, "question", "questions")} for you`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {
     const retry = blocked.retryAt ? `· retrying ${clockFormatter.format(new Date(blocked.retryAt))}` : "";
     const why = blocked.displayState === "overdue" ? "missed its check" : "keeps failing";
-    return { pose: "blocked", line: rowFit("", stageTitle(blocked.title), ` ${why}`), extra: retry, tone: "blocked", quiet: false };
+    return { pose: "blocked", ...fitted("", stageTitle(blocked.title), ` ${why}`), extra: retry, tone: "blocked", quiet: false };
   }
   const offline = open.find(task => task.displayState === "offline");
   const working = open.filter(task => task.displayState === "working" || task.displayState === "queued");
@@ -248,14 +257,14 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (moving || ctx.running) {
     const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
     const queued = moving?.displayState === "queued" && !ctx.running;
-    const line = queued ? rowFit("Queued: ", what) : what ? rowFit("Working on ", what) : "Working";
-    return { pose: "working", line, extra: helpers, tone: "busy", quiet: false };
+    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", "Working: ") : { line: "Working" };
+    return { pose: "working", ...fit, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
   if (checking && !ctx.chatting) {
     const failed = ctx.failedChecks?.has(checking.id) || /check failed|evidence needs review/i.test(checking.line);
     const status = failed ? "check didn't pass yet" : "waiting on its check";
-    return { pose: "idle", line: rowFit("", stageTitle(checking.title), `: ${status}`), extra: "", tone: "quiet", quiet: true };
+    return { pose: "idle", ...fitted("", stageTitle(checking.title), `: ${status}`), extra: "", tone: "quiet", quiet: true };
   }
   if (ctx.chatting) return { pose: "working", line: "Chatting with you", extra: "", tone: "busy", quiet: false };
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
@@ -264,10 +273,10 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
-  if (todo) return { pose: "idle", line: rowFit("Not started yet: ", stageTitle(todo.title)), extra: "", tone: "quiet", quiet: true };
+  if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", "Not started: "), extra: "", tone: "quiet", quiet: true };
   const last = bot.tasks.filter(task => task.completedAt !== undefined && task.displayState === "done")
     .sort((a, b) => b.completedAt! - a.completedAt!)[0];
-  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", line: rowFit("Done: ", stageTitle(last.title)), extra: "", tone: "good", quiet: false };
+  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", ...fitted("Done: ", stageTitle(last.title)), extra: "", tone: "good", quiet: false };
   return { pose: "idle", line: "Idle, nothing waiting", extra: "", tone: "quiet", quiet: true };
 }
 

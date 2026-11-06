@@ -2,7 +2,7 @@ import { DeskThreads } from "./DeskThreads";
 import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { createPortal, flushSync } from "react-dom";
 import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotDesk, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
@@ -190,7 +190,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
                 {unread ? <span className="stage-unread-dot" title="New reply" /> : null}
               </span>}
           </span>
-          <span className="stage-line"><bdi>{look.line}</bdi></span>
+          <FitLine look={look} />
         </span>
       </button>
       <button type="button" className="stage-more" tabIndex={-1} aria-haspopup="dialog" aria-expanded={panelOpen}
@@ -201,6 +201,39 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
         <Icon name="MoreHorizontal" aria-hidden="true" />
       </button>
     </div>;
+}
+
+let lineCanvas: HTMLCanvasElement | null = null;
+const MARK_PX = 11;
+
+function lineWidth(text: string, font: string): number {
+  lineCanvas ??= document.createElement("canvas");
+  const context = lineCanvas.getContext("2d");
+  if (!context) return text.length * 7;
+  context.font = font;
+  return Math.ceil(context.measureText(text).width);
+}
+
+function FitLine({ look }: { look: RowLook }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const options = useMemo(() => [look.line, ...(look.alts ?? [])], [look.line, look.alts]);
+  const [pick, setPick] = useState(0);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box || options.length < 2) { setPick(0); return; }
+    const measure = () => {
+      const style = getComputedStyle(box);
+      const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const room = box.clientWidth - (look.tone === "ask" || look.tone === "busy" || look.tone === "blocked" ? MARK_PX : 0);
+      const at = options.findIndex(option => lineWidth(option, font) <= room);
+      setPick(at < 0 ? options.length - 1 : at);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [options, look.tone]);
+  return <span className="stage-line" ref={ref} title={pick > 0 ? look.line : undefined}><bdi>{options[pick] ?? look.line}</bdi></span>;
 }
 
 function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<string, PluginSidebarThread>): string | undefined {
