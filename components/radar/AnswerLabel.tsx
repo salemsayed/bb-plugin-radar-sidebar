@@ -3,7 +3,7 @@ import { Isolated } from "./Isolated";
 export function AnswerLabel({ label, recommended }: { label: string; recommended?: boolean }) {
   return <>
     <Isolated text={label} />
-    {recommended ? <span className="radar-answer-rec"> · recommended</span> : null}
+    {recommended ? <span className="radar-answer-rec">{"\u00a0\u00b7 recommended"}</span> : null}
   </>;
 }
 

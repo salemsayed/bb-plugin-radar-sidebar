@@ -88,7 +88,7 @@ export interface NeedItem {
   recommended?: string;
 }
 
-export const ONE_FORM = 92;
+export const ONE_FORM = 120;
 
 export function oneForm(what: string, title = "", count = 0): string {
   const head = what.split(" \u00b7 ")[0]!.trim();
