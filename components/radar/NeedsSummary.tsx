@@ -415,7 +415,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
         onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
     </div> : null}
     <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      <span className="stage-needs-status" aria-hidden="true">{footStatus}{note ? <span className="stage-needs-off" role="status">{note}</span> : offline && parkable ? <span className="stage-needs-off">{"Not now\u00a0unavailable"}</span> : null}</span>
+      <span className="stage-needs-status" aria-hidden="true">{footStatus}{note ? <span className="stage-needs-off" role="status">{note}</span> : offline && parkable ? <span className="stage-needs-off" data-keep="">Not now unavailable</span> : null}</span>
       {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-label={`Not now: ${notNowLabel(item)}`} title="Not now: move to Later until the bot asks again"
         onPointerDown={event => event.stopPropagation()}
         onClick={event => {
