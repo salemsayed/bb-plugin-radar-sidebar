@@ -264,7 +264,7 @@ function RetryButton({ stale, at }: { stale: StaleNote; at: "head" | "line" }) {
 
 function StaleLine({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Bots can't be reached · showing ${stale.asOf}`, `Bots can't be reached · ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`];
+  const forms = [`Bots can't be reached · showing ${stale.asOf}`, `Bots can't be reached · ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Can't reach bots`];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;

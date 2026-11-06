@@ -159,7 +159,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
   const name = bot.name;
   const needsLabel = needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "";
   const full = look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · ");
-  const when = look.time && look.time !== "now" ? `last active ${look.time} ago` : "";
+  const when = look.time === "<1m" ? "last reply under a minute ago" : look.time ? `last reply ${look.time} ago` : "";
   const spoken = [needsLabel, unread ? "new reply" : "", full, when, here ? "you are in one of its chats" : ""].filter(Boolean).join(", ");
   const row = (element: Element) => element.closest<HTMLElement>(".stage-row") ?? (element as HTMLElement);
   const [hover, setHover] = useState(false);
@@ -464,7 +464,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
         <button type="button" disabled={retrying} onClick={retry}>{retrying ? "Trying…" : "Retry"}</button>
       </div> : null}
     </div>
-    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last active</span></div>
+    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {
       const first = list.current?.querySelector<HTMLElement>(".stage-chat");
       const above = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-needs-item") ?? []).at(-1);

@@ -101,7 +101,7 @@ export function AskStrip() {
   const close = (refocus: boolean) => {
     if (!entry) return;
     clearAskStrip(entry.key);
-    if (refocus) { try { composer?.focus(); } catch {} }
+    if (refocus) requestAnimationFrame(() => { try { composer?.focus(); } catch {} });
   };
   useEffect(() => {
     if (!visible || !entry) return;
@@ -112,7 +112,7 @@ export function AskStrip() {
       const inComposer = !!editor && !!target && editor.contains(target);
       const typing = !!target?.closest('[contenteditable="true"], textarea, input');
       if (typing && !inComposer) return;
-      close(!inComposer);
+      close(true);
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);

@@ -399,8 +399,9 @@ const replyDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "sh
 function replyTime(bot: BotTasksBot, ctx: StageContext): Pick<RowLook, "time" | "timeTitle"> {
   const at = ctx.lastReply ?? lastActivity(bot);
   if (at === undefined) return { time: "" };
-  const title = `Last active ${isSameLocalDay(at, ctx.now) ? replyClock.format(new Date(at)) : replyDay.format(new Date(at))}`;
-  return { time: since(at, ctx.now), timeTitle: title };
+  const title = `${ctx.lastReply !== undefined ? "Last reply" : "Last activity"} ${isSameLocalDay(at, ctx.now) ? replyClock.format(new Date(at)) : replyDay.format(new Date(at))}`;
+  const age = since(at, ctx.now);
+  return { time: age === "now" ? "<1m" : age, timeTitle: title };
 }
 
 export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
