@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Isolated } from "./Isolated";
-import { fitWords } from "./FitLines";
+
 
 export function AnswerLabel({ label, recommended }: { label: string; recommended?: boolean }) {
   if (!recommended) return <Isolated text={label} />;
@@ -9,6 +9,19 @@ export function AnswerLabel({ label, recommended }: { label: string; recommended
 
 export function answerName(label: string, recommended?: boolean): string {
   return recommended ? `“${label}” (recommended)` : `“${label}”`;
+}
+
+const LOOSE_END = /^(?:and|or|but|nor|so|the|a|an|of|to|for|with|as|in|on|at|by|from|into|than|that|which|who|its|their|your|our|my|this|these|those|is|are|was|were|be|will|would|can|could|if|when|while|then)$/i;
+
+function fitImpact(text: string, fits: (form: string) => boolean): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  for (let n = words.length - 1; n >= 1; n--) {
+    const head = words.slice(0, n).join(" ").replace(/[\s,;:·–—-]+$/, "");
+    if (LOOSE_END.test(words[n - 1]!.replace(/[^\p{L}]/gu, "")) && n > 1) continue;
+    const form = `${head}\u2026`;
+    if (fits(form)) return form;
+  }
+  return `${words[0] ?? ""}\u2026`;
 }
 
 export function AskImpact({ text, className }: { text?: string; className: string }) {
@@ -39,7 +52,7 @@ export function AskImpact({ text, className }: { text?: string; className: strin
     probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;display:block;width:${box.getBoundingClientRect().width}px;-webkit-line-clamp:none;line-clamp:none;overflow:visible`;
     host.appendChild(probe);
     const fits = (form: string) => { probe.textContent = form; return probe.scrollHeight <= limit; };
-    const next = fits(text) ? null : fitWords(text, fits);
+    const next = fits(text) ? null : fitImpact(text, fits);
     probe.remove();
     setShown(next);
   }, [text, open, width]);

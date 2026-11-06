@@ -356,6 +356,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     (buttons[Math.min(at, buttons.length - 1)] ?? headRef.current)?.focus();
   });
   const shownKey = open ? shown.map(item => item.id).join("|") : "";
+  const fullHeights = useRef(new Map<string, number>());
   useLayoutEffect(() => {
     const list = listRef.current;
     const box = list?.closest<HTMLElement>(".stage-needs");
@@ -363,19 +364,32 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     let scroller: HTMLElement | null = box.parentElement;
     while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
     if (!scroller) return;
-    const sb = scroller.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect();
-    const top = sb.top - scroller.scrollTop;
-    const room = scroller.clientHeight - (scroller.scrollHeight - (bb.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
-    const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > li[data-need]"));
-    const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
-    const full = rows.map(row => row.getBoundingClientRect().height + gap);
-    if (full.reduce((sum, h) => sum + h, 0) <= room + 1) { setLined(prev => prev.size ? new Set() : prev); return; }
-    const line = (matchMedia("(pointer: coarse)").matches ? 44 : 36) + gap;
-    let keep = 0;
-    for (let k = full.length; k >= 0; k--) {
-      if (full.slice(0, k).reduce((sum, h) => sum + h, 0) + (full.length - k) * line <= room + 1) { keep = k; break; }
-    }
-    setLined(new Set(rows.slice(keep).map(row => row.dataset.need!)));
+    const area = scroller;
+    const decide = () => {
+      const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > li[data-need]"));
+      for (const row of rows) if (!row.hasAttribute("data-lined")) fullHeights.current.set(row.dataset.need!, row.getBoundingClientRect().height);
+      if (rows.some(row => !fullHeights.current.has(row.dataset.need!))) return;
+      const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect();
+      const top = sb.top - area.scrollTop;
+      const room = area.clientHeight - (area.scrollHeight - (bb.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
+      const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
+      const full = rows.map(row => fullHeights.current.get(row.dataset.need!)! + gap);
+      let next: string[] = [];
+      if (full.reduce((sum, h) => sum + h, 0) - gap > room + 1) {
+        const line = matchMedia("(pointer: coarse)").matches ? 44 : 36;
+        let keep = 0;
+        for (let k = full.length - 1; k >= 1; k--) {
+          if (full.slice(0, k).reduce((sum, h) => sum + h, 0) + (full.length - k) * (line + gap) <= room + 1) { keep = k; break; }
+        }
+        next = rows.slice(keep).map(row => row.dataset.need!);
+      }
+      setLined(prev => prev.size === next.length && next.every(id => prev.has(id)) ? prev : new Set(next));
+    };
+    decide();
+    const observer = new ResizeObserver(decide);
+    observer.observe(area);
+    observer.observe(box);
+    return () => observer.disconnect();
   }, [open, shownKey]);
   const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : olderOpen ? `${olderOpen} older ${olderOpen === 1 ? "question" : "questions"}` : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
@@ -625,7 +639,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
         {folded ? <span className="stage-needs-unfold" aria-hidden="true">{`${boxAnswers(item).length} answers`}<Icon name="ChevronDown" aria-hidden="true" /></span> : null}
       </span>
     </button>
-    <span className="stage-needs-tools">
+    {lined ? null : <span className="stage-needs-tools">
       {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
           trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
             onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
@@ -636,7 +650,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
             onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
             <Icon name="MoreHorizontal" aria-hidden="true" />
           </button> : null}
-    </span>
+    </span>}
     {sentAs && !lined ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
     {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark !== null || undefined} style={parkOnly && inlinePark !== null ? { marginTop: -inlinePark } : undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
       {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} ref={answerSides}>
