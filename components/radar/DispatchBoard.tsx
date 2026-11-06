@@ -670,7 +670,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     if (!owner || busyHere && !(snapshot.byTask[owner] ?? []).some(a => a.state === "running")) noteOwner.set(reason, task.id);
   }
   const taskRow = (task: BotTaskRow) => {
-    const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : stateTone(task.displayState);
+    const tone = /^(Cancelled|Stopped)\b/.test(taskStatus(task, now)) ? "ended" : isOldAsk(task) ? "quiet" : stateTone(task.displayState);
     const name = shownTitle(task);
     const attempts = snapshot.byTask[task.id] ?? [];
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
