@@ -1,4 +1,4 @@
-import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot, type BotTasksData } from "@/lib/botTasks";
+import { answerOptions, deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot, type BotTasksData } from "@/lib/botTasks";
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
 import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, readableCut, readerWords, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
@@ -121,7 +121,18 @@ export function askFirst(text: string, title = ""): string {
   return rest ? `${lead} · ${rest}` : lead;
 }
 
-const IMPERATIVE = /^(?:approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab)\b(?!\s+(?:is|was|are|were|has|have|had|will|would|can|could|cannot|can't|should|did|does|do|got|gets|went|looks|passed|failed|stays|works|landed|shipped|deployed|ran|runs|needs|needed)\b)/i;
+const DO_IT = /^(?:please\s+)?(?:type|enter|paste|sign in|log in|log into|plug(?: in)?|unplug|scan|tap|press|insert|charge|reconnect|turn (?:on|off)|unlock)\b/i;
+
+export function instructionAsk(question: string): boolean {
+  const text = stageText(question, true).trim();
+  return !/\?/.test(text) && DO_IT.test(text);
+}
+
+export function askOptions(task: Pick<BotTaskRow, "needs">): string[] {
+  return task.needs && !instructionAsk(task.needs.question) ? answerOptions(task.needs.options) : [];
+}
+
+const IMPERATIVE = /^(?:type|enter|paste|sign in|log in|unplug|scan|tap|press|insert|unlock|approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab)\b(?!\s+(?:is|was|are|were|has|have|had|will|would|can|could|cannot|can't|should|did|does|do|got|gets|went|looks|passed|failed|stays|works|landed|shipped|deployed|ran|runs|needs|needed)\b)/i;
 const CLOSES_ON_YOU = /\b(?:it|this|the task)\s+(?:only\s+)?(?:closes|can close|will close|can be closed|closes only) (?:on|with|after) your (?:word|say-so|go|ok|okay|confirmation)\b/i;
 const YOU_TO = /\b(?:waiting (?:on|for) you to|waits (?:on|for) you to|needs? you to|for you to|you need to|you should|asks? you to)\s+([^.;·?]{3,80})/i;
 
@@ -142,7 +153,10 @@ export function needAsk(raw: string, title: string): string {
     return `${capitalFirst(verbs)}${object}?${rest ? ` · ${rest}` : ""}`;
   }
   if (CLOSES_ON_YOU.test(text)) return `Close ${title || "it"}? · ${first}`;
-  return `Reply needed on ${title || "this task"}${rest ? ` · ${rest}` : ""}`;
+  const sentences = rest.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const needed = sentences.find(sentence => /\b(?:needs?|waits? for|waiting for) your\b/i.test(sentence));
+  if (needed) return [needed, ...sentences.filter(sentence => sentence !== needed)].join(" ").replace(/^\w/, c => c.toUpperCase());
+  return rest ? rest : `Reply needed on ${title || "this task"}`;
 }
 
 export function stageText(text: string, keepNames = false): string {

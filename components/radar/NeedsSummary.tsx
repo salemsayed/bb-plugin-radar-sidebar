@@ -4,14 +4,13 @@ import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebar
 import { threadActionTarget } from "./threadActions";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
 import { Icon } from "@/components/ui/icon";
-import { deskNeedLine, isOldAsk, since, stageTitle, taskAsk } from "./stage";
+import { askOptions, deskNeedLine, isOldAsk, since, stageTitle, taskAsk } from "./stage";
 import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { clauseCut, cutAtWord } from "./workText";
 import { FitLines, fitWords } from "./FitLines";
 import { askForms, isChoice, questionCuts, shortChoice } from "./choiceFit";
 import { Isolated } from "./Isolated";
-import { answerOptions } from "@/lib/botTasks";
 import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
 import { capitalFirst, plainNote } from "./workText";
@@ -110,7 +109,7 @@ export function needItems(data: BotTasksData): NeedItem[] {
       const title = stageTitle(task.title, task.outcome);
       const question = taskAsk(task);
       const place = askPlace(task, bot.coordinatorThreadId);
-      const options = answerOptions(task.needs?.options);
+      const options = askOptions(task);
       const recommended = task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "");
       const what = recommended ? withoutMarks(question) : question;
       items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: what || "Has a question for you", kind: "ask", title, ...(options.length ? { options } : {}),

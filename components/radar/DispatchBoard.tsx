@@ -6,7 +6,7 @@ import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { createPortal, flushSync } from "react-dom";
-import { answerOptions, deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotDesk, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
+import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotDesk, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
@@ -23,7 +23,7 @@ import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
-import { answeredHere, runBeforeCheck, laterNoteHead, since, deskNeedLine, isOldAsk, needsCount, taskAsk, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
+import { askOptions, answeredHere, runBeforeCheck, laterNoteHead, since, deskNeedLine, isOldAsk, needsCount, taskAsk, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { FitLines, cutForms, fitWords } from "./FitLines";
 import { askForms } from "./choiceFit";
@@ -743,7 +743,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const baseStatus = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now, waitsOn), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now, waitsOn);
     const laterHead = laterNote ? laterNoteHead(laterNote.text) : "";
     const status = laterNote ? `${laterHead} \u00b7 ${dayAndTime(laterNote.at, now)}` : baseStatus;
-    const options = task.displayState === "needs" ? (task.needs?.options ?? []).filter(Boolean).slice(0, 4) : [];
+    const options = task.displayState === "needs" ? askOptions(task).slice(0, 4) : [];
     const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
     const question = isQuestionRow(task);
     const told = task.ask ? askParts(task.ask, now, askerOf, bot.name, originalOf) : null;
@@ -775,7 +775,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const yours = parts?.kind === "yours";
     const recommended = needsCard ? task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "") : undefined;
     const consequence = needsCard ? task.needs?.consequence : undefined;
-    const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: cardStatus(task, running, now, waitsOn), title: name, options: answerOptions(task.needs?.options), botName: bot.name, askedAt: task.needs?.askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) }); return place; };
+    const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: cardStatus(task, running, now, waitsOn), title: name, options: askOptions(task), botName: bot.name, askedAt: task.needs?.askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) }); return place; };
     const go = () => { if (task.displayState === "needs") { const place = arm(); onNavigate(place.threadId, place.messageSeq); } else onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); };
     const label = notNowLabel({ botName: bot.name, title: name, what: task.displayState === "needs" ? status : question ? task.needs?.question ?? name : name, options: task.needs?.options });
     const cardActions = <>
