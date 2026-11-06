@@ -36,8 +36,7 @@ function opacityOf(el: Element | null) {
 
 function sample() {
   let scroller: HTMLElement | null = null, threadId: string | null = null, last = "", path = "";
-  const loop = () => {
-    if (!traceOn()) return;
+  const step = () => {
     if (location.pathname !== path) { path = location.pathname; emitTrace("route", null, { path }); scroller = null; last = ""; }
     threadId = /\/threads\/([^/?#]+)$/.exec(location.pathname)?.[1] ?? null;
     if (threadId && !scroller?.isConnected) scroller = scrollerOf(threadId);
@@ -60,6 +59,10 @@ function sample() {
       const key = JSON.stringify(row);
       if (key !== last) { last = key; emitTrace("sample", threadId, row); }
     }
+  };
+  const loop = () => {
+    if (!traceOn()) return;
+    try { step(); } catch (error) { emitTrace("sample-error", null, String(error).slice(0, 200)); }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
@@ -94,14 +97,22 @@ export function flushScrollTrace(rpc: TraceRpc, deviceId: string) {
     if (on) install();
   };
   void rpc.call("scroll_debug", {}).then(result => { if (!stopped) setFlag(result.on); }, () => {});
-  const timer = setInterval(() => {
-    if (stopped || sending || !installed || !buffer.length) return;
+  const send = async () => {
     sending = true;
     const events = buffer.splice(0, BATCH_MAX);
-    void rpc.call("scroll_trace", { deviceId, page, agent: sentAgent ? undefined : navigator.userAgent.slice(0, 400), events }).then(result => {
+    try {
+      const result = await rpc.call("scroll_trace", sentAgent ? { deviceId, page, events } : { deviceId, page, agent: navigator.userAgent.slice(0, 400), events });
       sentAgent = true;
       if (!result.on) { setFlag(false); (window as DebugWindow).__radarScrollDebug = false; buffer.length = 0; }
-    }, () => { if (buffer.length < BUFFER_MAX) buffer.unshift(...events); }).finally(() => { sending = false; });
+    } catch {
+      if (buffer.length < BUFFER_MAX) buffer.unshift(...events);
+    } finally {
+      sending = false;
+    }
+  };
+  const timer = setInterval(() => {
+    if (stopped || sending || !installed || !buffer.length) return;
+    void send();
   }, 1000);
   return () => { stopped = true; clearInterval(timer); };
 }
