@@ -226,7 +226,7 @@ function FitLine({ look }: { look: RowLook }) {
       const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
       const room = box.clientWidth - (look.tone === "ask" || look.tone === "busy" || look.tone === "blocked" ? MARK_PX : 0);
       const at = options.findIndex(option => lineWidth(option, font) <= room);
-      setPick(at < 0 ? options.length - 1 : at);
+      setPick(at < 0 ? 0 : at);
     };
     measure();
     const observer = new ResizeObserver(measure);

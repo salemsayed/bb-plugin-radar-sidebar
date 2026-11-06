@@ -224,11 +224,9 @@ export function rowFit(lead: string, title: string, tail = "", max = ROW_LINE): 
   return `${lead}${cutAtWord(title, Math.max(12, room - 1))}${tail}`;
 }
 
-const SHORTER = [30, 26, 22];
-
-function fitted(lead: string, title: string, tail = "", shortLead?: string): Pick<StageLook, "line" | "alts"> {
+function fitted(lead: string, title: string, tail = "", shorter: readonly string[] = []): Pick<StageLook, "line" | "alts"> {
   const line = rowFit(lead, title, tail);
-  const alts = [...(shortLead !== undefined ? [rowFit(shortLead, title, tail)] : []), ...SHORTER.map(max => rowFit(shortLead ?? lead, title, tail, max))];
+  const alts = shorter.map(short => rowFit(short, title, tail));
   return { line, alts: [...new Set(alts)].filter(alt => alt !== line) };
 }
 
@@ -257,7 +255,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (moving || ctx.running) {
     const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
     const queued = moving?.displayState === "queued" && !ctx.running;
-    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", "Working: ") : { line: "Working" };
+    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", ["Working: ", ""]) : { line: "Working" };
     return { pose: "working", ...fit, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
@@ -273,7 +271,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
-  if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", "Not started: "), extra: "", tone: "quiet", quiet: true };
+  if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", ["Not started: "]), extra: "", tone: "quiet", quiet: true };
   const last = bot.tasks.filter(task => task.completedAt !== undefined && task.displayState === "done")
     .sort((a, b) => b.completedAt! - a.completedAt!)[0];
   if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", ...fitted("Done: ", stageTitle(last.title)), extra: "", tone: "good", quiet: false };
