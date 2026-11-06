@@ -12,7 +12,7 @@ import { automationsHref } from "./automationsLink";
 import { askLine, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { Icon } from "@/components/ui/icon";
-import { useDispatchWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
+import { useDispatchWorkers, withNamedWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
 import { NeedsSummary, askPlace, botMenuLabel, fitWhat, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
 import { CollapsedBots } from "./CollapsedBots";
@@ -342,7 +342,8 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const questioned = withQuestions(seen, bell.items, later.laterAt).data;
   const data = applyNotNow(questioned, later);
   const visible = useVisibleSurface(root);
-  const snapshot = useDispatchWorkers(data, visible);
+  const linkedSnapshot = useDispatchWorkers(data, visible);
+  const snapshot = useMemo(() => withNamedWorkers(linkedSnapshot, data.bots, [...byId.values()].map(thread => ({ id: thread.id, title: thread.title, status: thread.status, parentThreadId: thread.parentThreadId, lifecycleOwnerThreadId: thread.lifecycleOwnerThreadId, createdAt: (thread as { createdAt?: number }).createdAt }))), [linkedSnapshot, data.bots, byId]);
   const [sheet, setSheet] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const [focusDesks, setFocusDesks] = useState(false);
