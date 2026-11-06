@@ -1,5 +1,6 @@
 export type HostScroll = {
   deferred: number;
+  deferPolicy?: string;
   touching?: boolean;
   flushDeferred(): void;
   reconcile(): void;
@@ -16,6 +17,10 @@ function isHostScroll(value: unknown, scroller: HTMLElement): value is HostScrol
   const candidate = value as Partial<HostScroll>;
   if (typeof candidate.flushDeferred !== "function" || typeof candidate.reconcile !== "function" || typeof candidate.getScrollElement !== "function" || typeof candidate.deferred !== "number") return false;
   try { return candidate.getScrollElement() === scroller; } catch { return false; }
+}
+
+export function hostSettlesOverscroll(scroller: HTMLElement) {
+  return hostScrollOf(scroller)?.deferPolicy === "overscroll";
 }
 
 export function hostScrollOf(scroller: HTMLElement): HostScroll | null {

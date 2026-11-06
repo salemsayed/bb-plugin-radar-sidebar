@@ -2,7 +2,7 @@ import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type Li
 import { emitTrace } from "./scrollTrace";
 import { onScrollWrite, ownWrite } from "./scrollHook";
 import { prerenderRows } from "./rowPrerender";
-import { hostScrollOf } from "./hostScroll";
+import { hostScrollOf, hostSettlesOverscroll } from "./hostScroll";
 import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, scrollRetired, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
@@ -153,7 +153,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
   let track: Track | null = null, comp = 0, actionAt = -Infinity, userMovedAt = -Infinity, dirtyAt = -Infinity, resizedAt = -Infinity, hostTop: number | null = null, hostAt = -Infinity;
   let unhook: (() => void) | null = null, unrender: (() => void) | null = null, watchedColumn: HTMLElement | null = null, checkQueued = false, smoothAt = -Infinity, hostSince = 0;
-  let scrolledAt = -Infinity, bouncedAt = -Infinity, settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let scrolledAt = -Infinity, bouncedAt = -Infinity, settleTimer: ReturnType<typeof setTimeout> | undefined, hostUpTop: number | null = null, hostUpAt = -Infinity;
 
   const now = () => performance.now();
   const held = () => (touching || pointerDown) && now() - touchAt < HELD_MAX_MS;
@@ -165,7 +165,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   const atBottomNow = () => container !== null && gap() <= BOTTOM_GAP;
   const topNow = () => container?.scrollTop ?? null;
   const movedUp = () => container !== null && edgeTop !== null && edgeTop - container.scrollTop > 2 && gap() > 2;
-  const hostMoved = () => container !== null && (hostTop !== null && Math.abs(container.scrollTop - hostTop) < 1 && now() - hostAt < 100 || now() - smoothAt < SMOOTH_MS);
+  const hostMoved = () => container !== null && (hostUpTop !== null && Math.abs(container.scrollTop - hostUpTop) < 1 && now() - hostUpAt < 100 || now() - smoothAt < SMOOTH_MS);
   const measure = () => {
     if (!container) return;
     lastHeight = container.clientHeight;
@@ -533,17 +533,20 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     return !touching && top >= 0 && top <= 0.5 && t - bouncedAt >= BOUNCE_QUIET_MS && t - scrolledAt >= TOP_QUIET_MS;
   };
   const settleHost = (why: string) => {
-    if (!container || !hostDefers || disposed || phase !== "live" && phase !== "settling") return;
-    if (!bounceSettled()) { if (!touching && container.scrollTop <= 0.5 && deferredByHost()) armSettle(why); return; }
+    if (!container || !hostDefers || disposed || phase !== "live" && phase !== "settling" || hostSettlesOverscroll(container)) return;
+    const top = container.scrollTop;
+    const inBounds = top >= 0 && top <= container.scrollHeight - container.clientHeight + 0.5 && now() - bouncedAt >= BOUNCE_QUIET_MS;
+    if (why === "touch" ? !inBounds : !bounceSettled()) { if (why !== "touch" && !touching && top <= 0.5 && deferredByHost()) armSettle(why); return; }
     const host = hostScrollOf(container);
     if (!host) return;
-    const deferred = host.deferred, top = container.scrollTop;
-    if (deferred < 0.5) return;
+    const deferred = host.deferred;
+    if (Math.abs(deferred) < 0.5 || why !== "touch" && deferred < 0) return;
     try { host.flushDeferred(); host.reconcile(); } catch { return; }
     trace("flush-host", { why, from: Math.round(top), deferred: Math.round(deferred), to: Math.round(container.scrollTop) });
   };
   const armSettle = (why: string) => {
     clearTimeout(settleTimer);
+    if (!container || hostSettlesOverscroll(container)) return;
     settleTimer = setTimeout(() => { settleTimer = undefined; settleHost(why); }, Math.max(TOP_QUIET_MS, BOUNCE_QUIET_MS - (now() - bouncedAt), TOP_QUIET_MS - (now() - scrolledAt)) + 4);
   };
   const arm = (pin: Pin | null = null) => {
@@ -730,6 +733,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       hostSince += w.to - w.from;
       hostTop = w.to;
       hostAt = now();
+      if (w.to < w.from - 0.5) { hostUpTop = w.to; hostUpAt = hostAt; }
       queueCheck("write");
     });
     dirtyWatch.observe(bound, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "open", "hidden"] });
@@ -821,6 +825,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       case "touchstart":
         if (inside) {
           clearTimeout(settleTimer);
+          if ((event as TouchEvent).touches.length === 1) settleHost("touch");
           const point = (event as TouchEvent).touches[0];
           track = null;
           touching = true; touchAt = t; touchGap = gap(); dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
