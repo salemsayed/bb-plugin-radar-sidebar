@@ -748,11 +748,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: cardStatus(task, running, now, waitsOn), title: name, options: answerOptions(task.needs?.options), botName: bot.name, askedAt: task.needs?.askedAt }); return place; };
     const go = () => { if (task.displayState === "needs") { const place = arm(); onNavigate(place.threadId, place.messageSeq); } else onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); };
     const label = notNowLabel({ botName: bot.name, title: name, what: task.displayState === "needs" ? status : question ? task.needs?.question ?? name : name, options: task.needs?.options });
-    return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone} data-task={task.id}>
-      <div className="dispatch-card-head">
-        <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} aria-label={`${name}. ${status}`} onClick={go}>
-          <b dir="auto"><Isolated text={name} /></b>
-        </button>
+    const cardActions = <>
         {task.displayState === "needs" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${label}`} title="Not now: move to Later until the bot asks again" onClick={event => parkFrom(event.currentTarget, task.id, () => notNow(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Not now</span></button>
           : task.later?.reason === "not-now" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back: ${label}`} title="Put it back in Needs you" onClick={event => parkFrom(event.currentTarget, task.id, () => bringBack(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Bring back</span></button> : null}
         <button type="button" className="dispatch-task-continue" aria-label={question && questionInPanel(task) ? `Reply to ${name} in the bot's chat` : `Continue ${name}`} title={question && questionInPanel(task) ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={() => {
@@ -760,17 +756,28 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
           window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: name.slice(0, 80) } }));
           onNavigate(bot.coordinatorThreadId);
         }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{question && questionInPanel(task) ? "Reply in chat" : "Continue"}</span></button>
+    </>;
+    const shownStatus = needsCard ? cardStatus(task, running, now, waitsOn) : "";
+    const statusText = shownStatus.toLowerCase().startsWith(`${name.toLowerCase()} \u00b7 `) ? shownStatus.slice(name.length + 3) : shownStatus;
+    const sameAsTitle = needsCard && flatWords(statusText) === flatWords(name);
+    return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone} data-task={task.id}>
+      <div className="dispatch-card-head">
+        <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} aria-label={`${name}. ${status}`} onClick={go}>
+          <b dir="auto"><Isolated text={name} /></b>
+        </button>
+        {needsCard ? null : cardActions}
       </div>
-      <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
+      <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line" hidden={sameAsTitle || undefined}><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(statusText, STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
-        <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span>
+        {options.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);
           onNavigate(place.threadId, place.messageSeq);
         }}><Isolated text={label} /></button>)}
       </div> : null}
-      {(question || needsCard || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
+      {needsCard ? <div className="dispatch-card-foot">{!ask && askedMeta(task) ? <span className="dispatch-ask-text" dir="auto" data-old={isOldAsk(task) || undefined}><Isolated text={askedMeta(task)} /></span> : <span />}<span className="dispatch-card-foot-actions">{cardActions}</span></div> : null}
+      {!needsCard && (question || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
       {ask && !(askOpen && fullAsk) ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={event => { const card = event.currentTarget.closest("article"); toggleDetails(); if (fullAsk) requestAnimationFrame(() => card?.querySelector<HTMLElement>("details > summary")?.focus({ preventScroll: true })); }}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
