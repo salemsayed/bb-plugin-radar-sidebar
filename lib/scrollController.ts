@@ -33,6 +33,8 @@ const GUARD_PX = 1.5;
 const PUSH_PX = 3;
 const COAST_QUIET_MS = 150;
 const SMOOTH_MS = 1200;
+const BOUNCE_QUIET_MS = 120;
+const TOP_QUIET_MS = 80;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 
 export type ScrollStore = {
@@ -151,6 +153,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
   let track: Track | null = null, comp = 0, actionAt = -Infinity, userMovedAt = -Infinity, dirtyAt = -Infinity, resizedAt = -Infinity, hostTop: number | null = null, hostAt = -Infinity;
   let unhook: (() => void) | null = null, unrender: (() => void) | null = null, watchedColumn: HTMLElement | null = null, checkQueued = false, smoothAt = -Infinity, hostSince = 0;
+  let scrolledAt = -Infinity, bouncedAt = -Infinity, settleTimer: ReturnType<typeof setTimeout> | undefined;
 
   const now = () => performance.now();
   const held = () => (touching || pointerDown) && now() - touchAt < HELD_MAX_MS;
@@ -162,6 +165,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   const atBottomNow = () => container !== null && gap() <= BOTTOM_GAP;
   const topNow = () => container?.scrollTop ?? null;
   const movedUp = () => container !== null && edgeTop !== null && edgeTop - container.scrollTop > 2 && gap() > 2;
+  const hostMoved = () => container !== null && (hostTop !== null && Math.abs(container.scrollTop - hostTop) < 1 && now() - hostAt < 100 || now() - smoothAt < SMOOTH_MS);
   const measure = () => {
     if (!container) return;
     lastHeight = container.clientHeight;
@@ -523,16 +527,24 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     const top = container.scrollTop;
     return top >= 0 && top <= container.scrollHeight - container.clientHeight + 0.5 ? "on" : "wait";
   };
+  const bounceSettled = () => {
+    if (!container) return false;
+    const top = container.scrollTop, t = now();
+    return !touching && top >= 0 && top <= 0.5 && t - bouncedAt >= BOUNCE_QUIET_MS && t - scrolledAt >= TOP_QUIET_MS;
+  };
   const settleHost = (why: string) => {
-    if (!container || !hostDefers || phase !== "live" && phase !== "settling") return;
-    const top = container.scrollTop;
-    if (why !== "touch" && (top > 0.5 || top < 0)) return;
+    if (!container || !hostDefers || disposed || phase !== "live" && phase !== "settling") return;
+    if (!bounceSettled()) { if (!touching && container.scrollTop <= 0.5 && deferredByHost()) armSettle(why); return; }
     const host = hostScrollOf(container);
     if (!host) return;
-    const deferred = host.deferred;
-    if (Math.abs(deferred) < 0.5 || why !== "touch" && deferred < 0) return;
+    const deferred = host.deferred, top = container.scrollTop;
+    if (deferred < 0.5) return;
     try { host.flushDeferred(); host.reconcile(); } catch { return; }
     trace("flush-host", { why, from: Math.round(top), deferred: Math.round(deferred), to: Math.round(container.scrollTop) });
+  };
+  const armSettle = (why: string) => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => { settleTimer = undefined; settleHost(why); }, Math.max(TOP_QUIET_MS, BOUNCE_QUIET_MS - (now() - bouncedAt), TOP_QUIET_MS - (now() - scrolledAt)) + 4);
   };
   const arm = (pin: Pin | null = null) => {
     if (!container) return;
@@ -567,7 +579,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     if (state === "wait") {
       const pure = why === "write" && pushed > PUSH_PX && Math.abs(pushed + drift) < 2;
       const fixable = correct || pure || why === "write" && container.scrollHeight === track.height;
-      if (fixable && !hostDefers && !deferredByHost() && drift < -PUSH_PX && visual > -container.clientHeight / 2 && visual < container.clientHeight * 1.5) {
+      const landedAtBottom = why === "write" && gap() <= 1 && edgeTop !== null && container.scrollTop >= edgeTop - 1;
+      if (fixable && !landedAtBottom && !hostDefers && !deferredByHost() && drift < -PUSH_PX && visual > -container.clientHeight / 2 && visual < container.clientHeight * 1.5) {
         const target = Math.max(from + drift, 0);
         if (from - target >= 1) {
           trace("undo-push", { why, from: Math.round(from), to: Math.round(target), drift: Math.round(drift), sh: container.scrollHeight - track.height, text: (pin.element.textContent ?? "").slice(0, 24) });
@@ -633,7 +646,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     if (gesture) dragAt = now();
     if (gesture || !ours && (now() - userScrollAt < CHAIN_MS || now() - intentAt < INTENT_MS)) userScrollAt = now();
     if (phase === "restoring") { attempt(); return; }
-    if (!touching && container.scrollTop <= 0.5) settleHost("top");
+    scrolledAt = now();
+    if (container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight + 0.5) bouncedAt = scrolledAt;
+    if (hostDefers && container.scrollTop <= 0.5 && deferredByHost()) armSettle("top");
     if (phase === "settling") { keep(!ours); return; }
     if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
     if (held() && touching) {
@@ -645,7 +660,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     if (!ours) {
       if (user || /^#msg=/.test(location.hash)) { keepSaved = false; setPinned(container.scrollTop < lastScrollTop - 0.5 ? gap() <= EXACT_GAP : atBottomNow(), user ? "gesture" : "link"); }
       else if (atBottomNow() && (now() - intentAt < INTENT_MS || now() - sentAt < SEND_MS)) setPinned(true, "intent");
-      else if (pinned && movedUp()) setPinned(false, "up");
+      else if (pinned && movedUp() && hostMoved()) setPinned(false, "up");
       else if (!pinned && gap() <= 2) setPinned(true, "scroll");
     }
     if (!ours && !byHost) syncTrack("scroll", false, now() - dirtyAt > 32);
@@ -670,7 +685,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     const widthChanged = Math.abs(container.clientWidth - lastWidth) >= 1;
     const changed = widthChanged || lastHeight !== container.clientHeight || lastScrollHeight !== container.scrollHeight;
     if (!pinned && now() - sentAt < SEND_MS && newestSeq() > sentSeq && composerEmpty()) setPinned(true, "sent");
-    if (changed && pinned && !widthChanged && movedUp()) setPinned(false, "up");
+    if (changed && pinned && !widthChanged && movedUp() && hostMoved()) setPinned(false, "up");
     else if (changed && pinned && !gestureActive()) follow(widthChanged ? "width" : "resize");
     else if (widthChanged && !pinned && !gestureActive() && !quiet) {
       const memory = widths.get(width);
@@ -761,7 +776,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     touching = false;
     gestureAt = t;
     if (!dragged && !panned) actionAt = t;
-    if (container && container.scrollTop <= 0.5) settleHost("lift");
+    if (container && container.scrollTop <= 0.5 && deferredByHost()) armSettle("lift");
     trace("touch-end", { source, dragged, panned, pinned });
     if (phase === "live" && !dragged && !panned && pinned) requestAnimationFrame(() => {
       if (held() || !pinned) return;
@@ -805,7 +820,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       }
       case "touchstart":
         if (inside) {
-          if ((event as TouchEvent).touches.length === 1) settleHost("touch");
+          clearTimeout(settleTimer);
           const point = (event as TouchEvent).touches[0];
           track = null;
           touching = true; touchAt = t; touchGap = gap(); dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
@@ -837,7 +852,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
 
   const styleWatch = new MutationObserver(() => {
     if (phase === "live" && held() && touching && fingerRef && !fingerScrolling()) keepFinger();
-    else if (!touching && container && container.scrollTop <= 0.5) settleHost("top");
+    else if (!touching && container && container.scrollTop <= 0.5 && deferredByHost()) settleHost("top");
   });
   const dirtyWatch = new MutationObserver(records => { if (records.some(record => record.target !== container)) dirtyAt = now(); });
   const observer = new MutationObserver(records => {
@@ -906,6 +921,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     cancelAnimationFrame(frame);
     clearInterval(timer);
     clearTimeout(saveTimer);
+    clearTimeout(settleTimer);
     container?.removeEventListener("scroll", onScroll);
     for (const type of inputEvents) document.removeEventListener(type, onInput, true);
     window.removeEventListener("pagehide", freeze);
