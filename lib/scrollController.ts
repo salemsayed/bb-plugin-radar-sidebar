@@ -537,13 +537,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       pin = track.pin = again;
     }
     const visual = pin.element.getBoundingClientRect().top - viewTop();
-    if (visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5) { if (clean || state === "wait") arm(); return; }
     if (state === "wait") { arm(); return; }
-    if (!correct) return;
-    if (now() - userMovedAt < COAST_QUIET_MS && container.scrollHeight !== track.height) { arm(); return; }
     const from = container.scrollTop;
     const drift = visual + from - track.base - (comp - track.comp);
-    if (Math.abs(drift) <= GUARD_PX) return;
+    const away = visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5;
+    if (!correct || Math.abs(drift) <= GUARD_PX) { if (away && clean) arm(); return; }
+    if (now() - userMovedAt < COAST_QUIET_MS && container.scrollHeight !== track.height) { arm(); return; }
     const max = Math.max(0, container.scrollHeight - container.clientHeight);
     const target = Math.min(Math.max(from + drift, 0), max);
     if (Math.abs(target - from) < 1) { arm(pin); return; }
