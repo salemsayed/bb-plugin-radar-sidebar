@@ -48,8 +48,17 @@ function visibleBand(viewport: HTMLElement): { top: number; bottom: number } {
   return { top: box.top, bottom: strip !== null && strip > box.top + 120 ? Math.min(bottom, strip) : bottom };
 }
 
-export function chatFooter(): DOMRect | null {
-  return Array.from(document.querySelectorAll<HTMLElement>(FOOTER)).map(node => node.getBoundingClientRect()).find(rect => rect.height > 0 && rect.width > 200) ?? null;
+export function chatFooter(): { left: number; width: number; top: number } | null {
+  const footer = Array.from(document.querySelectorAll<HTMLElement>(FOOTER)).find(node => { const rect = node.getBoundingClientRect(); return rect.height > 0 && rect.width > 200; });
+  if (!footer) return null;
+  const box = footer.getBoundingClientRect();
+  const editor = footer.querySelector<HTMLElement>('[contenteditable="true"], textarea');
+  let column: DOMRect | null = null;
+  for (let node = editor?.parentElement ?? null; node && node !== footer; node = node.parentElement) {
+    const rect = node.getBoundingClientRect();
+    if (rect.width >= 240 && rect.width <= box.width - 16) column = rect;
+  }
+  return column ? { left: column.left, width: column.width, top: box.top } : { left: box.left, width: box.width, top: box.top };
 }
 
 export function askCardAnswers(seq: number): string[] | null {
