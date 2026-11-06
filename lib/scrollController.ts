@@ -122,6 +122,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0, lastScrollTop = 0, behavior: string | null = null;
   let muted: HTMLElement | null = primed?.requested ? document.documentElement : null;
   let lastFine: Pin | null = null, edgeTop: number | null = null, waitedCards = false;
+  let hostDefers = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
   const widths = new Map<number, { anchor: ScrollPosition; fine: Pin | null; userAt: number }>();
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -344,7 +345,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (oldest < oldestSeq) { if (oldestSeq !== Infinity) progressAt = now(); oldestSeq = oldest; }
     const budget = Math.min(VEIL_MAX_MS, Math.max(VEIL_BUDGET_MS, 2 * (rowsAt - startedAt)));
     const expired = now() - rowsAt > VEIL_MAX_MS || now() - rowsAt > budget && now() - progressAt > PAGE_GRACE_MS;
-    if (deferredByHost()) { if (expired) abandon("anchor-timeout"); return; }
+    if (deferredByHost()) { hostDefers = true; if (expired) abandon("anchor-timeout"); return; }
     const anchor = anchorFor(position.messageSeq);
     if (!anchor) {
       hide();
@@ -383,7 +384,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (gestureActive() || now() - intentAt < INTENT_MS) { goLive("gesture"); return; }
     const t = now();
     if (t - settledAt > SETTLE_MAX_MS || t - Math.max(lastFixAt, changedAt) > SETTLE_QUIET_MS) { goLive("settled"); return; }
-    if (deferredByHost()) return;
+    if (deferredByHost()) { hostDefers = true; return; }
     if (fine && !fine.element.isConnected) {
       const again = refind(fine);
       trace(again ? "repin" : "pin-lost", { row: fine.row?.slice(-14) ?? null, line: fine.hash !== null });
@@ -632,7 +633,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const observer = new MutationObserver(records => {
     if (phase === "restoring") attempt();
-    else if (phase === "settling" && container && records.some(record => container!.contains(record.target))) changedAt = now();
+    else if (phase === "settling") {
+      if (container && records.some(record => container!.contains(record.target))) changedAt = now();
+      if (!hostDefers) keep();
+    }
   });
   const tick = () => {
     if (phase === "restoring") attempt(true);
