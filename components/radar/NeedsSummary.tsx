@@ -389,7 +389,10 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     const observer = new ResizeObserver(decide);
     observer.observe(area);
     observer.observe(box);
-    return () => observer.disconnect();
+    if (box.parentElement && box.parentElement !== area) observer.observe(box.parentElement);
+    for (const child of Array.from(area.children)) observer.observe(child);
+    const settle = [setTimeout(decide, 350), setTimeout(decide, 900)];
+    return () => { observer.disconnect(); settle.forEach(clearTimeout); };
   }, [open, shownKey]);
   const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : olderOpen ? `${olderOpen} older ${olderOpen === 1 ? "question" : "questions"}` : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
