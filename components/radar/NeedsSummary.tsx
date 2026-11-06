@@ -342,7 +342,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
         <span className="stage-needs-more-pill"><span>{pillText}</span><Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
-      {waiting && !staleShown ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
+      {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
     <ul ref={listRef}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
@@ -365,7 +365,7 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
 
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, `Not refreshed since ${stale.asOf}`, "Can't refresh"];
+  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, "Can't refresh", "Not live"];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;

@@ -44,6 +44,12 @@ function statusWords(look: ReturnType<typeof rowLook>): string {
   return "Idle";
 }
 
+const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" });
+function doneDay(at: number, now: number): string {
+  const day = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
+  return Math.round((day(now) - day(at)) / 86_400_000) === 1 ? "yesterday" : weekday.format(new Date(at));
+}
+
 function capitalize(text: string): string {
   return text ? text[0]!.toUpperCase() + text.slice(1) : text;
 }
@@ -106,7 +112,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   const closed = bot.tasks.filter(t => t.displayState === "done" && t.completedAt !== undefined).sort((a, b) => b.completedAt! - a.completedAt!);
   const done = closed.filter(t => isSameLocalDay(t.completedAt!, now));
-  const earlier = done.length >= 3 ? [] : closed.filter(t => !isSameLocalDay(t.completedAt!, now)).slice(0, 3 - done.length);
+  const earlier = closed.filter(t => !isSameLocalDay(t.completedAt!, now) && now - t.completedAt! < 7 * 86_400_000).slice(0, Math.max(3, 6 - done.length));
   const go = (id: string) => navigate.toThread(id);
   const shortName = shortBotName(bot.name);
   const cont = (task: BotTaskRow) => () => window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: stageTitle(task.title).slice(0, 80) } }));
@@ -141,10 +147,16 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       </section> : null}
       <DeskThreads desks={bot.desks} now={now} onOpen={go} />
       <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={go} />
-      {done.length || earlier.length ? <section aria-label={done.length ? "Done today" : "Done recently"}>
-        <h3>{done.length ? "Done today" : "Done recently"}</h3>
+      {done.length ? <section aria-label="Done today">
+        <h3>Done today</h3>
         <div role="list">
-          {[...done, ...earlier].map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`Done ${ago(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
+          {done.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`Done ${ago(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
+        </div>
+      </section> : null}
+      {earlier.length ? <section aria-label="Earlier this week">
+        <h3>Earlier this week</h3>
+        <div role="list">
+          {earlier.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`Done ${doneDay(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
         </div>
       </section> : null}
     </div>

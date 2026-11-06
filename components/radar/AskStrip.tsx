@@ -132,7 +132,7 @@ export function AskStrip() {
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;
   const shown = entry.options.map(option => plainNote(option));
-  const hint = shown.length ? coarsePointer() ? "tap one to send" : answerHint() : "Type your answer below";
+  const hint = shown.length ? coarsePointer() ? "Tap one to send" : answerHint() : "Type your answer below";
   const choose = async (label: string) => {
     if (!composer) { requestFill(entry.threadId, label, shown); return; }
     const draft = composer.text.trim();
