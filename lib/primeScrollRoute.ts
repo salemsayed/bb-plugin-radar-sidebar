@@ -1,5 +1,5 @@
 import { BOTTOM_GAP, positionSchema, type ScrollPosition } from "./scrollPosition";
-import { emitTrace, startScrollTrace } from "./scrollTrace";
+import { startScrollTrace } from "./scrollTrace";
 
 const ROUTE_KEY = "radar-scroll-route";
 const ENABLED_KEY = "radar-scroll-enabled";
@@ -142,17 +142,13 @@ export function claimPrime(threadId: string) {
   return claimed;
 }
 
-function prewaiting() {
-  try { return document.getAnimations().some(animation => (animation as CSSAnimation).animationName === "radar-scroll-prewait" && animation.playState === "running"); } catch { return false; }
-}
 function primeVeil() {
   const threadId = /\/threads\/([^/?#]+)$/.exec(location.pathname)?.[1];
   if (!threadId || !scrollEnabled() || explicitLink(threadId)) return;
   const saved = savedScroll(threadId);
   if (!saved || saved.atBottom) return;
   const container = chatScroller(threadId);
-  const unseen = container !== null && prewaiting();
-  if (container && !unseen) {
+  if (container) {
     const shownAt = chatShownAt(container, threadId);
     if (shownAt !== null && (performance.now() - shownAt > LATE_CUT_MS || !untouchedSince(container, shownAt))) return;
   }
@@ -162,7 +158,7 @@ function primeVeil() {
     document.documentElement.setAttribute("data-radar-scroll-restore", "");
     requestScrollAnchor(threadId, saved.messageSeq);
   }
-  primed = { threadId, before: container === null || unseen, requested: !loaded, timer: window.setTimeout(() => {
+  primed = { threadId, before: container === null, requested: !loaded, timer: window.setTimeout(() => {
     primed = null;
     unveilChat(threadId);
     if (!loaded) {
@@ -230,6 +226,4 @@ export function primeScrollRoute() {
     } else if (marker && Date.now() - marker.at > 60000) sessionStorage.removeItem(ROUTE_KEY);
   } catch {}
   try { primeVeil(); } catch {}
-  emitTrace("ready", null, { prewaiting: prewaiting() });
-  document.documentElement.setAttribute("data-radar-scroll-ready", "");
 }
