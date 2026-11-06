@@ -253,7 +253,11 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
     if (keyboard) { focusAt.current = index; restore.current = item.id; }
     onNotNow(item);
   };
-  const staleShown = stale && items.length ? stale : null;
+  const staleLive = !!stale && items.length > 0;
+  const [stalePinned, setStalePinned] = useState<boolean | null>(null);
+  if (hold && stalePinned === null) setStalePinned(staleLive);
+  if (!hold && stalePinned !== null) setStalePinned(null);
+  const staleShown = (stalePinned ?? staleLive) && stale ? stale : null;
   const undoRow = undo && !items.some(item => item.notNowKey === undo.key && !item.state) ? <UndoLine undo={undo} /> : null;
   if ((state === "empty" || state === "checking") && undoRow) {
     return <section className="stage-needs" data-state="empty" data-slim="" aria-label="Moved to Later">
@@ -285,7 +289,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
     {staleShown ? <StaleLine stale={staleShown} /> : null}
     <ul ref={listRef}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
-      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer && !staleShown ? label => onAnswer(item, label) : undefined} />)}
+      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer ? label => onAnswer(item, label) : undefined} />)}
     </ul>
   </section>;
 }

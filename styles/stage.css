@@ -613,3 +613,5 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 }
 .stage-needs-answers[data-pair] { display: grid; grid-template-columns: 1fr 1fr; }
 .stage-needs-answers[data-pair] .stage-needs-answer { text-align: center; padding-inline: 8px; }
+.stage-needs-status:has(.stage-needs-off) { display: block; line-height: 16px; }
+.stage-needs-status:has(.stage-needs-off) > * { display: inline; }
