@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { useBbContext, useSdk } from "@get-bb/plugin-sdk/app";
+import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { askCardAnswers, chatFooter } from "@/lib/askLanding";
 import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry } from "@/lib/askStrip";
@@ -15,7 +15,6 @@ import { ComposerFill } from "./ComposerFill";
 const POLL_MS = 400;
 const GAP = 8;
 const QUESTION_FORMS = [220, 180, 150, 120];
-const USER_TURN = /^(?:client\/turn\/requested|turn\/input\/accepted|system\/manager\/user_message)$/;
 
 function flat(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -35,15 +34,10 @@ function samePlace(a: Place | null, b: Place | null): boolean {
   return !!a && !!b && Math.abs(a.left - b.left) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.bottom - b.bottom) < 1;
 }
 
-function userTurn(change: unknown): boolean {
-  const types = (change as { metadata?: { eventTypes?: readonly string[] } } | null)?.metadata?.eventTypes ?? [];
-  return types.some(type => USER_TURN.test(type));
-}
-
 export function AskStrip() {
   const entry = useSyncExternalStore(subscribeAskStrip, currentAskStrip, () => null);
   const { threadId } = useBbContext();
-  const sdk = useSdk();
+  const composers = useComposers();
   const here = !!entry && threadId === entry.threadId;
   const [place, setPlace] = useState<Place | null>(null);
   const [offered, setOffered] = useState(false);
@@ -72,10 +66,11 @@ export function AskStrip() {
     addEventListener("resize", measure);
     return () => { clearTimeout(timer); removeEventListener("resize", measure); };
   }, [entry, here]);
+  const composer = entry && here ? composers.find(c => c.scope.kind === "thread" && c.scope.threadId === entry.threadId) ?? null : null;
   useEffect(() => {
-    if (!entry || !here) return;
-    return sdk.subscribe({ event: "thread:changed", threadId: entry.threadId, callback: change => { if (userTurn(change)) clearAskStrip(entry.key); } });
-  }, [sdk, entry, here]);
+    if (!entry || !composer) return;
+    return composer.onSubmitted(() => clearAskStrip(entry.key));
+  }, [composer, entry]);
   if (!entry || !here || !place || offered) return <ComposerFill />;
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;

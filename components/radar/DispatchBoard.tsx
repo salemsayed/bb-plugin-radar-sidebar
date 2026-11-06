@@ -25,7 +25,7 @@ import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestion
 import { FitLines, cutForms } from "./FitLines";
 import { askForms } from "./choiceFit";
 import { requestFill } from "@/lib/composerFill";
-import { armAskStrip } from "@/lib/askStrip";
+import { armAskStrip, clearAskStrip, currentAskStrip } from "@/lib/askStrip";
 import { askedAgo } from "./NeedsSummary";
 import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
 import { applyNotNow, bringBack, notNow, taskNotNowKey, useNotNow } from "@/lib/notNow";
@@ -432,6 +432,11 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const loose = threadsSummary(claims.ready ? claims.loose : []);
   const collapsedThreads = { text: loose.text, tone: loose.needs ? "needs" as const : loose.failed ? "failed" as const : loose.loud ? "unread" as const : null, count: claims.ready ? claims.loose.length : null };
   const askChecking = bell.status === "loading" && bell.items === null && !unreachable;
+  const openAsks = needItems(data).filter(item => item.kind === "ask").map(item => item.id).join("\n");
+  useEffect(() => {
+    const strip = currentAskStrip();
+    if (strip && bothFresh && !openAsks.split("\n").includes(strip.key)) clearAskStrip(strip.key);
+  }, [openAsks, bothFresh]);
   const rows = orderedBots(data).map(b => {
     const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
     const workers = snapshot.byBot[b.key] ?? [];
