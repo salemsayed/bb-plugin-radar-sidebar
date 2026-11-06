@@ -14,7 +14,7 @@ function message(seq: number): HTMLElement | null {
   const wide = innerWidth >= 500;
   return Array.from(document.querySelectorAll<HTMLElement>(`[data-notification-message="${seq}"]`)).find(node => {
     const box = node.getBoundingClientRect();
-    return box.height > 0 && (!wide || !node.closest(".radar-list-shell, [data-sidebar]"));
+    return box.height > 0 && (!wide || !node.closest(".radar-list-shell, [data-testid=\"nav-rail-sidebar-body\"]"));
   }) ?? null;
 }
 
