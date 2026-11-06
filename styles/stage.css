@@ -521,10 +521,10 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
   .stage-needs-more { height: 44px; margin-block: -11px; }
   .stage-needs-menu { width: 44px; height: 44px; opacity: 1; }
   .stage-needs-item { padding: 8px 10px 0; grid-template-rows: 30px auto; }
-  .stage-needs-what { -webkit-line-clamp: 2; line-clamp: 2; }
+  .stage-needs { padding-bottom: 4px; }
   .stage-needs-tools { top: 0; right: 0; }
   .stage-needs-item .stage-needs-who { padding-inline-end: 34px; }
-  .stage-needs-foot { padding: 6px 0 6px 10px; }
+  .stage-needs-foot { padding: 6px 0 4px 10px; row-gap: 4px; }
   .stage-needs-foot:not(:has(.stage-needs-answer)) { padding-top: 0; }
   .stage-needs[data-slim] .stage-needs-title { height: 44px; }
   .stage-needs[data-slim] .stage-needs-retry { height: 44px; margin-block: 0; background: transparent; }
