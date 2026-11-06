@@ -1,7 +1,7 @@
 import { isClosed, type BotTaskRow, type BotTasksData } from "@/lib/botTasks";
 import { normalizedNeedsText, type NeedsItem } from "@/lib/needs";
 import { askFirst, needAsk, stageText, stageTitle } from "./stage";
-import { capitalFirst } from "./workText";
+import { capitalFirst, cutAtWord } from "./workText";
 
 export const QUESTION_TAG = "radar:question";
 export const IN_PANEL_TAG = "radar:question-in-panel";
@@ -57,6 +57,14 @@ function choice(options: readonly string[]): string {
   return `${said.length ? `${said.join(", ")}, or ${last}` : last}?`;
 }
 
+export function questionTopic(question: string): string {
+  const head = question.split(" \u00b7 ")[0]!.replace(/[?.!]+\s*$/, "").trim();
+  const lead = head.replace(/^(?:can|could|would|will|should|shall|do|did) (?:you|i|we) (?:please )?/i, "").replace(/^(?:do you want me to|want me to|ok to|okay to) /i, "");
+  const first = lead.split(/,\s*(?:or|and)\s+|\s+(?:or|and)\s+|\s*\(/)[0]!.trim();
+  const topic = first.length >= 8 ? first : lead;
+  return capitalFirst(topic.length > 48 ? cutAtWord(topic, 48) : topic);
+}
+
 export function recordQuestion(text: string, title = "", options: readonly string[] = []): string {
   const body = stageText(text.replace(STATUS_TAG, "").trim(), true).replace(/\s*\([^()]*\b\d{6,}\b[^()]*\)/g, "").trim();
   if (options.length >= 2 && !/\?/.test(body)) return choice(options);
@@ -84,6 +92,8 @@ export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] 
     if (!mine.length) return bot;
     const rows: BotTaskRow[] = [];
     for (const item of mine) {
+      if (item.cleared) { dropped.push({ id: item.id, bot: bot.key, why: item.cleared.why, text: item.text }); continue; }
+      if (item.answered && item.followedUp) { dropped.push({ id: item.id, bot: bot.key, why: "you answered and the bot followed up", text: item.text }); continue; }
       const linkedId = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
       const linked = linkedId ? all.find(task => task.id === linkedId) : undefined;
       if (linked && (isClosed(linked.displayState) || linked.displayState !== "needs" && linked.waitFor !== "you")) { dropped.push({ id: item.id, bot: bot.key, why: "its task moved on", text: item.text }); continue; }
