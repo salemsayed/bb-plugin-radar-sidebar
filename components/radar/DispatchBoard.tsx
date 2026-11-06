@@ -10,7 +10,7 @@ import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, sh
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askPreview, askParts, datedHead, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, workerNames, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
+import { askPreview, askParts, datedHead, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, workerNames, sameJob, stateTone, taskHeadline, waitingOn, mergeRequestWords, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
@@ -752,7 +752,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const needsCard = task.displayState === "needs";
     const finished = isClosed(task.displayState);
     const preview = task.ask && parts && !needsCard ? askPreview(task.ask, now, askerOf, bot.name, originalOf) : null;
-    const ask = preview?.line ?? "";
+    const ask = mergeRequestWords(preview?.line ?? "");
     const bare = (text: string) => text.replace(/\u2026$/, "").trim();
     const fullAsk = parts && parts.full && (needsCard || bare(parts.full).length > bare(preview ? preview.shown : cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 || parts.excerpt) ? parts : null;
     const askOpen = openAsks.has(task.id);
@@ -816,7 +816,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
-        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{datedHead(fullAsk.head)}</span><Isolated text={`\u201c${quoteShown(fullAsk.full, fullAsk.excerpt)}\u201d`} /></p> : null}
+        {fullAsk ? <p className="dispatch-full" dir="auto"><span>{datedHead(fullAsk.head)}</span><Isolated text={`\u201c${mergeRequestWords(quoteShown(fullAsk.full, fullAsk.excerpt))}\u201d`} /></p> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>Goal</span><Isolated text={afterStop(outcome)} /></p> : null}
         {laterNote ? <p className="dispatch-full" dir="auto"><span>{`From the bot, ${dayAndTime(laterNote.at, now)}`}</span><Isolated text={`\u201c${readerWords(plainNote(laterNote.text))}\u201d`} /></p> : null}
         {laterNote ? <p className="dispatch-full" dir="auto"><span>Before that</span><Isolated text={baseStatus.split(" \u00b7 ")[0]!} /></p> : null}

@@ -192,12 +192,16 @@ const mrWords = (lead: string | undefined) => lead && /^M(?!R)/.test(lead) ? "Me
 const ITEM_CODE_ALONE = /\s*\((?:item|SKU|product code|code)\s*#?\d{6,}\)/gi;
 const ITEM_CODE_LEAD = /\((?:item|SKU|product code|code)\s*#?\d{6,},\s*/gi;
 
-export function mergeRequestNumbers(text: string): string {
-  return text.split(QUOTED).map((part, i) => i % 2 ? part : part
+export function mergeRequestWords(text: string): string {
+  return text
     .replace(MR_TOKEN, (_whole: string, lead: string | undefined, n: string) => `${mrWords(lead)} ${n}`)
     .replace(MR_BANG, (_whole: string, edge: string, lead: string | undefined, n: string) => `${edge}${mrWords(lead)} ${n}`)
     .replace(/\b([Mm])erge request (\d+) and merge request (\d+)\b/g, "$1erge requests $2 and $3")
-    .replace(/\b([Mm]erg(?:e|es|ed|ing)) merge request (\d+)\b/g, "$1 request $2")).join("");
+    .replace(/\b([Mm]erg(?:e|es|ed|ing)) merge request (\d+)\b/g, "$1 request $2");
+}
+
+export function mergeRequestNumbers(text: string): string {
+  return text.split(QUOTED).map((part, i) => i % 2 ? part : mergeRequestWords(part)).join("");
 }
 
 export function plainText(text: string): string {
@@ -404,7 +408,7 @@ export function waitingOn(line: string, outcome = "", asked = ""): string {
   if (AFFECTED.test(reason)) return "fixed official images";
   const group = GROUP.exec(reason) ?? GROUP.exec(outcome);
   if (group) return group[1]!.toLowerCase();
-  const doer = /^([A-Z][a-z]{2,})(?:'s)?\s+(?:to\s+)?(?:merg|review|test|approv|check|publish|releas|sign|confirm|repl|answer)\w*\b/.exec(reason);
+  const doer = /^([A-Z][a-z]{2,})(?:'s)?\s+(?:to\s+)?(?:merg|review|test|approv|check|publish|releas|sign|confirm|repl|answer|send|share|deliver|provid|upload|pay|finish|fix|ship|return|decid|agree|call|updat)\w*\b/.exec(reason);
   if (doer && !/^(?:The|This|That|Its|Our|Your|Waiting|Next)$/.test(doer[1]!)) return doer[1]!;
   const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(outcome);
   if (item) return mergeRequestNumbers(item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request"));

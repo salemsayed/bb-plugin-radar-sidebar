@@ -531,7 +531,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs[data-slim] .stage-needs-stale-text { font-weight: 600; color: var(--foreground); }
 .stage-needs[data-slim] .stage-needs-retry { height: 26px; margin-inline-start: auto; }
 @media (pointer: coarse) {
-  .stage-needs-more { height: 44px; margin-block: -11px; }
+  .stage-needs-more { height: 44px; margin-block: -20px -2px; align-items: flex-end; padding-bottom: 1px; }
   .stage-needs-menu { width: 44px; height: 44px; opacity: 1; }
   .stage-needs-item { padding: 8px 10px 0; grid-template-rows: 30px auto; }
   .stage-needs { padding-bottom: 4px; }
@@ -683,7 +683,19 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-impact-more::after { content: ""; position: absolute; inset: -8px -10px; }
 .stage-needs-impact { grid-column: 1 / -1; margin-top: 2px; }
 .radar-ask-strip-impact { margin: 2px 0 6px; --impact-lines: 2; }
-@media (max-width: 767px) { .stage-needs-impact, .radar-ask-strip-impact { --impact-lines: 1; } }
+.stage-needs .stage-needs-impact { --impact-lines: 1; }
+@media (max-width: 767px) { .radar-ask-strip-impact { --impact-lines: 1; } }
 .dispatch-card-impact { margin: -4px 0 10px 14px; }
 .stage-needs-foot[data-inline-park] { padding-top: 0; pointer-events: none; }
+.stage-needs-item[data-lined] { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 34px 0 10px; }
+.stage-needs-item[data-lined] .stage-needs-copy { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.stage-needs-item[data-lined] .stage-needs-who { flex: none; padding-inline-end: 0; }
+.stage-needs-item[data-lined] .stage-needs-status { display: none; }
+.stage-needs-item[data-lined] .stage-needs-what { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+.stage-needs li[data-lined] .stage-needs-tools { top: 50%; transform: translateY(-50%); }
+@media (pointer: coarse) {
+  .stage-needs-item[data-lined] { min-height: 44px; padding: 0 46px 0 10px; }
+  .stage-needs li[data-lined] .stage-needs-tools { top: 0; right: 0; transform: none; }
+}
+.stage-needs li:has(> .stage-needs-foot[data-inline-park]) .stage-needs-item { padding-bottom: 12px; }
 .stage-needs-foot[data-inline-park] > .stage-needs-later { pointer-events: auto; }
