@@ -188,7 +188,9 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
 function ArrivalText({ lead, what, answers }: { lead: string; what: string; answers: readonly string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
   const key = answers.join("\n");
-  const tails = answers.length > 1 ? [answers.join(" / "), `${answers.length} answers`] : [];
+  const leads = answers.map(answer => /^(yes|no)\b/i.exec(answer.trim())?.[1]);
+  const yesNo = answers.length === 2 && leads.every(Boolean) && new Set(leads.map(lead => lead!.toLowerCase())).size === 2 ? leads.map(lead => capitalFirst(lead!.toLowerCase())).join(" or ") : "";
+  const tails = answers.length > 1 ? [answers.join(" / "), ...(yesNo ? [yesNo] : []), `${answers.length} answers`] : [];
   const [shown, setShown] = useState<{ text: string; tail: string }>({ text: what, tail: tails[0] ?? "" });
   useLayoutEffect(() => {
     const box = ref.current;
