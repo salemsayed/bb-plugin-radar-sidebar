@@ -41,9 +41,19 @@ function waitedGo(text: string, title: string): string {
   return context ? `${lead} · ${capitalFirst(context.replace(/[,;.\s]+$/, ""))}` : lead;
 }
 
+const PLAN = /^(.+?)\s*[:\u00b7\u2013\u2014-]\s*(?:the |a )?plan$/i;
+const NAMED_ITEM = /^merge request \d+\b/i;
+
+function lowerLead(text: string): string {
+  return /^[A-Z][a-z]/.test(text) && !/^[A-Z][a-z]+(?:\s+[A-Z]|$)/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
 export function recordQuestion(text: string, title = ""): string {
   const body = stageText(text.replace(STATUS_TAG, "").trim(), true).replace(/\s*\([^()]*\b\d{6,}\b[^()]*\)/g, "").trim();
   if (/\?/.test(body)) return askFirst(body, title);
+  const plan = PLAN.exec(body);
+  if (plan) return `Approve the plan for ${lowerLead(plan[1]!.trim())}?`;
+  if (NAMED_ITEM.test(body)) return `Reply needed on ${lowerLead(body)}`;
   return waitedGo(body, title) || needAsk(body, title);
 }
 

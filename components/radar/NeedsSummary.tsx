@@ -277,7 +277,7 @@ function textWidth(text: string, font: string): number {
 
 export function ageLabel(age: string, since: "asked" | "open"): string {
   if (since === "open") return age === "now" ? "waiting just now" : `waiting ${age}`;
-  return age === "now" ? "asked just now" : `${age} ago`;
+  return age === "now" ? "just now" : `${age} ago`;
 }
 
 function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
