@@ -79,8 +79,18 @@ export function stripAnchor(): { parent: HTMLElement; before: HTMLElement } | nu
   if (!footer || !editor) return null;
   const width = footer.getBoundingClientRect().width;
   let column: HTMLElement | null = null;
-  for (let node = editor.parentElement; node && node !== footer; node = node.parentElement) if (node.getBoundingClientRect().width <= width - 16) column = node;
+  let frame: HTMLElement | null = null;
+  for (let node = editor.parentElement; node && node !== footer; node = node.parentElement) {
+    if (!frame && node.getBoundingClientRect().width >= 240 && framed(node)) frame = node;
+    if (node.getBoundingClientRect().width <= width - 16) column = node;
+  }
   if (!column) return null;
+  const inFlow = (node: Element) => node.getBoundingClientRect().height > 0 && !/^(?:absolute|fixed)$/.test(getComputedStyle(node).position) && !node.classList.contains("radar-ask-strip-slot");
+  for (let node: HTMLElement | null = frame ?? editor; node && node !== column; node = node.parentElement) {
+    const parent = node.parentElement;
+    if (!parent || !column.contains(parent)) break;
+    if (Array.from(parent.children).filter(inFlow).length >= 2) return { parent, before: node };
+  }
   const before = Array.from(column.children).find(child => child.contains(editor)) as HTMLElement | undefined;
   return before ? { parent: column, before } : null;
 }
