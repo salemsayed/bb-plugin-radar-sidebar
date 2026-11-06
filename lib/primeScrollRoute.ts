@@ -237,7 +237,7 @@ export function primeScrollRoute() {
   try { if (slot[BOOT_KEY]?.id !== instance) slot[BOOT_KEY]?.dispose(); } catch {}
   slot[BOOT_KEY] = { id: instance, dispose: () => {
     retired = true;
-    if (primed) { clearTimeout(primed.timer); primed = null; }
+    if (primed) { clearTimeout(primed.timer); unveilChat(primed.threadId); primed = null; }
     for (const stop of stops.splice(0)) {
       try { stop(); } catch {}
     }
