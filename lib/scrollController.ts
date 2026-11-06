@@ -287,11 +287,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (rowsAt === null) {
       rowsAt = primedBefore ? now() : Math.min(now(), chatShownAt(found, threadId) ?? Infinity);
       if (veiledAt !== null) armVeil(threadId, VEIL_MAX_MS + VEIL_SAFETY_MS - (now() - rowsAt));
-      trace("rows", { afterMs: Math.round(rowsAt - startedAt), veiled: veiledAt !== null });
+      trace("rows", { afterMs: Math.round(rowsAt - startedAt), veiled: veiledAt !== null, budgetMs: Math.round(Math.min(VEIL_MAX_MS, Math.max(VEIL_BUDGET_MS, 2 * (rowsAt - startedAt)))) });
     }
     const oldest = messageAnchors(threadId).reduce((min, e) => found.contains(e) ? Math.min(min, Number(e.dataset.notificationMessage)) : min, Infinity);
     if (oldest < oldestSeq) { if (oldestSeq !== Infinity) progressAt = now(); oldestSeq = oldest; }
-    const expired = now() - rowsAt > VEIL_MAX_MS || now() - rowsAt > VEIL_BUDGET_MS && now() - progressAt > PAGE_GRACE_MS;
+    const budget = Math.min(VEIL_MAX_MS, Math.max(VEIL_BUDGET_MS, 2 * (rowsAt - startedAt)));
+    const expired = now() - rowsAt > VEIL_MAX_MS || now() - rowsAt > budget && now() - progressAt > PAGE_GRACE_MS;
     if (deferredByHost()) { if (expired) abandon("anchor-timeout"); return; }
     const anchor = anchorFor(position.messageSeq);
     if (!anchor) {
