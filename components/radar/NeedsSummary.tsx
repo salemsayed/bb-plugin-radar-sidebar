@@ -185,10 +185,11 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
   return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
-function ArrivalText({ lead, what, answers }: { lead: string; what: string; answers: number }) {
+function ArrivalText({ lead, what, answers }: { lead: string; what: string; answers: readonly string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const tail = answers > 1 ? `${answers} answers` : "";
-  const [shown, setShown] = useState<{ text: string; tail: boolean }>({ text: what, tail: !!tail });
+  const key = answers.join("\n");
+  const tails = answers.length > 1 ? [answers.join(" / "), `${answers.length} answers`] : [];
+  const [shown, setShown] = useState<{ text: string; tail: string }>({ text: what, tail: tails[0] ?? "" });
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box) return;
@@ -200,24 +201,29 @@ function ArrivalText({ lead, what, answers }: { lead: string; what: string; answ
       probe.className = box.className;
       probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;inset-inline-start:0;top:0;width:${box.clientWidth}px;display:block;overflow:visible;-webkit-line-clamp:none;line-clamp:none`;
       host.appendChild(probe);
-      const fits = (form: string, withTail = false) => {
+      const fits = (form: string, tail = "") => {
         const name = document.createElement("b");
         name.textContent = `${lead}:`;
         const parts: (Node | string)[] = [name, ` ${form}`];
-        if (withTail) { const more = document.createElement("span"); more.className = "stage-needs-arrival-answers"; more.textContent = ` \u00b7 ${tail}`; parts.push(more); }
+        if (tail) { const more = document.createElement("span"); more.className = "stage-needs-arrival-answers"; more.textContent = ` \u00b7 ${tail}`; parts.push(more); }
         probe.replaceChildren(...parts);
         return probe.scrollHeight <= lines * 2 + 1;
       };
-      const whole = tail ? [what, ...questionCuts(what)].find(form => fits(form, true)) : undefined;
-      setShown(whole ? { text: whole, tail: true } : { text: [what, ...questionCuts(what)].find(form => fits(form)) ?? fitWords(what, form => fits(form)), tail: false });
+      const forms = [what, ...questionCuts(what)];
+      let pick: { text: string; tail: string } | null = null;
+      for (const tail of tails) {
+        const form = forms.find(f => fits(f, tail));
+        if (form !== undefined) { pick = { text: form, tail }; break; }
+      }
+      setShown(pick ?? { text: forms.find(form => fits(form)) ?? fitWords(what, form => fits(form)), tail: "" });
       probe.remove();
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [lead, what, tail]);
-  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown.text} />{shown.tail ? <span className="stage-needs-arrival-answers">{` \u00b7 ${tail}`}</span> : null}</span>;
+  }, [lead, what, key]);
+  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown.text} />{shown.tail ? <span className="stage-needs-arrival-answers">{" \u00b7 "}<Isolated text={shown.tail} /></span> : null}</span>;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
@@ -372,7 +378,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
           aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}.${boxAnswers(single).length > 1 ? ` ${boxAnswers(single).length} answers.` : ""} Show` : `${text} from ${names}: show them`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
-          {single ? <ArrivalText lead={lead} what={single.what} answers={boxAnswers(single).length} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
+          {single ? <ArrivalText lead={lead} what={single.what} answers={boxAnswers(single)} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
           <span className="stage-needs-more-pill" data-icon-only={single ? "" : undefined} aria-hidden="true">{single ? null : <span>Show</span>}<Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>

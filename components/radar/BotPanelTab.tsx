@@ -67,10 +67,10 @@ function capitalize(text: string): string {
 }
 
 
-function waitWhen(task: BotTaskRow, now: number): string {
+function waitWhen(task: BotTaskRow, now: number, botName: string): string {
   if (task.displayState === "offline") return "Its machine is off";
   if (task.displayState === "ready" || /^filed\.\s*not started/i.test(task.line)) return "Not started yet";
-  const line = capitalize(waitLine(task, now));
+  const line = capitalize(waitLine(task, now, botName));
   const who = awaitedPerson(task);
   return who && !line.includes(who) ? `Waiting on ${who} · ${line[0]!.toLowerCase()}${line.slice(1)}` : line;
 }
@@ -147,8 +147,8 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       </div>
     </header>
     <div className="bot-panel-body">
-      {asks.length ? <section aria-label="Asking you">
-        <h3>Asking you</h3>
+      {asks.length ? <section aria-label="Needs you">
+        <h3>Needs you</h3>
         <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} />)}</div>
       </section> : null}
       <section aria-label="Now">
@@ -160,7 +160,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       </section>
       {waiting.length ? <section aria-label="Waiting">
         <h3>Waiting</h3>
-        <div role="list">{waiting.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={waitWhen(t, now)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}</div>
+        <div role="list">{waiting.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={waitWhen(t, now, bot.name)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}</div>
       </section> : null}
       <DeskThreads desks={bot.desks} now={now} onOpen={go} />
       {(claims.byBot[bot.key] ?? []).length ? <section aria-label="Started by you">

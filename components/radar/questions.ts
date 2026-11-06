@@ -121,8 +121,60 @@ function sameAsk(a: string, b: string): boolean {
   return x.length >= 12 && y.length >= 12 && (x.includes(y) || y.includes(x));
 }
 
+const STEP_VERB = /^(?:type|enter|paste|log ?in(?:to)?|sign ?in(?:to)?|approve|confirm|tap|plug|scan|press|unlock|open|run|restart|install|reply|send|upload|pick|choose)\b/i;
+const PURPOSE = /^(.{16,}?),?\s+(so (?:that )?|to make sure |in order to )(.{8,}?)[.\s]*$/i;
+const DUE_KINDS = new Set(["deadline", "urgent", "reminder"]);
+
+export function stepParts(text: string): { step: string; purpose: string } | null {
+  const said = text.trim();
+  if (/\?/.test(said) || !STEP_VERB.test(said)) return null;
+  const split = PURPOSE.exec(said);
+  if (!split) return { step: said.replace(/[.\s]+$/, ""), purpose: "" };
+  return { step: split[1]!.replace(/[,;\s]+$/, ""), purpose: `${split[2]}${split[3]}`.trim() };
+}
+
+export function isStepAsk(task: Pick<BotTaskRow, "displayState" | "needs" | "line" | "title" | "outcome" | "tags">): boolean {
+  return task.displayState === "needs" && !!stepParts(task.needs?.question || task.line);
+}
+
+const words = (text: string) => new Set(normalizedNeedsText(text).split(/[^a-z0-9:]+/).filter(word => word.length >= 4));
+
+function dueClock(due: string, now: number): string {
+  const at = /(?:Z|[+-]\d{2}:\d{2})$/.test(due) ? Date.parse(due) : Date.parse(due.length === 10 ? `${due}T00:00` : due.slice(0, 16));
+  if (!Number.isFinite(at) || at < now - 3_600_000) return "";
+  const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
+  return at - now < 20 * 3_600_000 ? clock : `${new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(at))} ${clock}`;
+}
+
+export function withSteps(data: BotTasksData, records: readonly NeedsItem[]): BotTasksData {
+  let changed = false;
+  const bots = data.bots.map(bot => {
+    let mine = false;
+    const tasks = bot.tasks.map(task => {
+      if (task.displayState !== "needs" || !task.needs) return task;
+      const parts = stepParts(task.needs.question || task.line);
+      if (!parts) return task;
+      const own = words(parts.step);
+      const due = records.filter(item => item.bot === bot.key && DUE_KINDS.has(item.kind) && (item.state === "open" || item.state === "reminded") && item.due)
+        .map(item => ({ item, shared: [...words(item.text)].filter(word => own.has(word)).length }))
+        .filter(match => match.shared >= 4 && match.shared * 2 >= own.size)
+        .sort((a, b) => b.shared - a.shared)[0];
+      const by = due ? dueClock(due.item.due!, data.observedAt) : "";
+      const said = [by ? `Before ${by}` : "", parts.purpose].filter(Boolean).join(", ");
+      const consequence = task.needs.consequence || (said ? `${capitalFirst(said)}.` : "");
+      mine = true;
+      return { ...task, line: parts.step, needs: { ...task.needs, question: parts.step, ...(consequence ? { consequence } : {}) } };
+    });
+    if (!mine) return bot;
+    changed = true;
+    return { ...bot, tasks };
+  });
+  return changed ? { ...data, bots } : data;
+}
+
 export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] | null, laterAt: (key: string, since?: number) => number | null): { data: BotTasksData; dropped: DroppedQuestion[] } {
   const dropped: DroppedQuestion[] = [];
+  data = withSteps(data, records ?? []);
   if (!records?.length) return { data, dropped };
   const all = data.bots.flatMap(bot => bot.tasks);
   let changed = false;

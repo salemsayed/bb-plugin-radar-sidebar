@@ -674,9 +674,14 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-answers[data-side] > [data-wide] { grid-column: 1 / -1; }
 .radar-answer-text { display: inline; min-width: 0; }
 .radar-answer-rec { font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
-.stage-needs-impact, .radar-ask-strip-impact, .dispatch-card-impact { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--muted-foreground); }
+.stage-needs-impact, .radar-ask-strip-impact, .dispatch-card-impact { --impact-lines: 3; display: flex; align-items: flex-end; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--muted-foreground); }
+.radar-impact-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--impact-lines); line-clamp: var(--impact-lines); overflow: hidden; overflow-wrap: anywhere; }
+.radar-impact[data-open] .radar-impact-text { -webkit-line-clamp: none; line-clamp: none; display: block; }
+.radar-impact-more { flex: none; position: relative; padding: 0 2px; font-weight: 600; color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); cursor: pointer; }
+.radar-impact-more::after { content: ""; position: absolute; inset: -8px -10px; }
 .stage-needs-impact { grid-column: 1 / -1; margin-top: 2px; }
-.radar-ask-strip-impact { margin: 2px 0 6px; -webkit-line-clamp: 2; line-clamp: 2; }
+.radar-ask-strip-impact { margin: 2px 0 6px; --impact-lines: 2; }
+@media (max-width: 767px) { .stage-needs-impact, .radar-ask-strip-impact { --impact-lines: 1; } }
 .dispatch-card-impact { margin: -4px 0 10px 14px; }
 .stage-needs-foot[data-inline-park] { padding-top: 0; pointer-events: none; }
 .stage-needs-foot[data-inline-park] > .stage-needs-later { pointer-events: auto; }

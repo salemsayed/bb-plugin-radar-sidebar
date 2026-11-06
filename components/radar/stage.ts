@@ -3,7 +3,7 @@ import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
 import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, readableCut, readerWords, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
-import { isQuestionRow } from "./questions";
+import { isQuestionRow, isStepAsk } from "./questions";
 import { withoutMarks } from "./recommend";
 
 export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
@@ -208,8 +208,9 @@ export function answeredHere(later: { reason: string; messageSeq?: number }): bo
   return later.reason === "answered" && later.messageSeq !== undefined;
 }
 
-export function laterLine(later: { reason: string; messageSeq?: number }): string {
-  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · until it asks again";
+export function laterLine(later: { reason: string; messageSeq?: number }, botName = ""): string {
+  if (later.reason === "answered") return `Waiting on ${botName || "the bot"} · you answered`;
+  return "Later · until it asks again";
 }
 
 export function laterNoteHead(text: string, max = 80): string {
@@ -282,14 +283,14 @@ export function runBeforeCheck(line: string, wakeAt: number): string {
   return gap > 0 && gap <= 360 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
 }
 
-export function waitLine(task: BotTaskRow, now: number): string {
-  if (task.later) return laterLine(task.later);
+export function waitLine(task: BotTaskRow, now: number, botName = ""): string {
+  if (task.later) return laterLine(task.later, botName);
   if (task.wakeAt !== undefined) {
     const run = runBeforeCheck(task.line, task.wakeAt);
     return `${nextCheck(task.wakeAt, now)}${run ? `, after the ${run} run` : ""}`;
   }
   if (task.waitFor === "you") return "Waiting on you";
-  if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
+  if (task.waitFor && task.waitFor !== "the bot") { const who = waitingOn(task.line, task.outcome, task.ask?.excerpt); return who ? `Waiting on ${who}` : "Waiting on someone else"; }
   const scheduled = scheduledWait(task.line);
   if (scheduled) return scheduled;
   return "Waiting on the bot · no check scheduled";
@@ -328,7 +329,8 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (needs.length || desks.length) {
     const first = needs[0];
     const ask = first ? taskAsk(first) || "Has a question for you" : deskNeedLine(desks[0]!);
-    return { pose: "asking", line: `${plural(needs.length + desks.length, "question", "questions")} for you`, ask, extra: "", tone: "ask", quiet: false };
+    const steps = !desks.length && needs.every(isStepAsk);
+    return { pose: "asking", line: `${plural(needs.length + desks.length, steps ? "step" : "question", steps ? "steps" : "questions")} for you`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {

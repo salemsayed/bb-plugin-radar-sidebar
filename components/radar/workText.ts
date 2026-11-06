@@ -196,7 +196,8 @@ export function mergeRequestNumbers(text: string): string {
   return text.split(QUOTED).map((part, i) => i % 2 ? part : part
     .replace(MR_TOKEN, (_whole: string, lead: string | undefined, n: string) => `${mrWords(lead)} ${n}`)
     .replace(MR_BANG, (_whole: string, edge: string, lead: string | undefined, n: string) => `${edge}${mrWords(lead)} ${n}`)
-    .replace(/\b([Mm])erge request (\d+) and merge request (\d+)\b/g, "$1erge requests $2 and $3")).join("");
+    .replace(/\b([Mm])erge request (\d+) and merge request (\d+)\b/g, "$1erge requests $2 and $3")
+    .replace(/\b([Mm]erg(?:e|es|ed|ing)) merge request (\d+)\b/g, "$1 request $2")).join("");
 }
 
 export function plainText(text: string): string {
@@ -387,10 +388,15 @@ function personWait(line: string): string {
   return match[2] ? `${who}'s ${match[2]}` : who;
 }
 
-export function waitingOn(line: string, outcome = ""): string {
+const BOT_DOER = /^(Lab|Home|Bricks|Work|ERBareeq|Security|Personal)(?: Bot)?(?:'s)?\s+(?:bot\s+)?[a-z]+s?\b/;
+const BOT_ASKER = /^\W{0,3}(Lab|Home|Bricks|Work|ERBareeq|Security|Personal) Bot (?:asks|handed|relayed|requests)\b/;
+
+export function waitingOn(line: string, outcome = "", asked = ""): string {
   const reason = line.replace(/^Waiting for [^:]{1,30}:\s*/, "");
   const person = personWait(reason);
   if (person) return person;
+  const bot = BOT_DOER.exec(reason);
+  if (bot) return `${bot[1]} Bot`;
   const next = NEXT_THING.exec(reason);
   if (next) return `the next ${next[1]!.toLowerCase()}`;
   const upstream = UPSTREAM.exec(reason);
@@ -402,7 +408,8 @@ export function waitingOn(line: string, outcome = ""): string {
   if (doer && !/^(?:The|This|That|Its|Our|Your|Waiting|Next)$/.test(doer[1]!)) return doer[1]!;
   const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(outcome);
   if (item) return mergeRequestNumbers(item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request"));
-  return "";
+  const asker = BOT_ASKER.exec(asked);
+  return asker ? `${asker[1]} Bot` : "";
 }
 
 export function taskHeadline(title: string): string {
@@ -634,6 +641,12 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
     quoteShown.text = done(quoteShown.text);
     fullShown.text = done(fullShown.text);
   }
+  const salemSaid = !mine ? SALEM_SAID.exec(rawFull.replace(/\s*@thread:\S+/g, "")) : null;
+  if (salemSaid) {
+    const words = readerWords(salemSaid[1]!.trim()).replace(/[.\s]+$/, "");
+    const by = asker && asker !== "Another chat" ? asker : named && named !== own ? named : "";
+    return { head: `You asked ${when}${by ? ` via ${by}` : ""}`, quote: words, full: words, excerpt: false, kind: "yours", part: "your words" };
+  }
   if (kind === "handover") {
     const said = YOU_HANDED.test(rawFull) ? /["\u201c]([^"\u201c\u201d]{12,})["\u201d]/.exec(fullShown.text)?.[1] : undefined;
     const first = said ? said.trim() : firstPlain(fullShown.text.replace(/(?:\u2026|\.\.\.)["\u201d\u2019]?$/, ""));
@@ -657,6 +670,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
 
 const PICKED = /^["\u201c]?([^.?!"\u201c\u201d]{2,70}?)\s*\((?:recommended)\)[.]?["\u201d]?$/i;
 
+const SALEM_SAID = /^(?:Request from Salem\b[^:"\u201c]{0,120}|Salem(?: (?:said|wrote|asked|replied))?):\s*["\u201c]([^"\u201c\u201d]{2,240})["\u201d]/;
 const RELAY_CAP = 300;
 const BOT_ORDER = /^["\u201c]?(?:reply (?:with|to)|report back|continue (?:that|this|the|with)|no reply(?: to me)? is needed|please (?:reply|confirm|recheck|report|continue|keep|let me)|let me know|send me|tell me|ping me)\b/i;
 const ORDER_CLAUSE = /[;,]\s*(?:and\s+)?no reply(?: to me)? is needed\b/gi;
