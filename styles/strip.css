@@ -46,4 +46,3 @@
 }
 .radar-ask-strip-who[data-wrapped] > .radar-ask-strip-sep { display: none; }
 .radar-ask-strip-who[data-wrapped] > .radar-ask-strip-hint { display: block; }
-@media (max-width: 767px) { .radar-ask-strip-question { -webkit-line-clamp: 2; line-clamp: 2; } }

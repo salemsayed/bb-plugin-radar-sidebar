@@ -173,7 +173,7 @@ export function AskStrip() {
       <span className="radar-ask-strip-who" ref={whoLine}><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
-    <FitLines className="radar-ask-strip-question" forms={[...new Set([...oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length).slice(0, 1), ...compactForms(entry.question, entry.title, entry.options.length)])]} />
+    <FitLines className="radar-ask-strip-question" forms={[...new Set([...oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length), ...compactForms(entry.question, entry.title, entry.options.length)])]} />
     <AskImpact className="radar-ask-strip-impact" text={entry.consequence} />
     {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerRow}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
