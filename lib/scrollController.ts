@@ -121,7 +121,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, dragAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0, lastScrollTop = 0, behavior: string | null = null;
   let muted: HTMLElement | null = primed?.requested ? document.documentElement : null;
-  let lastFine: Pin | null = null, edgeTop: number | null = null, waitedCards = false;
+  let lastFine: Pin | null = null, edgeTop: number | null = null, waitedCards = false, widthHold = false;
   let hostDefers = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
   const widths = new Map<number, { anchor: ScrollPosition; fine: Pin | null; userAt: number }>();
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -321,6 +321,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     show();
     const anchor = position && !position.atBottom ? anchorFor(position.messageSeq) : null;
     const placed = anchor ? placeFor(anchor).pin : null;
+    widthHold = false;
     fine = topPin() ?? placed ?? (anchor && position && !position.atBottom ? pinOf(anchor, position.offset, false) : visiblePin());
     if (requested) store.anchorReady?.();
     trace("placed", { position, top: container ? Math.round(container.scrollTop) : null, line: placed ? "saved" : anchor ? "message" : fine ? "visible" : null, pin: fine ? { row: fine.row?.slice(-14) ?? null, path: fine.path, inner: Math.round(fine.inner), text: (fine.element.textContent ?? "").slice(0, 24) } : null });
@@ -378,7 +379,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (cards && !waitedCards) { waitedCards = true; trace("cards-wait", null); }
     if (expired || veiledAt === null || !waitLine && !revealing && !cards && steady) settle();
   };
-  const keep = () => {
+  const keep = (scrolled = false) => {
     if (disposed || phase !== "settling") return;
     if (!container?.isConnected || !position || position.atBottom) { goLive("settled"); return; }
     if (gestureActive() || now() - intentAt < INTENT_MS) { goLive("gesture"); return; }
@@ -391,6 +392,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       fine = again;
     }
     if (!fine) { goLive("pin-lost"); return; }
+    if (hostDefers && !scrolled && !widthHold) return;
     if (fine.hash !== null && textHash(fine.element.textContent ?? "") !== fine.hash) {
       const again = refind(fine);
       if (again && again.element !== fine.element) { trace("repin", { row: fine.row?.slice(-14) ?? null, changed: true }); fine = again; }
@@ -410,6 +412,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     observer.observe(document.documentElement, { childList: true, subtree: true });
     const message = pin?.element.isConnected ? null : anchorFor(anchor.messageSeq);
     fine = pin?.element.isConnected ? pin : message ? pinOf(message, anchor.offset, false) : null;
+    widthHold = true;
     trace("hold", { reason, position, fine: fine ? Math.round(fine.offset) : null });
     frame = requestAnimationFrame(tick);
     keep();
@@ -479,7 +482,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (gesture) dragAt = now();
     if (gesture || !ours && (now() - userScrollAt < CHAIN_MS || now() - intentAt < INTENT_MS)) userScrollAt = now();
     if (phase === "restoring") { attempt(); return; }
-    if (phase === "settling") { keep(); return; }
+    if (phase === "settling") { keep(!ours); return; }
     if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
     if (held() && touching) {
       if (ours) return;
