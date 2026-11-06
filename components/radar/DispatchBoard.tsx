@@ -9,7 +9,7 @@ import { answerOptions, deskTitle, isClosed, needsYou, layoutBot, orderedBots, r
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askPreview, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
+import { askPreview, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, workerNames, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
@@ -592,27 +592,6 @@ function DeskNeedCard({ desk, now, current, onOpen, botName }: { desk: BotDesk; 
 }
 const WORKERS_SHOWN = 5;
 
-function workerNames(attempts: readonly Attempt[]): Map<string, string> {
-  const base = new Map(attempts.map(a => [a.threadId, a.title ? plainWorkerTitle(a.title) : "Worker"]));
-  const count = new Map<string, number>();
-  for (const name of base.values()) count.set(name, (count.get(name) ?? 0) + 1);
-  const seen = new Map<string, number>();
-  const names = new Map<string, string>();
-  const clock = (a: Attempt) => a.startedAt != null ? clockFormatter.format(new Date(a.startedAt)) : "";
-  const starts = new Map<string, Set<string>>();
-  for (const a of attempts) { const name = base.get(a.threadId)!; starts.set(name, (starts.get(name) ?? new Set()).add(clock(a))); }
-  for (const a of [...attempts].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) {
-    const name = base.get(a.threadId)!;
-    const total = count.get(name) ?? 0;
-    if (total < 2) { names.set(a.threadId, name); continue; }
-    const n = (seen.get(name) ?? 0) + 1;
-    seen.set(name, n);
-    const started = starts.get(name)!.size === total ? clock(a) : "";
-    names.set(a.threadId, started ? `${name}, started ${started}` : `${name} (${n} of ${total})`);
-  }
-  return names;
-}
-
 function foldWords(attempts: readonly Attempt[], earlier: boolean): string {
   const states = new Map<string, number>();
   for (const a of attempts) { const state = a.state === "unknown" ? "idle" : a.state; states.set(state, (states.get(state) ?? 0) + 1); }
@@ -863,7 +842,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       {needDesks.length ? <div className="dispatch-open">{needDesks.map(desk => <DeskNeedCard key={desk.id} desk={desk} now={now} botName={bot.name} current={!currentTaskId && desk.id === currentDeskId} onOpen={onNavigate} />)}</div> : null}
     </section> : null}
     {tasks.filter(t => BLOCKED.includes(t.displayState)).map(t => <div className="dispatch-block-card" key={t.id}><b dir="auto">Stuck · <Isolated text={stageTitle(t.title)} /></b><p>{detailReason(rowDetail(t, now)) || STATE_LABEL[t.displayState]}{t.retryAt ? ` · Retry ${new Date(t.retryAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}` : ""}</p></div>)}
-    {others.length || bot.unlinked.length ? <><header className="dispatch-section-head"><h3>Tasks</h3><span>{others.length + bot.unlinked.length}</span></header><div className="dispatch-open">{others.map(taskRow)}{bot.unlinked.map(w => <article className="dispatch-task-group" data-tone="busy" key={w.threadId}><button className="dispatch-task" onClick={() => onNavigate(w.threadId)}><span className="dispatch-status-line"><i aria-hidden="true" />Working outside a task</span><b dir="auto">{taskHeadline(plainWorkerTitle(w.title || "Worker"))}</b></button></article>)}</div></> : asks.length || laterTasks.length ? null : <p className="dispatch-idle">{recent[0]?.completedAt ? `No open tasks · last one finished ${ago(recent[0].completedAt, now)}` : "No open tasks"}</p>}
+    {others.length || bot.unlinked.length ? <><header className="dispatch-section-head"><h3>Tasks</h3><span>{others.length + bot.unlinked.length}</span></header><div className="dispatch-open">{others.map(taskRow)}{bot.unlinked.map(w => <article className="dispatch-task-group" data-tone="busy" key={w.threadId}><button className="dispatch-task" onClick={() => onNavigate(w.threadId)}><span className="dispatch-status-line"><i aria-hidden="true" />Working outside a task</span><b dir="auto">{taskHeadline(plainWorkerTitle(w.title || "Worker"))}</b></button></article>)}</div></> : asks.length || laterTasks.length || !recent[0]?.completedAt ? null : <p className="dispatch-idle">{`Last task finished ${ago(recent[0].completedAt, now)}`}</p>}
     <DeskThreads desks={otherDesks} now={now} onOpen={onNavigate} />
     <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={onNavigate} />
     {laterTasks.length || laterDesks.length ? <section className="dispatch-later" aria-label="Later">

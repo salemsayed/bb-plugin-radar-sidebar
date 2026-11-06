@@ -654,13 +654,20 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-arrival { position: relative; }
 .stage-needs-arrival-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: normal; overflow-wrap: anywhere; font-size: 12.5px; line-height: 15px; font-weight: 500; color: var(--foreground); }
 .stage-needs-arrival-text b { font-weight: 650; color: var(--stage-ask); }
+.stage-needs-arrival-answers { font-weight: 600; color: var(--stage-ask); white-space: nowrap; }
 .stage-needs-arrival .stage-needs-more-pill[data-icon-only] { padding-inline: 5px; }
-.stage-needs-more-pill[data-icon-only] { padding-inline: 5px; }
+.stage-needs-more-pill[data-icon-only] { padding-inline: 5px; min-width: 24px; }
+.stage-needs[data-stale] .stage-needs-more { min-width: 24px; }
+@media (pointer: coarse) { .stage-needs[data-stale] .stage-needs-more { min-width: 44px; } }
 
-.stage-needs li[data-folded] .stage-needs-what { -webkit-line-clamp: 2; line-clamp: 2; }
 .stage-needs li[data-folded] .stage-needs-item { padding-bottom: 8px; }
 .stage-needs-unfold { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 2px; justify-self: start; margin-top: 1px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--stage-ask); }
 .stage-needs-unfold [data-icon-root], .stage-needs-unfold svg { width: 14px; height: 14px; }
 @media (pointer: coarse) { .stage-needs li[data-folded] .stage-needs-item { min-height: 44px; } }
 .radar-answers { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; gap: 6px; width: 100%; max-width: 360px; min-width: 0; margin: 0; }
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { width: 100%; max-width: none; }
+.radar-answers[data-count="2"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr)); }
+.radar-answers[data-count="2"] > .radar-answer { justify-content: center; text-align: center; }
+.stage-needs-foot[data-inline-park] { margin-top: -22px; padding-top: 0; pointer-events: none; }
+.stage-needs-foot[data-inline-park] > .stage-needs-later { pointer-events: auto; }
+@media (pointer: coarse) { .stage-needs-foot[data-inline-park] { margin-top: -24px; } .stage-needs-foot[data-inline-park] > .radar-not-now { place-items: start center; } }

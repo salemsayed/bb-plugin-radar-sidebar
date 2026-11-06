@@ -93,13 +93,13 @@ export function ThreadsSection({ activeThreadId, now, onOpen, onShowAll }: { act
                       <span className="radar-thread-copy">
                         <span className="radar-thread-head">
                           <b dir="auto">{thread.displayTitle}</b>
+                        </span>
+                        <small className="radar-thread-project"><Icon name="Folder" aria-hidden="true" /><span>{project ? `${project} project` : "No project"}</span>
                           <span className="radar-thread-aside" aria-hidden="true">
                             {thread.pinnedAt ? <Icon name="Pin" className="radar-thread-pin" aria-hidden="true" /> : null}
                             {age ? <span className="radar-thread-time" title={`Last activity ${new Date(thread.latestAttentionAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}`}>{age}</span> : null}
                             {mark !== "none" ? <span className="radar-thread-mark" title={MARK_TITLES[mark]} /> : null}
-                          </span>
-                        </span>
-                        <small className="radar-thread-project"><Icon name="Folder" aria-hidden="true" /><span>{project ? `${project} project` : "No project"}</span></small>
+                          </span></small>
                       </span>
                     </button>
                     <ThreadActionsMenu thread={threadActionTarget(thread)} side="bottom" align="end" sideOffset={4}

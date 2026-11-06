@@ -8,7 +8,7 @@ import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { clauseCut, cutAtWord } from "./workText";
 import { FitLines, fitWords } from "./FitLines";
-import { askForms, isChoice, shortChoice } from "./choiceFit";
+import { askForms, isChoice, questionCuts, shortChoice } from "./choiceFit";
 import { Isolated } from "./Isolated";
 import { answerOptions } from "@/lib/botTasks";
 import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
@@ -164,9 +164,10 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
   return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
-function ArrivalText({ lead, what }: { lead: string; what: string }) {
+function ArrivalText({ lead, what, answers }: { lead: string; what: string; answers: number }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [shown, setShown] = useState(what);
+  const tail = answers > 1 ? `${answers} answers` : "";
+  const [shown, setShown] = useState<{ text: string; tail: boolean }>({ text: what, tail: !!tail });
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box) return;
@@ -178,21 +179,24 @@ function ArrivalText({ lead, what }: { lead: string; what: string }) {
       probe.className = box.className;
       probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;inset-inline-start:0;top:0;width:${box.clientWidth}px;display:block;overflow:visible;-webkit-line-clamp:none;line-clamp:none`;
       host.appendChild(probe);
-      const fits = (form: string) => {
+      const fits = (form: string, withTail = false) => {
         const name = document.createElement("b");
         name.textContent = `${lead}:`;
-        probe.replaceChildren(name, ` ${form}`);
+        const parts: (Node | string)[] = [name, ` ${form}`];
+        if (withTail) { const more = document.createElement("span"); more.className = "stage-needs-arrival-answers"; more.textContent = ` \u00b7 ${tail}`; parts.push(more); }
+        probe.replaceChildren(...parts);
         return probe.scrollHeight <= lines * 2 + 1;
       };
-      setShown(fitWords(what, fits));
+      const whole = tail ? [what, ...questionCuts(what)].find(form => fits(form, true)) : undefined;
+      setShown(whole ? { text: whole, tail: true } : { text: [what, ...questionCuts(what)].find(form => fits(form)) ?? fitWords(what, form => fits(form)), tail: false });
       probe.remove();
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [lead, what]);
-  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown} /></span>;
+  }, [lead, what, tail]);
+  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown.text} />{shown.tail ? <span className="stage-needs-arrival-answers">{` \u00b7 ${tail}`}</span> : null}</span>;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
@@ -300,7 +304,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const allNew = arrivals.length > 0 && arrivals.length === hidden.length;
   const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
   const moreText = onlyOld ? `${hiddenOld} old` : allNew ? `${more} new` : `${more} more`;
-  const pillText = stale && items.length > 0 && !(open && arrivals.length) ? "" : collapse ? "Show less" : open ? `${arrivals.length} new` : moreText;
+  const pillText = stale && items.length > 0 && !(open && arrivals.length) ? collapse ? "" : `+${more}` : collapse ? "Show less" : open ? `${arrivals.length} new` : moreText;
   const pillLabel = collapse ? "Show less" : open ? `Show ${arrivals.length} new from ${[...new Set(arrivals.map(item => item.botName))].join(" and ")}` : moreLabel;
   const olderOpen = items.filter(item => item.old && !item.state).length;
   const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : olderOpen ? "older" : "settled";
@@ -344,10 +348,10 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     return <section className="stage-needs" data-state="arrived" data-slim="" aria-label={`Needs you: ${arrivals.length}`}>
       <h2 className="stage-needs-title stage-needs-line" ref={headRef} tabIndex={-1}>
         <button type="button" className="stage-needs-arrival" title={single ? `${lead}: ${single.what}` : undefined}
-          aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}. Show` : `${text} from ${names}: show them`}
+          aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}.${boxAnswers(single).length > 1 ? ` ${boxAnswers(single).length} answers.` : ""} Show` : `${text} from ${names}: show them`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
-          {single ? <ArrivalText lead={lead} what={single.what} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
+          {single ? <ArrivalText lead={lead} what={single.what} answers={boxAnswers(single).length} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
           <span className="stage-needs-more-pill" data-icon-only={single ? "" : undefined} aria-hidden="true">{single ? null : <span>Show</span>}<Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
@@ -399,7 +403,7 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
 
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, "Can't refresh", "Offline"];
+  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, "Can't refresh"];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;
@@ -470,8 +474,33 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
     : item.state && !sentAs ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span>
     : sentAs ? null
     : shownAge ? <span className="stage-needs-age">{shownAge}</span> : null;
+  const parkOnly = canPark && !(answers.length && !sentAs) && !spent.length && !note && !keepPark && !sentAs;
+  const liRef = useRef<HTMLLIElement>(null);
+  const [inlinePark, setInlinePark] = useState(false);
+  useLayoutEffect(() => {
+    const li = liRef.current;
+    if (!li || !parkOnly) { setInlinePark(false); return; }
+    const measure = () => {
+      const text = li.querySelector<HTMLElement>(".stage-needs-what");
+      const pill = li.querySelector<HTMLElement>(".stage-needs-foot .radar-not-now-pill");
+      if (!text || !pill) return;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const lines = [...range.getClientRects()].filter(rect => rect.width > 0);
+      const last = lines.at(-1);
+      if (!last) return;
+      const lastTop = Math.max(...lines.map(rect => rect.top));
+      const right = Math.max(...lines.filter(rect => Math.abs(rect.top - lastTop) < 4).map(rect => rect.right));
+      const end = li.getBoundingClientRect().right - (matchMedia("(pointer: coarse)").matches ? 0 : 4);
+      setInlinePark(end - right >= pill.getBoundingClientRect().width + 12);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(li);
+    return () => observer.disconnect();
+  }, [parkOnly, what]);
   const hint = folded ? "Show its answers" : item.inPanel ? "Show the question" : answers.length ? "Open the chat" : item.options?.length ? "Open: its answers show above the message box" : "Open";
-  return <li data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} {...press}
+  return <li ref={liRef} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} {...press}
     onFocus={() => setInside(true)}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInside(false); }}
     onContextMenu={event => {
@@ -507,7 +536,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
           </button> : null}
     </span>
     {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
-    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
+    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark || undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
       {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
         {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}

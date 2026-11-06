@@ -23,7 +23,7 @@ const REDACTED_AFTER = /\b(on|in|for|of|to|from|with|by|at) ([a-z]+) \[redacted\
 const REDACTED = /\s*\[redacted\]/gi;
 const SKILL_WITH = /\s*,?\s*\b(?:with|using|via|through|by) (?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
 const SKILL_SLUG = /\b(?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
-const SEQ_REF = /\s*\((?:seq|msg)\s*#?\d+(?:\/\d+)*\)|\s*\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b/gi;
+const SEQ_REF = /\s*\((?:(?:you|your|Salem(?:['\u2019]s)?|thr_[a-z0-9]+|message|msg)\s+)*(?:seq|msg|message)\s*#?\d+(?:\s*(?:[\/,–-]|and)\s*\d+)*(?:,?\s*\d{1,2} [A-Z][a-z]{2}(?: \d{4})?)?\)|\s*\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b/gi;
 const WHO_ASIDE = /\s*\((?:Salem|you)\)/g;
 const PROVIDER_TOPIC = /\b(?:Codex|Claude|OpenAI|Anthropic|GPT[\w.-]*)\s+(phase-out|switch|migration|rollout|cutover)\b/g;
 const ASK_REF = /[,;]?\s*\b(?:(?:asked|filed|raised|tracked|sent|logged)\s+)?(?:in|as|via|under)\s+bask_[a-z0-9]+\b/gi;
@@ -310,6 +310,24 @@ const ROUTE_ONLY = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\
 const MODEL = "(?:Opus|Sonnet|Sol|Fable|Astra|Terra|Haiku|Luna|Codex|GPT[\\w.-]*|Claude[\\w.-]*)";
 const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0,2}\\)`, "gi");
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers?|judges?|workers?|takeover|re-check|recheck|reviews?|checks?|fix|build|routes?)\\b(?!-))`, "gi");
+
+export function workerNames<T extends { threadId: string; title?: string | null; startedAt?: number | null }>(attempts: readonly T[], fallback: (attempt: T) => string = () => "Worker"): Map<string, string> {
+  const clock = (a: T) => a.startedAt != null ? new Date(a.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  const named = new Map(attempts.map(a => {
+    const full = a.title ? plainWorkerTitle(a.title) : fallback(a);
+    const role = /^(.*\S)\s*:\s*([^:]{2,40})$/.exec(full);
+    return [a.threadId, role && /^[a-z]/.test(role[2]!.trim()) ? `${role[1]} \u00b7 ${capitalFirst(role[2]!.trim())}` : full] as const;
+  }));
+  const groups = new Map<string, T[]>();
+  for (const a of [...attempts].sort((x, y) => (x.startedAt ?? 0) - (y.startedAt ?? 0))) groups.set(named.get(a.threadId)!, [...(groups.get(named.get(a.threadId)!) ?? []), a]);
+  const names = new Map<string, string>();
+  for (const [name, twins] of groups) {
+    const clocks = twins.map(clock);
+    const distinct = clocks.every(Boolean) && new Set(clocks).size === twins.length;
+    twins.forEach((a, i) => names.set(a.threadId, twins.length < 2 ? name : distinct ? `${name} \u00b7 started ${clocks[i]}` : `${name} (${i + 1} of ${twins.length})`));
+  }
+  return names;
+}
 
 export function plainWorkerTitle(title: string): string {
   let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, (whole: string, _n: string, at: number, text: string) => /merge request\s*$/i.test(text.slice(0, at)) ? whole.trim() : `${/^\s/.test(whole) ? " " : ""}merge request ${whole.trim()}`).replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");

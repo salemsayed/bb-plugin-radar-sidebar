@@ -14,7 +14,7 @@ import { DispatchBoard } from "./DispatchBoard";
 import { StageFace } from "./StageFace";
 import { Icon } from "@/components/ui/icon";
 import { cachedRoster } from "./useBotRoster";
-import type { BotTasksState } from "./useBotTasks";
+import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
 
 // 24-hour, like the waiting rows' "tonight 20:30" (a finished row read "5:54 PM" next to them).
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -295,6 +295,7 @@ export function BotsView({
     return (
       <div className="radar-tasks-fallback" role="status">
         <p>Bot tasks didn't load. Retrying automatically.</p>
+        <button type="button" className="radar-tasks-fallback-action" onClick={() => void refreshBotTasks()}>Try now</button>
         <button type="button" className="radar-tasks-fallback-action" onClick={onShowThreads}>Show threads</button>
       </div>
     );

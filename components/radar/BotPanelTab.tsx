@@ -1,6 +1,6 @@
 import { DeskThreads } from "./DeskThreads";
 import { Icon } from "@/components/ui/icon";
-import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
+import { useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
@@ -8,7 +8,7 @@ import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksB
 import { useBotTasks } from "./useBotTasks";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./DispatchBoard";
-import { plainWorkerTitle } from "./workText";
+import { workerNames } from "./workText";
 import { StageFace } from "./StageFace";
 import { awaitedPerson, rowLook, stageText, stageTitle, waitLine } from "./stage";
 import { botStyle, shortBotName } from "./bots";
@@ -111,25 +111,8 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const look = rowLook(bot, { running: running.length, runningTitle: running[0]?.title, chatting: snapshot.chat.has(bot.key), unread: false, now });
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
   const asks = open.filter(t => t.displayState === "needs");
-  const baseTitle = (attempt: Attempt) => {
-    const task = bot.tasks.find(t => (snapshot.byTask[t.id] ?? []).some(a => a.threadId === attempt.threadId));
-    return stageTitle(attempt.title || task?.title || "Worker");
-  };
-  const roleOf = (attempt: Attempt) => {
-    const role = /:\s*([^:]{2,40})$/.exec(plainWorkerTitle(attempt.title ?? ""))?.[1]?.trim() ?? "";
-    return role ? capitalize(role) : "";
-  };
-  const clock = (attempt: Attempt) => attempt.startedAt != null ? new Date(attempt.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
-  const titleOf = (attempt: Attempt) => {
-    const base = baseTitle(attempt);
-    const twins = running.filter(a => baseTitle(a) === base);
-    if (twins.length < 2) return base;
-    const roles = twins.map(roleOf);
-    if (roles.every(Boolean) && new Set(roles).size === twins.length) return `${base} · ${roleOf(attempt)}`;
-    const clocks = twins.map(clock);
-    if (clocks.every(Boolean) && new Set(clocks).size === twins.length) return `${base} · started ${clock(attempt)}`;
-    return `${base} (${twins.indexOf(attempt) + 1} of ${twins.length})`;
-  };
+  const names = workerNames(running, attempt => stageTitle(bot.tasks.find(t => (snapshot.byTask[t.id] ?? []).some(a => a.threadId === attempt.threadId))?.title || "Worker"));
+  const titleOf = (attempt: Attempt) => names.get(attempt.threadId) ?? "Worker";
   const known = snapshot.known.has(bot.key);
   const busyTasks = open.filter(t => (t.displayState === "working" || t.displayState === "queued" || t.displayState === "retrying" || t.displayState === "overdue" || t.displayState === "checking") && !(snapshot.byTask[t.id] ?? []).some(a => a.state === "running"));
   const waiting = open.filter(t => t.displayState === "waiting" || t.displayState === "ready" || t.displayState === "offline")
@@ -172,7 +155,10 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
         <div role="list">{waiting.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={waitWhen(t, now)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}</div>
       </section> : null}
       <DeskThreads desks={bot.desks} now={now} onOpen={go} />
-      <ClaimedThreads threads={claims.byBot[bot.key] ?? []} onOpen={go} />
+      {(claims.byBot[bot.key] ?? []).length ? <section aria-label="Started by you">
+        <h3>Started by you</h3>
+        <div role="list">{(claims.byBot[bot.key] ?? []).map(thread => <Row key={thread.id} title={thread.displayTitle} meta={thread.latestAttentionAt ? `Your chat · active ${ago(thread.latestAttentionAt, now)}` : "Your chat"} target={thread.id} here={here} onOpen={go} />)}</div>
+      </section> : null}
       {done.length ? <section aria-label="Done today">
         <h3>Done today</h3>
         <div role="list">

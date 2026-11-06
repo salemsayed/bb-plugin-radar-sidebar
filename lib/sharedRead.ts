@@ -29,6 +29,8 @@ export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T
   let pending: Promise<void> | null = null;
   let dirty = false;
   let stop: (() => void) | null = null;
+  let failures = 0;
+  let retry: ReturnType<typeof setTimeout> | null = null;
   const key = options.key ?? ((data: T) => JSON.stringify(data));
 
   const current = () => {
@@ -46,6 +48,7 @@ export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T
   const once = async () => {
     try {
       const data = await options.load();
+      failures = 0;
       const text = key(data);
       const previous = current();
       if (text === serialized && previous.data !== null) {
@@ -62,6 +65,8 @@ export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T
         publish({ data: null, status: "missing", cached: false });
       } else {
         publish({ ...current(), status: "error" });
+        failures += 1;
+        if (stop && !retry) retry = setTimeout(() => { retry = null; if (stop) void refresh(); }, Math.min(3_000 * 2 ** (failures - 1), 30_000));
       }
     }
   };
@@ -83,6 +88,7 @@ export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T
     for (const event of options.events) window.addEventListener(event, reload);
     stop = () => {
       clearInterval(timer);
+      if (retry) { clearTimeout(retry); retry = null; }
       for (const event of options.events) window.removeEventListener(event, reload);
       stop = null;
     };
