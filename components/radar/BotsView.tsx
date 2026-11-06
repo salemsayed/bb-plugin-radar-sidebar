@@ -134,6 +134,27 @@ export function openMenuAt(element: Element, x?: number, y?: number): void {
 /** After a held touch lifts, clicks are swallowed this long, or until the next touch comes down. */
 const SWALLOW_AFTER_LIFT_MS = 600;
 
+let dropLiftGuard: (() => void) | null = null;
+
+function guardLift(): void {
+  dropLiftGuard?.();
+  const swallow = (event: MouseEvent) => {
+    if (event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    drop();
+  };
+  const drop = () => {
+    document.removeEventListener("click", swallow, true);
+    document.removeEventListener("pointerdown", drop, true);
+    if (dropLiftGuard === drop) dropLiftGuard = null;
+  };
+  document.addEventListener("click", swallow, true);
+  document.addEventListener("pointerdown", drop, true);
+  dropLiftGuard = drop;
+}
+
 /**
  * The desk's press handling, on the element that holds both of its buttons: a held touch opens the menu and
  * the clicks the browser sends when that touch lifts are swallowed before either button sees them (Chromium
@@ -171,6 +192,7 @@ export function useDeskPress() {
       timer.current = setTimeout(() => {
         timer.current = null;
         swallowClick.current = true;
+        guardLift();
         if (menuOpened.current) return;
         menuOpened.current = true;
         dispatching.current = true;
@@ -196,6 +218,7 @@ export function useDeskPress() {
         if (menuOpened.current) { event.preventDefault(); event.stopPropagation(); return; }
         menuOpened.current = true;
         swallowClick.current = true;
+        guardLift();
         cancel();
       }
     },

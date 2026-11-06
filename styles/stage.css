@@ -467,6 +467,9 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-retry { flex: none; position: relative; height: 24px; padding: 0 9px; border: 0; border-radius: 12px; background: color-mix(in oklab, var(--foreground) 9%, transparent); color: var(--foreground); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .stage-needs-retry:hover { background: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .stage-needs-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.stage-needs-stale .stage-needs-retry { height: 24px; margin-block: -3px; padding: 0 9px; }
+@media (pointer: fine) { .stage-needs-title .stage-needs-retry { display: none; } }
+@media (pointer: coarse) { .stage-needs-stale .stage-needs-retry { display: none; } }
 @media (pointer: coarse) { .stage-needs-title .stage-needs-retry { height: 44px; min-width: 44px; margin-block: -11px; padding: 0 8px; background: transparent; } .stage-needs-title .stage-needs-retry::after { content: ""; position: absolute; inset: 10px 0; border-radius: 12px; background: color-mix(in oklab, var(--foreground) 9%, transparent); z-index: -1; } .stage-needs-title .stage-needs-retry { isolation: isolate; } }
 .stage-needs ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .stage-needs[data-open] ul { margin-inline-end: -4px; max-height: min(46vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-snap-type: y mandatory; }

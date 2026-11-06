@@ -48,17 +48,33 @@ function visibleBand(viewport: HTMLElement): { top: number; bottom: number } {
   return { top: box.top, bottom: strip !== null && strip > box.top + 120 ? Math.min(bottom, strip) : bottom };
 }
 
-export function chatFooter(): { left: number; width: number; top: number } | null {
-  const footer = Array.from(document.querySelectorAll<HTMLElement>(FOOTER)).find(node => { const rect = node.getBoundingClientRect(); return rect.height > 0 && rect.width > 200; });
+export function footerNode(): HTMLElement | null {
+  return Array.from(document.querySelectorAll<HTMLElement>(FOOTER)).find(node => { const rect = node.getBoundingClientRect(); return rect.height > 0 && rect.width > 200; }) ?? null;
+}
+
+function framed(node: HTMLElement): boolean {
+  const style = getComputedStyle(node);
+  return parseFloat(style.borderTopWidth) > 0 && style.borderTopStyle !== "none" && parseFloat(style.borderTopLeftRadius) >= 6;
+}
+
+export function chatFooter(): { left: number; width: number; top: number; footerLeft: number; footerWidth: number } | null {
+  const footer = footerNode();
   if (!footer) return null;
   const box = footer.getBoundingClientRect();
   const editor = footer.querySelector<HTMLElement>('[contenteditable="true"], textarea');
   let column: DOMRect | null = null;
+  let frame: DOMRect | null = null;
   for (let node = editor?.parentElement ?? null; node && node !== footer; node = node.parentElement) {
     const rect = node.getBoundingClientRect();
+    if (!frame && rect.width >= 240 && framed(node)) frame = rect;
     if (rect.width >= 240 && rect.width <= box.width - 16) column = rect;
   }
-  return column ? { left: column.left, width: column.width, top: box.top } : { left: box.left, width: box.width, top: box.top };
+  const edge = frame ?? column ?? box;
+  return { left: edge.left, width: edge.width, top: box.top, footerLeft: box.left, footerWidth: box.width };
+}
+
+export function askMessageShown(seq: number): boolean {
+  return message(seq) !== null;
 }
 
 export function askCardAnswers(seq: number): string[] | null {

@@ -9,8 +9,9 @@ import { answerOptions, deskTitle, isClosed, needsYou, layoutBot, orderedBots, r
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
-import { askLine, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
+import { askPreview, askParts, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, sameJob, stateTone, taskHeadline, waitingOn, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
+import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, withNamedWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
@@ -20,7 +21,7 @@ import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
-import { answeredHere, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
+import { answeredHere, laterNoteHead, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { FitLines, cutForms } from "./FitLines";
 import { askForms } from "./choiceFit";
@@ -77,7 +78,7 @@ export interface IdleWait { title: string; running: boolean; idleFor?: string }
 
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, waitsOn?: IdleWait | null): string {
   const state = task.displayState;
-  if (task.later) return answeredHere(task.later) ? "You answered · bot to follow up" : task.later.reason === "answered" ? "Moved to Later" : "Back when the bot asks again";
+  if (task.later) return answeredHere(task.later) ? "You answered · bot to follow up" : task.later.reason === "answered" ? "Moved to Later" : "Later · back when the bot asks again";
   if (state === "needs" && isQuestionRow(task)) return task.needs?.question ?? task.title;
   if (state === "needs") {
     const ask = needAsk((task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, ""), stageTitle(task.title, task.outcome));
@@ -181,7 +182,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
         }
       }}>
       <button type="button" className="stage-chat" data-rove={bot.key} aria-current={marked && (current || here) ? "page" : undefined} aria-busy={opening || undefined}
-        aria-label={`${name}: ${spoken.replace(/[.\s]+$/, "")}. Open chat. Right arrow for tasks and settings`} aria-keyshortcuts="ArrowRight" title={full} onClick={onChat}>
+        aria-label={`${name}: ${sentenceEnd(spoken)} Open chat. Right arrow for tasks and settings`} aria-keyshortcuts="ArrowRight" title={full} onClick={onChat}>
         <span className="stage-figure">
           <StageFace botKey={bot.key} name={bot.name} pose={look.pose} bare />
         </span>
@@ -243,7 +244,7 @@ function FitLine({ look }: { look: RowLook }) {
     return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
   }, [options, look.tone]);
   const said = look.whole ?? look.line;
-  return <span className="stage-line" ref={ref} title={(options[pick] ?? look.line) !== said ? said : undefined}><bdi>{options[pick] ?? look.line}</bdi></span>;
+  return <span className="stage-line" ref={ref} title={(options[pick] ?? look.line) !== said ? said : undefined}><bdi>{keepHyphens(options[pick] ?? look.line)}</bdi></span>;
 }
 
 function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<string, PluginSidebarThread>): string | undefined {
@@ -706,7 +707,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const waitsOn = running.length ? null : idleWait(task, bot, snapshot, now);
     const laterNote = task.displayState === "waiting" && task.laterNote ? task.laterNote : null;
     const baseStatus = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now, waitsOn), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now, waitsOn);
-    const laterHead = laterNote ? capitalFirst(readableCut(readerWords(plainNote(laterNote.text)).split(/(?<=[.!?])\s+/)[0]!, 80).replace(/[.]$/, "")) : "";
+    const laterHead = laterNote ? laterNoteHead(laterNote.text) : "";
     const status = laterNote ? `${laterHead} \u00b7 ${dayAndTime(laterNote.at, now)}` : baseStatus;
     const options = task.displayState === "needs" ? (task.needs?.options ?? []).filter(Boolean).slice(0, 4) : [];
     const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
@@ -715,9 +716,10 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const offTopic = told?.kind === "update" && !sameJob(task.ask!.full ?? task.ask!.excerpt, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
     const parts = offTopic ? null : told;
     const needsCard = task.displayState === "needs";
-    const ask = task.ask && parts && !needsCard ? askLine(task.ask, now, askerOf, ASK_PREVIEW, bot.name, originalOf) : "";
+    const preview = task.ask && parts && !needsCard ? askPreview(task.ask, now, askerOf, bot.name, originalOf) : null;
+    const ask = preview?.line ?? "";
     const bare = (text: string) => text.replace(/\u2026$/, "").trim();
-    const fullAsk = parts && parts.full && (needsCard || bare(parts.full).length > bare(cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 || parts.excerpt) ? parts : null;
+    const fullAsk = parts && parts.full && (needsCard || bare(parts.full).length > bare(preview ? preview.shown : cutAtWord(parts.quote, ASK_PREVIEW)).length + 3 || parts.excerpt) ? parts : null;
     const askOpen = openAsks.has(task.id);
     const toggleDetails = () => setOpenAsks(prev => { const next = new Set(prev); if (next.has(task.id)) next.delete(task.id); else next.add(task.id); return next; });
     const shownWorkers = new Set(attempts.map(a => plainWorkerTitle(a.title).toLowerCase()));

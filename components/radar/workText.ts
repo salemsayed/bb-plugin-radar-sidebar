@@ -58,6 +58,18 @@ const PACKAGE_ASIDE = /\s*\((?:com|org|net|io|app|dev)\.[a-z0-9]+(?:\.[a-z0-9]+)
 const PACKAGE_ID = /\s*\b(?:com|org|net)\.[a-z0-9]+(?:\.[a-z0-9]+)+\b/g;
 const TEST_ACCOUNT = /\s+(?:with|using|on account) \d{6,}\b/g;
 
+const PIPELINE_WORDS: [RegExp, string][] = [
+  [/\bcapacity shortfalls? queues?(?: with (?:their )?deadlines)?/g, "work waits for a free worker and keeps its deadline"],
+  [/\b(?:our )?local sibling-bridge daemon patch\b/g, "our own local patch"],
+  [/\b(?:model[- ])?routing status check\b/g, "check of which models the bots use"],
+  [/^Routing is live\b/g, "The new model setup is live"],
+  [/\bclaims and census\b/g, "thread owners and counts"],
+];
+
+function pipelineWords(text: string): string {
+  return PIPELINE_WORDS.reduce((out, [pattern, words]) => out.replace(pattern, words), text);
+}
+
 export function botTokens(text: string, _keepNames = false): string {
   return text
     .replace(PROVIDER_TOPIC, "model $1")
@@ -66,11 +78,12 @@ export function botTokens(text: string, _keepNames = false): string {
     .replace(COORDINATOR_OWNS, whole => /s$/.test(whole) ? "the bot's" : "the bot")
     .replace(COORDINATORS, word => word.endsWith("s") ? "main chats" : "main chat")
     .replace(HANDOFF_RECORDS, "the notes a bot leaves when it starts a fresh chat")
-    .replace(ROLLOVER, whole => /^the /.test(whole) ? "the fresh-chat switch" : /^a /.test(whole) ? "a fresh-chat switch" : "fresh-chat switch")
+    .replace(ROLLOVER, whole => /^the /.test(whole) ? "the move to a fresh chat" : /^a /.test(whole) ? "a fresh chat" : /s$/.test(whole) ? "fresh chats" : "fresh-chat")
     .replace(CORE_PREFIX, "$1")
     .replace(COMPONENT_ASIDE, "")
     .replace(TYPESAFE, "the question-writing guide")
-    .replace(AUTO_EFFORT, (_, lead?: string) => lead ? "with the effort picker" : "the effort picker")
+    .replace(AUTO_EFFORT, (_, lead?: string) => lead ? "with automatic effort per worker" : "automatic worker effort")
+    .replace(/[^]*/, pipelineWords)
     .replace(API_PATH, " $1 command")
     .replace(RETURNS_OK, "reports success")
     .replace(RETURNS_ERROR, "reports an error")
@@ -126,8 +139,9 @@ export function plainTech(text: string): string {
 
 export function plainText(text: string): string {
   return text
-    .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "the $1 job")
-    .replace(/\bthe !(\d{3,}) job\b/g, "the $1 job")
+    .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "merge request $1")
+    .replace(/\bthe !(\d{3,}) job\b/g, "merge request $1")
+    .replace(/\bthe (\d{3,}) job\b/g, "merge request $1")
     .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
     .replace(RUN_ID, "$1")
     .replace(/\b(?:TS|CI|test|tests) runs? (?:is |are )?green\b/gi, "checks passed")
@@ -258,6 +272,7 @@ const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers
 
 export function plainWorkerTitle(title: string): string {
   let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  out = out.replace(/^Radar:\s+/, "Sidebar: ");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -416,6 +431,7 @@ const AGENT_BRIEF = /\b(?:do the work(?: yourself)?|never delegate|(?:message|me
 const YOU_HANDED = /\bSalem (?:\w+ly )?(?:requests?|requested|asked for|wants|wanted|approved) (?:this|the) hand(?:off|over)\b/i;
 const HANDED_FROM = /\bhand(?:off|over|ed (?:this|it) (?:off|over)) from (?:the |a |his |your )?((?:[\w-]+ ){0,2}?)(thread|chat desk|chat|desk)\b/i;
 const HANDOVER_CAP = 220;
+const PASTED_NOTICE = /^(?:[A-Z][\w.-]*\s+){1,3}(?:Merged|Closed|Opened|Released|Published|Deployed|Approved|Reverted|Pushed)\b|\b(?:Merged|Closed|Opened|Reverted) (?:PR |pull request )?#\d+/;
 
 export function paragraphs(text: string): string {
   return text.replace(/([^\s.!?:;,\u2026])[ \t]*(?:\r?\n[ \t]*)+(?=[^\s\-*\u2022#>])/g, "$1. ");
@@ -507,13 +523,14 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const notice = told === "ask" && label === "Bot request" && !requestsSomething(rawFull);
   const kind: AskParts["kind"] = mine ? "yours" : paraphrase ? "ask" : AGENT_BRIEF.test(rawFull) ? "brief" : told !== "update" && (HANDOVER.test(rawFull) || HAS_FILE.test(rawFull) || rawFull.length > 300) ? "handover" : told;
   const sameDay = ask.at !== undefined && new Date(ask.at).toDateString() === new Date(now).toDateString();
-  const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? askTime.format(new Date(ask.at)) : askDay.format(new Date(ask.at));
+  const when = ask.at === undefined ? ask.label.replace(/^[^,]*,\s*/, "") : sameDay ? `today ${askTime.format(new Date(ask.at))}` : askDay.format(new Date(ask.at));
   const via = relayed && named && named !== own ? ` via ${named}` : "";
   const starter = named ?? (ask.ref ? askerOf?.(ask.ref.threadId) : undefined) ?? own;
   if (kind === "brief") return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind };
   const from = !asker || asker === "Another chat" ? handedFrom(rawFull) : "";
   const handedBy = YOU_HANDED.test(rawFull) ? `You handed this over${from ? ` from ${from[0]!.toLowerCase()}${from.slice(1)}` : ""}` : `${from || asker || "Another chat"} handed this over`;
-  const who = relayed ? "You asked" : paraphrase ? `${asker && asker !== "Another chat" ? asker : "A bot"} passed on your ask` : kind === "handover" ? handedBy : kind === "note" || notice ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
+  const shared = label === "You asked" && !relayed && !requestsSomething(rawFull) && PASTED_NOTICE.test(rawFull.trim());
+  const who = shared ? "You shared" : relayed ? "You asked" : paraphrase ? `${asker && asker !== "Another chat" ? asker : "A bot"} passed on your ask` : kind === "handover" ? handedBy : kind === "note" || notice ? `${asker ? `Note from ${midSentence(asker)}` : "Note from a bot"}` : kind === "update" ? (asker ? `Update from ${midSentence(asker)}` : "Worker update") : label === "Bot request" ? `${asker || "Another bot"} asked` : label;
   const ref = relayed ? SOURCE_REF.exec(bare) : null;
   const original = relayed && originalOf ? originalOf(ref?.[1], ref ? Number(ref[2]) : undefined, relayedWords(bare)) : undefined;
   const source = original ?? (relayed ? relayedQuote(bare) : paraphrase ? bare.replace(RELAYED_ASKED, "") : bare);
@@ -591,12 +608,47 @@ export function readableCut(text: string, max: number): string {
 }
 
 export const ASK_PREVIEW = 84;
-const PREVIEW_LINES = 100;
+const PREVIEW_LINES = 150;
+const PREVIEW_MIN = 24;
+const CLAUSE_STOP = /[,;:](?=\s)|\s[\u2013\u2014-](?=\s)|\s(?=\()/g;
+const PHRASE_BREAK = /\s(?=(?:through|before|after|under|without|while|when|because|until|unless|so|which|and|but|or|with|for|to|on|in|at|by|from|that|whether|if|via|into|about|since|as)\s)/g;
 
-export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, max = ASK_PREVIEW, own?: string, originalOf?: OriginalOf): string {
-  const { head, quote } = askParts(ask, now, askerOf, own, originalOf);
-  const room = Math.max(32, Math.min(max, PREVIEW_LINES - head.length));
-  return quote ? `${head}: \u201c${readableCut(quote, room)}\u201d` : head;
+function balanced(text: string): boolean {
+  return (text.match(/\(/g)?.length ?? 0) === (text.match(/\)/g)?.length ?? 0) && (text.match(/["\u201c\u201d]/g)?.length ?? 0) % 2 === 0;
+}
+
+export function previewUnit(text: string, max: number): { text: string; partial: boolean } {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const clipped = /(?:\u2026|\.\.\.)$/.test(flat);
+  const bare = flat.replace(/(?:\u2026|\.\.\.)$/, "").trimEnd();
+  if (!clipped && bare.length <= max) return { text: bare, partial: false };
+  let end = -1;
+  for (const match of bare.matchAll(SENTENCE_END)) { const at = match.index! + 1; if (at > max) break; if (balanced(bare.slice(0, at))) end = at; }
+  if (end >= PREVIEW_MIN && end < bare.length) return { text: bare.slice(0, end), partial: true };
+  if (end >= PREVIEW_MIN) return { text: bare.slice(0, end), partial: clipped };
+  for (const stop of [CLAUSE_STOP, PHRASE_BREAK]) {
+    let at = -1;
+    for (const match of bare.slice(0, max + 1).matchAll(stop)) {
+      const head = dropFunctionTail(bare.slice(0, match.index!).replace(/[\s,;:\u2013\u2014-]+$/, ""));
+      if (head.length >= PREVIEW_MIN && balanced(head)) at = head.length;
+    }
+    if (at >= PREVIEW_MIN) return { text: dropFunctionTail(bare.slice(0, at)), partial: true };
+  }
+  return { text: cutAtWord(bare, max), partial: true };
+}
+
+export function askPreview(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): { line: string; shown: string; partial: boolean } {
+  const parts = askParts(ask, now, askerOf, own, originalOf);
+  if (!parts.quote) return { line: parts.head, shown: "", partial: false };
+  const room = Math.max(48, PREVIEW_LINES - parts.head.length);
+  const source = parts.full && parts.full.length > parts.quote.length && parts.full.startsWith(parts.quote.replace(/(?:\u2026|\.\.\.)$/, "").slice(0, 24)) ? parts.full : parts.quote;
+  const unit = previewUnit(source, room);
+  const partial = unit.partial || parts.excerpt;
+  return { line: `${parts.head}${partial ? " \u00b7 excerpt" : ""}: \u201c${unit.text}\u201d`, shown: unit.text, partial };
+}
+
+export function askLine(ask: { excerpt: string; full?: string; label: string; at?: number }, now: number, askerOf?: (threadId: string) => string | undefined, _max = ASK_PREVIEW, own?: string, originalOf?: OriginalOf): string {
+  return askPreview(ask, now, askerOf, own, originalOf).line;
 }
 
 const CARD_RANK: Record<string, number> = { needs: 0, overdue: 1, offline: 1, retrying: 1, working: 2, queued: 3, checking: 3 };

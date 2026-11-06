@@ -211,3 +211,12 @@ export function wholeTitle(title: string, outcome: string | undefined): string {
   return stopBefore(clause, from, TITLE_SHORT) || stopBefore(clause, TITLE_MIN, TITLE_SHORT)
     || (clause.length <= TITLE_LONG ? clause : stopBefore(clause, from, TITLE_LONG)) || head.replace(/(?:\s+(?:the|a|an|of|to|for|with|through|whether|that|on|in|at|by|from|and|or))+$/i, "");
 }
+
+export function sentenceEnd(text: string): string {
+  const trimmed = text.replace(/[.\s]+$/, "");
+  return /[?!]["”’)]?$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+export function keepHyphens(text: string): string {
+  return text.replace(/(\p{L})-(?=\p{L})/gu, "$1‑");
+}

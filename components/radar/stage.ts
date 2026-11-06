@@ -1,6 +1,6 @@
 import { deskTitle, isClosed, isSameLocalDay, needsYou, sortDesks, type BotDesk, type BotTaskRow, type BotTasksBot, type BotTasksData } from "@/lib/botTasks";
 import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
-import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
+import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, readableCut, readerWords, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
 import { isQuestionRow } from "./questions";
@@ -193,7 +193,34 @@ export function answeredHere(later: { reason: string; messageSeq?: number }): bo
 }
 
 export function laterLine(later: { reason: string; messageSeq?: number }): string {
-  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · until it asks again";
+  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · back when the bot asks again";
+}
+
+export function laterNoteHead(text: string, max = 80): string {
+  return capitalFirst(readableCut(readerWords(plainNote(text)).split(/(?<=[.!?])\s+/)[0]!, max).replace(/[.]$/, ""));
+}
+
+const DONE_VERB = /^(.{3,60}?)\s+((?:was |were |is |are |has been |have been |got )?(?:[a-z]+ed|built|sent|shipped|done|made|run|set|put|taken|written|given|found|closed|merged|released|published|deployed|fixed|approved|rejected|paid|cancelled|stopped|restored|moved)\b.*)$/;
+
+export function noteRowForms(text: string, title: string): string[] {
+  const head = laterNoteHead(text);
+  const bare = head.replace(/\s*\([^()]*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  const forms = [head, bare];
+  const verb = DONE_VERB.exec(bare);
+  if (verb) {
+    const subject = verb[1]!.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+    const theirs = title.toLowerCase().split(/[^a-z0-9]+/);
+    if (subject.some(word => theirs.some(other => other.length > 2 && (other.startsWith(word.slice(0, 5)) || word.startsWith(other.slice(0, 5)))))) forms.push(capitalFirst(verb[2]!.replace(/^(?:was|were|is|are|has been|have been|got) /, "")));
+  }
+  return [...new Set(forms.filter(Boolean))];
+}
+
+function noteLook(task: BotTaskRow): Pick<StageLook, "line" | "alts" | "whole"> | null {
+  if (task.displayState !== "waiting" || !task.laterNote || task.later) return null;
+  const forms = noteRowForms(task.laterNote.text, task.title);
+  const fits = forms.map(form => rowFit("", form)).filter(form => !/\u2026$/.test(form));
+  const all = [...new Set([...fits, ...forms.map(form => rowFit("", form))])];
+  return { line: all[0]!, alts: all.slice(1), whole: forms[0]! };
 }
 
 function waitLine(task: BotTaskRow, now: number): string {
@@ -257,7 +284,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (moving || ctx.running) {
     const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
     const queued = moving?.displayState === "queued" && !ctx.running;
-    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", ["Working: ", ""]) : { line: "Working" };
+    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", ["Working: "]) : { line: "Working" };
     return { pose: "working", ...fit, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);
@@ -270,7 +297,8 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
     .sort((a, b) => Number(!!a.later) - Number(!!b.later) || (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   if (waiting.length) {
-    return { pose: "waiting", line: waitLine(waiting[0]!, ctx.now), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
+    const noted = noteLook(waiting[0]!);
+    return { pose: "waiting", ...(noted ?? { line: waitLine(waiting[0]!, ctx.now) }), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
   if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", ["Not started: "]), extra: "", tone: "quiet", quiet: true };
@@ -381,7 +409,7 @@ export function rowLook(bot: BotTasksBot, ctx: StageContext): RowLook {
   const when = replyTime(bot, ctx);
   if (look.pose === "asking") return { ...look, kind: "ask", badge: "ask", ...when, helpers };
   if (look.pose === "blocked") return { ...look, kind: "live", badge: "blocked", ...when, helpers };
-  if (look.tone === "busy") return { ...look, kind: "live", badge: null, ...(when.time === "now" ? { time: "", timeTitle: "Working now" } : when), helpers };
+  if (look.tone === "busy") return { ...look, kind: "live", badge: null, ...when, helpers };
   if (look.pose === "offline") return { ...look, kind: "calm", badge: null, ...when, helpers };
   if (look.quiet && bot.tasks.some(isChecking)) return { ...look, kind: "calm", badge: "wait", ...when, helpers };
   if (look.pose === "waiting") return { ...look, pose: "idle", kind: "calm", badge: "wait", ...when, helpers };

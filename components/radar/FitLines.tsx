@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Isolated } from "./Isolated";
+import { keepHyphens } from "./displayText";
 
 export function FitLines({ forms, className, dir = "auto" }: { forms: readonly string[]; className?: string; dir?: "auto" | "ltr" | "rtl" }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -22,7 +23,7 @@ export function FitLines({ forms, className, dir = "auto" }: { forms: readonly s
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  return <span ref={ref} className={className} dir={dir}><Isolated text={forms[Math.min(at, forms.length - 1)] ?? ""} /></span>;
+  return <span ref={ref} className={className} dir={dir}><Isolated text={keepHyphens(forms[Math.min(at, forms.length - 1)] ?? "")} /></span>;
 }
 
 export function cutForms(whole: string, fit: (text: string, max: number) => string, sizes: readonly number[]): string[] {

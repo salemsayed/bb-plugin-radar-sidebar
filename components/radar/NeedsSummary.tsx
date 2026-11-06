@@ -236,7 +236,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
           {open ? null : <span className="stage-needs-more-faces" data-count={Math.min(hiddenBots.length, 3)} aria-hidden="true">{hiddenBots.slice(0, 3).map(item => { const face = faces.get(item.botKey); return face ? <BotTaskFace key={item.id} bot={face} size={16} /> : <Icon key={item.id} name="MessageSquare" className="stage-needs-thread-icon" />; })}</span>}
           <Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
-      {staleShown ? <button type="button" className="stage-needs-retry" disabled={staleShown.retrying} aria-label={staleShown.retrying ? "Trying to reach the bots" : `Retry: bots can't be reached, showing what we had at ${staleShown.asOf}`} onClick={staleShown.onRetry}>{staleShown.retrying ? "Trying…" : "Retry"}</button> : null}
+      {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
     {staleShown ? <StaleLine stale={staleShown} /> : null}
@@ -253,6 +253,10 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
 }
 
 const STALE_FONT = "500 11.5px";
+
+function RetryButton({ stale, at }: { stale: StaleNote; at: "head" | "line" }) {
+  return <button type="button" className="stage-needs-retry" data-at={at} disabled={stale.retrying} aria-label={stale.retrying ? "Trying to reach the bots" : `Retry: bots can't be reached, showing what we had at ${stale.asOf}`} onClick={stale.onRetry}>{stale.retrying ? "Trying…" : "Retry"}</button>;
+}
 
 function StaleLine({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -271,12 +275,13 @@ function StaleLine({ stale }: { stale: StaleNote }) {
     observer.observe(box);
     return () => observer.disconnect();
   }, [stale.asOf]);
-  return <p className="stage-needs-stale" role="alert">
+  return <p className="stage-needs-stale">
     <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" />
-    <span className="stage-needs-stale-text" ref={ref} title={`Bots can't be reached. Showing what we had at ${stale.asOf}`}>
+    <span className="stage-needs-stale-text" role="alert" ref={ref} title={`Bots can't be reached. Showing what we had at ${stale.asOf}`}>
       <span aria-hidden="true">{forms[fit]}</span>
       <span className="stage-needs-sr">Bots can't be reached. Showing what we had at {stale.asOf}</span>
     </span>
+    <RetryButton stale={stale} at="line" />
   </p>;
 }
 
@@ -290,9 +295,8 @@ function textWidth(text: string, font: string): number {
   return Math.ceil(context.measureText(text).width);
 }
 
-export function ageLabel(age: string, since: "asked" | "open"): string {
-  if (since === "open") return age === "now" ? "waiting from just now" : `waiting ${age}`;
-  return age === "now" ? "asked just now" : `asked ${age} ago`;
+export function ageLabel(age: string, _since?: "asked" | "open"): string {
+  return askedAgo(age);
 }
 
 function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
@@ -324,7 +328,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const spokenAge = tight && !item.old && age ? briefAge : "";
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? age === "now" ? "waiting from just now" : `waiting ${age}` : askedAgo(age) : "";
+  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };

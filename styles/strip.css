@@ -1,9 +1,11 @@
+.radar-ask-strip-slot { display: block; box-sizing: border-box; width: 100%; padding: 8px 0 6px; background: var(--background); }
 .radar-ask-strip {
   --strip-ask: light-dark(#7a4a00, #ffd36b);
   --strip-fill: light-dark(#f5a300, #f2b233);
-  position: fixed;
-  z-index: 40;
+  position: relative;
+  container-type: inline-size;
   box-sizing: border-box;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -11,7 +13,6 @@
   border: 1px solid color-mix(in oklab, var(--strip-fill) 45%, var(--border));
   border-radius: 14px;
   background: color-mix(in oklab, var(--strip-fill) 9%, var(--background));
-  box-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.25);
   color: var(--foreground);
   font-size: 13px;
 }
@@ -19,6 +20,10 @@
 .radar-ask-strip-dot { flex: none; width: 7px; height: 7px; margin-top: 4.5px; border-radius: 50%; background: var(--strip-fill); }
 .radar-ask-strip-who { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted-foreground); overflow-wrap: anywhere; }
 .radar-ask-strip-who > span { white-space: nowrap; }
+@container (max-width: 460px) {
+  .radar-ask-strip-sep { display: none; }
+  .radar-ask-strip-hint { display: block; }
+}
 .radar-ask-strip-who b { font-weight: 650; color: var(--strip-ask); white-space: nowrap; }
 .radar-ask-strip-close { flex: none; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px -4px -4px 0; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
 .radar-ask-strip-close svg, .radar-ask-strip-close [data-icon-root] { width: 14px; height: 14px; }
