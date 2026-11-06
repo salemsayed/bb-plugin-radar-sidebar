@@ -667,7 +667,6 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-answers { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; gap: 6px; width: 100%; max-width: 360px; min-width: 0; margin: 0; }
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { width: 100%; max-width: none; }
 .radar-answers[data-count="2"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr)); }
-.radar-answers[data-count="2"] > .radar-answer { justify-content: center; text-align: center; }
 .stage-needs-foot[data-inline-park] { margin-top: -22px; padding-top: 0; pointer-events: none; }
 .stage-needs-foot[data-inline-park] > .stage-needs-later { pointer-events: auto; }
 @media (pointer: coarse) { .stage-needs-foot[data-inline-park] { margin-top: -24px; } .stage-needs-foot[data-inline-park] > .radar-not-now { place-items: start center; } }
