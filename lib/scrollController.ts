@@ -320,7 +320,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     show();
     const anchor = position && !position.atBottom ? anchorFor(position.messageSeq) : null;
     const placed = anchor ? placeFor(anchor).pin : null;
-    fine = placed ?? (anchor && position && !position.atBottom ? pinOf(anchor, position.offset, false) : visiblePin());
+    fine = topPin() ?? placed ?? (anchor && position && !position.atBottom ? pinOf(anchor, position.offset, false) : visiblePin());
     if (requested) store.anchorReady?.();
     trace("placed", { position, top: container ? Math.round(container.scrollTop) : null, line: placed ? "saved" : anchor ? "message" : fine ? "visible" : null, pin: fine ? { row: fine.row?.slice(-14) ?? null, path: fine.path, inner: Math.round(fine.inner), text: (fine.element.textContent ?? "").slice(0, 24) } : null });
     measure();
@@ -414,6 +414,21 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     keep();
   };
 
+  const topPin = (): Pin | null => {
+    if (!container) return null;
+    const bounds = container.getBoundingClientRect();
+    const top = bounds.top + container.clientTop;
+    let best: { element: HTMLElement; height: number } | null = null;
+    for (const [x, y] of [[0.5, 6], [0.3, 6], [0.7, 6], [0.5, 16], [0.3, 16]]) {
+      const hit = document.elementFromPoint(bounds.left + bounds.width * x, top + y);
+      const root = hit?.closest<HTMLElement>(ROW);
+      if (!hit || !root || !container.contains(root) || hit.closest("[data-scroll-footer]")) continue;
+      const element = blockOf(hit, root);
+      const height = element.getBoundingClientRect().height;
+      if (!best || height < best.height) best = { element, height };
+    }
+    return best ? pinOf(best.element, best.element.getBoundingClientRect().top - top, true) : null;
+  };
   const visiblePin = (): Pin | null => {
     const line = lineAt();
     return line ? pinOf(line.element, line.offset, true) : null;
@@ -617,10 +632,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const observer = new MutationObserver(records => {
     if (phase === "restoring") attempt();
-    else if (phase === "settling") {
-      if (container && records.some(record => container!.contains(record.target))) changedAt = now();
-      keep();
-    }
+    else if (phase === "settling" && container && records.some(record => container!.contains(record.target))) changedAt = now();
   });
   const tick = () => {
     if (phase === "restoring") attempt(true);
