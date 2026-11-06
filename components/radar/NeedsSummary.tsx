@@ -14,7 +14,7 @@ import { Isolated } from "./Isolated";
 import { answerOptions } from "@/lib/botTasks";
 import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
-import { plainNote } from "./workText";
+import { capitalFirst, plainNote } from "./workText";
 
 const OPEN_WHAT = 96;
 
@@ -135,11 +135,34 @@ function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: 
   };
 }
 
-export function arrivalText(arrivals: readonly Pick<NeedItem, "botName" | "kind">[]): string {
+export function arrivalForms(arrivals: readonly Pick<NeedItem, "botName" | "kind">[]): string[] {
   const names = [...new Set(arrivals.map(item => item.kind === "thread" ? "a thread" : item.botName.replace(/\s+Bot$/, "")))];
   const asks = arrivals.every(item => item.kind === "ask");
-  if (arrivals.length === 1) return asks ? `New question from ${names[0]}` : `${names[0]} needs you`;
-  return asks ? `${arrivals.length} new questions` : `${arrivals.length} new for you`;
+  const who = names[0]!;
+  const lead = /^a /.test(who) ? capitalFirst(who) : who;
+  if (arrivals.length === 1) return asks ? [`New question from ${who}`, `${lead} has a question`, `${lead} asks`] : [`${lead} needs you`];
+  return asks ? [`${arrivals.length} new questions`, `${arrivals.length} new`] : [`${arrivals.length} new for you`, `${arrivals.length} new`];
+}
+
+function FitOne({ forms, className }: { forms: readonly string[]; className: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [fit, setFit] = useState(0);
+  const key = forms.join("\n");
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const measure = () => {
+      const style = getComputedStyle(box);
+      const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const at = forms.findIndex(form => textWidth(form, font) <= box.clientWidth);
+      setFit(at < 0 ? forms.length - 1 : at);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [key]);
+  return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
@@ -282,14 +305,15 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
     </section>;
   }
   if (state === "arrived") {
-    const text = arrivalText(arrivals);
+    const forms = arrivalForms(arrivals);
+    const text = forms[0]!;
     const names = [...new Set(arrivals.map(item => item.botName))].join(" and ");
     return <section className="stage-needs" data-state="arrived" data-slim="" aria-label={`Needs you: ${arrivals.length}`}>
       <h2 className="stage-needs-title stage-needs-line" ref={headRef} tabIndex={-1}>
         <button type="button" className="stage-needs-arrival" aria-label={`${text}${arrivals.length > 1 ? ` from ${names}` : ""}: show ${arrivals.length === 1 ? "it" : "them"}`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
-          <span className="stage-needs-line-text" role="status">{text}</span>
+          <FitOne className="stage-needs-line-text" forms={forms} />
           <span className="stage-needs-more-pill" aria-hidden="true"><span>Show</span><Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
