@@ -42,7 +42,7 @@ function waitedGo(text: string, title: string): string {
 }
 
 const PLAN = /^(.+?)\s*[:\u00b7\u2013\u2014-]\s*(?:the |a )?plan$/i;
-const NAMED_ITEM = /^merge request \d+\b/i;
+const NAMED_ITEM = /^merge request (?:[a-z][\w-]*!|!)?\d+\b/i;
 
 function lowerLead(text: string): string {
   return /^[A-Z][a-z]/.test(text) && !/^[A-Z][a-z]+(?:\s+[A-Z]|$)/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
@@ -76,7 +76,7 @@ export function questionTopic(question: string): string {
 }
 
 const EITHER_OR = /,?\s+or\s+[^?]*\?\s*$/i;
-const NUMBERED = /\b(?:the\s+)?(?:(?:merge request|pull request|MR|PR|job|ticket|issue|invoice|order|redemption|feedback)\s+#?\d+|\d{3,}\s+(?:job|ticket|order|invoice|merge request)|#\d+)/i;
+const NUMBERED = /\b(?:the\s+)?(?:(?:merge request|pull request|MR|PR|job|ticket|issue|invoice|order|redemption|feedback)\s+(?:#|[a-z][\w-]*!|!)?\d+|\d{3,}\s+(?:job|ticket|order|invoice|merge request)|#\d+)/i;
 
 const TOPIC_TITLE = 48;
 

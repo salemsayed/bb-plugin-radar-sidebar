@@ -229,7 +229,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
 }
 
 let lineCanvas: HTMLCanvasElement | null = null;
-const MARK_PX = 11;
+const MARK_PX = 10;
 
 function lineWidth(text: string, font: string): number {
   lineCanvas ??= document.createElement("canvas");
@@ -237,6 +237,26 @@ function lineWidth(text: string, font: string): number {
   if (!context) return text.length * 7;
   context.font = font;
   return Math.ceil(context.measureText(text).width);
+}
+
+const KEEP_WORD = /[\d#!@/\u2192]|^(?:no|not|never|without|un\w+)$/i;
+
+export function shorterForms(line: string): string[] {
+  const split = /^([^:]{2,24}:\s)(.+)$/.exec(line);
+  const lead = split?.[1] ?? "";
+  const words = (split?.[2] ?? line).split(" ");
+  if (words.length < 3 || words.some(word => !/^[\p{L}'\u2019-]+$/u.test(word))) return [];
+  const forms: { text: string; first: boolean }[] = [];
+  for (let from = 0; from < words.length - 1; from++) {
+    for (let to = from; to < words.length - 1; to++) {
+      const dropped = words.slice(from, to + 1);
+      const kept = [...words.slice(0, from), ...words.slice(to + 1)];
+      if (kept.length < 2 || dropped.some(word => KEEP_WORD.test(word))) continue;
+      const text = kept.join(" ");
+      forms.push({ text: `${lead}${text[0]!.toUpperCase()}${text.slice(1)}`, first: from > 0 });
+    }
+  }
+  return forms.sort((a, b) => b.text.length - a.text.length || Number(b.first) - Number(a.first)).map(form => form.text);
 }
 
 function FitLine({ look }: { look: RowLook }) {
@@ -253,9 +273,14 @@ function FitLine({ look }: { look: RowLook }) {
       const room = box.clientWidth - (look.tone === "ask" || look.tone === "busy" || look.tone === "blocked" ? MARK_PX : 0);
       const fits = (option: string) => lineWidth(option, font) <= room;
       const whole = options.findIndex(option => !/\u2026$/.test(option) && fits(option));
-      const at = whole >= 0 ? whole : options.findIndex(fits);
+      if (whole >= 0 || room <= 0) { setPick(Math.max(whole, 0)); setCut(null); return; }
+      const plain = options.filter(option => !/\u2026$/.test(option));
+      const narrowest = [...plain].sort((a, b) => lineWidth(a, font) - lineWidth(b, font))[0] ?? options[0]!;
+      const shorter = plain.flatMap(shorterForms).find(fits);
+      if (shorter) { setCut(shorter); return; }
+      const at = options.findIndex(fits);
       setPick(at >= 0 ? at : 0);
-      setCut(at >= 0 || room <= 0 ? null : fitWords(options[0]!, fits));
+      setCut(at >= 0 ? null : fitWords(narrowest, fits));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -789,13 +814,15 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         {needsCard ? null : cardActions}
       </div>
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line" hidden={sameAsTitle || undefined}><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(statusText, STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
-      {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
+      {options.length ? <div className="dispatch-options">
         {options.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
+        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length}>
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);
           onNavigate(place.threadId, place.messageSeq);
         }}><Isolated text={label} /></button>)}
+        </div>
       </div> : null}
       {needsCard ? <div className="dispatch-card-foot">{!ask && askedMeta(task) ? <span className="dispatch-ask-text" dir="auto" data-old={isOldAsk(task) || undefined}>{askedMeta(task).split(" \u00b7 ").map((part, i, all) => <span key={i} className="dispatch-nowrap">{part}{i < all.length - 1 ? " \u00b7 " : ""}</span>)}</span> : <span />}<span className="dispatch-card-foot-actions">{cardActions}</span></div> : null}
       {!needsCard && (question || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}

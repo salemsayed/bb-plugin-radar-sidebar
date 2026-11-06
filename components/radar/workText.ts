@@ -178,8 +178,8 @@ export function plainTech(text: string): string {
 
 export function plainText(text: string): string {
   return text
-    .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "merge request $1")
-    .replace(/\bthe !(\d{3,}) job\b/g, "merge request $1")
+    .replace(/\bthe ([a-z][\w-]*!\d{3,}) job\b/gi, "merge request $1")
+    .replace(/\bthe (!\d{3,}) job\b/g, "merge request $1")
     .replace(/\b[Tt]he (\d{3,}) job\b/g, "merge request $1")
     .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
     .replace(RUN_ID, "$1")
@@ -193,8 +193,8 @@ export function plainText(text: string): string {
     .replace(/\bxhigh\b/g, "thorough")
     .replace(/\bIPA\b/g, "iOS app build")
     .replace(/[^]*/, plainTech)
-    .replace(REPO_MERGE_REQUEST, "merge request $1")
-    .replace(/(^|[\s(])!(\d{3,})\b/g, "$1merge request $2")
+    .replace(REPO_MERGE_REQUEST, (token, _n, at: number, whole: string) => /merge request\s*$/i.test(whole.slice(0, at)) ? token : `merge request ${token}`)
+    .replace(/(^|[\s(])(!\d{3,})\b/g, (_, lead: string, token: string, at: number, whole: string) => /merge request\s*$/i.test(whole.slice(0, at + lead.length)) ? `${lead}${token}` : `${lead}merge request ${token}`)
     .replace(MEMORY_SLUG_ASIDE, "")
     .replace(MEMORY_SLUG, "a saved rule")
     .replace(NO_MODEL_LISTED, "")
@@ -358,7 +358,7 @@ export function waitingOn(line: string, outcome = ""): string {
   if (group) return group[1]!.toLowerCase();
   const doer = /^([A-Z][a-z]{2,})(?:'s)?\s+(?:to\s+)?(?:merg|review|test|approv|check|publish|releas|sign|confirm|repl|answer)\w*\b/.exec(reason);
   if (doer && !/^(?:The|This|That|Its|Our|Your|Waiting|Next)$/.test(doer[1]!)) return doer[1]!;
-  const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) #?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) #?\d+)/i.exec(outcome);
+  const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(outcome);
   if (item) return item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request");
   return "";
 }
@@ -487,7 +487,8 @@ export function paragraphs(text: string): string {
 function cleanAsk(text: string, mine: boolean, receiver?: string): { text: string; cut: boolean } {
   const source = paragraphs(text.replace(/^[ \t]*(?:>[ \t]?)+/gm, "").replace(/^[ \t]*#{1,6}[ \t]+/gm, "")).replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
   const shown = (mine ? userWordsShown : botWordsShown)(mine ? source : botFiles(source));
-  const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^(?:[>#]+\s*|[-*]\s+)+/, "").replace(/^[,;:\s]+/, "");
+  const tidy = plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ");
+  const flat = (mine ? tidy : plainText(tidy)).replace(/^(?:[>#]+\s*|[-*]\s+)+/, "").replace(/^[,;:\s]+/, "");
   return { text: mine ? flat : botToBotWords(flat, receiver), cut: shown.cut };
 }
 

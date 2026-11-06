@@ -30,7 +30,6 @@
 .radar-ask-strip-close:hover { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
 .radar-ask-strip-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .radar-ask-strip-question { padding-inline-end: 4px; font-size: 13.5px; font-weight: 600; line-height: 19px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
-.radar-ask-strip-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .radar-ask-strip-option { display: inline-flex; align-items: center; min-height: 30px; max-width: 100%; padding: 4px 12px; border: 1px solid color-mix(in oklab, var(--strip-ask) 35%, var(--border)); border-radius: 15px; background: color-mix(in oklab, var(--strip-fill) 14%, var(--background)); color: var(--foreground); font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.3; text-align: start; cursor: pointer; }
 .radar-ask-strip-option:disabled { cursor: progress; opacity: .7; }
 .radar-ask-strip-option:not(:disabled):hover { background: color-mix(in oklab, var(--strip-fill) 26%, var(--background)); }
@@ -44,6 +43,4 @@
   .radar-ask-strip-sep { display: inline; }
   .radar-ask-strip-hint { display: inline; }
   .radar-ask-strip-who > span { white-space: nowrap; }
-  .radar-ask-strip-options[data-count="2"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .radar-ask-strip-options[data-count="2"] .radar-ask-strip-option { width: 100%; }
 }

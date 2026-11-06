@@ -8,9 +8,9 @@ import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksB
 import { useBotTasks } from "./useBotTasks";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./DispatchBoard";
-import { plainWorkerTitle, waitingOn } from "./workText";
+import { plainWorkerTitle } from "./workText";
 import { StageFace } from "./StageFace";
-import { rowLook, stageText, stageTitle, waitLine } from "./stage";
+import { awaitedPerson, rowLook, stageText, stageTitle, waitLine } from "./stage";
 import { botStyle, shortBotName } from "./bots";
 
 export const BOT_TAB = { id: "bot", context: { kind: "thread" as const }, availability: "fixed" as const };
@@ -51,16 +51,14 @@ function doneDay(at: number, now: number): string {
   return Math.round((day(now) - day(at)) / 86_400_000) === 1 ? "yesterday" : weekday.format(new Date(at));
 }
 
+function closedWord(task: BotTaskRow): string {
+  return /^Closed by (?:Salem|you)\b/i.test(task.line) ? "Closed by you" : "Done";
+}
+
 function capitalize(text: string): string {
   return text ? text[0]!.toUpperCase() + text.slice(1) : text;
 }
 
-const PERSON = /^[A-Z][a-z]+(?: [A-Z][a-z]+)?$/;
-function awaitedPerson(task: BotTaskRow): string {
-  if (task.waitFor !== "someone else") return "";
-  const who = waitingOn(task.line, task.outcome);
-  return PERSON.test(who) ? who : "";
-}
 
 function waitWhen(task: BotTaskRow, now: number): string {
   if (task.displayState === "offline") return "Its machine is off";
@@ -178,13 +176,13 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       {done.length ? <section aria-label="Done today">
         <h3>Done today</h3>
         <div role="list">
-          {done.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`Done ${ago(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
+          {done.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`${closedWord(t)} ${ago(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
         </div>
       </section> : null}
       {earlier.length ? <section aria-label="Earlier this week">
         <h3>Earlier this week</h3>
         <div role="list">
-          {earlier.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`Done ${doneDay(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
+          {earlier.map(t => <Row key={t.id} done title={stageTitle(t.title)} meta={`${closedWord(t)} ${doneDay(t.completedAt!, now)}`} detail={t.outcome ? stageText(t.outcome) : ""} target={t.conversationThreadId ?? null} here={here} onOpen={go} />)}
         </div>
       </section> : null}
     </div>

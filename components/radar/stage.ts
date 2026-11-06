@@ -158,7 +158,7 @@ function participleEnd(title: string, outcome: string): string {
 
 export function stageTitle(raw: string, outcome?: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
-  if (request) return `Merge request ${request[2]}`;
+  if (request) return `Merge request ${request[1]}!${request[2]}`;
   const whole = outcome ? participleEnd(wholeTitle(raw, outcome), outcome) : raw;
   return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))));
 }
@@ -235,6 +235,25 @@ function noteLook(task: BotTaskRow): Pick<StageLook, "line" | "alts" | "whole"> 
   return { line: all[0]!, alts: all.slice(1), whole: forms[0]! };
 }
 
+const PERSON = /^[A-Z][a-z]+(?: [A-Z][a-z]+)?$/;
+
+export function awaitedPerson(task: Pick<BotTaskRow, "waitFor" | "line" | "outcome">): string {
+  if (task.waitFor !== "someone else") return "";
+  const who = waitingOn(task.line, task.outcome);
+  return PERSON.test(who) ? who : "";
+}
+
+function personWaitLook(task: BotTaskRow, now: number): Pick<StageLook, "line" | "alts" | "whole"> | null {
+  const who = awaitedPerson(task);
+  if (!who || task.later) return null;
+  const base = waitLine(task, now);
+  if (base.includes(who)) return null;
+  const when = base.replace(/^Next check\s+/, "");
+  const lower = `${base[0]!.toLowerCase()}${base.slice(1)}`;
+  const forms = [`Waiting on ${who} \u00b7 ${lower}`, ...(when !== base ? [`Waiting on ${who} \u00b7 ${when}`, `Waits on ${who} \u00b7 ${when}`] : []), `Waiting on ${who}`, base];
+  return { line: forms[0]!, alts: forms.slice(1), whole: forms[0]! };
+}
+
 export function waitLine(task: BotTaskRow, now: number): string {
   if (task.later) return laterLine(task.later);
   if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
@@ -266,7 +285,7 @@ export function rowFit(lead: string, title: string, tail = "", max = ROW_LINE): 
 
 function fitted(lead: string, title: string, tail = "", shorter: readonly string[] = []): Pick<StageLook, "line" | "alts" | "whole"> {
   const line = rowFit(lead, title, tail);
-  const brief = title.replace(/\bMerge request (\d+)/, "MR $1");
+  const brief = title.replace(/\bMerge request ((?:[a-z][\w-]*)?!?\d+)/i, "MR $1");
   const alts = [...shorter.map(short => rowFit(short, title, tail)), ...(brief !== title ? [lead, ...shorter].map(short => rowFit(short, brief, tail)) : [])];
   return { line, alts: [...new Set(alts)].filter(alt => alt !== line), whole: `${lead}${title}${tail}` };
 }
@@ -309,7 +328,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const waiting = open.filter(task => task.displayState === "waiting" && !notStarted(task))
     .sort((a, b) => Number(!!a.later) - Number(!!b.later) || (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   if (waiting.length) {
-    const noted = noteLook(waiting[0]!);
+    const noted = noteLook(waiting[0]!) ?? personWaitLook(waiting[0]!, ctx.now);
     return { pose: "waiting", ...(noted ?? { line: waitLine(waiting[0]!, ctx.now) }), extra: plural(waiting.length, "open task", "open tasks"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);

@@ -157,7 +157,7 @@ export function AskStrip() {
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
     <FitLines className="radar-ask-strip-question" forms={askForms(entry.question, QUESTION_FORMS, fitWhat, entry.title, entry.options.length)} />
-    {shown.length ? <div className="radar-ask-strip-options" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
+    {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
         aria-label={`Send “${label}” to ${entry.botName}`} title="Sends this reply to the bot"
         onClick={() => { void choose(label); }}><Isolated text={label} /></button>)}
