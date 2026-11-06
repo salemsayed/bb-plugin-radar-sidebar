@@ -14,13 +14,14 @@ export function ThreadPresence() {
   const rpc = useRpc<typeof presenceContract>();
   const sdk = useSdk();
   const [active, setActive] = useState(() => document.visibilityState === "visible" && document.hasFocus());
-  useRememberScroll(threadId, active);
+  const [visible, setVisible] = useState(() => document.visibilityState === "visible");
+  useRememberScroll(threadId, visible);
   const boundary = useRef<{ threadId: string; through: number; messageSeq: number } | null>(null);
   const client = useRef({ id: crypto.randomUUID(), sequence: 0 });
   const latest = useRef({ threadId, active, rpc });
   latest.current = { threadId, active, rpc };
   useEffect(() => {
-    const changed = () => setActive(document.visibilityState === "visible" && document.hasFocus());
+    const changed = () => { setActive(document.visibilityState === "visible" && document.hasFocus()); setVisible(document.visibilityState === "visible"); };
     document.addEventListener("visibilitychange", changed);
     window.addEventListener("focus", changed);
     window.addEventListener("blur", changed);

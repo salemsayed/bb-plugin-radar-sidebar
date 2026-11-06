@@ -1,6 +1,8 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
 import { emitTrace } from "./scrollTrace";
 import { onScrollWrite, ownWrite } from "./scrollHook";
+import { prerenderRows } from "./rowPrerender";
+import { hostScrollOf } from "./hostScroll";
 import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, scrollRetired, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
@@ -20,6 +22,7 @@ const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
 const HELD_MAX_MS = 60000;
 const FINGER_MS = 500;
+const REST_MS = 120;
 const INTENT_MS = 1500;
 const CHAIN_MS = 250;
 const SEND_MS = 4000;
@@ -27,7 +30,9 @@ const PLACED_PX = 1;
 const FLASH_MS = 2000;
 const EXACT_GAP = 4.5;
 const GUARD_PX = 1.5;
+const PUSH_PX = 3;
 const COAST_QUIET_MS = 150;
+const SMOOTH_MS = 1200;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 
 export type ScrollStore = {
@@ -119,9 +124,11 @@ function byText(root: HTMLElement, line: LineAnchor) {
   return best;
 }
 
-export function rememberScroll(threadId: string, store: ScrollStore, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
+export function rememberScroll(threadId: string, store: ScrollStore, activeCheck?: () => boolean) {
   const trace = (event: string, data: unknown = null) => emitTrace(event, threadId, data);
   const startedAt = performance.now();
+  let touchedAt = -Infinity;
+  const isActive = activeCheck ?? (() => document.visibilityState === "visible" && (document.hasFocus() || touchedAt > startedAt));
   let position: ScrollPosition | null = store.cached ?? null;
   let phase: Phase = position && !position.atBottom ? "restoring" : position || !store.load ? "live" : "waiting";
   const primed = claimPrime(threadId);
@@ -143,7 +150,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const widths = new Map<number, { anchor: ScrollPosition; fine: Pin | null; userAt: number }>();
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
   let track: Track | null = null, comp = 0, actionAt = -Infinity, userMovedAt = -Infinity, dirtyAt = -Infinity, resizedAt = -Infinity, hostTop: number | null = null, hostAt = -Infinity;
-  let unhook: (() => void) | null = null, watchedColumn: HTMLElement | null = null, checkQueued = false;
+  let unhook: (() => void) | null = null, unrender: (() => void) | null = null, watchedColumn: HTMLElement | null = null, checkQueued = false, smoothAt = -Infinity, hostSince = 0;
 
   const now = () => performance.now();
   const held = () => (touching || pointerDown) && now() - touchAt < HELD_MAX_MS;
@@ -230,11 +237,13 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const delta = restoreDelta(anchor.getBoundingClientRect().top, container!.getBoundingClientRect().top + container!.clientTop, offset);
     return Math.min(Math.max(container!.scrollTop + delta, 0), Math.max(0, container!.scrollHeight - container!.clientHeight));
   };
-  const lineAt = (): Line | null => {
+  const lineAt = (deep = false, solid = false): Line | null => {
     if (!container) return null;
     const bounds = container.getBoundingClientRect();
     const top = bounds.top + container.clientTop;
-    for (const [x, y] of [[0.5, 6], [0.3, 6], [0.7, 6], [0.5, 24], [0.3, 24], [0.5, 48], [0.2, 48], [0.5, 96], [0.2, 96]]) {
+    const points = [[0.5, 6], [0.3, 6], [0.7, 6], [0.5, 24], [0.3, 24], [0.5, 48], [0.2, 48], [0.5, 96], [0.2, 96]];
+    if (deep) for (let y = 128; y <= container.clientHeight / 2; y += 32) points.push([0.5, y], [0.2, y]);
+    for (const [x, y] of points) {
       const hit = document.elementFromPoint(bounds.left + bounds.width * x, top + y);
       if (!hit || !container.contains(hit) || hit.closest("[data-scroll-footer]")) continue;
       const root = hit.closest<HTMLElement>(ROW);
@@ -243,7 +252,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       const found = hit.closest<HTMLElement>(MESSAGE);
       const message = found && found.dataset.notificationThread === threadId && Number(found.dataset.notificationMessage) > 0 ? found : null;
       const element = blockOf(hit, root);
-      if (!readable(element)) continue;
+      if (!readable(element) || solid && floating(element, container)) continue;
       const path = pathOf(element, root);
       if (!path) continue;
       const offset = element.getBoundingClientRect().top - top;
@@ -259,8 +268,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const shift = anchor.getBoundingClientRect().top - top - offset;
     const root = lineRoot(anchor, line, container);
     if (!root) return null;
+    const base = 6 + shift + Math.max(0, line.offset);
     for (let d = 0; d <= 160; d += 8) {
-      for (const y of d ? [6 + shift + d, 6 + shift - d] : [6 + shift]) {
+      for (const y of d ? [base + d, base - d] : [base]) {
         if (y < 0 || y > container.clientHeight) continue;
         const hit = document.elementFromPoint(bounds.left + bounds.width / 2, top + y);
         for (let el = hit as HTMLElement | null; el && el !== root && root.contains(el); el = el.parentElement) {
@@ -497,7 +507,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, Number(e.dataset.notificationMessage)), 0);
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
-    if (!container || !fingerRef) return;
+    if (!container || !fingerRef || now() - touchAt < REST_MS) return;
     if (container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight + 0.5) return;
     if (!fingerRef.element.isConnected || !hasBox(fingerRef.element)) { fingerRef = visiblePin(); return; }
     const target = targetFor(fingerRef.element, fingerRef.offset);
@@ -509,10 +519,20 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (disposed || !container || phase !== "settling" && phase !== "live" || pinned || widthHold) return "off";
     const t = now();
     if (t - actionAt < INTENT_MS || t - sentAt < SEND_MS || /^#msg=/.test(location.hash)) return "off";
-    if (held() && (hostDefers || !touching || !fingerScrolling())) return "wait";
-    if (hostDefers && t - userMovedAt < COAST_QUIET_MS) return "wait";
+    if (held() || gestureScroll() || t - userMovedAt < COAST_QUIET_MS || t - smoothAt < SMOOTH_MS) return "wait";
     const top = container.scrollTop;
     return top >= 0 && top <= container.scrollHeight - container.clientHeight + 0.5 ? "on" : "wait";
+  };
+  const settleHost = (why: string) => {
+    if (!container || !hostDefers || phase !== "live" && phase !== "settling") return;
+    const top = container.scrollTop;
+    if (why !== "touch" && (top > 0.5 || top < 0)) return;
+    const host = hostScrollOf(container);
+    if (!host) return;
+    const deferred = host.deferred;
+    if (Math.abs(deferred) < 0.5 || why !== "touch" && deferred < 0) return;
+    try { host.flushDeferred(); host.reconcile(); } catch { return; }
+    trace("flush-host", { why, from: Math.round(top), deferred: Math.round(deferred), to: Math.round(container.scrollTop) });
   };
   const arm = (pin: Pin | null = null) => {
     if (!container) return;
@@ -521,11 +541,16 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       const top = topPin();
       chosen = top && !floating(top.element, container) ? top : visiblePin();
     }
-    if (chosen && floating(chosen.element, container)) chosen = null;
+    if (chosen && floating(chosen.element, container)) {
+      const line = lineAt(true, true);
+      chosen = line ? pinOf(line.element, line.offset, true) : null;
+    }
     track = chosen ? { pin: chosen, base: chosen.element.getBoundingClientRect().top - viewTop() + container.scrollTop, comp, width: Math.round(container.clientWidth), height: container.scrollHeight } : null;
   };
   const syncTrack = (why: string, correct: boolean, clean = true) => {
     if (!container) return;
+    const pushed = hostSince;
+    hostSince = 0;
     const state = guardState();
     if (state === "off") { track = null; return; }
     if (why === "scroll") { if (state === "wait" || clean) arm(); return; }
@@ -537,12 +562,23 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       pin = track.pin = again;
     }
     const visual = pin.element.getBoundingClientRect().top - viewTop();
-    if (state === "wait") { arm(); return; }
     const from = container.scrollTop;
     const drift = visual + from - track.base - (comp - track.comp);
+    if (state === "wait") {
+      const pure = why === "write" && pushed > PUSH_PX && Math.abs(pushed + drift) < 2;
+      const fixable = correct || pure || why === "write" && container.scrollHeight === track.height;
+      if (fixable && !hostDefers && !deferredByHost() && drift < -PUSH_PX && visual > -container.clientHeight / 2 && visual < container.clientHeight * 1.5) {
+        const target = Math.max(from + drift, 0);
+        if (from - target >= 1) {
+          trace("undo-push", { why, from: Math.round(from), to: Math.round(target), drift: Math.round(drift), sh: container.scrollHeight - track.height, text: (pin.element.textContent ?? "").slice(0, 24) });
+          write(target);
+        }
+      }
+      if (correct || Math.abs(container.scrollTop - from) >= 1 || Math.abs(drift) <= GUARD_PX) arm(pin);
+      return;
+    }
     const away = visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5;
     if (!correct || Math.abs(drift) <= GUARD_PX) { if (away && clean) arm(); return; }
-    if (now() - userMovedAt < COAST_QUIET_MS && container.scrollHeight !== track.height) { arm(); return; }
     const max = Math.max(0, container.scrollHeight - container.clientHeight);
     const target = Math.min(Math.max(from + drift, 0), max);
     if (Math.abs(target - from) < 1) { arm(pin); return; }
@@ -572,7 +608,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       return bounds.bottom > rect.top && bounds.top < rect.bottom;
     }).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!measured) return;
-    const line = measured.atBottom ? null : lineAt();
+    const line = measured.atBottom ? null : lineAt(true);
     const kept = !line && !measured.atBottom && lastAnchor && !lastAnchor.atBottom && lastAnchor.line && lastAnchor.messageSeq === measured.messageSeq && Math.abs(lastAnchor.offset - measured.offset) < 1 ? lastAnchor : null;
     const next: ScrollPosition = kept ?? (!measured.atBottom && line ? { ...measured, line: line.anchor } : measured);
     lastAnchor = next;
@@ -596,6 +632,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (gesture) dragAt = now();
     if (gesture || !ours && (now() - userScrollAt < CHAIN_MS || now() - intentAt < INTENT_MS)) userScrollAt = now();
     if (phase === "restoring") { attempt(); return; }
+    if (!touching && container.scrollTop <= 0.5) settleHost("top");
     if (phase === "settling") { keep(!ours); return; }
     if (Math.abs(container.clientWidth - lastWidth) >= 1) { resized(); return; }
     if (held() && touching) {
@@ -658,6 +695,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     resize = null;
     unhook?.();
     unhook = null;
+    unrender?.();
+    unrender = null;
     dirtyWatch.disconnect();
     container?.removeEventListener("scroll", onScroll);
     container = found;
@@ -669,13 +708,16 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     container.addEventListener("scroll", onScroll, { passive: true });
     const bound = container;
     unhook = onScrollWrite(bound, w => {
+      if (w.pending) { if (!w.own) smoothAt = now(); return; }
       comp += w.to - w.from;
       if (w.own) return;
+      hostSince += w.to - w.from;
       hostTop = w.to;
       hostAt = now();
       queueCheck("write");
     });
     dirtyWatch.observe(bound, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "open", "hidden"] });
+    unrender = prerenderRows(bound, count => trace("prerender", { count }));
     watchColumn();
     if (typeof ResizeObserver !== "undefined") queueMicrotask(() => {
       if (disposed || container !== bound || resize) return;
@@ -741,6 +783,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!event.isTrusted) return;
     if (scrollRetired()) { stop(); return; }
     const t = now();
+    touchedAt = t;
     if (event.type !== "touchmove") intentAt = t;
     const target = event.target instanceof Node ? event.target : null;
     const inFooter = target instanceof Element && Boolean(target.closest("[data-scroll-footer]"));
@@ -760,6 +803,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       }
       case "touchstart":
         if (inside) {
+          if ((event as TouchEvent).touches.length === 1) settleHost("touch");
           const point = (event as TouchEvent).touches[0];
           track = null;
           touching = true; touchAt = t; dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
@@ -791,6 +835,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const styleWatch = new MutationObserver(() => {
     if (phase === "live" && held() && touching && fingerRef && !fingerScrolling()) keepFinger();
+    else if (!touching && container && container.scrollTop <= 0.5) settleHost("top");
   });
   const dirtyWatch = new MutationObserver(records => { if (records.some(record => record.target !== container)) dirtyAt = now(); });
   const observer = new MutationObserver(records => {
@@ -854,6 +899,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     styleWatch.disconnect();
     dirtyWatch.disconnect();
     unhook?.();
+    unrender?.();
     resize?.disconnect();
     cancelAnimationFrame(frame);
     clearInterval(timer);
