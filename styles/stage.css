@@ -476,7 +476,8 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs li:is(:hover, :focus-within) .stage-needs-menu, .stage-needs-menu[aria-expanded="true"] { opacity: 1; }
 .stage-needs-who { padding-inline-end: 14px; container-type: inline-size; }
 .stage-needs-item { display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: 18px auto; column-gap: 4px; row-gap: 2px; align-content: start; width: 100%; height: var(--stage-needs-slot); padding: 6px 4px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground); font: inherit; text-align: start; cursor: pointer; overflow: hidden; }
-.stage-needs[data-open] .stage-needs-item { height: auto; min-height: 0; }
+.stage-needs[data-open] .stage-needs-item { height: auto; min-height: 0; padding-block: 4px; row-gap: 1px; }
+.stage-needs[data-open] ul { gap: 1px; }
 @media (hover: hover) { .stage-needs-item:hover { background: color-mix(in oklab, var(--stage-ask-fill) 18%, transparent); } }
 .stage-needs-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .stage-needs-copy { display: contents; }
