@@ -707,8 +707,9 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-item[data-lined] .stage-needs-who { display: none; }
 .stage-needs-item[data-lined] .stage-needs-status { display: none; }
 .stage-needs-item[data-lined] .stage-needs-what { display: block; max-height: 32px; overflow: hidden; -webkit-line-clamp: none; line-clamp: none; overflow-wrap: break-word; }
-.stage-needs-lined-who { font-weight: 650; margin-inline-end: 5px; }
+.stage-needs-lined-who::before { content: attr(data-text); font-weight: 650; margin-inline-end: 5px; }
 .stage-needs-lined-age { float: inline-end; margin-inline-start: 8px; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.stage-needs-lined-age::before { content: attr(data-text); }
 @media (pointer: coarse) {
   .stage-needs-item[data-lined] { min-height: 44px; padding: 6px 10px; }
 }

@@ -602,8 +602,8 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
         <FitLines className="stage-needs-what" forms={lined ? compactForms(what, item.title, item.options?.length ?? 0) : oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)}
-          lead={lined ? <b className="stage-needs-lined-who">{shortName}</b> : undefined}
-          aside={lined ? <span className="stage-needs-lined-age" aria-hidden="true">{item.state === "later" ? "Later" : item.state ? item.state === "answered" ? "Answered" : "Done" : ageText}</span> : undefined} />
+          lead={lined ? <span className="stage-needs-lined-who" data-text={shortName} aria-hidden="true" /> : undefined}
+          aside={lined ? <span className="stage-needs-lined-age" data-text={item.state === "later" ? "Later" : item.state ? item.state === "answered" ? "Answered" : "Done" : ageText} aria-hidden="true" /> : undefined} />
         {!folded && !lined && !item.state ? <AskImpact className="stage-needs-impact" text={item.consequence} /> : null}
         {folded ? <span className="stage-needs-unfold" aria-hidden="true">{`${boxAnswers(item).length} answers`}<Icon name="ChevronDown" aria-hidden="true" /></span> : null}
       </span>
