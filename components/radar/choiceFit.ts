@@ -47,6 +47,8 @@ export function optionCuts(option: string): string[] {
     current = tidy(current.slice(0, ends[ends.length - 1]));
     push(current);
   }
+  const andAt = masked(current).search(/,?\s+and\s+/);
+  if (andAt > 0 && words(current.slice(0, andAt)) >= 2) push(current.slice(0, andAt));
   const softMask = masked(current);
   const soft = tidy(current.split("").filter((_, i) => !softRanges(softMask).some(([from, to]) => i >= from && i < to)).join(""));
   push(soft);
