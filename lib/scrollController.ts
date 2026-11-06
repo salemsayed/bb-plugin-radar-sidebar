@@ -1,4 +1,5 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
+import { emitTrace } from "./scrollTrace";
 import { LATE_CUT_MS, LATE_MS, chatScroller, chatShownAt, claimPrime, messageAnchors, untouchedSince, unveilChat, veilCap, veilChat, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
@@ -72,9 +73,7 @@ function resolveLine(message: HTMLElement, line: LineAnchor, container: HTMLElem
 }
 
 export function rememberScroll(threadId: string, store: ScrollStore, isActive = () => document.visibilityState === "visible" && document.hasFocus()) {
-  const trace = (event: string, data: unknown = null) => {
-    if ((window as Window & { __radarScrollDebug?: boolean }).__radarScrollDebug) window.dispatchEvent(new CustomEvent("radar-scroll-trace", { detail: { event, threadId, data, at: performance.now(), wallTime: performance.timeOrigin + performance.now(), hash: location.hash } }));
-  };
+  const trace = (event: string, data: unknown = null) => emitTrace(event, threadId, data);
   const startedAt = performance.now();
   let position: ScrollPosition | null = store.cached ?? null;
   let phase: Phase = position && !position.atBottom ? "restoring" : position || !store.load ? "live" : "waiting";

@@ -13,9 +13,13 @@ export const positionSchema = z.discriminatedUnion("atBottom", [
 export type ScrollPosition = z.infer<typeof positionSchema>;
 export type LineAnchor = z.infer<typeof lineSchema>;
 const keySchema = z.object({ threadId: z.string().min(1).max(200), deviceId: z.string().min(1).max(100) });
+const traceEventSchema = z.object({ event: z.string().max(40), threadId: z.string().max(200).nullable(), at: z.number().finite(), wallTime: z.number().finite(), hash: z.string().max(200), data: z.unknown() });
+export type TraceEvent = z.infer<typeof traceEventSchema>;
 export const scrollContract = {
   scroll_get: { input: keySchema, output: positionSchema.nullable() },
   scroll_set: { input: keySchema.extend({ position: positionSchema }), output: z.object({ ok: z.literal(true) }) },
+  scroll_debug: { input: z.object({}), output: z.object({ on: z.boolean() }) },
+  scroll_trace: { input: z.object({ deviceId: z.string().min(1).max(100), page: z.string().max(100), agent: z.string().max(400).optional(), events: z.array(traceEventSchema).max(400) }), output: z.object({ on: z.boolean() }) },
 };
 export const BOTTOM_GAP = 24;
 export const AT_BOTTOM: ScrollPosition = { atBottom: true, messageSeq: null, offset: 0 };

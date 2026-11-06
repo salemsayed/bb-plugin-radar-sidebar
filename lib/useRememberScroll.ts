@@ -1,8 +1,9 @@
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
 import { scrollContract } from "./scrollPosition";
 import { explicitLink, mirrorScrollEnabled, releaseScrollAnchor, requestScrollAnchor, savedScroll, scrollEnabled } from "./primeScrollRoute";
 import { rememberScroll } from "./scrollController";
+import { flushScrollTrace } from "./scrollTrace";
 
 function browserId() {
   try {
@@ -22,6 +23,10 @@ export function useRememberScroll(threadId: string | null, active: boolean) {
     mirrorScrollEnabled(setting);
     if (!setting) releaseScrollAnchor(null, true);
   }, [setting]);
+  useEffect(() => {
+    const deviceId = browserId();
+    return deviceId ? flushScrollTrace(rpc, deviceId) : undefined;
+  }, [rpc]);
   useLayoutEffect(() => {
     if (!enabled || !threadId || !active) return;
     const linked = explicitLink(threadId);
