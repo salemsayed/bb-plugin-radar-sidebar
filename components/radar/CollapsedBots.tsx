@@ -108,7 +108,7 @@ function useCollapsedPlace(root: RefObject<HTMLElement | null>): Place {
 }
 
 function spoken(bot: CollapsedBot): string {
-  return [bot.name, bot.needs && !/\bfor you\b/.test(bot.status) ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.working ? "working now" : "", bot.status].filter(Boolean).join(", ");
+  return [bot.name, bot.needs && !/\bfor you\b/.test(bot.status) ? `${bot.needs} ${bot.needs === 1 ? "question" : "questions"} for you` : "", bot.unread ? "new reply" : "", bot.working ? "working now" : "", bot.status].filter(Boolean).join(", ");
 }
 
 function useRailHost(active: boolean): HTMLElement | null {
@@ -178,7 +178,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
   useOwnInert(root, place?.kind === "rail");
   const needs = bots.reduce((sum, bot) => sum + bot.needs, 0);
   const unread = bots.filter(bot => bot.unread).length;
-  const badgeLabel = [needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "", unread ? `${unread} new ${unread === 1 ? "reply" : "replies"}` : ""].filter(Boolean).join(", ");
+  const badgeLabel = [needs ? `${needs} ${needs === 1 ? "question" : "questions"} for you` : "", unread ? `${unread} new ${unread === 1 ? "reply" : "replies"}` : ""].filter(Boolean).join(", ");
   useNamedToggle(place?.kind === "toggle" ? badgeLabel : "");
   const roving = useRoving(list, { item: ".radar-rail-bot, .radar-rail-threads", row: ".radar-rail-bot, .radar-rail-threads", preferred: bots.find(bot => bot.current || bot.here)?.key ?? null });
   useEffect(() => { if (!place) setTip(null); }, [place]);
@@ -206,7 +206,7 @@ export function CollapsedBots({ root, bots, threads, scope, onOpen }: {
       {bots.map(bot => <button key={bot.key} type="button" className="radar-rail-bot" data-rove={bot.key} data-current={bot.current || undefined} data-here={bot.here && !bot.current || undefined}
         aria-current={bot.current || bot.here ? "page" : undefined} aria-label={`${sentenceEnd(spoken(bot))} Open chat`}
         style={{ "--bot-hue": botStyle(bot.key, bot.name).hue } as CSSProperties} onClick={() => { hide(); onOpen(bot.threadId); }}
-        {...tipProps(bot.name, [[bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : ""].filter(Boolean).join(" · ").replace(/^n/, "N"), bot.status])}>
+        {...tipProps(bot.name, [[bot.needs ? `${bot.needs} ${bot.needs === 1 ? "question" : "questions"} for you` : "", bot.unread ? "new reply" : ""].filter(Boolean).join(" · ").replace(/^n/, "N"), bot.status])}>
         <StageFace botKey={bot.key} name={bot.name} pose={bot.pose} size={30} bare />
         {bot.needs ? <span className="radar-rail-needs" aria-hidden="true">{bot.needs}</span> : null}
         {bot.unread ? <span className="radar-rail-unread" data-with-needs={bot.needs ? "" : undefined} aria-hidden="true" /> : null}

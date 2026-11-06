@@ -101,7 +101,21 @@ export function useDispatchWorkers(data: BotTasksData, enabled = true): WorkerSn
   return snapshot;
 }
 
-let shared: WorkerSnapshot = empty();
+const SEED_KEY = "radar.workers.seed.v1";
+const SEED_FRESH_MS = 3 * 60_000;
+function seeded(): WorkerSnapshot {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(SEED_KEY);
+    if (!raw) return empty();
+    const saved = JSON.parse(raw) as { at: number; byTask?: Record<string, Attempt[]>; byBot: Record<string, Attempt[]>; known: string[]; chat: string[] };
+    if (!saved || typeof saved.at !== "number" || Date.now() - saved.at > SEED_FRESH_MS || typeof saved.byBot !== "object") return empty();
+    return { byTask: saved.byTask && typeof saved.byTask === "object" ? saved.byTask : {}, byBot: saved.byBot, known: new Set(saved.known), failedChecks: new Set(), chat: new Set(saved.chat) };
+  } catch { return empty(); }
+}
+function save(snapshot: WorkerSnapshot) {
+  try { localStorage.setItem(SEED_KEY, JSON.stringify({ at: Date.now(), byTask: snapshot.byTask, byBot: snapshot.byBot, known: [...snapshot.known], chat: [...snapshot.chat] })); } catch {}
+}
+let shared: WorkerSnapshot = seeded();
 const sharedListeners = new Set<() => void>();
 function publish(snapshot: WorkerSnapshot, bots: BotTasksData["bots"]) {
   const keys = new Set(bots.map(bot => bot.key));
@@ -117,8 +131,9 @@ function publish(snapshot: WorkerSnapshot, bots: BotTasksData["bots"]) {
   const sameRows = (a: Attempt[] | undefined, b: Attempt[] | undefined) => (a ?? []).map(x => `${x.threadId}:${x.state}:${x.title}`).join() === (b ?? []).map(x => `${x.threadId}:${x.state}:${x.title}`).join();
   const unchanged = [...keys].every(key => sameRows(shared.byBot[key], next.byBot[key]) && shared.known.has(key) === next.known.has(key) && shared.chat.has(key) === next.chat.has(key))
     && same(shared.failedChecks, next.failedChecks) && Object.keys(next.byTask).length === Object.keys(shared.byTask).length && Object.entries(next.byTask).every(([id, rows]) => sameRows(shared.byTask[id], rows));
-  if (unchanged) return;
+  if (unchanged) { save(shared); return; }
   shared = next;
+  save(next);
   for (const listener of sharedListeners) listener();
 }
 const subscribeShared = (listener: () => void) => { sharedListeners.add(listener); return () => { sharedListeners.delete(listener); }; };

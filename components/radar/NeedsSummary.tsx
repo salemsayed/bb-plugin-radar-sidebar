@@ -8,7 +8,7 @@ import { deskNeedLine, isOldAsk, since, stageTitle, taskAsk } from "./stage";
 import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { clauseCut, cutAtWord } from "./workText";
-import { FitLines } from "./FitLines";
+import { FitLines, fitWords } from "./FitLines";
 import { askForms, isChoice, shortChoice } from "./choiceFit";
 import { Isolated } from "./Isolated";
 import { answerOptions } from "@/lib/botTasks";
@@ -165,6 +165,26 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
   return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
+function ArrivalText({ lead, what }: { lead: string; what: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [shown, setShown] = useState(what);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const measure = () => {
+      const style = getComputedStyle(box);
+      const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const room = box.clientWidth - textWidth(`${lead}: `, `650 ${style.fontSize} ${style.fontFamily}`) - 2;
+      setShown(fitWords(what, form => textWidth(form, font) <= room));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [lead, what]);
+  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown} /></span>;
+}
+
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return false;
   const box = event.currentTarget.closest(".stage-needs");
@@ -269,7 +289,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const allNew = arrivals.length > 0 && arrivals.length === hidden.length;
   const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
   const moreText = onlyOld ? `${hiddenOld} old` : allNew ? `${more} new` : `${more} more`;
-  const pillText = collapse ? stale && items.length > 0 ? "Less" : "Show less" : open ? `${arrivals.length} new` : moreText;
+  const pillText = collapse ? stale && items.length > 0 ? "" : "Show less" : open ? `${arrivals.length} new` : moreText;
   const pillLabel = collapse ? "Show less" : open ? `Show ${arrivals.length} new from ${[...new Set(arrivals.map(item => item.botName))].join(" and ")}` : moreLabel;
   const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : "settled";
   useWholeItems(listRef, open, shown.length);
@@ -316,7 +336,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
           aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}. Show` : `${text} from ${names}: show them`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
-          {single ? <span className="stage-needs-arrival-text" dir="auto"><b>{lead}:</b> <Isolated text={single.what} /></span> : <FitOne className="stage-needs-line-text" forms={forms} />}
+          {single ? <ArrivalText lead={lead} what={single.what} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
           <span className="stage-needs-more-pill" data-icon-only={single ? "" : undefined} aria-hidden="true">{single ? null : <span>Show</span>}<Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
@@ -339,7 +359,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       {staleShown ? <StaleText stale={staleShown} /> : <span className="stage-needs-heading">{title}</span>}
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={collapse} aria-label={pillLabel} title={pillLabel}
         onClick={() => { if (arrivals.length) { reveal(); setAll(true); } else setAll(value => !value); }}>
-        <span className="stage-needs-more-pill"><span>{pillText}</span><Icon name="ChevronDown" aria-hidden="true" /></span>
+        <span className="stage-needs-more-pill" data-icon-only={pillText ? undefined : ""}>{pillText ? <span>{pillText}</span> : null}<Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
@@ -365,7 +385,7 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
 
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, "Can't refresh", "Not live"];
+  const forms = [`Can't refresh · showing ${stale.asOf}`, `Can't refresh · ${stale.asOf}`, "Can't refresh"];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;

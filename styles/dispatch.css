@@ -171,9 +171,9 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-panel button.dispatch-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .dispatch-later-note { cursor: default; }
 @media (pointer: coarse) { .dispatch-panel button.dispatch-option { min-height: 44px; } }
-.dispatch-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted-foreground); }
-.dispatch-card-foot > .dispatch-ask-text { flex: 1 1 auto; min-width: 0; }
-.dispatch-card-foot-actions { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.dispatch-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 36px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted-foreground); }
+.dispatch-card-foot > .dispatch-ask-text { display: block; flex: 1 0 auto; max-width: 100%; min-width: 0; overflow: visible; -webkit-line-clamp: none; line-clamp: none; }
+.dispatch-card-foot-actions { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-inline-start: auto; }
 .dispatch-panel .dispatch-card-foot-actions button.dispatch-later-action, .dispatch-panel .dispatch-card-foot-actions button.dispatch-task-continue { align-self: center; margin-top: 0; }
 .dispatch-status-line[hidden] { display: none; }
 .dispatch-nowrap { white-space: nowrap; }

@@ -8,6 +8,7 @@ import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksB
 import { useBotTasks } from "./useBotTasks";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./DispatchBoard";
+import { plainWorkerTitle, waitingOn } from "./workText";
 import { StageFace } from "./StageFace";
 import { rowLook, stageText, stageTitle, waitLine } from "./stage";
 import { botStyle, shortBotName } from "./bots";
@@ -103,15 +104,33 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const look = rowLook(bot, { running: running.length, runningTitle: running[0]?.title, chatting: snapshot.chat.has(bot.key), unread: false, now });
   const open = bot.tasks.filter(t => !isClosed(t.displayState));
   const asks = open.filter(t => t.displayState === "needs");
-  const titleOf = (attempt: Attempt) => {
+  const baseTitle = (attempt: Attempt) => {
     const task = bot.tasks.find(t => (snapshot.byTask[t.id] ?? []).some(a => a.threadId === attempt.threadId));
     return stageTitle(attempt.title || task?.title || "Worker");
   };
+  const roleOf = (attempt: Attempt) => {
+    const role = /:\s*([^:]{2,40})$/.exec(plainWorkerTitle(attempt.title ?? ""))?.[1]?.trim() ?? "";
+    return role ? capitalize(role) : "";
+  };
+  const clock = (attempt: Attempt) => attempt.startedAt != null ? new Date(attempt.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  const titleOf = (attempt: Attempt) => {
+    const base = baseTitle(attempt);
+    const twins = running.filter(a => baseTitle(a) === base).sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+    if (twins.length < 2) return base;
+    const roles = twins.map(roleOf);
+    if (roles.every(Boolean) && new Set(roles).size === twins.length) return `${base} · ${roleOf(attempt)}`;
+    const clocks = twins.map(clock);
+    if (clocks.every(Boolean) && new Set(clocks).size === twins.length) return `${base} · started ${clock(attempt)}`;
+    return `${base} (${twins.indexOf(attempt) + 1} of ${twins.length})`;
+  };
+  const known = snapshot.known.has(bot.key);
   const busyTasks = open.filter(t => (t.displayState === "working" || t.displayState === "queued" || t.displayState === "retrying" || t.displayState === "overdue" || t.displayState === "checking") && !(snapshot.byTask[t.id] ?? []).some(a => a.state === "running"));
   const waiting = open.filter(t => t.displayState === "waiting" || t.displayState === "ready" || t.displayState === "offline")
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   const closed = bot.tasks.filter(t => t.displayState === "done" && t.completedAt !== undefined).sort((a, b) => b.completedAt! - a.completedAt!);
   const done = closed.filter(t => isSameLocalDay(t.completedAt!, now));
+  const awaited = [...new Set(waiting.filter(t => t.waitFor === "someone else").map(t => waitingOn(t.line, t.outcome)))];
+  const headerWords = statusWords(look) === "Waiting" && awaited.length === 1 && awaited[0] && waiting.every(t => t.waitFor === "someone else") ? `Waiting on ${awaited[0]}` : statusWords(look);
   const earlier = closed.filter(t => !isSameLocalDay(t.completedAt!, now) && now - t.completedAt! < 7 * 86_400_000).slice(0, Math.max(3, 6 - done.length));
   const go = (id: string) => navigate.toThread(id);
   const shortName = shortBotName(bot.name);
@@ -126,7 +145,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       <StageFace botKey={bot.key} name={bot.name} pose={look.pose === "idle" && look.badge === "wait" ? "waiting" : look.pose} size={64} />
       <div className="bot-hero-copy">
         <h2>{bot.name}</h2>
-        <p className="bot-status">{statusWords(look)}</p>
+        <p className="bot-status">{known || look.kind !== "live" ? headerWords : "\u00a0"}</p>
       </div>
     </header>
     <div className="bot-panel-body">
@@ -136,7 +155,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       </section> : null}
       <section aria-label="Now">
         <h3>Now</h3>
-        {!snapshot.known.has(bot.key) && (busyTasks.length || look.kind === "live") ? <p className="bot-quiet">Checking workers…</p> : running.length || busyTasks.length ? <div role="list">
+        {!known && (busyTasks.length || look.kind === "live") ? <p className="bot-quiet" aria-busy="true">{"\u00a0"}</p> : running.length || busyTasks.length ? <div role="list">
           {running.map(a => <Row key={a.threadId} live title={titleOf(a)} meta={a.startedAt != null ? `Worker · started ${ago(a.startedAt, now)}` : "Worker"} target={a.threadId} here={here} onOpen={go} />)}
           {busyTasks.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={busyWords(t, shortName)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}
         </div> : <p className="bot-quiet">{snapshot.chat.has(bot.key) ? `${shortName} is replying in this chat.` : "Nothing running right now."}</p>}

@@ -24,7 +24,7 @@ import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
 import { answeredHere, laterNoteHead, since, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
-import { FitLines, cutForms } from "./FitLines";
+import { FitLines, cutForms, fitWords } from "./FitLines";
 import { askForms } from "./choiceFit";
 import { requestFill } from "@/lib/composerFill";
 import { answerHint } from "./answerHint";
@@ -177,7 +177,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
 }) {
   const press = useDeskPress();
   const name = bot.name;
-  const needsLabel = needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "";
+  const needsLabel = needs ? `${needs} ${needs === 1 ? "question" : "questions"} for you` : "";
   const full = look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · ");
   const when = look.time === "<1m" ? "last reply under a minute ago" : look.time ? `last reply ${look.time} ago` : "";
   const spoken = [needsLabel, unread ? "new reply" : "", full, when, here ? "you are in one of its chats" : ""].filter(Boolean).join(", ");
@@ -243,17 +243,19 @@ function FitLine({ look }: { look: RowLook }) {
   const ref = useRef<HTMLSpanElement>(null);
   const options = useMemo(() => [look.line, ...(look.alts ?? [])], [look.line, look.alts]);
   const [pick, setPick] = useState(0);
+  const [cut, setCut] = useState<string | null>(null);
   useLayoutEffect(() => {
     const box = ref.current;
-    if (!box || options.length < 2) { setPick(0); return; }
+    if (!box) { setPick(0); setCut(null); return; }
     const measure = () => {
       const style = getComputedStyle(box);
       const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
       const room = box.clientWidth - (look.tone === "ask" || look.tone === "busy" || look.tone === "blocked" ? MARK_PX : 0);
-      const whole = options.findIndex(option => !/\u2026$/.test(option) && lineWidth(option, font) <= room);
-      const at = whole >= 0 ? whole : options.findIndex(option => lineWidth(option, font) <= room);
-      const shortest = options.map((option, i) => ({ option, i })).filter(({ option }) => !/\u2026$/.test(option)).sort((a, b) => a.option.length - b.option.length)[0];
-      setPick(at >= 0 ? at : shortest?.i ?? 0);
+      const fits = (option: string) => lineWidth(option, font) <= room;
+      const whole = options.findIndex(option => !/\u2026$/.test(option) && fits(option));
+      const at = whole >= 0 ? whole : options.findIndex(fits);
+      setPick(at >= 0 ? at : 0);
+      setCut(at >= 0 || room <= 0 ? null : fitWords(options[0]!, fits));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -264,7 +266,8 @@ function FitLine({ look }: { look: RowLook }) {
     return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
   }, [options, look.tone]);
   const said = look.whole ?? look.line;
-  return <span className="stage-line" ref={ref} title={(options[pick] ?? look.line) !== said ? said : undefined}><bdi>{keepHyphens(options[pick] ?? look.line)}</bdi></span>;
+  const shown = cut ?? options[pick] ?? look.line;
+  return <span className="stage-line" ref={ref} title={shown !== said ? said : undefined}><bdi>{keepHyphens(shown)}</bdi></span>;
 }
 
 function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<string, PluginSidebarThread>): string | undefined {

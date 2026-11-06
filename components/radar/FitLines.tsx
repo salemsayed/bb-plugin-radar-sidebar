@@ -30,3 +30,13 @@ export function cutForms(whole: string, fit: (text: string, max: number) => stri
   const forms = [whole, ...sizes.map(size => fit(whole, size))];
   return forms.filter((form, i) => form && forms.indexOf(form) === i);
 }
+
+export function fitWords(text: string, fits: (form: string) => boolean): string {
+  if (fits(text)) return text;
+  const words = text.split(/\s+/).filter(Boolean);
+  for (let n = words.length - 1; n >= 1; n--) {
+    const form = `${words.slice(0, n).join(" ").replace(/[\s,;:·–—-]+$/, "")}\u2026`;
+    if (fits(form)) return form;
+  }
+  return `${words[0] ?? ""}\u2026`;
+}
