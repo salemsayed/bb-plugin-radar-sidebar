@@ -48,8 +48,18 @@ function lowerLead(text: string): string {
   return /^[A-Z][a-z]/.test(text) && !/^[A-Z][a-z]+(?:\s+[A-Z]|$)/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
 }
 
-export function recordQuestion(text: string, title = ""): string {
+function choice(options: readonly string[]): string {
+  const said = options.map((option, i) => {
+    const plain = stageText(option, true).replace(/[.?!]+$/, "");
+    return i === 0 ? capitalFirst(plain) : lowerLead(plain);
+  });
+  const last = said.pop()!;
+  return `${said.length ? `${said.join(", ")}, or ${last}` : last}?`;
+}
+
+export function recordQuestion(text: string, title = "", options: readonly string[] = []): string {
   const body = stageText(text.replace(STATUS_TAG, "").trim(), true).replace(/\s*\([^()]*\b\d{6,}\b[^()]*\)/g, "").trim();
+  if (options.length >= 2 && !/\?/.test(body)) return choice(options);
   if (/\?/.test(body)) return askFirst(body, title);
   const plan = PLAN.exec(body);
   if (plan) return `Approve the plan for ${lowerLead(plan[1]!.trim())}?`;
@@ -80,7 +90,7 @@ export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] 
       if (linked?.displayState === "needs" || bot.tasks.some(task => task.displayState === "needs" && sameAsk(task.needs?.question ?? task.line, item.text))) { dropped.push({ id: item.id, bot: bot.key, why: "already asked by its task", text: item.text }); continue; }
       const askedAt = Date.parse(item.createdAt);
       const threadId = item.source.threadId ?? bot.coordinatorThreadId;
-      const question = recordQuestion(item.text, linked ? stageTitle(linked.title, linked.outcome) : "");
+      const question = recordQuestion(item.text, linked ? stageTitle(linked.title, linked.outcome) : "", item.options ?? []);
       const parkedAt = laterAt(`task:${item.id}`, askedAt);
       const seq = item.askSeq ?? undefined;
       const answered = item.answered ?? null;

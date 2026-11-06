@@ -15,6 +15,7 @@ export const needsItemSchema = z.object({
   key: z.string().nullable(), createdAt: z.string(), closedAt: z.string().nullable(), reminders: z.number(),
   askSeq: z.number().nullable().optional(),
   answered: z.object({ seq: z.number(), at: z.number() }).nullable().optional(),
+  options: z.array(z.string()).optional(),
 });
 export type NeedsItem = z.infer<typeof needsItemSchema>;
 export const needsListSchema = z.object({ items: z.array(needsItemSchema) });

@@ -73,32 +73,53 @@ export function createReplyFinder(bb: BbPluginApi) {
   };
 }
 
+const REPLY_BUTTON = /\bButton\(\s*"([^"\n]{2,90})"\s*(?:,\s*([A-Za-z]+)\s*\()?/g;
+const MAX_OPTIONS = 4;
+
+export function replyOptions(text: string): string[] {
+  const blocks = text.match(/```ui[\s\S]*?```/g) ?? [];
+  const labels = blocks.flatMap(block => [...block.matchAll(REPLY_BUTTON)].filter(match => !match[2] || /^(?:Reply|Send|Answer|Prompt)$/i.test(match[2])).map(match => match[1]!.trim()));
+  return [...new Set(labels)].slice(0, MAX_OPTIONS);
+}
+
+export interface AskPlace { seq: number | null; options: string[] }
+
+type Said = { type?: string; text?: string; parentToolCallId?: string };
+
 export function createAskFinder(bb: BbPluginApi) {
-  const found = new Map<string, { seq: number | null; at: number }>();
-  return async function askSeq(item: NeedsItem): Promise<number | null> {
+  const found = new Map<string, AskPlace & { at: number }>();
+  return async function askPlace(item: NeedsItem): Promise<AskPlace> {
     const threadId = item.source.threadId;
-    if (item.kind !== "decision" || !threadId) return null;
+    if (item.kind !== "decision" || !threadId) return { seq: null, options: [] };
     const hit = found.get(item.id);
-    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return hit.seq;
+    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options };
     const needle = askNeedle(item.text);
     const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
-    let seq: number | null = null;
+    const named = /^message:(\d+)$/.exec(item.source.messageId ?? "")?.[1];
+    let place: AskPlace = { seq: null, options: [] };
+    const said = (row: { data: unknown }) => (row.data as { item?: Said }).item;
     try {
-      let before: string | undefined;
-      for (let page = 0; page < ASK_PAGES && seq === null; page++) {
-        const rows = await bb.sdk.threads.events.list({ threadId, order: "desc", limit: "100", types: ["item/completed"], ...(before ? { beforeSeq: before } : {}) });
-        for (const row of rows) {
-          const said = (row.data as { item?: { type?: string; text?: string; parentToolCallId?: string } }).item;
-          if (said?.type === "agentMessage" && !said.parentToolCallId && needle.length >= 12 && normalizedNeedsText(said.text ?? "").includes(needle)) { seq = row.seq; break; }
+      if (named) {
+        const rows = await bb.sdk.threads.events.list({ threadId, afterSeq: String(Number(named) - 1), order: "asc", limit: "5", types: ["item/completed"] });
+        const row = rows.find(row => row.seq === Number(named));
+        place = { seq: Number(named), options: replyOptions(row ? said(row)?.text ?? "" : "") };
+      } else if (needle.length >= 12) {
+        let before: string | undefined;
+        for (let page = 0; page < ASK_PAGES && place.seq === null; page++) {
+          const rows = await bb.sdk.threads.events.list({ threadId, order: "desc", limit: "100", types: ["item/completed"], ...(before ? { beforeSeq: before } : {}) });
+          for (const row of rows) {
+            const message = said(row);
+            if (message?.type === "agentMessage" && !message.parentToolCallId && normalizedNeedsText(message.text ?? "").includes(needle)) { place = { seq: row.seq, options: replyOptions(message.text ?? "") }; break; }
+          }
+          const last = rows.at(-1);
+          if (rows.length < 100 || !last || last.createdAt < since) break;
+          before = String(last.seq);
         }
-        const last = rows.at(-1);
-        if (rows.length < 100 || !last || last.createdAt < since) break;
-        before = String(last.seq);
       }
-    } catch { seq = null; }
-    found.set(item.id, { seq, at: Date.now() });
+    } catch { place = { seq: null, options: [] }; }
+    found.set(item.id, { ...place, at: Date.now() });
     while (found.size > 500) found.delete(found.keys().next().value!);
-    return seq;
+    return place;
   };
 }
 
@@ -106,9 +127,9 @@ export function createNeedsServer(bb: BbPluginApi) {
   const askSeq = createAskFinder(bb);
   const replyAfter = createReplyFinder(bb);
   const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
-    const seq = await askSeq(item);
+    const { seq, options } = await askSeq(item);
     const answered = seq !== null && item.source.threadId ? await replyAfter(item.source.threadId, seq) : null;
-    return { ...item, askSeq: seq, answered };
+    return { ...item, askSeq: seq, answered, ...(options.length ? { options } : {}) };
   };
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
