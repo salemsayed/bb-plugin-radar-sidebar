@@ -49,10 +49,10 @@ const TEST_MESSAGE = /^\s*UI\s+test\s*,\s*ignore\b/i;
 const REPLY_TTL_MS = 60_000;
 
 export function salemTurn(data: unknown): boolean {
-  const d = data as { initiator?: string; senderThreadId?: string | null; source?: string; systemMessageKind?: string; input?: { type?: string; text?: string; visibility?: string }[] };
+  const d = data as { initiator?: string; senderThreadId?: string | null; originPluginId?: string | null; source?: string; systemMessageKind?: string; input?: { type?: string; text?: string; visibility?: string }[] };
   const text = (d.input ?? []).filter(part => (!part.type || part.type === "text") && !part.visibility).map(part => part.text ?? "").join("\n");
-  return d.initiator === "user" && !d.senderThreadId && d.source !== "spawn" && (!d.systemMessageKind || d.systemMessageKind === "unlabeled")
-    && !!text.trim() && !/^\s*\[via ChatGPT\]/i.test(text) && !TEST_MESSAGE.test(text);
+  return d.initiator === "user" && !d.senderThreadId && !d.originPluginId && d.source !== "spawn" && (!d.systemMessageKind || d.systemMessageKind === "unlabeled")
+    && !!text.trim() && !/^\s*(?:\[via ChatGPT\]|[\u21b3\u2937])/i.test(text) && !TEST_MESSAGE.test(text);
 }
 
 export function createReplyFinder(bb: BbPluginApi) {
