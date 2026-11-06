@@ -1,3 +1,4 @@
+import { answerRow } from "./answerRow";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { threadActionTarget } from "./threadActions";
@@ -186,12 +187,29 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
   return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
+const LOOSE = /^(?:and|or|but|nor|so|the|a|an|of|to|for|with|as|in|on|at|by|from|into|than|that|which|who|its|their|your|our|my|this|these|those|is|are|was|were|be|will|would|can|could|if|when|while|then|until|before|after)$/i;
+
+function prefixCuts(text: string, choice: boolean): string[] {
+  const words = text.replace(/\?\s*$/, "").split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  for (let n = words.length - 1; n >= 3; n--) {
+    const last = words[n - 1]!.replace(/[^\p{L}\p{N}]/gu, "");
+    if (!last || LOOSE.test(last)) continue;
+    const head = words.slice(0, n).join(" ").replace(/[\s,;:\u00b7\u2013\u2014-]+$/, "");
+    if (choice && !/\bor\s+\S/i.test(head)) continue;
+    out.push(`${head}\u2026`);
+  }
+  return out;
+}
+
 export function compactForms(what: string, title = "", count = 0): string[] {
   const head = what.split(" \u00b7 ")[0]!.trim();
   const parts = head.split(/(?<=[.!?])\s+(?=\S)/);
   const asked = parts.length > 1 ? [...parts].reverse().find(part => /\?\s*$/.test(part) && part.split(/\s+/).length >= 3) : undefined;
   const base = asked ?? head;
-  return [...new Set([head, base, ...askForms(base, OPEN_FORMS, fitWhat, title, count), ...questionCuts(base), fitWhat(base, 40)])];
+  const choice = isChoice(base, count);
+  const clauses = questionCuts(base).filter(cut => !choice || /\bor\s+\S/i.test(cut));
+  return [...new Set([head, base, ...clauses, ...prefixCuts(base, choice), ...askForms(base, OPEN_FORMS, fitWhat, title, count), fitWhat(base, 40)])];
 }
 
 function ArrivalText({ what, title, answers }: { what: string; title?: string; answers: readonly string[] }) {
@@ -630,7 +648,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
     {lined || !(parkTool || threadMenu) ? null : <span className="stage-needs-tools">{parkTool}{threadMenu}</span>}
     {sentAs && !lined ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
     {answers.length && !sentAs || spent.length || note ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
+      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} ref={answerRow}>
         {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send ${answerName(label, isRecommended(item, label))} to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
           onClick={event => { event.stopPropagation(); onAnswer!(label); }}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}

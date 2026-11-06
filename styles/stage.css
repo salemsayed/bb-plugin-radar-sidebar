@@ -539,12 +539,13 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   .stage-needs-item { padding: 8px 10px 0; grid-template-rows: 30px auto; }
   .stage-needs { padding-bottom: 4px; }
   .stage-needs-tools { top: 0; right: 4px; }
-  .stage-needs-item { padding-top: 4px; grid-template-rows: 40px auto; }
+  .stage-needs-item { padding-top: 4px; grid-template-rows: 38px auto; }
+  .stage-needs-answers.radar-answers { gap: 4px; }
   .stage-needs-item .stage-needs-who { padding-inline-end: 4px; }
   .stage-needs li[data-park] .stage-needs-item .stage-needs-who { padding-inline-end: 64px; }
   .stage-needs li[data-menu] .stage-needs-item .stage-needs-who { padding-inline-end: 48px; }
   .stage-needs li[data-park][data-menu] .stage-needs-item .stage-needs-who { padding-inline-end: 112px; }
-  .stage-needs-foot { padding: 6px 0 4px 10px; row-gap: 4px; }
+  .stage-needs-foot { padding: 4px 0 4px 10px; row-gap: 4px; }
   .stage-needs-foot:not(:has(.stage-needs-answer)) { padding-top: 0; }
   .stage-needs[data-slim] .stage-needs-title { height: 44px; }
   .stage-needs[data-slim] .stage-needs-retry { height: 44px; margin-block: 0; background: transparent; }
@@ -677,7 +678,9 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-unfold [data-icon-root], .stage-needs-unfold svg { width: 14px; height: 14px; }
 @media (pointer: coarse) { .stage-needs li[data-folded] .stage-needs-item { min-height: 44px; } }
 .radar-answers { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; width: 100%; min-width: 0; margin: 0; }
-.radar-answers[data-count="2"] { flex-wrap: nowrap; }
+.radar-answers[data-layout="row"], .radar-answers[data-layout="share"], .radar-answers[data-layout="measure"] { flex-wrap: nowrap; }
+.radar-answers[data-layout="share"] > .radar-answer { flex: 1 1 0; }
+.radar-answers[data-layout="measure"] > .radar-answer { flex: none; max-width: none; white-space: nowrap; }
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { flex: 0 1 auto; width: auto; max-width: 100%; overflow-wrap: break-word; }
 .radar-answers > .radar-answer:has(.radar-answer-text[data-rec]) { border-color: color-mix(in oklab, var(--answer-tint) 80%, var(--border)); }
 .radar-answer-text { display: inline; min-width: 0; }

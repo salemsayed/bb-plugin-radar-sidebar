@@ -1,3 +1,4 @@
+import { answerRow } from "./answerRow";
 import { DeskThreads } from "./DeskThreads";
 import { ChatCard, ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
@@ -805,7 +806,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       {consequence ? <AskImpact className="dispatch-card-impact" text={consequence} /> : null}
       {options.length ? <div className="dispatch-options">
         {options.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
-        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length}>
+        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length} ref={answerRow}>
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(label, !!recommended && plainNote(recommended) === label)} to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);

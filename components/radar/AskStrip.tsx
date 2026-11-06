@@ -1,3 +1,4 @@
+import { answerRow } from "./answerRow";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
@@ -9,7 +10,7 @@ import { plainNote } from "./workText";
 import { clockNow, since } from "./stage";
 import { answerHint, coarsePointer } from "./answerHint";
 import { FitLines } from "./FitLines";
-import { oneForms } from "./NeedsSummary";
+import { compactForms, oneForms } from "./NeedsSummary";
 import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
 import { ComposerFill } from "./ComposerFill";
 
@@ -172,9 +173,9 @@ export function AskStrip() {
       <span className="radar-ask-strip-who" ref={whoLine}><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
-    <FitLines className="radar-ask-strip-question" forms={oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length)} />
+    <FitLines className="radar-ask-strip-question" forms={[...new Set([...oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length).slice(0, 1), ...compactForms(entry.question, entry.title, entry.options.length)])]} />
     <AskImpact className="radar-ask-strip-impact" text={entry.consequence} />
-    {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
+    {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerRow}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
         aria-label={`Send ${answerName(label, rec(label))} to ${entry.botName}`} title="Sends this reply to the bot"
         onClick={() => { void choose(label); }}><AnswerLabel label={label} recommended={rec(label)} /></button>)}
