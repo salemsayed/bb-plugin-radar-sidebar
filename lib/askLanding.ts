@@ -73,6 +73,10 @@ export function chatFooter(): { left: number; width: number; top: number; footer
   return { left: edge.left, width: edge.width, top: box.top, footerLeft: box.left, footerWidth: box.width };
 }
 
+export function composerEditor(): HTMLElement | null {
+  return footerNode()?.querySelector<HTMLElement>('[contenteditable="true"], textarea') ?? null;
+}
+
 export function stripAnchor(): { parent: HTMLElement; before: HTMLElement } | null {
   const footer = footerNode();
   const editor = footer?.querySelector<HTMLElement>('[contenteditable="true"], textarea');

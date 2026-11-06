@@ -10,10 +10,12 @@ export function ComposerFill() {
     const composer = composers.find(c => c.scope.kind === "thread" && c.scope.threadId === request.threadId);
     if (!composer) return;
     clearFill(request);
+    const free = composer.isEmpty || request.swap.includes(composer.text.trim());
     try {
-      if (composer.isEmpty || request.swap.includes(composer.text.trim())) composer.replace({ text: request.text, mentions: [] });
+      if (free) composer.replace({ text: request.text, mentions: [] });
       composer.focus();
-    } catch {}
+    } catch { return; }
+    if (free && request.send) requestAnimationFrame(() => { composer.submit().catch(() => {}); });
   }, [request, composers]);
   return null;
 }

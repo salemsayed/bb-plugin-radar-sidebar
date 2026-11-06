@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { createPortal } from "react-dom";
 import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import { askCardAnswers, askMessageShown, chatFooter, stripAnchor } from "@/lib/askLanding";
+import { askCardAnswers, askMessageShown, chatFooter, composerEditor, stripAnchor } from "@/lib/askLanding";
 import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry } from "@/lib/askStrip";
 import { requestFill } from "@/lib/composerFill";
 import { plainNote } from "./workText";
@@ -51,6 +51,7 @@ export function AskStrip() {
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [picked, setPicked] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const seen = useRef<string | null>(null);
   const marker = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -58,7 +59,7 @@ export function AskStrip() {
     if (here) { seen.current = entry.key; return; }
     if (seen.current === entry.key) clearAskStrip(entry.key);
   }, [entry, here]);
-  useEffect(() => { setPicked(null); }, [entry?.key]);
+  useEffect(() => { setPicked(null); setNote(null); }, [entry?.key]);
   useLayoutEffect(() => {
     if (!entry || !here) { setPlace(null); setReady(false); return; }
     let timer = 0;
@@ -97,38 +98,60 @@ export function AskStrip() {
     return composer.onSubmitted(() => clearAskStrip(entry.key));
   }, [composer, entry]);
   const visible = !!entry && here && !!place && !!host && ready && !offered;
+  const close = (refocus: boolean) => {
+    if (!entry) return;
+    clearAskStrip(entry.key);
+    if (refocus) { try { composer?.focus(); } catch {} }
+  };
   useEffect(() => {
     if (!visible || !entry) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || overlayOpen()) return;
-      clearAskStrip(entry.key);
+      if (event.key !== "Escape" || overlayOpen()) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const editor = composerEditor();
+      const inComposer = !!editor && !!target && editor.contains(target);
+      const typing = !!target?.closest('[contenteditable="true"], textarea, input');
+      if (typing && !inComposer) return;
+      close(!inComposer);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [visible, entry]);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [visible, entry, composer]);
   const base = <><span ref={marker} hidden /><ComposerFill /></>;
   if (!visible || !entry || !place || !host) return base;
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
   const asked = `${entry.botName} asked${age ? age === "now" ? " just now" : ` ${age} ago` : ""}`;
-  const hint = entry.options.length ? "Answer here or in the chat" : "Type your answer below";
-  const choose = (option: string) => {
-    setPicked(option);
-    requestFill(entry.threadId, option, entry.options);
+  const shown = entry.options.map(option => plainNote(option));
+  const hint = shown.length ? "Tap an answer to send it" : "Type your answer below";
+  const choose = async (label: string) => {
+    if (!composer) { requestFill(entry.threadId, label, shown); return; }
+    const draft = composer.text.trim();
+    if (draft && !shown.includes(draft)) { setNote("Your draft is in the message box: send or clear it first"); return; }
+    setPicked(label);
+    setNote("Sending…");
+    try {
+      composer.replace({ text: label, mentions: [] });
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await composer.submit();
+    } catch (error) {
+      setPicked(null);
+      setNote(error instanceof Error && error.message ? error.message : "Not sent");
+    }
   };
   return <>{base}{createPortal(<section className="radar-ask-strip" role="region" aria-label={`${asked}: ${entry.question}`}
     style={{ marginInlineStart: `${place.left}px`, width: `${place.width}px` } as CSSProperties}
-    onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); clearAskStrip(entry.key); } }}>
+    onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(true); } }}>
     <header className="radar-ask-strip-head">
       <span className="radar-ask-strip-dot" aria-hidden="true" />
       <span className="radar-ask-strip-who"><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
-      <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => clearAskStrip(entry.key)}><Icon name="X" aria-hidden="true" /></button>
+      <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
     <FitLines className="radar-ask-strip-question" forms={askForms(entry.question, QUESTION_FORMS, fitWhat, entry.title, entry.options.length)} />
-    {entry.options.length ? <div className="radar-ask-strip-options" role="group" aria-label={`Answers to: ${entry.question}`}>
-      {entry.options.map(option => <button key={option} type="button" className="radar-ask-strip-option" aria-pressed={picked === option}
-        aria-label={`Answer “${plainNote(option)}”: types it in the message box, you press send`} title="Types this answer in the message box; you press send"
-        onClick={() => choose(option)}><Isolated text={plainNote(option)} /></button>)}
-      {picked ? <span className="radar-ask-strip-note" role="status">Typed below · press send</span> : null}
+    {shown.length ? <div className="radar-ask-strip-options" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
+      {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
+        aria-label={`Send “${label}” to ${entry.botName}`} title="Sends this reply to the bot"
+        onClick={() => { void choose(label); }}><Isolated text={label} /></button>)}
     </div> : null}
+    {note ? <p className="radar-ask-strip-note" role="status">{note}</p> : null}
   </section>, host)}</>;
 }

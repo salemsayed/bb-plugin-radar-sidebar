@@ -83,7 +83,11 @@ export function needItems(data: BotTasksData): NeedItem[] {
         threadId: desk.threadId ?? bot.coordinatorThreadId, notNowKey: `desk:${desk.id}` });
     }
   }
-  return [...items.filter(item => !item.old), ...items.filter(item => item.old)];
+  return [...oldestFirst(items.filter(item => !item.old)), ...oldestFirst(items.filter(item => item.old))];
+}
+
+export function oldestFirst<T extends { at?: number }>(items: readonly T[]): T[] {
+  return items.map((item, index) => ({ item, index })).sort((a, b) => (a.item.at ?? Infinity) - (b.item.at ?? Infinity) || a.index - b.index).map(({ item }) => item);
 }
 
 
@@ -184,7 +188,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const isParked = parked ?? (() => false);
   if (!hold && skip.size) setSkip(new Set());
   const fresh = needItems(data);
-  const items = useHeld([...fresh.filter(item => !item.old), ...extra, ...answered, ...fresh.filter(item => item.old)], hold, parked).filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)));
+  const items = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], hold, parked).filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)));
   const faces = new Map(data.bots.map(bot => [bot.key, bot]));
   const waiting = checking && cold ? 0 : items.filter(item => !item.state && !item.old).length;
   const more = checking && cold ? 0 : items.length - 1;
@@ -247,7 +251,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
       <Icon name="Clock" aria-hidden="true" />
       <span><b>Checking for new questions…</b><span>Bot questions show here</span></span>
     </p> : <ul ref={listRef}>
-      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} />)}
+      {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} open={open} now={now} current={item.id === currentId} offline={!!staleShown} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} />)}
     </ul>}
   </section>;
 }
@@ -299,42 +303,30 @@ export function ageLabel(age: string, _since?: "asked" | "open"): string {
   return askedAgo(age);
 }
 
-function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
+function NeedRow({ item, bot, open, now, current, offline, onOpen, onMenu, onNotNow }: {
   item: NeedItem;
   bot: BotTasksData["bots"][number] | undefined;
   open: boolean;
   now: number;
   current: boolean;
+  offline: boolean;
   onOpen: (threadId: string, messageSeq?: number, item?: NeedItem) => void;
   onMenu: (item: NeedItem, at: HTMLElement) => void;
   onNotNow?: (keyboard: boolean) => void;
 }) {
   const press = useDeskPress();
-  const whoRef = useRef<HTMLSpanElement>(null);
-  const nameRef = useRef<HTMLElement>(null);
   const [inside, setInside] = useState(false);
   const what = item.what;
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
-  const sinceWord = item.since ?? "asked";
-  const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-  const shortAge = age === "now" ? "just now" : `${age} ago`;
-  const fullAge = item.old && age ? `${age} old` : age ? touch ? shortAge : ageLabel(age, sinceWord) : "";
-  const briefAge = item.old || !age ? fullAge : shortAge;
-  const [tight, setTight] = useState(false);
-  useLayoutEffect(() => { setTight(false); }, [fullAge, item.botName, open]);
-  useLayoutEffect(() => {
-    const name = nameRef.current;
-    if (!tight && name && briefAge !== fullAge && name.scrollWidth > name.clientWidth + 1) setTight(true);
-  });
-  const shownAge = tight ? briefAge : fullAge;
-  const spokenAge = tight && !item.old && age ? briefAge : "";
+  const shownAge = item.old && age ? `${age} old` : age ? askedAgo(age) : "";
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? touch ? shortAge : askedAgo(age) : "";
+  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
-  const canPark = !!onNotNow && !!item.notNowKey && !item.state;
+  const parkable = !!item.notNowKey && !item.state;
+  const canPark = !!onNotNow && parkable;
   return <li data-current={current || undefined} data-old={item.old || undefined} {...press}
     onFocus={() => setInside(true)}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInside(false); }}
@@ -348,15 +340,17 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${spokenAge || asked ? `, ${spokenAge || asked}` : ""}. ${item.inPanel ? "Show the question" : item.options?.length ? "Open: its answers show above the message box" : "Open"}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. ${item.inPanel ? "Show the question" : item.options?.length ? "Open: its answers show above the message box" : "Open"}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel ? "dialog" : undefined}
       onClick={event => { if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
-        <span className="stage-needs-who" ref={whoRef}><b ref={nameRef}>{shortName}</b>
-          {item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span> : item.state ? <Icon name="Check" aria-hidden="true" className="stage-needs-done" /> : shownAge ? <span className="stage-needs-age" aria-hidden="true">{shownAge}</span> : null}
-        </span>
+        <span className="stage-needs-who"><b>{shortName}</b></span>
         <FitLines className="stage-needs-what" forms={askForms(what, open ? OPEN_FORMS : SHUT_FORMS, fitWhat, item.title, item.options?.length ?? 0)} />
+        <span className="stage-needs-foot" aria-hidden="true">
+          {item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span> : item.state ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span> : shownAge ? <span className="stage-needs-age">{shownAge}</span> : null}
+          {offline && parkable ? <span className="stage-needs-off">Not now unavailable</span> : null}
+        </span>
       </span>
     </button>
     {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-label={`Not now: ${notNowLabel(item)}`} title="Not now: move to Later until the bot asks again"

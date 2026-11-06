@@ -193,7 +193,7 @@ export function answeredHere(later: { reason: string; messageSeq?: number }): bo
 }
 
 export function laterLine(later: { reason: string; messageSeq?: number }): string {
-  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · back when the bot asks again";
+  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · until it asks again";
 }
 
 export function laterNoteHead(text: string, max = 80): string {
@@ -399,7 +399,7 @@ const replyDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "sh
 function replyTime(bot: BotTasksBot, ctx: StageContext): Pick<RowLook, "time" | "timeTitle"> {
   const at = ctx.lastReply ?? lastActivity(bot);
   if (at === undefined) return { time: "" };
-  const title = `${ctx.lastReply !== undefined ? "Last reply" : "Last activity"} ${isSameLocalDay(at, ctx.now) ? replyClock.format(new Date(at)) : replyDay.format(new Date(at))}`;
+  const title = `Last active ${isSameLocalDay(at, ctx.now) ? replyClock.format(new Date(at)) : replyDay.format(new Date(at))}`;
   return { time: since(at, ctx.now), timeTitle: title };
 }
 

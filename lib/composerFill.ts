@@ -1,12 +1,12 @@
 const KEEP_MS = 15_000;
 
-export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[] };
+export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean };
 
 let pending: FillRequest | null = null;
 const listeners = new Set<() => void>();
 
-export function requestFill(threadId: string, text: string, swap: readonly string[] = []): void {
-  pending = { threadId, text, at: Date.now(), swap };
+export function requestFill(threadId: string, text: string, swap: readonly string[] = [], send = false): void {
+  pending = { threadId, text, at: Date.now(), swap, send };
   for (const listener of listeners) listener();
 }
 

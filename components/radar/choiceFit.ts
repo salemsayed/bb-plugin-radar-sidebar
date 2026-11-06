@@ -123,10 +123,21 @@ export function shortChoice(question: string, max: number, title = "", count = 0
   return forms.find(form => form.length <= max) ?? forms[forms.length - 1] ?? question;
 }
 
+const NEW_CLAUSE = /,\s+(?:and|but|so|then)\s+(?=(?:I|I'll|I'd|I've|we|we'll|then|after that)\b)|[;:]\s+|\s+[\u2013\u2014]\s+|,?\s+(?=(?:because|since|when|while|after|before|until|once|unless|given|so that)\s)/gi;
+
+export function questionCuts(what: string): string[] {
+  const head = what.split(" \u00b7 ")[0]!.trim();
+  if (!/\?\s*$/.test(head)) return [];
+  const body = head.replace(/\?\s*$/, "");
+  const hidden = masked(body).replace(/\([^()]*\)/g, part => "\u0000".repeat(part.length));
+  const cuts = [...hidden.matchAll(NEW_CLAUSE)].map(match => match.index!).filter(at => words(body.slice(0, at)) >= 3);
+  return [...new Set(cuts.reverse().map(at => `${tidy(body.slice(0, at))}?`))];
+}
+
 export function askForms(what: string, sizes: readonly number[], fit: (text: string, max: number) => string, title = "", count = 0): string[] {
   const choices = choiceForms(what, title, count);
   if (!choices.length) {
-    const forms = [what, ...sizes.map(size => fit(what, size))];
+    const forms = [what, ...questionCuts(what), ...sizes.map(size => fit(what, size))];
     return forms.filter((form, i) => form && forms.indexOf(form) === i);
   }
   const forms = [what, ...choices];

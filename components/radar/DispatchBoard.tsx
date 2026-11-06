@@ -78,7 +78,7 @@ export interface IdleWait { title: string; running: boolean; idleFor?: string }
 
 export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, waitsOn?: IdleWait | null): string {
   const state = task.displayState;
-  if (task.later) return answeredHere(task.later) ? "You answered · bot to follow up" : task.later.reason === "answered" ? "Moved to Later" : "Later · back when the bot asks again";
+  if (task.later) return answeredHere(task.later) ? "You answered · bot to follow up" : task.later.reason === "answered" ? "Moved to Later" : "Later · until it asks again";
   if (state === "needs" && isQuestionRow(task)) return task.needs?.question ?? task.title;
   if (state === "needs") {
     const ask = needAsk((task.needs?.question ?? task.line).replace(/^(?:needs you|waiting for you)\s*[:·-]\s*/i, ""), stageTitle(task.title, task.outcome));
@@ -159,7 +159,7 @@ function StageRow({ bot, look, current, here, marked, opening, unread, needs, pa
   const name = bot.name;
   const needsLabel = needs ? `${needs} ${needs === 1 ? "thing needs" : "things need"} you` : "";
   const full = look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · ");
-  const when = look.time && look.time !== "now" ? `last reply ${look.time} ago` : "";
+  const when = look.time && look.time !== "now" ? `last active ${look.time} ago` : "";
   const spoken = [needsLabel, unread ? "new reply" : "", full, when, here ? "you are in one of its chats" : ""].filter(Boolean).join(", ");
   const row = (element: Element) => element.closest<HTMLElement>(".stage-row") ?? (element as HTMLElement);
   const [hover, setHover] = useState(false);
@@ -464,7 +464,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
         <button type="button" disabled={retrying} onClick={retry}>{retrying ? "Trying…" : "Retry"}</button>
       </div> : null}
     </div>
-    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
+    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last active</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {
       const first = list.current?.querySelector<HTMLElement>(".stage-chat");
       const above = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-needs-item") ?? []).at(-1);
@@ -757,12 +757,12 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       </div>
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
-        <span className="dispatch-options-label" aria-hidden="true">Answer here or in the chat</span>
-        {options.map(option => <button key={option} type="button" className="dispatch-option" aria-label={`Reply “${option}” in the chat: opens the chat with it typed, ready to send`} title="Opens the chat with this reply typed, ready to send" onClick={() => {
+        <span className="dispatch-options-label" aria-hidden="true">Tap an answer to send it</span>
+        {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
-          requestFill(place.threadId, option, options);
+          requestFill(place.threadId, label, labels, true);
           onNavigate(place.threadId, place.messageSeq);
-        }}><Isolated text={plainNote(option)} /></button>)}
+        }}><Isolated text={label} /></button>)}
       </div> : null}
       {(question || needsCard || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
       {ask ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={toggleDetails}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>

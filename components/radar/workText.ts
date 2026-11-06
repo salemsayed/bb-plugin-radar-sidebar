@@ -59,7 +59,24 @@ const PACKAGE_ID = /\s*\b(?:com|org|net)\.[a-z0-9]+(?:\.[a-z0-9]+)+\b/g;
 const TEST_ACCOUNT = /\s+(?:with|using|on account) \d{6,}\b/g;
 
 const PIPELINE_WORDS: [RegExp, string][] = [
-  [/\bcapacity shortfalls? queues?(?: with (?:their )?deadlines)?/g, "work waits for a free worker and keeps its deadline"],
+  [/\bcapacity shortfalls? queues?(?: with (?:their )?deadlines)?/g, "queued work keeps its deadline"],
+  [/\bown-chrome could not read the lock status in its retry window \(typed nothing\)/g, "Own Chrome couldn't tell whether the PC was locked, so it typed nothing"],
+  [/\bNeeds a fix to the lock-status read\b/g, "Its lock check needs a fix"],
+  [/\bown-chrome\b/g, "Own Chrome"],
+  [/\bevery bot desk is a tasks? in the bot's chat the owning bot drives like its other tasks\b/g, "each desk is a task in its bot's chat, run like any other task"],
+  [/\bruns headless as a Reflex-style view model with an agent CLI and fixture-backed journeys\b/g, "runs without a phone as a model agents can drive, with saved test journeys"],
+  [/\bruns headless as a Reflex-style view model on the same runtime and CLI as\b/g, "runs without a phone as a model agents can drive, the same way as"],
+  [/\bwith fixture-backed journeys\b/g, "with saved test journeys"],
+  [/\bReflex-style view model\b/g, "model agents can drive"],
+  [/\bOptBot's summary tree with zoom\b/g, "OptBot's zoomable summary of past chats"],
+  [/\btoday's handoffs and memory files\b/g, "today's carry-over and memory notes"],
+  [/\b(?:the )?bots core\b/g, "the bots' code"],
+  [/\bhandoff (?:records|notes)\b/g, "carry-over notes"],
+  [/\bworkers and handoffs\b/g, "workers and fresh chats"],
+  [/\bmain-chat (tasks?)\b/g, "$1 in the bot's chat"],
+  [/\bJev audit\b/g, "Judgment-check audit"],
+  [/\bevery Jev question\b/g, "every judgment question"],
+  [/\bJev questions\b/g, "judgment questions"],
   [/\b(?:our )?local sibling-bridge daemon patch\b/g, "our own local patch"],
   [/\b(?:model[- ])?routing status check\b/g, "check of which models the bots use"],
   [/(^|:\s+|[.!?]\s+)Routing is live\b/g, "$1The new model setup is live"],
@@ -74,7 +91,7 @@ export function botTokens(text: string, _keepNames = false): string {
   return text
     .replace(PROVIDER_TOPIC, "model $1")
     .replace(NAMED_COORDINATOR, "$1 Bot")
-    .replace(COORDINATOR_TASKS, "main-chat $1")
+    .replace(COORDINATOR_TASKS, (_, noun: string) => `${noun} in the bot's chat`)
     .replace(COORDINATOR_OWNS, whole => /s$/.test(whole) ? "the bot's" : "the bot")
     .replace(COORDINATORS, word => word.endsWith("s") ? "main chats" : "main chat")
     .replace(HANDOFF_RECORDS, "the notes a bot leaves when it starts a fresh chat")
@@ -82,7 +99,8 @@ export function botTokens(text: string, _keepNames = false): string {
     .replace(CORE_PREFIX, "$1")
     .replace(COMPONENT_ASIDE, "")
     .replace(TYPESAFE, "the question-writing guide")
-    .replace(AUTO_EFFORT, (_, lead?: string) => lead ? "with automatic effort per worker" : "automatic worker effort")
+    .replace(/\s*\b(?:through|via|with|using) Auto Effort\b/g, "")
+    .replace(AUTO_EFFORT, "how hard each worker thinks")
     .replace(/[^]*/, pipelineWords)
     .replace(API_PATH, " $1 command")
     .replace(RETURNS_OK, "reports success")
