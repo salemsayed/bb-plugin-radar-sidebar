@@ -363,7 +363,7 @@ function idleWait(task: BotTaskRow, bot: BotTasksBot, snapshot: WorkerSnapshot, 
 }
 
 function detailReason(text: string): string {
-  return capitalFirst(plainQueue(text).replace(/^(?:You answered [^·:]{1,40} · bot to follow up|Later \(you chose Not now [^()]{1,40}\)):\s*/i, "It asked you: ").replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes?\b[^·]*|next check [^·]+|no wake set|untou\w*[^·]*|retry\b[^·]*))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
+  return capitalFirst(plainQueue(text).replace(/^(?:You answered [^·]{1,40} · bot to follow up|Later \(you chose Not now [^()]{1,40}\)):\s*/i, "It asked you: ").replace(/^Waiting for (?:someone else|the bot|you|a worker):\s*/i, "").replace(/^You:\s+/i, "Your ask: ").replace(/(?:\s*·\s*(?:wakes?\b[^·]*|next check [^·]+|no wake set|untou\w*[^·]*|retry\b[^·]*))+\s*$/i, "").replace(/\s*·\s*$/, "").trim());
 }
 
 function deskAnswered(desk: BotDesk, coordinatorThreadId: string, threads: ReadonlyMap<string, PluginSidebarThread>): boolean {
