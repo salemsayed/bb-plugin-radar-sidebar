@@ -573,6 +573,10 @@ function WorkerList({ attempts, now, onOpen }: { attempts: readonly Attempt[]; n
     </button></li> : null}
   </ul>;
 }
+function afterStop(text: string): string {
+  return text.replace(/([.!?]["\u201d\u2019)]?)\u2026$/, "$1");
+}
+
 const OUTCOME_CAP = 600;
 const CORE_CAPS = [300, 600];
 const CARD_ASK = 110;
@@ -708,9 +712,9 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
         {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · ${fullAsk.part ?? "excerpt"}` : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
         {fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open dispatch-ask-open-inline" onClick={() => onNavigate(task.ask!.ref.threadId)}>{yours ? "Open your whole ask in chat" : "Open in chat"}</button> : null}
-        {outcome ? <p className="dispatch-full" dir="auto"><span>{goalCut ? "Goal · excerpt" : "Goal"}</span><Isolated text={outcome} /></p> : null}
+        {outcome ? <p className="dispatch-full" dir="auto"><span>{goalCut ? "Goal · excerpt" : "Goal"}</span><Isolated text={afterStop(outcome)} /></p> : null}
         {split ? <p className="dispatch-full" dir="auto"><span>Your standing instruction</span><Isolated text={`\u201c${split.asked}\u201d`} /></p> : null}
-        {extra ? extraCut ? <p className="dispatch-full" dir="auto"><span>Latest note · excerpt</span><Isolated text={extra} /></p> : <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
+        {extra ? extraCut ? <p className="dispatch-full" dir="auto"><span>Latest note · excerpt</span><Isolated text={afterStop(extra)} /></p> : <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <WorkerList attempts={attempts} now={now} onOpen={onNavigate} /> : null}
         {task.ask && !fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>{yours ? "Open your ask in chat" : "Open in chat"}</button> : null}
       </details> : null}
