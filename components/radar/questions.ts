@@ -83,11 +83,13 @@ export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] 
       const question = recordQuestion(item.text, linked ? stageTitle(linked.title, linked.outcome) : "");
       const parkedAt = laterAt(`task:${item.id}`, askedAt);
       const seq = item.askSeq ?? undefined;
+      const answered = item.answered ?? null;
+      const later = answered ? { reason: "answered" as const, at: answered.at, threadId, messageSeq: answered.seq } : parkedAt !== null ? { reason: "not-now" as const, at: parkedAt } : null;
       rows.push({
-        id: item.id, bot: bot.key, title: question, displayState: parkedAt === null ? "needs" : "waiting", line: question, waitFor: "you",
+        id: item.id, bot: bot.key, title: question, displayState: later ? "waiting" : "needs", line: question, waitFor: "you",
         ageMs: Math.max(0, data.observedAt - askedAt), conversationThreadId: null,
         needs: { threadId, interactionId: "", question, askedAt, ...(seq !== undefined ? { messageSeq: seq } : {}) },
-        ...(parkedAt !== null ? { later: { reason: "not-now" as const, at: parkedAt } } : {}),
+        ...(later ? { later } : {}),
         tags: seq === undefined ? [QUESTION_TAG, IN_PANEL_TAG] : [QUESTION_TAG], origin: "verified", observedAt: data.observedAt,
       });
     }

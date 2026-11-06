@@ -45,6 +45,34 @@ export function askNeedle(text: string): string {
   return normalizedNeedsText(text).slice(0, 60).trim();
 }
 
+const TEST_MESSAGE = /^\s*UI\s+test\s*,\s*ignore\b/i;
+const REPLY_TTL_MS = 60_000;
+
+export function salemTurn(data: unknown): boolean {
+  const d = data as { initiator?: string; senderThreadId?: string | null; source?: string; systemMessageKind?: string; input?: { type?: string; text?: string; visibility?: string }[] };
+  const text = (d.input ?? []).filter(part => (!part.type || part.type === "text") && !part.visibility).map(part => part.text ?? "").join("\n");
+  return d.initiator === "user" && !d.senderThreadId && d.source !== "spawn" && (!d.systemMessageKind || d.systemMessageKind === "unlabeled")
+    && !!text.trim() && !/^\s*\[via ChatGPT\]/i.test(text) && !TEST_MESSAGE.test(text);
+}
+
+export function createReplyFinder(bb: BbPluginApi) {
+  const found = new Map<string, { reply: { seq: number; at: number } | null; at: number }>();
+  return async function reply(threadId: string, askSeq: number): Promise<{ seq: number; at: number } | null> {
+    const key = `${threadId}#${askSeq}`;
+    const hit = found.get(key);
+    if (hit && (hit.reply || Date.now() - hit.at < REPLY_TTL_MS)) return hit.reply;
+    let reply: { seq: number; at: number } | null = null;
+    try {
+      const rows = await bb.sdk.threads.events.list({ threadId, afterSeq: String(askSeq), order: "asc", limit: "100", types: ["client/turn/requested"] });
+      const first = rows.find(row => salemTurn(row.data));
+      reply = first ? { seq: first.seq, at: first.createdAt } : null;
+    } catch { reply = null; }
+    found.set(key, { reply, at: Date.now() });
+    while (found.size > 500) found.delete(found.keys().next().value!);
+    return reply;
+  };
+}
+
 export function createAskFinder(bb: BbPluginApi) {
   const found = new Map<string, { seq: number | null; at: number }>();
   return async function askSeq(item: NeedsItem): Promise<number | null> {
@@ -76,6 +104,12 @@ export function createAskFinder(bb: BbPluginApi) {
 
 export function createNeedsServer(bb: BbPluginApi) {
   const askSeq = createAskFinder(bb);
+  const replyAfter = createReplyFinder(bb);
+  const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
+    const seq = await askSeq(item);
+    const answered = seq !== null && item.source.threadId ? await replyAfter(item.source.threadId, seq) : null;
+    return { ...item, askSeq: seq, answered };
+  };
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
   const update = (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) =>
@@ -90,7 +124,7 @@ export function createNeedsServer(bb: BbPluginApi) {
         // A list read never starts a classifier: bots, Salem and ChatGPT close items.
         let items: NeedsItem[];
         try { items = (await list()).items; } catch { return { items: null }; }
-        return { items: await Promise.all(items.map(async item => item.kind === "decision" ? { ...item, askSeq: await askSeq(item) } : item)) };
+        return { items: await Promise.all(items.map(item => item.kind === "decision" ? withPlace(item) : item)) };
       },
       // Closing an item also clears its bot's ask: asks are read from the open items.
       crew_needs_update: (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) => update(input),
