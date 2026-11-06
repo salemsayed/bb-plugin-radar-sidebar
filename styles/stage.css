@@ -655,3 +655,4 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs .stage-needs-title .stage-needs-stale-text, .stage-needs-arrival .stage-needs-line-text, .stage-needs[data-slim] .stage-needs-stale-text { flex: 1 1 0; min-width: 0; }
 .stage-needs-arrival-text { display: block; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--foreground); }
 .stage-needs-arrival-text b { font-weight: 650; color: var(--stage-ask); }
+.stage-needs-arrival .stage-needs-more-pill[data-icon-only] { padding-inline: 5px; }

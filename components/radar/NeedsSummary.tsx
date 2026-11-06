@@ -317,7 +317,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
           onClick={() => { focusAt.current = 0; reveal(); }}>
           <span className="stage-needs-dot" aria-hidden="true" />
           {single ? <span className="stage-needs-arrival-text" dir="auto"><b>{lead}:</b> <Isolated text={single.what} /></span> : <FitOne className="stage-needs-line-text" forms={forms} />}
-          <span className="stage-needs-more-pill" aria-hidden="true"><span>Show</span><Icon name="ChevronDown" aria-hidden="true" /></span>
+          <span className="stage-needs-more-pill" data-icon-only={single ? "" : undefined} aria-hidden="true">{single ? null : <span>Show</span>}<Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
     </section>;
