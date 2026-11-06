@@ -82,7 +82,7 @@ export function turnTasks(data: unknown): string[] {
 
 export type Verdict = "yes" | "no" | "unsure";
 export type AnswerHow = "button" | "task" | "jev";
-export interface AnswerTurn { seq: number; at: number; text: string; how: AnswerHow | "other-task" | Verdict | "pending"; p?: number }
+export interface AnswerTurn { seq: number; at: number; text: string; how: AnswerHow | "other-task" | Verdict | "pending"; p?: number; error?: string }
 export interface AnswerCheck { reply: { seq: number; at: number; by: AnswerHow } | null; followedUp: { seq: number; at: number } | null; turns: AnswerTurn[] }
 export interface AnswerAsk { id: string; threadId: string; askSeq: number; question: string; options: readonly string[]; taskId?: string }
 type Judge = (state: { botAsked: string; options: readonly string[]; salemMessage: string }) => Promise<number | null>;
@@ -106,11 +106,12 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb))
     if (hit && (hit.check.followedUp || Date.now() - hit.at < REPLY_TTL_MS)) return hit.check;
     const empty: AnswerCheck = { reply: null, followedUp: null, turns: [] };
     let rows: { seq: number; createdAt: number; type: string; data: unknown }[];
-    try { rows = await bb.sdk.threads.events.list({ threadId: ask.threadId, afterSeq: String(ask.askSeq), order: "asc", limit: "100", types: ["client/turn/requested", "item/completed"] }); }
+    try { rows = await bb.sdk.threads.events.list({ threadId: ask.threadId, afterSeq: String(ask.askSeq), order: "asc", limit: "100", types: ["client/turn/requested"] }); }
     catch { return hit?.check ?? empty; }
     const turns: AnswerTurn[] = [];
     let reply: AnswerCheck["reply"] = null;
     let judged = 0;
+    const failed = new Map<number, string>();
     for (const row of rows) {
       if (reply) break;
       if (row.type !== "client/turn/requested" || !salemTurn(row.data)) continue;
@@ -129,15 +130,25 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb))
         try {
           const p = await judge({ botAsked: ask.question.slice(0, 1800), options: ask.options, salemMessage: text.slice(0, 1500) });
           if (p !== null) { v = { verdict: p >= YES ? "yes" : p <= NO ? "no" : "unsure", p, at: Date.now() }; verdicts.set(vkey, v); }
-        } catch (error) { bb.log.warn(`${ask.id}: answer check for #${row.seq} failed: ${String(error)}`); }
+        } catch (error) { failed.set(row.seq, String(error).slice(0, 300)); bb.log.warn(`${ask.id}: answer check for #${row.seq} failed: ${String(error)}`); }
         finally { judging.delete(vkey); }
       }
-      if (!v) { turns.push({ ...base, how: "pending" }); continue; }
+      if (!v) { turns.push({ ...base, how: "pending", ...(failed.has(row.seq) ? { error: failed.get(row.seq)! } : {}) }); continue; }
       turns.push({ ...base, how: v.verdict === "yes" ? "jev" : v.verdict, p: v.p });
       if (v.verdict === "yes") reply = { seq: row.seq, at: row.createdAt, by: "jev" };
     }
-    const followed = reply ? rows.find(row => row.seq > reply!.seq && row.type === "item/completed" && (row.data as { item?: { type?: string; text?: string; parentToolCallId?: string } }).item?.type === "agentMessage"
-      && !(row.data as { item?: { parentToolCallId?: string } }).item?.parentToolCallId && !!(row.data as { item?: { text?: string } }).item?.text?.trim()) : undefined;
+    let followed: { seq: number; createdAt: number } | undefined;
+    if (reply) {
+      try {
+        let after = reply.seq;
+        for (let page = 0; page < 3 && !followed; page++) {
+          const said = await bb.sdk.threads.events.list({ threadId: ask.threadId, afterSeq: String(after), order: "asc", limit: "100", types: ["item/completed"] });
+          followed = said.find(row => { const item = (row.data as { item?: { type?: string; text?: string; parentToolCallId?: string } }).item; return item?.type === "agentMessage" && !item.parentToolCallId && !!item.text?.trim(); });
+          if (said.length < 100) break;
+          after = said.at(-1)!.seq;
+        }
+      } catch { followed = undefined; }
+    }
     const result: AnswerCheck = { reply, followedUp: followed ? { seq: followed.seq, at: followed.createdAt } : null, turns };
     found.set(key, { check: result, at: Date.now() });
     while (found.size > 500) found.delete(found.keys().next().value!);
@@ -205,16 +216,24 @@ export function createRecoveryCheck(bb: BbPluginApi) {
   let health: { at: number; read: Promise<Map<string, { state: string; lastSuccessAt?: string | null; waitingOn?: string | null }> | null> } | null = null;
   const read = () => {
     if (!health || Date.now() - health.at > HEALTH_TTL_MS) health = { at: Date.now(), read: bb.sdk.plugins.callRpc({ pluginId: "saelmbot-automations", method: "automation_health", input: {}, outputSchema: healthSchema, signal: AbortSignal.timeout(8_000) })
-      .then(out => new Map(Object.values(out.bots).flatMap(bot => bot.automations.map(a => [a.id, a] as const)))).catch(() => null) };
+      .then(out => new Map(Object.values(out.bots).flatMap(bot => bot.automations.map(a => [a.id, a] as const)))).catch(error => { lastError = String(error).slice(0, 300); health = null; return null; }) };
     return health.read;
   };
-  return async function cleared(item: NeedsItem): Promise<{ at: number; why: string } | null> {
+  let lastError = "";
+  const explain = async (item: NeedsItem) => {
+    const automation = SCHEDULER_WAIT.exec(item.key ?? "")?.[1] ?? null;
+    if (!automation) return null;
+    const all = await read();
+    return { automation, health: all ? all.get(automation) ?? "not found" : `unreadable: ${lastError}` };
+  };
+  const cleared = async function cleared(item: NeedsItem): Promise<{ at: number; why: string } | null> {
     const automation = SCHEDULER_WAIT.exec(item.key ?? "")?.[1] ?? null;
     if (!automation || item.kind !== "decision") return null;
     const a = (await read())?.get(automation);
     const ok = a?.lastSuccessAt ? Date.parse(a.lastSuccessAt) : NaN;
     return a && a.state === "healthy" && !a.waitingOn && ok > Date.parse(item.createdAt) ? { at: ok, why: "its check has run fine since" } : null;
   };
+  return Object.assign(cleared, { explain });
 }
 
 export function createNeedsServer(bb: BbPluginApi) {
@@ -244,6 +263,15 @@ export function createNeedsServer(bb: BbPluginApi) {
         let items: NeedsItem[];
         try { items = (await list()).items; } catch { return { items: null }; }
         return { items: await Promise.all(items.map(item => item.kind === "decision" ? withPlace(item) : item)) };
+      },
+      async crew_answer_check(): Promise<{ checks: unknown[] }> {
+        const items = (await list()).items.filter(item => item.kind === "decision");
+        return { checks: await Promise.all(items.map(async item => {
+          const { seq, options } = await askSeq(item);
+          const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
+          const check = seq !== null && item.source.threadId ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) }) : null;
+          return { id: item.id, bot: item.bot, text: item.text, askSeq: seq, options, recovery: await recovered.explain(item), cleared: await recovered(item), ...(check ?? {}) };
+        })) };
       },
       // Closing an item also clears its bot's ask: asks are read from the open items.
       crew_needs_update: (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) => update(input),

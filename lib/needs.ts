@@ -34,6 +34,7 @@ export const needsUpdateSchema = z.object({
 export const needsRpcContract = {
   crew_needs_list: { input: z.object({}).strict(), output: z.object({ items: z.array(needsItemSchema).nullable() }) },
   crew_needs_update: { input: needsUpdateSchema, output: needsResultSchema },
+  crew_answer_check: { input: z.object({}).strict(), output: z.object({ checks: z.array(z.unknown()) }) },
   crew_remind: {
     input: z.object({ threadId: z.string().min(1).max(64), messageId: z.string().min(1).max(256), text: z.string().min(1).max(120), until: z.string() }).strict(),
     output: needsResultSchema,
