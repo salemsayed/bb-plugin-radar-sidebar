@@ -68,11 +68,17 @@ export function questionTopic(question: string): string {
 const EITHER_OR = /,?\s+or\s+[^?]*\?\s*$/i;
 const NUMBERED = /\b(?:the\s+)?(?:(?:merge request|pull request|MR|PR|job|ticket|issue|invoice|order|redemption|feedback)\s+#?\d+|\d{3,}\s+(?:job|ticket|order|invoice|merge request)|#\d+)/i;
 
+const TOPIC_TITLE = 48;
+
 export function needsTopic(question: string, fallback = ""): string {
   const whole = question.split(" \u00b7 ")[0]!.trim();
   const asked = whole.split(/(?<=[.!?])\s+(?=[A-Z])/).find(sentence => /\?\s*$/.test(sentence));
   const head = asked ?? whole;
-  if (!EITHER_OR.test(head)) return questionTopic(head);
+  if (!EITHER_OR.test(head)) {
+    const topic = questionTopic(head);
+    const echoes = topic.length >= 8 && head.toLowerCase().startsWith(topic.toLowerCase().replace(/[?.]$/, ""));
+    return echoes && fallback && fallback.length <= TOPIC_TITLE && fallback.toLowerCase() !== topic.toLowerCase() ? fallback : topic;
+  }
   const named = NUMBERED.exec(head)?.[0];
   if (named) return capitalFirst(plainText(named.replace(/^the\s+/i, "the ").trim()));
   return fallback || questionTopic(head);

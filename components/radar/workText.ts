@@ -59,6 +59,13 @@ const PACKAGE_ID = /\s*\b(?:com|org|net)\.[a-z0-9]+(?:\.[a-z0-9]+)+\b/g;
 const TEST_ACCOUNT = /\s+(?:with|using|on account) \d{6,}\b/g;
 
 const PIPELINE_WORDS: [RegExp, string][] = [
+  [/\s*\(held retries, null turn output, pool admission fixed now in a way that works on [\d.]+ and after\)/g, ", with today's fixes made to keep working after it"],
+  [/\bthe notification patch is rebased onto current bb with native dismissal integrated and builds\b/g, "the notification change is updated for the current bb and builds"],
+  [/\ban update checklist covers the adopt-after-update items\b/g, "a checklist lists what to switch on after each update"],
+  [/\bwith native dismissal integrated\b/g, "using bb's own dismiss"],
+  [/\bnull turn output\b/g, "empty replies"],
+  [/\bpool admission\b/g, "account sharing"],
+  [/\bheld retries\b/g, "paused retries"],
   [/\bcapacity shortfalls? queues?(?: with (?:their )?deadlines)?/g, "queued work keeps its deadline"],
   [/\bown-chrome could not read the lock status in its retry window \(typed nothing\)/g, "Own Chrome couldn't tell whether the PC was locked, so it typed nothing"],
   [/\bNeeds a fix to the lock-status read\b/g, "Its lock check needs a fix"],
@@ -310,6 +317,7 @@ const WAITING_ON = /\b(?:waiting|wait) (?:on|for) ((?:[A-Z][\w-]+)(?: [A-Z][\w-]
 const BOT_NAME = /^(?:Lab|Bricks|Home|Work|Personal|Security|ERBareeq) Bot$/;
 const NEXT_THING = /\b(?:until|for|on|wait for|waiting for|:)?\s*the next (?:new )?((?:[a-z][\w-]* ){0,2}(?:ticket|order|reply|message|report|run|email|payment|delivery|build|release|image|update|answer|review))s?\b/i;
 const UPSTREAM = /\b(?:no|until (?:an?|the)|waits? for (?:an?|the)) (?:clean |new |fixed |supported )?(?:official|upstream|vendor) (image|release|build|fix|patch|update)s?\b/i;
+const AFFECTED = /\b(?:same |still )?affected (?:official|upstream|vendor) (?:manifests?|images?|releases?)\b/i;
 const GROUP = /\b(merchants|customers|clients|suppliers|vendors|installers|technicians|reviewers)\b/i;
 
 function personWait(line: string): string {
@@ -329,6 +337,7 @@ export function waitingOn(line: string, outcome = ""): string {
   if (next) return `the next ${next[1]!.toLowerCase()}`;
   const upstream = UPSTREAM.exec(reason);
   if (upstream) return `an upstream ${upstream[1]!.toLowerCase()}`;
+  if (AFFECTED.test(reason)) return "fixed official images";
   const group = GROUP.exec(reason) ?? GROUP.exec(outcome);
   if (group) return group[1]!.toLowerCase();
   return "";
@@ -577,8 +586,12 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const long = relay && kept.length > RELAY_CAP;
   const full = long ? sentencesUpTo(kept, RELAY_CAP) : kept;
   const quote = quoteShown.cut ? full : relay ? dropOrders(quoteShown.text) : quoteShown.text;
+  const picked = kind === "yours" && !cut && /^You asked\b/.test(head) ? PICKED.exec(full.trim()) : null;
+  if (picked) return { head: head.replace(/^You asked\b/, "You chose"), quote: picked[1]!.trim(), full: picked[1]!.trim(), excerpt: false, kind };
   return { head, quote, full, excerpt: cut || long, kind };
 }
+
+const PICKED = /^["\u201c]?([^.?!"\u201c\u201d]{2,70}?)\s*\((?:recommended)\)[.]?["\u201d]?$/i;
 
 const RELAY_CAP = 300;
 const BOT_ORDER = /^["\u201c]?(?:reply (?:with|to)|report back|continue (?:that|this|the|with)|no reply(?: to me)? is needed|please (?:reply|confirm|recheck|report|continue|keep|let me)|let me know|send me|tell me|ping me)\b/i;

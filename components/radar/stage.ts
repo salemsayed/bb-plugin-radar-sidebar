@@ -210,7 +210,12 @@ export function noteRowForms(text: string, title: string): string[] {
   if (verb) {
     const subject = verb[1]!.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
     const theirs = title.toLowerCase().split(/[^a-z0-9]+/);
-    if (subject.some(word => theirs.some(other => other.length > 2 && (other.startsWith(word.slice(0, 5)) || word.startsWith(other.slice(0, 5)))))) forms.push(capitalFirst(verb[2]!.replace(/^(?:was|were|is|are|has been|have been|got) /, "")));
+    if (subject.some(word => theirs.some(other => other.length > 2 && (other.startsWith(word.slice(0, 5)) || word.startsWith(other.slice(0, 5)))))) {
+      const done = verb[2]!.replace(/^(?:was|were|is|are|has been|have been|got) /, "");
+      const number = /(?:^|\s)(#\d+|v?\d+(?:\.\d+)+)(?=\s|$)/.exec(verb[1]!)?.[1];
+      if (number) forms.push(`${number} ${done}`);
+      else forms.push(capitalFirst(done));
+    }
   }
   return [...new Set(forms.filter(Boolean))];
 }

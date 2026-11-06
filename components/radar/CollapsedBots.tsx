@@ -108,7 +108,7 @@ function useCollapsedPlace(root: RefObject<HTMLElement | null>): Place {
 }
 
 function spoken(bot: CollapsedBot): string {
-  return [bot.name, bot.needs ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.working ? "working now" : "", bot.status].filter(Boolean).join(", ");
+  return [bot.name, bot.needs && !/\bfor you\b/.test(bot.status) ? `${bot.needs} ${bot.needs === 1 ? "thing needs" : "things need"} you` : "", bot.unread ? "new reply" : "", bot.working ? "working now" : "", bot.status].filter(Boolean).join(", ");
 }
 
 function useRailHost(active: boolean): HTMLElement | null {

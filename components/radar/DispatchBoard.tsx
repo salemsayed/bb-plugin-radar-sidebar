@@ -580,7 +580,7 @@ function WorkerList({ attempts, now, onOpen }: { attempts: readonly Attempt[]; n
   const running = attempts.filter(a => a.state === "running");
   const rest = attempts.filter(a => a.state !== "running");
   const fold = attempts.length > WORKERS_SHOWN;
-  const shown = fold && !all ? running : attempts;
+  const shown = fold && !all ? running : [...running, ...rest];
   const item = (a: Attempt) => {
     const status = attemptStatus(a, now);
     const name = names.get(a.threadId) ?? "Worker";
@@ -770,7 +770,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         }}><Isolated text={label} /></button>)}
       </div> : null}
       {(question || needsCard || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
-      {ask ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={toggleDetails}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
+      {ask && !(askOpen && fullAsk) ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={event => { const card = event.currentTarget.closest("article"); toggleDetails(); if (fullAsk) requestAnimationFrame(() => card?.querySelector<HTMLElement>("details > summary")?.focus({ preventScroll: true })); }}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
