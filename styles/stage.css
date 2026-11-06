@@ -641,3 +641,4 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 }
 .stage-needs .radar-not-now[data-spent] { visibility: hidden; }
 .stage-needs .stage-needs-answer[data-spent] { opacity: .45; cursor: default; }
+.stage-needs .stage-needs-title .stage-needs-stale-text, .stage-needs-arrival .stage-needs-line-text, .stage-needs[data-slim] .stage-needs-stale-text { flex: 1 1 0; min-width: 0; }
