@@ -278,7 +278,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .bot-panel-body { display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 20px; }
 .bot-panel-body .dispatch-section-head { margin: 0; padding: 0; }
 .bot-panel-body :is(.radar-desks, .radar-claimed) { margin: 0; padding: 0; }
-.bot-panel-body h3 { margin: 0 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
+.bot-panel-body h3 { margin: 0 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
 .bot-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 1px; width: 100%; min-height: 44px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: start; }
 button.bot-item { cursor: pointer; }
 button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, transparent); }
@@ -298,7 +298,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .bot-item-ask .bot-item-title { color: light-dark(#5c3d00, #ffd36b); }
 .bot-item-done .bot-item-title::before { content: "✓"; color: var(--stage-good, #2d7346); }
 .bot-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--foreground); transform: translateY(-1px); }
-.bot-quiet, .bot-panel-empty { margin: 0 4px; color: var(--muted-foreground); }
+.bot-quiet, .bot-panel-empty { margin: 0 10px; color: var(--muted-foreground); }
 @media (prefers-reduced-motion: no-preference) { .bot-live-dot { animation: stage-pulse 1.4s ease-in-out infinite; } }
 .dispatch-panel[data-caret] { overflow: visible; }
 .dispatch-panel[data-caret]::before {
