@@ -21,7 +21,7 @@ import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
-import { answeredHere, laterNoteHead, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
+import { answeredHere, laterNoteHead, since, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { FitLines, cutForms } from "./FitLines";
 import { askForms } from "./choiceFit";
@@ -452,7 +452,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot">
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.since === "asked" ? item.at : undefined }); open(id, seq); }}
+      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at }); open(id, seq); }}
         checking={!bothFresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
         onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
@@ -665,7 +665,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   const askedMeta = (task: BotTaskRow) => {
     const at = task.needs?.askedAt;
     if (at === undefined) return "";
-    return isOldAsk(task) ? `Old ask · ${elapsed(at, now)} · the bot has moved on since` : `Asked ${dayAndTime(at, now)}`;
+    const age = since(at, now);
+    return isOldAsk(task) ? `Old ask · ${elapsed(at, now)} · the bot has moved on since` : `${capitalFirst(askedAgo(age))} · ${dayAndTime(at, now)}`;
   };
   const sameLook = new Map<string, number>();
   for (const task of [...tasks, ...recent]) { const key = `${titleOf(task)}\n${taskStatus(task, now)}`; sameLook.set(key, (sameLook.get(key) ?? 0) + 1); }
