@@ -690,7 +690,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-item[data-lined] { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; }
 .stage-needs ul:has(> li[data-lined]) { gap: 0; }
 .stage-needs-item[data-lined] .stage-needs-copy { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
-.stage-needs-item[data-lined] .stage-needs-who { flex: none; padding-inline-end: 0; }
+.stage-needs-item[data-lined] .stage-needs-who { display: none; }
 .stage-needs-item[data-lined] .stage-needs-status { display: none; }
 .stage-needs-item[data-lined] .stage-needs-what { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
 @media (pointer: coarse) {
