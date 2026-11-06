@@ -445,7 +445,12 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
       </div> : null}
     </div>
     <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
-    <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
+    <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {
+      const first = list.current?.querySelector<HTMLElement>(".stage-chat");
+      const above = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-needs-item") ?? []).at(-1);
+      if (event.key === "ArrowUp" && above && event.target === first) { event.preventDefault(); above.focus(); return; }
+      roving.onKeyDown(event);
+    }}>
     {rows.map(({ bot: b, unread, look, current, here, needs }) =>
       <div role="listitem" key={b.key}><StageRow bot={b} look={look} current={current} here={here} marked={!needMarked} opening={opening === b.coordinatorThreadId} unread={unread} needs={needs} panelOpen={sheet === b.key}
         onChat={() => open(b.coordinatorThreadId)}
