@@ -3,6 +3,7 @@ import { askKind, botWords, botWordsShown, keepsCase, requestsSomething, userWor
 const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]{6,}\b/gi;
 const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
 const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit|head)\\s+${HASH}\\b`, "g");
+const HASH_TO = new RegExp(`\\s+(?:to|onto)\\s+${HASH}\\b`, "g");
 const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
 const HASH_ASIDE_LEAD = new RegExp(`\\((?:at|in|on|commit|head)\\s+${HASH}\\s*[,;]\\s*`, "g");
 const HASH_ASIDE = new RegExp(`\\s*\\((?:(?:at|in|on|commit|head)\\s+)?${HASH}\\)`, "g");
@@ -99,8 +100,23 @@ export function plainNote(text: string, keepNames = false): string {
   return plainText(botFiles(botWords(text), keepNames));
 }
 
+const GITHUB_STATE: Record<string, string> = { MERGEABLE: "can merge", CONFLICTING: "has conflicts", UNSTABLE: "checks unstable", BEHIND: "behind the main branch" };
+const STATE_WORD = new RegExp(`\\b(${Object.keys(GITHUB_STATE).join("|")})\\b`, "g");
+const RUN_ID = /\b(run|job|pipeline|build|workflow)\s+#?\d{6,}\b/gi;
+const SLASH_COMMAND = /(^|[\s(])\/([a-z][a-z]+)-([a-z]+)\b(?:\s+(?:xhigh|high|max|medium|low))?/g;
+const CLI_FLAG = /\s+(?:added |run |called )?(?:with |using |via )?--[a-z][\w-]+\b/g;
+
 export function plainText(text: string): string {
   return text
+    .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "the $1 job")
+    .replace(/\bthe !(\d{3,}) job\b/g, "the $1 job")
+    .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
+    .replace(RUN_ID, "$1")
+    .replace(SLASH_COMMAND, (_, lead: string, a: string, b: string) => `${lead}a ${a} ${b}`)
+    .replace(CLI_FLAG, "")
+    .replace(/\bbase (?:master|main)\b/g, "based on the main branch")
+    .replace(/\brange-diff unchanged\b/g, "same changes")
+    .replace(/\bxhigh\b/g, "thorough")
     .replace(REPO_MERGE_REQUEST, "merge request $1")
     .replace(/(^|[\s(])!(\d{3,})\b/g, "$1merge request $2")
     .replace(MEMORY_SLUG_ASIDE, "")
@@ -122,12 +138,14 @@ export function plainText(text: string): string {
     .replace(HASH_ASIDE_LEAD, "(")
     .replace(HASH_ASIDE, "")
     .replace(HASH_AT, "")
+    .replace(HASH_TO, "")
     .replace(HASH_ALONE, "")
     .replace(/\bonto (?:master|main)\b/g, "onto the main branch")
     .replace(/\b(into|on|to|from|against) (?:the )?master\b/g, "$1 the main branch")
     .replace(/\(\s*[,;]\s*/g, "(")
     .replace(/\s*[,;]\s*\)/g, ")")
     .replace(/\(\s*\)/g, "")
+    .replace(/\b(?:to|onto|at|on) (?=\()/g, "")
     .replace(/\s+([,;:.)])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -209,7 +227,7 @@ const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers?|judges?|workers?|takeover|re-check|recheck|reviews?|checks?|fix|build|routes?)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
-  let out = botTokens(botWords(title.trim())).replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1Code review").replace(/\bIPA\b/g, "iOS app build").replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -369,8 +387,12 @@ const YOU_HANDED = /\bSalem (?:\w+ly )?(?:requests?|requested|asked for|wants|wa
 const HANDED_FROM = /\bhand(?:off|over|ed (?:this|it) (?:off|over)) from (?:the |a |his |your )?((?:[\w-]+ ){0,2}?)(thread|chat desk|chat|desk)\b/i;
 const HANDOVER_CAP = 220;
 
+export function paragraphs(text: string): string {
+  return text.replace(/([^\s.!?:;,\u2026])[ \t]*(?:\r?\n[ \t]*)+(?=[^\s\-*\u2022#>])/g, "$1. ");
+}
+
 function cleanAsk(text: string, mine: boolean, receiver?: string): { text: string; cut: boolean } {
-  const source = text.replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
+  const source = paragraphs(text).replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
   const shown = (mine ? userWordsShown : botWordsShown)(mine ? source : botFiles(source));
   const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
   return { text: mine ? flat : botToBotWords(flat, receiver), cut: shown.cut };

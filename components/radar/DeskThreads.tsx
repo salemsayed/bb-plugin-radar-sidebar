@@ -40,6 +40,6 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   return <section className="radar-desks" aria-label="Desks" ref={ref}>
     <header className="dispatch-section-head"><h3>Desks</h3>{headline ? <span data-needs-you={open.some(needsYou) || undefined}>{headline}</span> : null}</header>
     {open.map(row)}
-    {done.length ? <details className="radar-desks-done"><summary>{done.length} done today</summary>{done.map(row)}<p>Hidden after 24 quiet hours</p></details> : null}
+    {done.length ? <details className="radar-desks-done"><summary>{done.length} done in the last 24 h</summary>{done.map(row)}</details> : null}
   </section>;
 });
