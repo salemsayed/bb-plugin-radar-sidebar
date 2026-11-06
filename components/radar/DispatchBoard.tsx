@@ -521,7 +521,6 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
         parked={key => later.pending(key) !== null || later.laterAt(key) !== null} />
       </div>
     </div>
-    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {
       const first = list.current?.querySelector<HTMLElement>(".stage-chat");
       const above = Array.from(root.current?.querySelectorAll<HTMLElement>(".stage-needs-item") ?? []).at(-1);

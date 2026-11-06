@@ -249,7 +249,6 @@ function BoardSkeleton() {
         <h2 className="stage-needs-title stage-needs-line"><Icon name="Clock" aria-hidden="true" className="stage-needs-line-icon" /><span className="stage-needs-line-text" role="status">Checking for new questions…</span></h2>
       </section>
     </div>
-    <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>
     <div className="stage-bots" aria-hidden="true">
       {rows.map(row => <div className="stage-row" data-skeleton="" key={row.key}><div className="stage-chat">
         <span className="stage-figure">{row.name ? <StageFace botKey={row.key} name={row.name} pose="idle" bare /> : <span className="stage-skel-face" />}</span>
