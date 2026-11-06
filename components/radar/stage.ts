@@ -20,6 +20,7 @@ export interface StageLook {
   alts?: string[];
   whole?: string;
   exact?: boolean;
+  bare?: string;
   ask?: string;
   extra: string;
   tone: StageTone;
@@ -351,7 +352,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (moving || ctx.running) {
     const what = moving ? stageTitle(moving.title) : ctx.runningTitle ? stageTitle(ctx.runningTitle) : "";
     const queued = moving?.displayState === "queued" && !ctx.running;
-    const fit = queued ? fitted("Queued: ", what) : what ? fitted("Working on ", what, "", ["Working: "]) : { line: "Working" };
+    const fit = queued ? { ...fitted("Queued: ", what), bare: "Queued" } : what ? { ...fitted("Working: ", what), bare: "Working" } : { line: "Working" };
     return { pose: "working", ...fit, extra: helpers, tone: "busy", quiet: false };
   }
   const checking = open.find(isChecking);

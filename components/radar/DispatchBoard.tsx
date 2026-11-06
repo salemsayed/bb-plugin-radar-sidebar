@@ -282,6 +282,7 @@ function FitLine({ look }: { look: RowLook }) {
       const narrowest = [...plain].sort((a, b) => lineWidth(a, font) - lineWidth(b, font))[0] ?? options[0]!;
       const shorter = look.exact ? undefined : plain.flatMap(shorterForms).find(fits);
       if (shorter) { setCut(shorter); return; }
+      if (look.bare && fits(look.bare)) { setCut(look.bare); return; }
       const at = options.findIndex(fits);
       setPick(at >= 0 ? at : 0);
       setCut(at >= 0 ? null : fitWords(narrowest, fits));
@@ -293,7 +294,7 @@ function FitLine({ look }: { look: RowLook }) {
     void document.fonts?.ready.then(() => { if (live) measure(); });
     document.fonts?.addEventListener("loadingdone", measure);
     return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
-  }, [options, look.tone, look.exact]);
+  }, [options, look.tone, look.exact, look.bare]);
   const said = look.whole ?? look.line;
   const shown = cut ?? options[pick] ?? look.line;
   return <span className="stage-line" ref={ref} title={shown !== said ? said : undefined}><bdi>{keepHyphens(shown)}</bdi></span>;
