@@ -1,4 +1,5 @@
 import { DeskThreads } from "./DeskThreads";
+import { Icon } from "@/components/ui/icon";
 import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
@@ -71,7 +72,7 @@ function Row({ title, meta, detail, target, here, done, live, ask, onOpen, onCon
   const body = <>
     <span className="bot-item-title">{live ? <i className="bot-live-dot" aria-hidden="true" /> : null}<span dir="auto">{title}</span></span>
     <span className="bot-item-meta" dir="auto">{meta}</span>
-    {opens ? <span className="bot-item-go" aria-hidden="true">›</span> : more ? <span className="bot-item-go bot-item-caret" aria-hidden="true">{open ? "⌃" : "⌄"}</span> : null}
+    {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ChevronRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
   </>;
   if (!opens && !more) return <div className={cls} role="listitem">{body}</div>;
   return <div className="bot-item-wrap" role="listitem" data-open={open || undefined}>
@@ -109,7 +110,10 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const go = (id: string) => navigate.toThread(id);
   const shortName = shortBotName(bot.name);
   const cont = (task: BotTaskRow) => () => window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: stageTitle(task.title).slice(0, 80) } }));
-  const lineOf = (task: BotTaskRow) => { const text = stageText(task.line); return text && text.toLowerCase() !== stageTitle(task.title).toLowerCase() ? text : ""; };
+  const lineOf = (task: BotTaskRow) => {
+    const text = stageText(task.line).replace(/^(?:waiting (?:for|on) [^:]{1,40}|with the bot|working|queued|checking):\s*/i, "").replace(/\s*·\s*(?:wakes|next check)\b.*$/i, "").replace(/^\w/, c => c.toUpperCase());
+    return text && text.toLowerCase() !== stageTitle(task.title).toLowerCase() ? text : "";
+  };
   const hue = botStyle(bot.key, bot.name).hue;
   return <div ref={root} className="bot-panel" data-kind={look.kind} style={{ "--bot-hue": hue } as CSSProperties}>
     <header className="bot-hero">

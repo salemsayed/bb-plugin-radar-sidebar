@@ -145,11 +145,19 @@ function guardLift(): void {
     event.stopImmediatePropagation();
     drop();
   };
+  const still = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const drop = () => {
     document.removeEventListener("click", swallow, true);
+    document.removeEventListener("mousedown", still, true);
+    document.removeEventListener("mouseup", still, true);
     document.removeEventListener("pointerdown", drop, true);
     if (dropLiftGuard === drop) dropLiftGuard = null;
   };
+  document.addEventListener("mousedown", still, true);
+  document.addEventListener("mouseup", still, true);
   document.addEventListener("click", swallow, true);
   document.addEventListener("pointerdown", drop, true);
   dropLiftGuard = drop;

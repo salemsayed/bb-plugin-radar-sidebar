@@ -176,3 +176,4 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-card-foot-actions { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .dispatch-panel .dispatch-card-foot-actions button.dispatch-later-action, .dispatch-panel .dispatch-card-foot-actions button.dispatch-task-continue { align-self: center; margin-top: 0; }
 .dispatch-status-line[hidden] { display: none; }
+.dispatch-nowrap { white-space: nowrap; }

@@ -276,6 +276,8 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .bot-status { margin: 0; font-size: 13px; font-weight: 600; color: var(--bot-ink); }
 .bot-panel[data-kind="calm"] .bot-status { color: var(--muted-foreground); font-weight: 500; }
 .bot-panel-body { display: flex; flex-direction: column; gap: 18px; padding: 4px 12px 20px; }
+.bot-panel-body .dispatch-section-head { margin: 0; padding: 0; }
+.bot-panel-body :is(.radar-desks, .radar-claimed) { margin: 0; padding: 0; }
 .bot-panel-body h3 { margin: 0 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
 .bot-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 1px; width: 100%; min-height: 44px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: start; }
 button.bot-item { cursor: pointer; }
@@ -283,8 +285,8 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .bot-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .bot-item-title { grid-column: 1; display: flex; align-items: baseline; gap: 7px; font-size: 13px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
 .bot-item-meta { grid-column: 1; font-size: 12px; line-height: 1.35; color: var(--muted-foreground); }
-.bot-item-go { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 15px; line-height: 1; color: var(--muted-foreground); }
-.bot-item-caret { font-size: 12px; }
+.bot-item-go { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: inline-flex; color: var(--muted-foreground); }
+.bot-item-go svg, .bot-item-go [data-icon-root] { width: 16px; height: 16px; }
 .bot-item-more { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 0 6px; padding: 2px 10px 6px 10px; font-size: 12px; line-height: 1.45; color: var(--muted-foreground); }
 .bot-item-more p { margin: 0; overflow-wrap: anywhere; }
 .bot-item-continue { min-height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 15px; background: var(--background); color: var(--foreground); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
