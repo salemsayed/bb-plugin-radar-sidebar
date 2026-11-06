@@ -231,7 +231,10 @@ function FitLine({ look }: { look: RowLook }) {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(box);
-    return () => observer.disconnect();
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) measure(); });
+    document.fonts?.addEventListener("loadingdone", measure);
+    return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
   }, [options, look.tone]);
   return <span className="stage-line" ref={ref} title={pick > 0 ? look.line : undefined}><bdi>{options[pick] ?? look.line}</bdi></span>;
 }

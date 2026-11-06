@@ -311,7 +311,10 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(who);
-    return () => observer.disconnect();
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) measure(); });
+    document.fonts?.addEventListener("loadingdone", measure);
+    return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
   }, [fullAge, item.botName]);
   const shownAge = roomy ? fullAge : age === "now" ? "now" : age;
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
