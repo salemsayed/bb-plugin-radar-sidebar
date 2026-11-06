@@ -9,6 +9,7 @@ const MESSAGE = "[data-notification-thread][data-notification-message]";
 export const LATE_MS = 300;
 export const LATE_CUT_MS = 1000;
 export const VEIL_BUDGET_MS = 8000;
+export const VEIL_MAX_MS = 20000;
 export const VEIL_SAFETY_MS = 2000;
 const PRIME_CLAIM_MS = 4000;
 const UNVEIL = "radar-scroll-unveil";
@@ -75,7 +76,7 @@ export function explicitLink(threadId: string) {
 }
 let veil: { threadId: string; at: number; timer: number | null; lifted: boolean } | null = null;
 let unveilWatch = false;
-export function veilChat(threadId: string, capMs = VEIL_BUDGET_MS + VEIL_SAFETY_MS) {
+export function veilChat(threadId: string, capMs = VEIL_MAX_MS + VEIL_SAFETY_MS) {
   if (veil?.threadId === threadId) return veil.at;
   unveilChat(null);
   let style = document.getElementById(VEIL_ID);

@@ -1,6 +1,6 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
 import { emitTrace } from "./scrollTrace";
-import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, messageAnchors, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
+import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, messageAnchors, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
 
@@ -11,6 +11,7 @@ const LINE_WAIT_MS = 600;
 const REVEAL_MAX_MS = 400;
 const SETTLE_QUIET_MS = 1200;
 const SETTLE_MAX_MS = 20000;
+const PAGE_GRACE_MS = 4000;
 const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
 const HELD_MAX_MS = 15000;
@@ -98,7 +99,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let container: HTMLElement | null = null, resize: ResizeObserver | null = null, frame = 0;
   let veiledAt: number | null = veiledSince(threadId), rowsAt: number | null = null, quiet = false;
   let requested = primed?.requested ?? false, stable = 0, heights = 0, placedAt: number | null = null, settledAt = 0, lastFixAt = 0, changedAt = 0, lineReady = false, lineReadyAt: number | null = null, revealed = false;
-  let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false;
+  let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false, oldestSeq = Infinity, progressAt = -Infinity;
   let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false;
   let fine: Pin | null = null;
   let guardRef: Pin | null = null, intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
@@ -150,7 +151,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   };
   const hide = () => {
     if (veiledAt !== null) return;
-    veiledAt = veilChat(threadId, VEIL_BUDGET_MS + VEIL_SAFETY_MS);
+    veiledAt = veilChat(threadId, VEIL_MAX_MS + VEIL_SAFETY_MS);
     if (container && behavior === null) { behavior = container.style.scrollBehavior; container.style.scrollBehavior = "auto"; }
     trace("hide", { rows: rowsAt !== null });
   };
@@ -285,15 +286,17 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!lateChecked) { checkLate(found); if (phase !== "restoring") return; }
     if (rowsAt === null) {
       rowsAt = primedBefore ? now() : Math.min(now(), chatShownAt(found, threadId) ?? Infinity);
-      if (veiledAt !== null) armVeil(threadId, VEIL_BUDGET_MS + VEIL_SAFETY_MS - (now() - rowsAt));
+      if (veiledAt !== null) armVeil(threadId, VEIL_MAX_MS + VEIL_SAFETY_MS - (now() - rowsAt));
       trace("rows", { afterMs: Math.round(rowsAt - startedAt), veiled: veiledAt !== null });
     }
-    const expired = now() - rowsAt > VEIL_BUDGET_MS;
+    const oldest = messageAnchors(threadId).reduce((min, e) => found.contains(e) ? Math.min(min, Number(e.dataset.notificationMessage)) : min, Infinity);
+    if (oldest < oldestSeq) { if (oldestSeq !== Infinity) progressAt = now(); oldestSeq = oldest; }
+    const expired = now() - rowsAt > VEIL_MAX_MS || now() - rowsAt > VEIL_BUDGET_MS && now() - progressAt > PAGE_GRACE_MS;
     if (deferredByHost()) { if (expired) abandon("anchor-timeout"); return; }
     const anchor = anchorFor(position.messageSeq);
     if (!anchor) {
       hide();
-      armVeil(threadId, VEIL_BUDGET_MS + VEIL_SAFETY_MS - (now() - rowsAt));
+      armVeil(threadId, VEIL_MAX_MS + VEIL_SAFETY_MS - (now() - rowsAt));
       if (!asked && store.loadAnchor) { asked = true; requested = true; mute(found); trace("load-anchor", position.messageSeq); store.loadAnchor(position.messageSeq); }
       if (expired) abandon("anchor-timeout");
       return;
