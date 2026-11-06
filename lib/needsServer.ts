@@ -167,7 +167,16 @@ export function replyOptions(text: string): string[] {
   return [...new Set(labels)].slice(0, MAX_OPTIONS);
 }
 
-export interface AskPlace { seq: number | null; options: string[] }
+export interface AskPlace { seq: number | null; options: string[]; taskId?: string }
+
+export function askTask(text: string): string | undefined {
+  const fence = text.search(/```ui[\s\S]*?\bButton\(/);
+  const head = fence >= 0 ? text.slice(0, fence) : text;
+  const chips = [...head.matchAll(/::task\{\s*id\s*=\s*"([^"]+)"\s*\}/g)];
+  return chips.at(-1)?.[1];
+}
+
+const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), ...(taskId ? { taskId } : {}) }; };
 
 type Said = { type?: string; text?: string; parentToolCallId?: string };
 
@@ -177,7 +186,7 @@ export function createAskFinder(bb: BbPluginApi) {
     const threadId = item.source.threadId;
     if (item.kind !== "decision" || !threadId) return { seq: null, options: [] };
     const hit = found.get(item.id);
-    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options };
+    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return { seq: hit.seq, options: hit.options, ...(hit.taskId ? { taskId: hit.taskId } : {}) };
     const needle = askNeedle(item.text);
     const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
     const named = /^message:(\d+)$/.exec(item.source.messageId ?? "")?.[1];
@@ -187,14 +196,14 @@ export function createAskFinder(bb: BbPluginApi) {
       if (named) {
         const rows = await bb.sdk.threads.events.list({ threadId, afterSeq: String(Number(named) - 1), order: "asc", limit: "5", types: ["item/completed"] });
         const row = rows.find(row => row.seq === Number(named));
-        place = { seq: Number(named), options: replyOptions(row ? said(row)?.text ?? "" : "") };
+        place = placeOf(Number(named), row ? said(row)?.text ?? "" : "");
       } else if (needle.length >= 12) {
         let before: string | undefined;
         for (let page = 0; page < ASK_PAGES && place.seq === null; page++) {
           const rows = await bb.sdk.threads.events.list({ threadId, order: "desc", limit: "100", types: ["item/completed"], ...(before ? { beforeSeq: before } : {}) });
           for (const row of rows) {
             const message = said(row);
-            if (message?.type === "agentMessage" && !message.parentToolCallId && normalizedNeedsText(message.text ?? "").includes(needle)) { place = { seq: row.seq, options: replyOptions(message.text ?? "") }; break; }
+            if (message?.type === "agentMessage" && !message.parentToolCallId && normalizedNeedsText(message.text ?? "").includes(needle)) { place = placeOf(row.seq, message.text ?? ""); break; }
           }
           const last = rows.at(-1);
           if (rows.length < 100 || !last || last.createdAt < since) break;
@@ -241,12 +250,12 @@ export function createNeedsServer(bb: BbPluginApi) {
   const answerOf = createAnswerFinder(bb);
   const recovered = createRecoveryCheck(bb);
   const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
-    const [{ seq, options }, cleared] = await Promise.all([askSeq(item), recovered(item)]);
+    const [{ seq, options, taskId }, cleared] = await Promise.all([askSeq(item), recovered(item)]);
     const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
     const check = seq !== null && item.source.threadId
       ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) })
       : null;
-    return { ...item, askSeq: seq, answered: check?.reply ?? null, followedUp: check?.followedUp ?? null, cleared, ...(options.length ? { options } : {}) };
+    return { ...item, askSeq: seq, answered: check?.reply ?? null, followedUp: check?.followedUp ?? null, cleared, ...(options.length ? { options } : {}), ...(taskId ? { taskId } : {}) };
   };
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });

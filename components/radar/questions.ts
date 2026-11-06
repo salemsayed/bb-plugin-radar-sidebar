@@ -69,7 +69,9 @@ const EITHER_OR = /,?\s+or\s+[^?]*\?\s*$/i;
 const NUMBERED = /\b(?:the\s+)?(?:(?:merge request|pull request|MR|PR|job|ticket|issue|invoice|order|redemption|feedback)\s+#?\d+|\d{3,}\s+(?:job|ticket|order|invoice|merge request)|#\d+)/i;
 
 export function needsTopic(question: string, fallback = ""): string {
-  const head = question.split(" \u00b7 ")[0]!.trim();
+  const whole = question.split(" \u00b7 ")[0]!.trim();
+  const asked = whole.split(/(?<=[.!?])\s+(?=[A-Z])/).find(sentence => /\?\s*$/.test(sentence));
+  const head = asked ?? whole;
   if (!EITHER_OR.test(head)) return questionTopic(head);
   const named = NUMBERED.exec(head)?.[0];
   if (named) return capitalFirst(named.replace(/^the\s+/i, "the ").trim());
@@ -111,13 +113,14 @@ export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] 
       if (linked?.displayState === "needs" || bot.tasks.some(task => task.displayState === "needs" && sameAsk(task.needs?.question ?? task.line, item.text))) { dropped.push({ id: item.id, bot: bot.key, why: "already asked by its task", text: item.text }); continue; }
       const askedAt = Date.parse(item.createdAt);
       const threadId = item.source.threadId ?? bot.coordinatorThreadId;
+      const topicTask = item.taskId ? all.find(task => task.id === item.taskId) : linked;
       const question = recordQuestion(item.text, linked ? stageTitle(linked.title, linked.outcome) : "", item.options ?? []);
       const parkedAt = laterAt(`task:${item.id}`, askedAt);
       const seq = item.askSeq ?? undefined;
       const answered = item.answered ?? null;
       const later = answered ? { reason: "answered" as const, at: answered.at, threadId, messageSeq: answered.seq } : parkedAt !== null ? { reason: "not-now" as const, at: parkedAt } : null;
       rows.push({
-        id: item.id, bot: bot.key, title: question, displayState: later ? "waiting" : "needs", line: question, waitFor: "you",
+        id: item.id, bot: bot.key, title: topicTask ? stageTitle(topicTask.title, topicTask.outcome) : question, displayState: later ? "waiting" : "needs", line: question, waitFor: "you",
         ageMs: Math.max(0, data.observedAt - askedAt), conversationThreadId: null,
         needs: { threadId, interactionId: "", question, askedAt, ...(seq !== undefined ? { messageSeq: seq } : {}), ...(item.options?.length ? { options: item.options } : {}) },
         ...(later ? { later } : {}),
