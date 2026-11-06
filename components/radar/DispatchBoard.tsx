@@ -21,7 +21,7 @@ import { useCoordinatorTarget } from "./BotDeskMenu";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
 import { answeredHere, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
-import { isQuestionRow, questionTopic, withQuestions } from "./questions";
+import { isQuestionRow, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { askedAgo } from "./NeedsSummary";
 import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
 import { applyNotNow, bringBack, notNow, taskNotNowKey, useNotNow } from "@/lib/notNow";
@@ -711,11 +711,11 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         </button>
         {task.displayState === "needs" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${label}`} title="Not now: move to Later until the bot asks again" onClick={event => parkFrom(event.currentTarget, task.id, () => notNow(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Not now</span></button>
           : task.later?.reason === "not-now" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back: ${label}`} title="Put it back in Needs you" onClick={event => parkFrom(event.currentTarget, task.id, () => bringBack(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Bring back</span></button> : null}
-        <button type="button" className="dispatch-task-continue" aria-label={`Continue ${name}`} title={question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={() => {
+        <button type="button" className="dispatch-task-continue" aria-label={question && questionInPanel(task) ? `Reply to ${name} in the bot's chat` : `Continue ${name}`} title={question && questionInPanel(task) ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={() => {
           if (question) { const place = askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
           window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: name.slice(0, 80) } }));
           onNavigate(bot.coordinatorThreadId);
-        }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Continue</span></button>
+        }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{question && questionInPanel(task) ? "Reply in chat" : "Continue"}</span></button>
       </div>
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" /><span dir="auto"><Isolated text={question && task.displayState !== "needs" ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span></span></div>
       {(question || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
