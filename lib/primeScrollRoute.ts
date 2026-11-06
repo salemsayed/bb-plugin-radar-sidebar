@@ -1,5 +1,6 @@
 import { BOTTOM_GAP, positionSchema, type ScrollPosition } from "./scrollPosition";
 import { startScrollTrace } from "./scrollTrace";
+import { installTouchCoast } from "./touchCoast";
 
 const ROUTE_KEY = "radar-scroll-route";
 const ENABLED_KEY = "radar-scroll-enabled";
@@ -203,6 +204,7 @@ export function chatShownAt(container: Element, threadId: string): number | null
 
 export function primeScrollRoute() {
   startScrollTrace();
+  try { installTouchCoast(scrollEnabled); } catch {}
   try {
     inputObserver = new PerformanceObserver(() => noteFirstInput());
     inputObserver.observe({ type: "first-input", buffered: true });

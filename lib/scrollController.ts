@@ -115,7 +115,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let veiledAt: number | null = veiledSince(threadId), rowsAt: number | null = null, quiet = false;
   let requested = primed?.requested ?? false, stable = 0, heights = 0, placedAt: number | null = null, settledAt = 0, lastFixAt = 0, changedAt = 0, lineReady = false, lineReadyAt: number | null = null, revealed = false;
   let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false, oldestSeq = Infinity, progressAt = -Infinity;
-  let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false;
+  let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false, panned = false, touchX = 0, touchY = 0;
   let fine: Pin | null = null;
   let intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, dragAt = -Infinity, ownTop: number | null = null;
@@ -440,7 +440,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, Number(e.dataset.notificationMessage)), 0);
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
-    if (!container || !fingerRef || deferredByHost()) return;
+    if (!container || !fingerRef) return;
     if (!fingerRef.element.isConnected) { fingerRef = visiblePin(); return; }
     const target = targetFor(fingerRef.element, fingerRef.offset);
     if (Math.abs(target - container.scrollTop) <= 0.5) return;
@@ -575,8 +575,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     touchTarget = null;
     touching = false;
     gestureAt = t;
-    trace("touch-end", { source, dragged, pinned });
-    if (phase === "live" && !dragged && pinned) requestAnimationFrame(() => { if (!held() && pinned) follow("lift"); });
+    trace("touch-end", { source, dragged, panned, pinned });
+    if (phase === "live" && !dragged && !panned && pinned) requestAnimationFrame(() => {
+      if (held() || !pinned) return;
+      if (gap() <= BOTTOM_GAP) follow("lift");
+      else setPinned(false, "lift");
+    });
   };
   let touchTarget: Node | null = null;
   const onTargetEnd = (event: Event) => { if (event.isTrusted && (event as TouchEvent).touches.length === 0 && !(touchTarget as Node | null)?.isConnected) endTouch(now(), `detached-${event.type}`); };
@@ -601,14 +605,19 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     switch (event.type) {
       case "touchend": case "touchcancel": if ((event as TouchEvent).touches.length === 0) endTouch(t, event.type); return;
       case "pointerup": case "pointercancel":
-        if ((event as PointerEvent).pointerType === "touch") { if (event.type === "pointerup") endTouch(t, event.type); }
+        if ((event as PointerEvent).pointerType === "touch") { if (event.type === "pointerup") endTouch(t, event.type); else if (touching) panned = true; }
         else if (pointerDown) { pointerDown = false; gestureAt = t; }
         return;
       case "click": endTouch(t, "click"); return;
-      case "touchmove": if (touching) { fingerMovedAt = t; fingerMoved = true; } return;
+      case "touchmove": {
+        const point = (event as TouchEvent).touches[0];
+        if (touching) { fingerMovedAt = t; fingerMoved = true; if (point && Math.hypot(point.clientX - touchX, point.clientY - touchY) >= 4) panned = true; }
+        return;
+      }
       case "touchstart":
         if (inside) {
-          touching = true; touchAt = t; dragged = false; fingerRef = phase === "live" ? visiblePin() : null;
+          const point = (event as TouchEvent).touches[0];
+          touching = true; touchAt = t; dragged = false; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
           if (touchTarget !== target && target) {
             touchTarget?.removeEventListener("touchend", onTargetEnd);
             touchTarget?.removeEventListener("touchcancel", onTargetEnd);
