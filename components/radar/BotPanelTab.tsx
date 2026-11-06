@@ -2,7 +2,7 @@ import { DeskThreads } from "./DeskThreads";
 import { Icon } from "@/components/ui/icon";
 import { useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
-import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, useRef, type CSSProperties, type ReactNode } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
@@ -14,7 +14,11 @@ import { ago } from "./DispatchBoard";
 import { workerNames } from "./workText";
 import { StageFace } from "./StageFace";
 import { awaitedPerson, rowLook, stageText, stageTitle, taskAsk, waitLine } from "./stage";
-import { oneForm } from "./NeedsSummary";
+import { boxAnswers, isRecommended, needItems, oneForm, type NeedItem } from "./NeedsSummary";
+import { AnswerLabel, answerName } from "./AnswerLabel";
+import { answerRow } from "./answerRow";
+import { requestFill } from "@/lib/composerFill";
+import { armAskStrip } from "@/lib/askStrip";
 import { botStyle, shortBotName } from "./bots";
 
 export const BOT_TAB = { id: "bot", context: { kind: "thread" as const }, availability: "fixed" as const };
@@ -82,8 +86,8 @@ function busyWords(task: BotTaskRow, botName: string): string {
   return stageText(task.line) || "Stuck";
 }
 
-function Row({ title, meta, detail, impact, target, here, done, live, ask, onOpen, onContinue }: {
-  title: string; meta: string; detail?: string; impact?: string; target: string | null; here: string; done?: boolean; live?: boolean; ask?: boolean;
+function Row({ title, meta, detail, impact, target, here, done, live, ask, after, onOpen, onContinue }: {
+  title: string; meta: string; detail?: string; impact?: string; target: string | null; here: string; done?: boolean; live?: boolean; ask?: boolean; after?: ReactNode;
   onOpen: (id: string) => void; onContinue?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -96,10 +100,11 @@ function Row({ title, meta, detail, impact, target, here, done, live, ask, onOpe
     <span className="bot-item-meta" dir="auto">{meta}</span>
     {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ArrowUpRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
   </>;
-  if (!opens && !more) return <div className={cls} role="listitem">{body}</div>;
-  return <div className="bot-item-wrap" role="listitem" data-open={open || undefined}>
+  if (!opens && !more) return after ? <div className="bot-item-wrap" role="listitem" data-ask={ask || undefined}><div className={cls}>{body}</div>{after}</div> : <div className={cls} role="listitem">{body}</div>;
+  return <div className="bot-item-wrap" role="listitem" data-open={open || undefined} data-ask={ask && after ? "" : undefined}>
     <button type="button" className={cls} aria-label={`${title}.${impact ? ` ${impact}` : ""} ${meta}.${opens ? " Open its chat" : open ? " Hide details" : " Show details"}`} aria-expanded={opens ? undefined : open}
       onClick={() => opens ? onOpen(target!) : setOpen(value => !value)}>{body}</button>
+    {after}
     {open ? <div className="bot-item-more">
       {detail ? <p dir="auto">{detail}</p> : null}
       {onContinue ? <button type="button" className="bot-item-continue" onClick={onContinue}>Continue in chat</button> : null}
@@ -139,6 +144,21 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     return text && text.toLowerCase() !== stageTitle(task.title).toLowerCase() ? text : "";
   };
   const hue = botStyle(bot.key, bot.name).hue;
+  const askItems = new Map(needItems(one).map(item => [item.id, item]));
+  const answer = (item: NeedItem, label: string) => {
+    armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
+    requestFill(item.threadId, label, boxAnswers(item), true, item.id);
+    if (item.threadId !== here) go(item.threadId);
+  };
+  const answersFor = (task: BotTaskRow) => {
+    const item = askItems.get(`ask:${task.id}`);
+    const labels = item ? boxAnswers(item) : [];
+    if (!item || !labels.length) return undefined;
+    return <div className="bot-item-answers radar-answers" role="group" aria-label={`Answers to: ${item.what}`} data-count={labels.length} ref={answerRow}>
+      {labels.map(label => <button key={label} type="button" className="bot-item-answer radar-answer" aria-label={`Send ${answerName(label, isRecommended(item, label))} to ${item.botName}`} title="Sends this reply in the chat"
+        onClick={() => answer(item, label)}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
+    </div>;
+  };
   return <div ref={root} className="bot-panel" data-kind={look.kind} style={{ "--bot-hue": hue } as CSSProperties}>
     <header className="bot-hero">
       <StageFace botKey={bot.key} name={bot.name} pose={look.pose === "idle" && look.badge === "wait" ? "waiting" : look.pose} size={64} />
@@ -150,7 +170,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     <div className="bot-panel-body">
       {asks.length ? <section aria-label="Needs you">
         <h3>Needs you</h3>
-        <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} />)}</div>
+        <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} after={answersFor(t)} />)}</div>
       </section> : null}
       <section aria-label="Now">
         <h3>Now</h3>

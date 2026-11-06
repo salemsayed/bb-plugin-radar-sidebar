@@ -294,6 +294,9 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 @media (pointer: coarse) { .bot-item-continue { min-height: 44px; border-radius: 22px; padding: 0 16px; } }
 .bot-item-wrap[data-open] { border-radius: 10px; background: color-mix(in oklab, var(--foreground) 4%, transparent); }
 .bot-item-ask { background: light-dark(#fff4dc, #3a2d10); }
+.bot-item-wrap[data-ask] { border-radius: 10px; background: light-dark(#fff4dc, #3a2d10); }
+.bot-item-wrap[data-ask] > .bot-item-ask { background: transparent; }
+.bot-item-answers { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px; }
 .bot-item-ask .bot-item-title { color: light-dark(#5c3d00, #ffd36b); }
 .bot-item-done .bot-item-title::before { content: "✓"; color: var(--stage-good, #2d7346); }
 .bot-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--foreground); transform: translateY(-1px); }
@@ -648,18 +651,18 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs[data-state="arrived"] .stage-needs-title { color: var(--stage-ask); }
 .stage-needs[data-stale] .stage-needs-title .stage-needs-stale-text { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--foreground); }
 @media not (pointer: coarse) { .stage-needs[data-stale] .stage-needs-title .stage-needs-retry { height: 24px; min-width: 24px; margin-block: -1px; padding: 0 4px; } }
-:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer, .dispatch-panel button.dispatch-option.radar-answer {
+:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option, .bot-item-answer).radar-answer, .dispatch-panel button.dispatch-option.radar-answer {
   --answer-tint: light-dark(#f5a300, #f2b233);
   display: inline-flex; align-items: center; justify-content: flex-start; min-width: 0; min-height: 30px; max-width: 100%; margin: 0; padding: 6px 12px;
   border: 1px solid color-mix(in oklab, var(--answer-tint) 50%, var(--border)); border-radius: 15px;
   background: color-mix(in oklab, var(--answer-tint) 12%, var(--sidebar, var(--background))); color: var(--foreground);
   font: inherit; font-size: 12.5px; font-weight: 600; line-height: 16px; text-align: start; white-space: normal; overflow-wrap: anywhere; cursor: pointer;
 }
-:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer:not(:disabled):hover, .dispatch-panel button.dispatch-option.radar-answer:not(:disabled):hover { background: color-mix(in oklab, var(--answer-tint) 24%, var(--sidebar, var(--background))); }
-:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer:focus-visible, .dispatch-panel button.dispatch-option.radar-answer:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer:disabled { opacity: .6; cursor: default; }
+:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option, .bot-item-answer).radar-answer:not(:disabled):hover, .dispatch-panel button.dispatch-option.radar-answer:not(:disabled):hover { background: color-mix(in oklab, var(--answer-tint) 24%, var(--sidebar, var(--background))); }
+:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option, .bot-item-answer).radar-answer:focus-visible, .dispatch-panel button.dispatch-option.radar-answer:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+:is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option, .bot-item-answer).radar-answer:disabled { opacity: .6; cursor: default; }
 @media (pointer: coarse) {
-  :is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer, .dispatch-panel button.dispatch-option.radar-answer { min-height: 44px; padding: 6px 14px; border-radius: 22px; font-size: 13px; }
+  :is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option, .bot-item-answer).radar-answer, .dispatch-panel button.dispatch-option.radar-answer { min-height: 44px; padding: 6px 14px; border-radius: 22px; font-size: 13px; }
 }
 .stage-needs .radar-not-now[data-spent] { visibility: hidden; }
 .stage-needs .stage-needs-answer[data-spent] { opacity: .45; cursor: default; }
