@@ -369,9 +369,10 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > li[data-need]"));
       for (const row of rows) if (!row.hasAttribute("data-lined")) fullHeights.current.set(row.dataset.need!, row.getBoundingClientRect().height);
       if (rows.some(row => !fullHeights.current.has(row.dataset.need!))) return;
-      const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect();
+      const slot = box.closest<HTMLElement>(".stage-needs-slot") ?? box;
+      const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect(), slotBox = slot.getBoundingClientRect();
       const top = sb.top - area.scrollTop;
-      const room = area.clientHeight - (area.scrollHeight - (bb.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
+      const room = area.clientHeight - (area.scrollHeight - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
       const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
       const full = rows.map(row => fullHeights.current.get(row.dataset.need!)! + gap);
       let next: string[] = [];
