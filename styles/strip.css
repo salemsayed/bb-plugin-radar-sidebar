@@ -1,4 +1,4 @@
-.radar-ask-strip-slot { display: block; box-sizing: border-box; width: 100%; padding: 8px 0 6px; background: var(--background); }
+.radar-ask-strip-slot { display: block; box-sizing: border-box; width: 100%; padding: 2px 0 8px; }
 .radar-ask-strip {
   --strip-ask: light-dark(#7a4a00, #ffd36b);
   --strip-fill: light-dark(#f5a300, #f2b233);

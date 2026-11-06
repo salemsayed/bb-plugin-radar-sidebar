@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { createPortal } from "react-dom";
 import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import { askCardAnswers, askMessageShown, chatFooter, footerNode } from "@/lib/askLanding";
+import { askCardAnswers, askMessageShown, chatFooter, stripAnchor } from "@/lib/askLanding";
 import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry } from "@/lib/askStrip";
 import { requestFill } from "@/lib/composerFill";
 import { plainNote } from "./workText";
@@ -71,11 +71,12 @@ export function AskStrip() {
     const scope = marker.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin");
     if (scope) slot.setAttribute("data-bb-plugin", scope);
     const measure = () => {
-      const footer = footerNode();
+      const anchor = stripAnchor();
       const column = chatFooter();
-      if (footer && slot.parentElement !== footer) footer.insertBefore(slot, footer.firstChild);
-      setHost(footer ? slot : null);
-      const next = column ? { left: column.left - column.footerLeft, width: column.width } : null;
+      if (anchor && (slot.parentElement !== anchor.parent || slot.nextElementSibling !== anchor.before)) anchor.parent.insertBefore(slot, anchor.before);
+      setHost(anchor ? slot : null);
+      const box = slot.isConnected ? slot.getBoundingClientRect() : null;
+      const next = column && box ? { left: column.left - box.left, width: column.width } : null;
       setPlace(prev => samePlace(prev, next) ? prev : next);
       const offers = chatOffers(entry);
       if (offers !== lastOffer) { lastOffer = offers; offerSince = Date.now(); }

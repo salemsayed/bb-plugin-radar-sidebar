@@ -73,6 +73,18 @@ export function chatFooter(): { left: number; width: number; top: number; footer
   return { left: edge.left, width: edge.width, top: box.top, footerLeft: box.left, footerWidth: box.width };
 }
 
+export function stripAnchor(): { parent: HTMLElement; before: HTMLElement } | null {
+  const footer = footerNode();
+  const editor = footer?.querySelector<HTMLElement>('[contenteditable="true"], textarea');
+  if (!footer || !editor) return null;
+  const width = footer.getBoundingClientRect().width;
+  let column: HTMLElement | null = null;
+  for (let node = editor.parentElement; node && node !== footer; node = node.parentElement) if (node.getBoundingClientRect().width <= width - 16) column = node;
+  if (!column) return null;
+  const before = Array.from(column.children).find(child => child.contains(editor)) as HTMLElement | undefined;
+  return before ? { parent: column, before } : null;
+}
+
 export function askMessageShown(seq: number): boolean {
   return message(seq) !== null;
 }
