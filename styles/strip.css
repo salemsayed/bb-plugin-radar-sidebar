@@ -15,9 +15,10 @@
   color: var(--foreground);
   font-size: 13px;
 }
-.radar-ask-strip-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.radar-ask-strip-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--strip-fill); }
-.radar-ask-strip-who { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-ask-strip-head { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
+.radar-ask-strip-dot { flex: none; width: 7px; height: 7px; margin-top: 4.5px; border-radius: 50%; background: var(--strip-fill); }
+.radar-ask-strip-who { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.radar-ask-strip-who > span { white-space: nowrap; }
 .radar-ask-strip-who b { font-weight: 650; color: var(--strip-ask); }
 .radar-ask-strip-close { flex: none; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px -4px -4px 0; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
 .radar-ask-strip-close svg, .radar-ask-strip-close [data-icon-root] { width: 14px; height: 14px; }

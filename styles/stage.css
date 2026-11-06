@@ -454,7 +454,9 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs[data-stale] .stage-needs-title { color: var(--foreground); margin-bottom: 0; }
 .stage-needs-stale { display: flex; align-items: center; gap: 6px; height: 18px; margin: 0 4px 2px 6px; font-size: 11.5px; font-weight: 500; line-height: 18px; color: var(--muted-foreground); }
 .stage-needs-stale-text { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
-.stage-needs-title .stage-needs-retry { height: 24px; margin-block: -1px; padding: 0 9px; font-size: 12px; }
+.stage-needs-title .stage-needs-retry { height: 24px; margin-block: -1px; padding: 0 6px; font-size: 12px; }
+.stage-needs[data-stale] .stage-needs-title { gap: 4px; }
+.stage-needs[data-stale] .stage-needs-more-pill { padding: 0 3px 0 6px; }
 .stage-needs[data-stale] .stage-needs-more-faces { display: none; }
 .stage-needs[data-stale] .stage-needs-more { flex: none; }
 .stage-needs[data-stale] .stage-needs-heading { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
