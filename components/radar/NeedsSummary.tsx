@@ -653,7 +653,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
           onPointerDown={event => event.stopPropagation()}
           onClick={event => { event.stopPropagation(); onAnswer!(label); }}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
       </div> : null}
-      {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><Isolated text={label} /></button>)}</div> : null}
+      {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><AnswerLabel label={label} /></button>)}</div> : null}
       {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
     </div> : null}
   </li>;

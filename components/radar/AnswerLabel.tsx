@@ -3,8 +3,8 @@ import { Isolated } from "./Isolated";
 
 
 export function AnswerLabel({ label, recommended }: { label: string; recommended?: boolean }) {
-  if (!recommended) return <Isolated text={label} />;
-  return <span className="radar-answer-text" data-rec=""><Isolated text={label} /><span className="radar-answer-rec">recommended</span></span>;
+  if (!recommended) return <span className="radar-answer-text"><Isolated text={label} /></span>;
+  return <span className="radar-answer-text" data-rec=""><span className="radar-answer-label"><Isolated text={label} /></span><span className="radar-answer-rec">recommended</span></span>;
 }
 
 export function answerName(label: string, recommended?: boolean): string {

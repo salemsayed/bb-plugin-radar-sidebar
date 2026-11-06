@@ -683,7 +683,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-answers[data-layout="measure"] > .radar-answer { flex: none; max-width: none; white-space: nowrap; }
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { flex: 0 1 auto; width: auto; max-width: 100%; overflow-wrap: break-word; }
 .radar-answers > .radar-answer:has(.radar-answer-text[data-rec]) { border-color: color-mix(in oklab, var(--answer-tint) 80%, var(--border)); }
-.radar-answer-text { display: inline; min-width: 0; }
+.radar-answer-text { display: block; min-width: 0; }
 .radar-answer-text[data-rec] { display: flex; flex-direction: column; align-items: flex-start; }
 .radar-answer-rec { font-size: 11.5px; line-height: 14px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
 .stage-needs-impact, .radar-ask-strip-impact, .dispatch-card-impact { --impact-lines: 3; display: flex; align-items: flex-end; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--muted-foreground); }
