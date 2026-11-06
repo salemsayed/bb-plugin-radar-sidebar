@@ -372,7 +372,8 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       const slot = box.closest<HTMLElement>(".stage-needs-slot") ?? box;
       const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect(), slotBox = slot.getBoundingClientRect();
       const top = sb.top - area.scrollTop;
-      const room = area.clientHeight - (area.scrollHeight - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
+      const end = Math.max(...Array.from(area.children).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
+      const room = area.clientHeight - (end - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
       const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
       const full = rows.map(row => fullHeights.current.get(row.dataset.need!)! + gap);
       let next: string[] = [];
