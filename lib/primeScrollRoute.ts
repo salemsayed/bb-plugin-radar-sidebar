@@ -1,6 +1,7 @@
 import { BOTTOM_GAP, positionSchema, type ScrollPosition } from "./scrollPosition";
 import { startScrollTrace } from "./scrollTrace";
 import { installTouchCoast } from "./touchCoast";
+import { releaseScrollHooks } from "./scrollHook";
 
 const ROUTE_KEY = "radar-scroll-route";
 const PENDING_KEY = "radar-scroll-pending";
@@ -16,6 +17,14 @@ export const VEIL_MAX_MS = 20000;
 export const VEIL_SAFETY_MS = 2000;
 const PRIME_CLAIM_MS = 4000;
 const UNVEIL = "radar-scroll-unveil";
+const BOOT_KEY = "__radarScrollBoot";
+const instance = Math.random().toString(36).slice(2, 10);
+let retired = false;
+const stops: (() => void)[] = [];
+
+export function scrollRetired() {
+  return retired;
+}
 
 type RouteMarker = { threadId: string; hash: string; at: number };
 
@@ -89,18 +98,29 @@ export function explicitLink(threadId: string) {
 }
 let veil: { threadId: string; at: number; timer: number | null; lifted: boolean } | null = null;
 let unveilWatch = false;
-export function veilChat(threadId: string, capMs = VEIL_MAX_MS + VEIL_SAFETY_MS) {
-  if (veil?.threadId === threadId) return veil.at;
-  unveilChat(null);
+function veilStyle(create: boolean) {
   let style = document.getElementById(VEIL_ID);
-  if (!style) {
+  if (!style && create) {
     style = document.createElement("style");
     style.id = VEIL_ID;
     document.head.appendChild(style);
   }
+  return style;
+}
+function clearVeilStyle() {
+  const style = veilStyle(false);
+  if (style && (!style.dataset.owner || style.dataset.owner === instance)) style.textContent = "";
+}
+export function veilChat(threadId: string, capMs = VEIL_MAX_MS + VEIL_SAFETY_MS) {
+  if (veil?.threadId === threadId) return veil.at;
+  unveilChat(null);
+  const style = veilStyle(true)!;
+  style.dataset.owner = instance;
   if (!unveilWatch) {
     unveilWatch = true;
-    document.addEventListener("animationend", event => { if (event.animationName === UNVEIL && veil) veil.lifted = true; }, true);
+    const lifted = (event: AnimationEvent) => { if (event.animationName === UNVEIL && veil) veil.lifted = true; };
+    document.addEventListener("animationend", lifted, true);
+    stops.push(() => document.removeEventListener("animationend", lifted, true));
   }
   const id = CSS.escape(threadId);
   style.textContent = `${VIEWPORT}:has([data-notification-thread="${id}"]) > * > :not([data-scroll-footer]) { opacity: 0; animation: ${UNVEIL} 1ms linear ${capMs}ms forwards; } @keyframes ${UNVEIL} { to { opacity: 1; } }`;
@@ -113,8 +133,7 @@ export function armVeil(threadId: string, ms: number) {
   current.timer = window.setTimeout(() => {
     if (veil !== current) return;
     current.lifted = true;
-    const style = document.getElementById(VEIL_ID);
-    if (style) style.textContent = "";
+    clearVeilStyle();
   }, ms);
 }
 export function veilLifted(threadId: string) {
@@ -124,8 +143,7 @@ export function unveilChat(threadId: string | null) {
   if (!veil || threadId !== null && veil.threadId !== threadId) return false;
   if (veil.timer !== null) clearTimeout(veil.timer);
   veil = null;
-  const style = document.getElementById(VEIL_ID);
-  if (style) style.textContent = "";
+  clearVeilStyle();
   return true;
 }
 export function veiledSince(threadId: string) {
@@ -215,20 +233,36 @@ export function chatShownAt(container: Element, threadId: string): number | null
 }
 
 export function primeScrollRoute() {
-  startScrollTrace();
-  try { installTouchCoast(scrollEnabled); } catch {}
+  const slot = window as Window & { [BOOT_KEY]?: { id: string; dispose: () => void } };
+  try { if (slot[BOOT_KEY]?.id !== instance) slot[BOOT_KEY]?.dispose(); } catch {}
+  slot[BOOT_KEY] = { id: instance, dispose: () => {
+    retired = true;
+    if (primed) { clearTimeout(primed.timer); primed = null; }
+    for (const stop of stops.splice(0)) {
+      try { stop(); } catch {}
+    }
+  } };
+  stops.push(startScrollTrace());
+  stops.push(releaseScrollHooks);
+  try { stops.push(installTouchCoast(scrollEnabled)); } catch {}
   try {
     inputObserver = new PerformanceObserver(() => noteFirstInput());
     inputObserver.observe({ type: "first-input", buffered: true });
+    const observer = inputObserver;
+    stops.push(() => observer.disconnect());
   } catch { inputObserver = null; }
   try {
     paintObserver = new PerformanceObserver(list => notePaints(list.getEntries()));
     paintObserver.observe({ type: "largest-contentful-paint", buffered: true });
+    const observer = paintObserver;
+    stops.push(() => observer.disconnect());
   } catch { paintObserver = null; }
   try {
     const firstPaint = performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? 0;
     noteViewports(firstPaint);
-    new MutationObserver(() => noteViewports(performance.now())).observe(document.documentElement, { childList: true, subtree: true });
+    const viewports = new MutationObserver(() => noteViewports(performance.now()));
+    viewports.observe(document.documentElement, { childList: true, subtree: true });
+    stops.push(() => viewports.disconnect());
   } catch {}
   try {
     const reloaded = performance.getEntriesByType("navigation").some(entry => (entry as PerformanceNavigationTiming).type === "reload");

@@ -1,4 +1,5 @@
 import type { TraceEvent } from "./scrollPosition";
+import { onScrollWrite } from "./scrollHook";
 
 const FLAG_KEY = "radar-scroll-debug";
 const MESSAGE = "[data-notification-thread][data-notification-message]";
@@ -8,28 +9,17 @@ const BATCH_MAX = 400;
 type DebugWindow = Window & { __radarScrollDebug?: boolean };
 const buffer: TraceEvent[] = [];
 const page = `${Math.round(performance.timeOrigin)}-${Math.random().toString(36).slice(2, 8)}`;
-let installed = false, own = 0;
+let installed = false, retired = false;
 const hooked = new WeakSet<Element>();
+const unhooks: (() => void)[] = [];
+const removers: (() => void)[] = [];
 
-export function ownWrite(write: () => void) {
-  own++;
-  try { write(); } finally { own--; }
-}
 function hookWrites(scroller: HTMLElement, threadId: string) {
   if (hooked.has(scroller)) return;
   hooked.add(scroller);
-  const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
-  if (!scrollTop?.get || !scrollTop.set) return;
-  const get = scrollTop.get, set = scrollTop.set;
-  const note = (from: number, via: string) => {
-    const to = get.call(scroller) as number;
-    if (traceOn() && Math.abs(to - from) >= 0.5) emitTrace("write", threadId, { from: Math.round(from), to: Math.round(to), by: own > 0 ? "radar" : "host", via, gap: Math.round(scroller.scrollHeight - scroller.clientHeight - to) });
-  };
-  Object.defineProperty(scroller, "scrollTop", { configurable: true, get() { return get.call(scroller); }, set(value: number) { const from = get.call(scroller) as number; set.call(scroller, value); note(from, "top"); } });
-  for (const name of ["scrollTo", "scrollBy"] as const) {
-    const original = scroller[name];
-    Object.defineProperty(scroller, name, { configurable: true, value: (...args: Parameters<typeof original>) => { const from = get.call(scroller) as number; (original as (...a: unknown[]) => void).apply(scroller, args); note(from, name); } });
-  }
+  unhooks.push(onScrollWrite(scroller, write => {
+    if (traceOn()) emitTrace("write", threadId, { from: Math.round(write.from), to: Math.round(write.to), by: write.own ? "radar" : "host", via: write.via, gap: Math.round(scroller.scrollHeight - scroller.clientHeight - write.to) });
+  }));
 }
 
 export function traceOn() {
@@ -84,29 +74,40 @@ function sample() {
     }
   };
   const loop = () => {
-    if (!traceOn()) return;
+    if (!traceOn() || retired) return;
     try { step(); } catch (error) { emitTrace("sample-error", null, String(error).slice(0, 200)); }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
 }
 
+function listen(target: EventTarget, type: string, listener: (event: Event) => void, options: AddEventListenerOptions) {
+  target.addEventListener(type, listener, options);
+  removers.push(() => target.removeEventListener(type, listener, options));
+}
+
 function install() {
-  if (installed) return;
+  if (installed || retired) return;
   installed = true;
   (window as DebugWindow).__radarScrollDebug = true;
-  window.addEventListener("radar-scroll-trace", event => {
+  listen(window, "radar-scroll-trace", event => {
     buffer.push((event as CustomEvent<TraceEvent>).detail);
     if (buffer.length > BUFFER_MAX) buffer.splice(0, buffer.length - BUFFER_MAX);
-  });
-  for (const type of ["visibilitychange", "pagehide", "pageshow", "freeze", "resume"]) document.addEventListener(type, () => emitTrace(type, null, { state: document.visibilityState }), { capture: true });
-  for (const type of ["touchstart", "touchend", "touchcancel", "pointercancel"]) document.addEventListener(type, event => emitTrace(`in:${type}`, null, (event as TouchEvent).touches ? { touches: (event as TouchEvent).touches.length } : null), { capture: true, passive: true });
+  }, {});
+  for (const type of ["visibilitychange", "pagehide", "pageshow", "freeze", "resume"]) listen(document, type, () => emitTrace(type, null, { state: document.visibilityState }), { capture: true });
+  for (const type of ["touchstart", "touchend", "touchcancel", "pointercancel"]) listen(document, type, event => emitTrace(`in:${type}`, null, (event as TouchEvent).touches ? { touches: (event as TouchEvent).touches.length } : null), { capture: true, passive: true });
   emitTrace("page", null, { agent: navigator.userAgent, width: innerWidth, height: innerHeight, dpr: devicePixelRatio, path: location.pathname });
   sample();
 }
 
 export function startScrollTrace() {
   try { if (localStorage.getItem(FLAG_KEY) === "1") install(); } catch {}
+  return () => {
+    retired = true;
+    for (const remove of removers.splice(0)) remove();
+    for (const unhook of unhooks.splice(0)) unhook();
+    buffer.length = 0;
+  };
 }
 
 type TraceRpc = {
@@ -134,7 +135,7 @@ export function flushScrollTrace(rpc: TraceRpc, deviceId: string) {
     }
   };
   const timer = setInterval(() => {
-    if (stopped || sending || !installed || !buffer.length) return;
+    if (stopped || retired || sending || !installed || !buffer.length) return;
     void send();
   }, 1000);
   return () => { stopped = true; clearInterval(timer); };

@@ -1,6 +1,7 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
-import { emitTrace, ownWrite } from "./scrollTrace";
-import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
+import { emitTrace } from "./scrollTrace";
+import { onScrollWrite, ownWrite } from "./scrollHook";
+import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, scrollRetired, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
 
@@ -24,6 +25,9 @@ const CHAIN_MS = 250;
 const SEND_MS = 4000;
 const PLACED_PX = 1;
 const FLASH_MS = 2000;
+const EXACT_GAP = 4.5;
+const GUARD_PX = 1.5;
+const COAST_QUIET_MS = 150;
 const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 
 export type ScrollStore = {
@@ -38,6 +42,7 @@ export type ScrollStore = {
 type Phase = "waiting" | "restoring" | "settling" | "live";
 type Pin = { element: Element; offset: number; row: string | null; path: number[] | null; hash: number | null; inner: number };
 type Line = { message: HTMLElement | null; element: HTMLElement; offset: number; anchor: LineAnchor };
+type Track = { pin: Pin; base: number; comp: number; width: number };
 const MESSAGE = "[data-notification-thread][data-notification-message]";
 const ROW = "[data-timeline-row-id]";
 const RAW_CARD = "pre > code.language-ui";
@@ -56,6 +61,13 @@ function hasBox(el: Element) {
 }
 function readable(el: Element) {
   return (el.textContent ?? "").trim() !== "" && hasBox(el);
+}
+function floating(el: Element, container: HTMLElement) {
+  for (let node: Element | null = el; node && node !== container; node = node.parentElement) {
+    const position = getComputedStyle(node).position;
+    if (position === "sticky" || position === "fixed") return true;
+  }
+  return false;
 }
 function blockOf(hit: Element, message: HTMLElement) {
   let el = hit as HTMLElement;
@@ -130,11 +142,14 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   let hostDefers = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
   const widths = new Map<number, { anchor: ScrollPosition; fine: Pin | null; userAt: number }>();
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let track: Track | null = null, comp = 0, actionAt = -Infinity, userMovedAt = -Infinity, dirtyAt = -Infinity, resizedAt = -Infinity, hostTop: number | null = null, hostAt = -Infinity;
+  let unhook: (() => void) | null = null, watchedColumn: HTMLElement | null = null, checkQueued = false;
 
   const now = () => performance.now();
   const held = () => (touching || pointerDown) && now() - touchAt < HELD_MAX_MS;
   const gestureActive = () => held() || now() - gestureAt < GESTURE_TAIL_MS || now() - dragAt < GESTURE_TAIL_MS;
   const gestureScroll = () => held() || now() - gestureAt < MOMENTUM_MS;
+  const viewTop = () => container!.getBoundingClientRect().top + container!.clientTop;
   const deferredByHost = () => container !== null && Boolean(rowsColumn(container)?.style.transform);
   const gap = () => container ? container.scrollHeight - container.clientHeight - container.scrollTop : 0;
   const atBottomNow = () => container !== null && gap() <= BOTTOM_GAP;
@@ -274,11 +289,6 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const want = container.scrollTop + (pin ? pin.element.getBoundingClientRect().top - top - pin.offset : restoreDelta(anchor.getBoundingClientRect().top, top, position.offset));
     return want > container.scrollHeight - container.clientHeight + 2 ? "short" : null;
   };
-  const savedPin = () => {
-    if (!position || position.atBottom || !container) return null;
-    const anchor = anchorFor(position.messageSeq);
-    return anchor ? placeFor(anchor).pin : null;
-  };
   const placeFor = (anchor: HTMLElement): { target: number; pin: Pin | null } => {
     const line = position && !position.atBottom && position.line ? position.line : null;
     const element = line && container ? resolveLine(anchor, line) ?? searchLine(anchor, line, position && !position.atBottom ? position.offset : 0) : null;
@@ -305,7 +315,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "live";
     observer.disconnect();
     measure();
-    pinned = reason !== "anchor-timeout" && (atBottomNow() || reason === "bottom" || reason === "loaded" && position?.atBottom === true);
+    widthHold = false;
+    const holdSaved = keepSaved && position !== null && !position.atBottom && reason !== "late" && reason !== "bottom" && reason !== "loaded";
+    pinned = !holdSaved && reason !== "anchor-timeout" && (atBottomNow() || reason === "bottom" || reason === "loaded" && position?.atBottom === true);
     trace("live", { reason, keepSaved, pinned });
     if (pinned) { edgeTop = topNow(); follow("live"); }
   };
@@ -343,6 +355,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     widthHold = false;
     fine = topPin() ?? placed ?? (anchor && position && !position.atBottom ? pinOf(anchor, position.offset, false) : visiblePin());
     if (requested) store.anchorReady?.();
+    arm(fine);
     trace("placed", { position, top: container ? Math.round(container.scrollTop) : null, line: placed ? "saved" : anchor ? "message" : fine ? "visible" : null, pin: fine ? { row: fine.row?.slice(-14) ?? null, path: fine.path, inner: Math.round(fine.inner), text: (fine.element.textContent ?? "").slice(0, 24) } : null });
     measure();
   };
@@ -379,6 +392,11 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     freshMount = false;
     if (placedAt === null) trace("anchor", { afterMs: Math.round(now() - startedAt), afterRowsMs: Math.round(now() - rowsAt) });
     placedAt ??= now();
+    if (requested && !revealed && veiledAt !== null) {
+      revealed = true;
+      trace("release", { afterMs: Math.round(now() - startedAt) });
+      store.cancelAnchor?.();
+    }
     if (pin && !lineReady) { lineReady = true; lineReadyAt = now(); trace("line-ready", { afterMs: Math.round(now() - placedAt) }); }
     if (Math.abs(target - found.scrollTop) > PLACED_PX) {
       trace("adjust", { from: Math.round(found.scrollTop), to: Math.round(target) });
@@ -409,7 +427,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (gestureActive() || now() - intentAt < INTENT_MS) { goLive("gesture"); return; }
     const t = now();
     if (t - settledAt > SETTLE_MAX_MS || t - Math.max(lastFixAt, changedAt) > SETTLE_QUIET_MS) { goLive("settled"); return; }
-    if (deferredByHost()) { hostDefers = true; return; }
+    if (deferredByHost()) hostDefers = true;
+    if (!widthHold) return;
+    if (deferredByHost()) return;
     if (fine && fine.element.isConnected && !hasBox(fine.element)) { trace("pin-hidden", { row: fine.row?.slice(-14) ?? null }); fine = null; }
     if (fine && !fine.element.isConnected) {
       const again = refind(fine);
@@ -417,7 +437,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       fine = again;
     }
     if (!fine) {
-      fine = savedPin() ?? visiblePin();
+      fine = visiblePin();
       if (!fine) { goLive("pin-lost"); return; }
       trace("repin", { to: fine.hash !== null ? "line" : "message", text: (fine.element.textContent ?? "").slice(0, 24) });
     }
@@ -478,11 +498,64 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
     if (!container || !fingerRef) return;
+    if (container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight + 0.5) return;
     if (!fingerRef.element.isConnected || !hasBox(fingerRef.element)) { fingerRef = visiblePin(); return; }
     const target = targetFor(fingerRef.element, fingerRef.offset);
     if (Math.abs(target - container.scrollTop) <= 0.5) return;
     trace("finger-hold", { from: Math.round(container.scrollTop), to: Math.round(target) });
     write(target);
+  };
+  const guardState = (): "off" | "wait" | "on" => {
+    if (disposed || !container || phase !== "settling" && phase !== "live" || pinned || widthHold) return "off";
+    const t = now();
+    if (t - actionAt < INTENT_MS || t - sentAt < SEND_MS || /^#msg=/.test(location.hash)) return "off";
+    if (held() && (hostDefers || !touching || !fingerScrolling())) return "wait";
+    if (hostDefers && t - userMovedAt < COAST_QUIET_MS) return "wait";
+    const top = container.scrollTop;
+    return top >= 0 && top <= container.scrollHeight - container.clientHeight + 0.5 ? "on" : "wait";
+  };
+  const arm = (pin: Pin | null = null) => {
+    if (!container) return;
+    let chosen = pin;
+    if (!chosen || !chosen.element.isConnected || floating(chosen.element, container)) {
+      const top = topPin();
+      chosen = top && !floating(top.element, container) ? top : visiblePin();
+    }
+    if (chosen && floating(chosen.element, container)) chosen = null;
+    track = chosen ? { pin: chosen, base: chosen.element.getBoundingClientRect().top - viewTop() + container.scrollTop, comp, width: Math.round(container.clientWidth) } : null;
+  };
+  const syncTrack = (why: string, correct: boolean, clean = true) => {
+    if (!container) return;
+    const state = guardState();
+    if (state === "off") { track = null; return; }
+    if (!track || track.width !== Math.round(container.clientWidth)) { if (clean || state === "wait") arm(); return; }
+    let pin = track.pin;
+    if (!pin.element.isConnected || !hasBox(pin.element)) {
+      const again = refind(pin);
+      if (!again || !hasBox(again.element)) { if (clean || state === "wait") arm(); else track = null; return; }
+      pin = track.pin = again;
+    }
+    const visual = pin.element.getBoundingClientRect().top - viewTop();
+    if (visual < -container.clientHeight / 2 || visual > container.clientHeight * 1.5) { if (clean || state === "wait") arm(); return; }
+    if (state === "wait") { track.base = visual + container.scrollTop; track.comp = comp; return; }
+    if (!correct) return;
+    const from = container.scrollTop;
+    const drift = visual + from - track.base - (comp - track.comp);
+    if (Math.abs(drift) <= GUARD_PX) return;
+    const max = Math.max(0, container.scrollHeight - container.clientHeight);
+    const target = Math.min(Math.max(from + drift, 0), max);
+    if (Math.abs(target - from) < 1) { arm(pin); return; }
+    trace("guard", { why, from: Math.round(from), to: Math.round(target), drift: Math.round(drift), text: (pin.element.textContent ?? "").slice(0, 24) });
+    write(target);
+    lastFixAt = now();
+    const scrolled = container.scrollTop - from, moved = visual - (pin.element.getBoundingClientRect().top - viewTop());
+    if (Math.abs(scrolled) >= 2 && Math.abs(moved - scrolled) > Math.abs(scrolled) / 2) { trace("guard-stuck", { scrolled: Math.round(scrolled), moved: Math.round(moved) }); track = null; }
+    else if (Math.abs(target - (from + drift)) >= 1) arm(pin);
+  };
+  const queueCheck = (why: string) => {
+    if (checkQueued) return;
+    checkQueued = true;
+    queueMicrotask(() => { checkQueued = false; syncTrack(why, dirtyAt <= resizedAt); });
   };
   const capture = (force = false) => {
     if (disposed || frozen || phase !== "live" || !force && !isActive()) return;
@@ -514,7 +587,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const onScroll = () => {
     if (!container) return;
+    if (scrollRetired()) { stop(); return; }
     const ours = ownTop !== null && Math.abs(container.scrollTop - ownTop) < 1;
+    const byHost = !ours && hostTop !== null && Math.abs(container.scrollTop - hostTop) < 1 && now() - hostAt < 100;
+    if (!ours && !byHost) userMovedAt = now();
     const gesture = !ours && gestureScroll();
     if (gesture) dragAt = now();
     if (gesture || !ours && (now() - userScrollAt < CHAIN_MS || now() - intentAt < INTENT_MS)) userScrollAt = now();
@@ -528,11 +604,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     }
     const user = !ours && (gesture || now() - userScrollAt < 1);
     if (!ours) {
-      if (user || /^#msg=/.test(location.hash)) { keepSaved = false; setPinned(atBottomNow(), user ? "gesture" : "link"); }
+      if (user || /^#msg=/.test(location.hash)) { keepSaved = false; setPinned(container.scrollTop < lastScrollTop - 0.5 ? gap() <= EXACT_GAP : atBottomNow(), user ? "gesture" : "link"); }
       else if (atBottomNow() && (now() - intentAt < INTENT_MS || now() - sentAt < SEND_MS)) setPinned(true, "intent");
       else if (pinned && movedUp()) setPinned(false, "up");
       else if (!pinned && gap() <= 2) setPinned(true, "scroll");
     }
+    if (!ours && !byHost) syncTrack("scroll", false, now() - dirtyAt > 32);
     lastScrollTop = container.scrollTop;
     if (gap() <= 2 || user && atBottomNow()) edgeTop = container.scrollTop;
     else if (pinned) edgeTop = Math.max(edgeTop ?? container.scrollTop, container.scrollTop);
@@ -544,6 +621,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const resized = () => {
     if (!container || disposed) return;
     if (phase === "restoring") { attempt(); return; }
+    resizedAt = now();
+    watchColumn();
+    syncTrack("resize", true);
     if (phase === "settling") { keep(); return; }
     if (phase !== "live") { measure(); return; }
     if (held() && touching && fingerRef) { if (!fingerScrolling()) keepFinger(); else fingerRef = visiblePin(); measure(); return; }
@@ -562,23 +642,46 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     lastScrollTop = container.scrollTop;
     measure();
   };
+  const watchColumn = () => {
+    const column = container ? rowsColumn(container) : null;
+    if (column === watchedColumn) return;
+    styleWatch.disconnect();
+    watchedColumn = column;
+    if (column) styleWatch.observe(column, { attributes: true, attributeFilter: ["style"] });
+  };
   const bind = () => {
     if (container?.isConnected) return container;
     const found = chatScroller(threadId);
     if (found === container) return container;
     resize?.disconnect();
+    resize = null;
+    unhook?.();
+    unhook = null;
+    dirtyWatch.disconnect();
     container?.removeEventListener("scroll", onScroll);
     container = found;
+    track = null;
     if (!container) return null;
     ownTop = null;
     measure();
     lastScrollTop = container.scrollTop;
     container.addEventListener("scroll", onScroll, { passive: true });
-    if (typeof ResizeObserver !== "undefined") {
+    const bound = container;
+    unhook = onScrollWrite(bound, w => {
+      comp += w.to - w.from;
+      if (w.own) return;
+      hostTop = w.to;
+      hostAt = now();
+      queueCheck("write");
+    });
+    dirtyWatch.observe(bound, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "open", "hidden"] });
+    watchColumn();
+    if (typeof ResizeObserver !== "undefined") queueMicrotask(() => {
+      if (disposed || container !== bound || resize) return;
       resize = new ResizeObserver(resized);
-      resize.observe(container);
-      if (container.firstElementChild) resize.observe(container.firstElementChild);
-    }
+      resize.observe(bound);
+      if (bound.firstElementChild) resize.observe(bound.firstElementChild);
+    });
     return container;
   };
   const checkLate = (found: HTMLElement) => {
@@ -613,6 +716,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     touchTarget = null;
     touching = false;
     gestureAt = t;
+    if (!dragged && !panned) actionAt = t;
     trace("touch-end", { source, dragged, panned, pinned });
     if (phase === "live" && !dragged && !panned && pinned) requestAnimationFrame(() => {
       if (held() || !pinned) return;
@@ -634,6 +738,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   };
   const onInput = (event: Event) => {
     if (!event.isTrusted) return;
+    if (scrollRetired()) { stop(); return; }
     const t = now();
     if (event.type !== "touchmove") intentAt = t;
     const target = event.target instanceof Node ? event.target : null;
@@ -646,7 +751,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
         if ((event as PointerEvent).pointerType === "touch") { if (event.type === "pointerup") endTouch(t, event.type); else if (touching) panned = true; }
         else if (pointerDown) { pointerDown = false; gestureAt = t; }
         return;
-      case "click": endTouch(t, "click"); return;
+      case "click": actionAt = t; endTouch(t, "click"); return;
       case "touchmove": {
         const point = (event as TouchEvent).touches[0];
         if (touching) { fingerMovedAt = t; fingerMoved = true; if (point && Math.hypot(point.clientX - touchX, point.clientY - touchY) >= 4) panned = true; }
@@ -655,6 +760,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       case "touchstart":
         if (inside) {
           const point = (event as TouchEvent).touches[0];
+          track = null;
           touching = true; touchAt = t; dragged = false; fingerMoved = false; fingerMovedAt = -Infinity; panned = (event as TouchEvent).touches.length > 1; touchX = point?.clientX ?? 0; touchY = point?.clientY ?? 0; fingerRef = phase === "live" ? visiblePin() : null;
           if (touchTarget !== target && target) {
             touchTarget?.removeEventListener("touchend", onTargetEnd);
@@ -668,7 +774,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
         break;
       case "pointerdown": if (inside && (event as PointerEvent).pointerType !== "touch") { pointerDown = true; touchAt = t; } break;
       case "wheel": if (inside) gestureAt = t; break;
-      case "keydown": if (scrollKeys.has((event as KeyboardEvent).key) && !inFooter) gestureAt = t; break;
+      case "keydown": if (scrollKeys.has((event as KeyboardEvent).key) && !inFooter) gestureAt = t; else actionAt = t; break;
+      case "beforeinput": actionAt = t; break;
     }
     if (inside || event.type === "keydown" || event.type === "beforeinput") interacted(event.type);
   };
@@ -681,6 +788,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   document.addEventListener("freeze", freeze);
   window.addEventListener("pageshow", thaw);
 
+  const styleWatch = new MutationObserver(() => {
+    if (phase === "live" && held() && touching && fingerRef && !fingerScrolling()) keepFinger();
+  });
+  const dirtyWatch = new MutationObserver(records => { if (records.some(record => record.target !== container)) dirtyAt = now(); });
   const observer = new MutationObserver(records => {
     if (phase === "restoring") attempt();
     else if (phase === "settling") {
@@ -722,13 +833,15 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (phase === "live") { measure(); pinned = atBottomNow() || position?.atBottom === true; if (pinned) edgeTop = topNow(); trace("live", { reason: "start", pinned }); }
   }
   const timer = setInterval(() => {
+    if (scrollRetired()) { stop(); return; }
     if (phase === "restoring") attempt();
     else if (phase === "settling") keep();
     else if (phase === "waiting" && now() - startedAt > WAIT_MAX_MS) { keepSaved = true; quiet = true; goLive("load-timeout"); }
     else capture();
   }, 200);
 
-  return () => {
+  function stop() {
+    if (disposed) return;
     trace("dispose", { phase });
     if (phase === "restoring" && !frozen) markPendingRestore(threadId);
     if (phase === "live" && !frozen) capture(true);
@@ -737,6 +850,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     show();
     unmute(FLASH_MS);
     observer.disconnect();
+    styleWatch.disconnect();
+    dirtyWatch.disconnect();
+    unhook?.();
     resize?.disconnect();
     cancelAnimationFrame(frame);
     clearInterval(timer);
@@ -747,5 +863,6 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     window.removeEventListener("beforeunload", freeze);
     document.removeEventListener("freeze", freeze);
     window.removeEventListener("pageshow", thaw);
-  };
+  }
+  return stop;
 }

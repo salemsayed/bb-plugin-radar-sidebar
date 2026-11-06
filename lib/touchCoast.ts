@@ -73,13 +73,16 @@ let enabled = () => true;
 
 export function installTouchCoast(isEnabled: () => boolean) {
   enabled = isEnabled;
-  if (installed || typeof window === "undefined" || !("ontouchstart" in window || navigator.maxTouchPoints > 0)) return;
+  if (installed || typeof window === "undefined" || !("ontouchstart" in window || navigator.maxTouchPoints > 0)) return () => {};
   installed = true;
   const options = { capture: true, passive: true } as const;
-  document.addEventListener("touchstart", onTouchStart, options);
-  document.addEventListener("touchmove", onTouchMove, options);
-  document.addEventListener("pointercancel", onPointerCancel, options);
-  document.addEventListener("touchend", onTouchEnd, options);
-  document.addEventListener("touchcancel", onTouchEnd, options);
-  document.addEventListener("scroll", onScroll, options);
+  const listeners: [string, (event: never) => void][] = [["touchstart", onTouchStart], ["touchmove", onTouchMove], ["pointercancel", onPointerCancel], ["touchend", onTouchEnd], ["touchcancel", onTouchEnd], ["scroll", onScroll]];
+  for (const [type, listener] of listeners) document.addEventListener(type, listener as EventListener, options);
+  return () => {
+    for (const [type, listener] of listeners) document.removeEventListener(type, listener as EventListener, options);
+    endCoast("retired");
+    touch = null;
+    installed = false;
+    enabled = () => false;
+  };
 }
