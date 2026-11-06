@@ -287,8 +287,7 @@ function textWidth(text: string, font: string): number {
   return Math.ceil(context.measureText(text).width);
 }
 
-export function ageLabel(age: string, since: "asked" | "open"): string {
-  if (since === "open") return age === "now" ? "waiting just now" : `waiting ${age}`;
+export function ageLabel(age: string, _since: "asked" | "open"): string {
   return age === "now" ? "just now" : `${age} ago`;
 }
 
@@ -310,28 +309,10 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
   const sinceWord = item.since ?? "asked";
   const fullAge = item.old && age ? `Old ask · ${age}` : age ? ageLabel(age, sinceWord) : "";
-  const [roomy, setRoomy] = useState(true);
-  useLayoutEffect(() => {
-    const who = whoRef.current, name = nameRef.current;
-    if (!who || !name || !fullAge) return;
-    const measure = () => {
-      const style = getComputedStyle(who);
-      const room = who.clientWidth - parseFloat(style.paddingInlineStart || "0") - parseFloat(style.paddingInlineEnd || "0");
-      const need = textWidth(name.textContent ?? "", `650 12.5px ${getComputedStyle(name).fontFamily}`) + 6 + textWidth(fullAge, `400 11px ${style.fontFamily}`);
-      setRoomy(need <= room);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(who);
-    let live = true;
-    void document.fonts?.ready.then(() => { if (live) measure(); });
-    document.fonts?.addEventListener("loadingdone", measure);
-    return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
-  }, [fullAge, item.botName]);
-  const shownAge = roomy || item.old ? fullAge : age === "now" ? "now" : age;
+  const shownAge = fullAge;
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? `waiting ${age === "now" ? "just now" : age}` : askedAgo(age) : "";
+  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? `waiting since ${age === "now" ? "just now" : `${age} ago`}` : askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
