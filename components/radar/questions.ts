@@ -52,7 +52,7 @@ const FIRST_PERSON = /\b(?:I|I'll|I'm|I've|I'd|my|mine|myself|me)\b/;
 const TO_YOU: Record<string, string> = { "I'll": "you'll", "I'm": "you're", "I've": "you've", "I'd": "you'd", I: "you", my: "your", mine: "yours", myself: "yourself", me: "you" };
 
 export function askedVoice(option: string, later: boolean): string {
-  const plain = stageText(option, true).replace(/\s*\((?:recommended|suggested|default|preferred)\)/gi, "").replace(/[.?!]+$/, "").trim();
+  const plain = stageText(option, true).replace(/\s*\((?:recommended|suggested|default|preferred)\)/gi, "").replace(/[.?!]+$/, "").replace(/^(?:yes|no),\s+(?=\S)/i, "").trim();
   if (!FIRST_PERSON.test(plain)) return plain;
   const turned = plain.replace(/\b(?:I'll|I'm|I've|I'd|I|my|mine|myself|me)\b/g, word => TO_YOU[word] ?? word);
   return later ? turned.replace(/^you(?:'ll| will)\s+/i, "") : turned;

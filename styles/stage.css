@@ -639,3 +639,5 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 @media (pointer: coarse) {
   :is(.stage-needs-answer, .radar-ask-strip-option, .dispatch-option).radar-answer, .dispatch-panel button.dispatch-option.radar-answer { min-height: 44px; padding: 6px 14px; border-radius: 22px; font-size: 13px; }
 }
+.stage-needs .radar-not-now[data-spent] { visibility: hidden; }
+.stage-needs .stage-needs-answer[data-spent] { opacity: .45; cursor: default; }

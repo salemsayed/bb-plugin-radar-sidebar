@@ -354,6 +354,8 @@ export function waitingOn(line: string, outcome = ""): string {
   if (AFFECTED.test(reason)) return "fixed official images";
   const group = GROUP.exec(reason) ?? GROUP.exec(outcome);
   if (group) return group[1]!.toLowerCase();
+  const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) #?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) #?\d+)/i.exec(outcome);
+  if (item) return item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request");
   return "";
 }
 

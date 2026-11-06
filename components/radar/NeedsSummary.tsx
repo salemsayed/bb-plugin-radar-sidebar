@@ -246,7 +246,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const allNew = arrivals.length > 0 && arrivals.length === hidden.length;
   const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
   const moreText = onlyOld ? `${hiddenOld} old` : allNew ? `${more} new` : `${more} more`;
-  const pillText = collapse ? "Show less" : open ? `${arrivals.length} new` : moreText;
+  const pillText = collapse ? stale && items.length > 0 ? "Less" : "Show less" : open ? `${arrivals.length} new` : moreText;
   const pillLabel = collapse ? "Show less" : open ? `Show ${arrivals.length} new from ${[...new Set(arrivals.map(item => item.botName))].join(" and ")}` : moreLabel;
   const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : "settled";
   useWholeItems(listRef, open, shown.length);
@@ -338,7 +338,7 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
 
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't reach bots · showing ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`];
+  const forms = [`Can't reach bots · showing ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`, "Offline"];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;
@@ -400,10 +400,12 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
   };
   const parkable = !!item.notNowKey && !item.state;
   const canPark = (!!onNotNow || offline) && parkable;
+  const sentAs = item.state === "answered" && outcome?.result === "sent" ? outcome.text : "";
   const answers = onAnswer ? boxAnswers(item) : [];
+  const spent = !!item.state && !sentAs ? onAnswer ? boxAnswers({ ...item, state: undefined }) : [] : [];
+  const keepPark = !!item.state && !sentAs && !!item.notNowKey;
   const sending = outcome?.result === "sending";
   const note = outcome?.result === "draft" ? "Your draft is in the message box: send or clear it first" : outcome?.result === "failed" ? "Not sent. Try again" : sending ? "Sending\u2026" : "";
-  const sentAs = item.state === "answered" && outcome?.result === "sent" ? outcome.text : "";
   const headStatus = item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span>
     : item.state && !sentAs ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span>
     : sentAs ? null
@@ -444,13 +446,15 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
           </button> : null}
     </span>
     {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
-    {answers.length && !sentAs || note || canPark ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
+    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
       {answers.length && !sentAs ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
         {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
           onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
       </div> : null}
+      {spent.length ? <div className="stage-needs-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><Isolated text={label} /></button>)}</div> : null}
       {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
+      {keepPark ? <span className="stage-needs-later radar-not-now" data-spent="" aria-hidden="true"><span className="radar-not-now-pill">Not now</span></span> : null}
       {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
           aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
           onPointerDown={event => event.stopPropagation()}
