@@ -112,6 +112,7 @@ export function plainText(text: string): string {
     .replace(/\bthe !(\d{3,}) job\b/g, "the $1 job")
     .replace(STATE_WORD, (word: string) => GITHUB_STATE[word]!)
     .replace(RUN_ID, "$1")
+    .replace(/\b(?:TS|CI|test|tests) runs? (?:is |are )?green\b/gi, "checks passed")
     .replace(SLASH_COMMAND, (_, lead: string, a: string, b: string) => `${lead}a ${a} ${b}`)
     .replace(CLI_FLAG, "")
     .replace(/\bbase (?:master|main)\b/g, "based on the main branch")
@@ -135,6 +136,7 @@ export function plainText(text: string): string {
     .replace(HTTP_CODE, "an error")
     .replace(BUILD_TAG, "")
     .replace(TECHNICAL_ID, "")
+    .replace(WHO_ASIDE, "")
     .replace(COMMENT_ID, "")
     .replace(HASH_ASIDE_LEAD, "(")
     .replace(HASH_ASIDE, "")
@@ -161,7 +163,7 @@ export function plainQueue(line: string): string {
   const retry = tail.filter(part => /^retry\b/i.test(part)).join(" · ");
   const rest = tail.filter(part => !/^retry\b/i.test(part));
   if (reason && !ROUTING_WORDS.test(reason)) return line;
-  const why = /\bbrowser\b/i.test(reason) ? "Waiting its turn for a browser" : /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Waiting its turn to start";
+  const why = /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Not started yet";
   return [why, retry, ...rest].filter(Boolean).join(" · ");
 }
 
@@ -175,8 +177,16 @@ export function cutAtWord(text: string, max: number): string {
   const partial = body.length > max || clipped && !/[.!?;:,)\]"\u201d\u2019']$/.test(tail);
   const space = cut.lastIndexOf(" ");
   if (partial) cut = space > 0 ? cut.slice(0, space) : cut.slice(0, max);
-  const kept = cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");
+  const kept = dropFunctionTail(cut.replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, ""));
   return `${kept || cut}\u2026`;
+}
+
+const FUNCTION_WORD = /^(?:a|an|the|to|of|in|on|at|by|for|from|with|into|onto|about|via|per|and|or|but|nor|so|as|than|then|that|which|who|whom|whose|what|whats|what's|when|where|while|whether|if|is|are|was|were|be|been|being|am|your|my|our|their|his|her|its|this|these|those|how|not|no|i|you|we|they|he|she|it|do|does|did|has|have|had|will|would|can|could|should|may|might|must|also|just|very|whats|im|i'm|it's|its)$/i;
+
+export function dropFunctionTail(text: string): string {
+  const words = text.split(" ");
+  while (words.length > 3 && FUNCTION_WORD.test(words[words.length - 1]!.replace(/[^\p{L}'\u2019]/gu, ""))) words.pop();
+  return words.join(" ").replace(/[\s,;:\-\u2013\u2014(/\u201c"']+$/, "");
 }
 
 const CLAUSE_END = /[.;!?](?=\s)|,(?=\s)/g;
@@ -439,19 +449,26 @@ function handedFrom(text: string): string {
   return `The ${name} ${from[2] === "thread" ? "chat" : from[2]}`;
 }
 
-const DECISION_FORM = /^Re:\s*([^·]+?)\s*·\s*Decisions\s*·\s*/;
+const DECISION_FORM = /^Re:\s*([^·]+?)\s*·\s*Decisions\.?\s*·\s*/;
 const FORM_CAP = 280;
 
-export function formAnswers(text: string): { subject: string; answers: string } | null {
+export function formAnswers(text: string): { subject: string; answers: string; note?: string } | null {
   const flat = plainMarkdown(text.trim());
   const form = DECISION_FORM.exec(flat);
   if (!form) return null;
   const answers = flat.slice(form[0].length).split(/\s+·\s+/).map(part => /→\s*(.+)$/.exec(part)?.[1]?.trim()).filter((part): part is string => !!part);
-  return answers.length ? { subject: form[1]!.trim(), answers: answers.join("; ") } : null;
+  if (!answers.length) return null;
+  const last = /^(.+?[.!?])\s+(\S.{19,})$/.exec(answers[answers.length - 1]!);
+  if (last) answers[answers.length - 1] = last[1]!;
+  return { subject: form[1]!.trim(), answers: answers.join("; "), ...(last ? { note: last[2]!.trim() } : {}) };
 }
 
 export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number; ref?: { threadId: string } }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): AskParts {
   const form = !/^Bot request/.test(ask.label) ? formAnswers((ask.full ?? ask.excerpt).replace(ASKER, "")) : null;
+  if (form?.note) {
+    const parts = askParts({ ...ask, label: "You asked", excerpt: form.note, full: form.note }, now, askerOf, own);
+    return { ...parts, head: parts.head.replace(/^You asked\b/, "You answered"), excerpt: true, kind: "yours", part: "your words" };
+  }
   if (form) {
     const long = form.answers.length > FORM_CAP;
     const answers = long ? clauseCut(form.answers, FORM_CAP) || cutAtWord(form.answers, FORM_CAP) : form.answers;
@@ -494,7 +511,9 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
     const said = YOU_HANDED.test(rawFull) ? /["\u201c]([^"\u201c\u201d]{12,})["\u201d]/.exec(fullShown.text)?.[1] : undefined;
     const first = said ? said.trim() : firstPlain(fullShown.text.replace(/(?:\u2026|\.\.\.)["\u201d\u2019]?$/, ""));
     const line = first.length > HANDOVER_CAP ? cutAtWord(first, HANDOVER_CAP) : first;
-    return { head, quote: line, full: line, excerpt: true, kind, part: said ? "your words" : "first sentence" };
+    const clipped = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
+    const complete = !said && !fullShown.cut && !clipped && line.trim() === fullShown.text.trim();
+    return { head, quote: line, full: line, excerpt: !complete, kind, part: said ? "your words" : "first sentence" };
   }
   const trailing = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
   const cut = trailing || fullShown.cut;
