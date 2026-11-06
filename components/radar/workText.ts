@@ -723,7 +723,8 @@ export function readableCut(text: string, max: number): string {
 export const ASK_PREVIEW = 84;
 const PREVIEW_LINES = 150;
 const PREVIEW_MIN = 24;
-const CLAUSE_STOP = /[,;:](?=\s)|\s[\u2013\u2014-](?=\s)|\s(?=\()/g;
+const CLAUSE_STOP = /[,;:](?=\s)|\s[\u2013\u2014-](?=\s)/g;
+const BRACKET_STOP = /\s(?=\()/g;
 const PHRASE_BREAK = /\s(?=(?:through|before|after|under|without|while|when|because|until|unless|so|which|and|but|or|with|for|to|on|in|at|by|from|that|whether|if|via|into|about|since|as)\s)/g;
 
 function balanced(text: string): boolean {
@@ -739,7 +740,7 @@ export function previewUnit(text: string, max: number): { text: string; partial:
   for (const match of bare.matchAll(SENTENCE_END)) { const at = match.index! + 1; if (at > max) break; if (balanced(bare.slice(0, at))) end = at; }
   if (end >= PREVIEW_MIN && end < bare.length) return { text: bare.slice(0, end), partial: true };
   if (end >= PREVIEW_MIN) return { text: bare.slice(0, end), partial: clipped };
-  for (const stop of [CLAUSE_STOP, PHRASE_BREAK]) {
+  for (const stop of [CLAUSE_STOP, BRACKET_STOP, PHRASE_BREAK]) {
     let best = "";
     for (const match of bare.slice(0, max + 1).matchAll(stop)) {
       const raw = bare.slice(0, match.index!).replace(/[\s,;:\u2013\u2014-]+$/, "");
