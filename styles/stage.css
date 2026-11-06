@@ -672,6 +672,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-answers > .radar-answer, .dispatch-panel .radar-answers > button.dispatch-option.radar-answer { width: 100%; max-width: none; }
 .radar-answers:is([data-count="2"], [data-count="3"])[data-side] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .radar-answers[data-side] > [data-wide] { grid-column: 1 / -1; }
+.radar-answer-text { display: inline; min-width: 0; }
 .radar-answer-rec { font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
 .stage-needs-impact, .radar-ask-strip-impact, .dispatch-card-impact { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--muted-foreground); }
 .stage-needs-impact { grid-column: 1 / -1; margin-top: 2px; }
