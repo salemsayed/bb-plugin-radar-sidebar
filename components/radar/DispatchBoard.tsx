@@ -16,7 +16,7 @@ import { Icon } from "@/components/ui/icon";
 import { useDispatchWorkers, withNamedWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
 import { BotMenu } from "./BotMenu";
 import { NeedsSummary, askPlace, boxAnswers, botMenuLabel, fitWhat, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
-import { useGrowSlot, useTouchHold } from "./useGrowSlot";
+import { useGrowSlot, useTouchHold, useWatching } from "./useGrowSlot";
 import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { useCoordinatorTarget } from "./BotDeskMenu";
@@ -366,6 +366,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const [opening, setOpening] = useState<string | null>(null);
   const [pointerIn, setPointerIn] = useState(false);
   const touchIn = useTouchHold(root);
+  const watching = useWatching(visible);
   const slot = useRef<HTMLDivElement>(null);
   const slotInner = useRef<HTMLDivElement>(null);
   useGrowSlot(slot, slotInner);
@@ -459,7 +460,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot" ref={slot}><div ref={slotInner}>
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
+      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} watching={watching} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
         onAnswer={(item, label) => { armItem(item); requestFill(item.threadId, label, boxAnswers(item), true, item.id); open(item.threadId, item.messageSeq); }}
         checking={!bothFresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
@@ -763,7 +764,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
         <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span>
-        {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
+        {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);
           onNavigate(place.threadId, place.messageSeq);

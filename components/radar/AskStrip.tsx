@@ -38,7 +38,12 @@ function samePlace(a: Place | null, b: Place | null): boolean {
 }
 
 function overlayOpen(): boolean {
-  return !!document.querySelector('[role="dialog"][aria-modal="true"], [role="menu"], [role="listbox"]');
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], [role="menu"], [role="listbox"]')).some(element => {
+    const box = element.getBoundingClientRect();
+    if (box.width < 1 || box.height < 1 || box.right <= 0 || box.left >= innerWidth) return false;
+    if (element.getAttribute("data-state") === "closed" || element.closest("[hidden], [inert], [aria-hidden=true]")) return false;
+    return getComputedStyle(element).visibility !== "hidden";
+  });
 }
 
 export function AskStrip() {
@@ -149,7 +154,7 @@ export function AskStrip() {
     </header>
     <FitLines className="radar-ask-strip-question" forms={askForms(entry.question, QUESTION_FORMS, fitWhat, entry.title, entry.options.length)} />
     {shown.length ? <div className="radar-ask-strip-options" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
-      {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
+      {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
         aria-label={`Send “${label}” to ${entry.botName}`} title="Sends this reply to the bot"
         onClick={() => { void choose(label); }}><Isolated text={label} /></button>)}
     </div> : null}

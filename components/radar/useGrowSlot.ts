@@ -55,3 +55,21 @@ export function useTouchHold(root: RefObject<HTMLElement | null>): boolean {
   }, [root]);
   return on;
 }
+
+export function useWatching(visible: boolean): boolean {
+  const [focused, setFocused] = useState(() => typeof document !== "undefined" && document.hasFocus() && document.visibilityState === "visible");
+  useEffect(() => {
+    const check = () => setFocused(document.hasFocus() && document.visibilityState === "visible");
+    const away = () => setFocused(false);
+    window.addEventListener("focus", check);
+    window.addEventListener("blur", away);
+    document.addEventListener("visibilitychange", check);
+    check();
+    return () => {
+      window.removeEventListener("focus", check);
+      window.removeEventListener("blur", away);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+  return visible && focused;
+}

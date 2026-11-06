@@ -43,7 +43,9 @@ export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean
       node.style.scrollbarGutter = "";
       const items = Array.from(node.children) as HTMLElement[];
       const firstBottom = items[0] ? items[0].offsetTop + items[0].offsetHeight - node.offsetTop : 0;
-      const cap = Math.max(Math.min(window.innerHeight * CAP_SHARE, CAP_MAX, roomInPage(node)), firstBottom);
+      const secondBottom = items[1] ? items[1].offsetTop + items[1].offsetHeight - node.offsetTop : firstBottom;
+      const most = Math.min(window.innerHeight * CAP_SHARE, CAP_MAX);
+      const cap = Math.max(Math.min(most, roomInPage(node)), Math.min(most, secondBottom), firstBottom);
       if (node.scrollHeight > cap + 0.5) node.style.scrollbarGutter = "stable";
       const top = node.getBoundingClientRect().top - node.scrollTop;
       let used = 0;

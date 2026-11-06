@@ -122,13 +122,23 @@ export function askTime(task: Pick<BotTasksData["bots"][number]["tasks"][number]
   return task.observedAt !== undefined ? { at: task.observedAt - task.ageMs, since: "open" } : {};
 }
 
-function useHeld(live: NeedItem[], hold: boolean, parked: (key: string) => boolean = () => false): NeedItem[] {
-  const [frozen, setFrozen] = useState<NeedItem[] | null>(null);
-  if (hold && frozen === null) setFrozen(live);
+function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: string) => boolean = () => false): { items: NeedItem[]; arrivals: NeedItem[] } {
+  const [frozen, setFrozen] = useState<{ items: NeedItem[]; rebase: number } | null>(null);
+  if (hold && (frozen === null || frozen.rebase !== rebase)) setFrozen({ items: live, rebase });
   if (!hold && frozen !== null) setFrozen(null);
-  if (!hold || frozen === null) return live;
+  if (!hold || frozen === null) return { items: live, arrivals: [] };
   const now = new Map(live.map(item => [item.id, item]));
-  return frozen.map(item => now.get(item.id) ?? { ...item, state: item.notNowKey && parked(item.notNowKey) ? "later" as const : "gone" as const });
+  const kept = new Set(frozen.items.map(item => item.id));
+  return {
+    items: frozen.items.map(item => now.get(item.id) ?? { ...item, state: item.notNowKey && parked(item.notNowKey) ? "later" as const : "gone" as const }),
+    arrivals: live.filter(item => !kept.has(item.id) && !item.state && !item.old),
+  };
+}
+
+export function arrivalText(arrivals: readonly Pick<NeedItem, "botName" | "kind">[]): string {
+  const names = [...new Set(arrivals.map(item => item.kind === "thread" ? "a thread" : item.botName.replace(/\s+Bot$/, "")))];
+  if (arrivals.length === 1) return `New question from ${names[0]}`;
+  return `${arrivals.length} new questions`;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
@@ -182,12 +192,13 @@ function useHashSeq(): number | null {
 
 export interface StaleNote { asOf: string; retrying: boolean; onRetry: () => void }
 
-export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
+export function NeedsSummary({ data, extra, answered, hold, watching = false, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
   data: BotTasksData;
   activeThreadId: string | null;
   extra: readonly NeedItem[];
   answered: readonly NeedItem[];
   hold: boolean;
+  watching?: boolean;
   now: number;
   checking?: boolean;
   cold?: boolean;
@@ -202,22 +213,27 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
 }) {
   const outcomes = useSyncExternalStore(subscribeFill, fillOutcomes, fillOutcomes);
   const [all, setAll] = useState(false);
+  const [rebase, setRebase] = useState(0);
   const [skip, setSkip] = useState<ReadonlySet<string>>(() => new Set());
   const listRef = useRef<HTMLUListElement>(null);
   const headRef = useRef<HTMLHeadingElement>(null);
   const focusAt = useRef<number | null>(null);
   const restore = useRef<string | null>(null);
   const isParked = parked ?? (() => false);
-  if (!hold && skip.size) setSkip(new Set());
+  const frozen = (hold || watching) && !checking;
+  if (!frozen && skip.size) setSkip(new Set());
   const fresh = needItems(data);
-  const items = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], hold, parked).filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)))
+  const held = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], frozen, rebase, parked);
+  const arrivals = held.arrivals;
+  const items = held.items.filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)))
     .map(item => !item.state && liveOutcome(item, outcomes, now)?.result === "sent" ? { ...item, state: "answered" as const } : item);
+  const reveal = () => setRebase(value => value + 1);
   const faces = new Map(data.bots.map(bot => [bot.key, bot]));
-  const waiting = checking && cold ? 0 : items.filter(item => !item.state && !item.old).length;
-  const more = checking && cold ? 0 : items.length - 1;
-  const open = all && more > 0;
+  const waiting = checking && cold ? 0 : items.filter(item => !item.state && !item.old).length + arrivals.length;
+  const more = checking && cold ? 0 : items.length - 1 + arrivals.length;
+  const open = all && items.length > 1;
   const shown = open ? items : items.slice(0, 1);
-  const hidden = items.slice(1);
+  const hidden = [...items.slice(1), ...arrivals];
   const hiddenBots = [...new Map(hidden.map(item => [item.botKey || `thread:${item.threadId}`, item])).values()];
   const hashSeq = useHashSeq();
   const inThread = activeThreadId ? items.filter(item => item.threadId === activeThreadId) : [];
@@ -225,9 +241,13 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   const hiddenNames = hiddenBots.map(item => item.botName);
   const hiddenOld = hidden.filter(item => item.old && !item.state).length;
   const onlyOld = hiddenOld > 0 && hiddenOld === hidden.length;
-  const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} more${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
-  const moreText = onlyOld ? `${hiddenOld} old` : `${more} more`;
-  const state = checking && (cold || !items.length) ? "checking" : !items.length ? "empty" : waiting ? "waiting" : "settled";
+  const collapse = open && !arrivals.length;
+  const allNew = arrivals.length > 0 && arrivals.length === hidden.length;
+  const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
+  const moreText = onlyOld ? `${hiddenOld} old` : allNew ? `${more} new` : `${more} more`;
+  const pillText = collapse ? "Show less" : open ? `${arrivals.length} new` : moreText;
+  const pillLabel = collapse ? "Show less" : open ? `Show ${arrivals.length} new from ${[...new Set(arrivals.map(item => item.botName))].join(" and ")}` : moreLabel;
+  const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : "settled";
   useWholeItems(listRef, open, shown.length);
   useLayoutEffect(() => {
     const back = restore.current;
@@ -253,15 +273,25 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
     if (keyboard) { focusAt.current = index; restore.current = item.id; }
     onNotNow(item);
   };
-  const staleLive = !!stale && items.length > 0;
-  const [stalePinned, setStalePinned] = useState<boolean | null>(null);
-  if (hold && stalePinned === null) setStalePinned(staleLive);
-  if (!hold && stalePinned !== null) setStalePinned(null);
-  const staleShown = (stalePinned ?? staleLive) && stale ? stale : null;
+  const staleShown = stale && items.length > 0 ? stale : null;
   const undoRow = undo && !items.some(item => item.notNowKey === undo.key && !item.state) ? <UndoLine undo={undo} /> : null;
   if ((state === "empty" || state === "checking") && undoRow) {
     return <section className="stage-needs" data-state="empty" data-slim="" aria-label="Moved to Later">
       <h2 className="stage-needs-title stage-needs-line" ref={headRef} tabIndex={-1}>{undoRow}</h2>
+    </section>;
+  }
+  if (state === "arrived") {
+    const text = arrivalText(arrivals);
+    const names = [...new Set(arrivals.map(item => item.botName))].join(" and ");
+    return <section className="stage-needs" data-state="arrived" data-slim="" aria-label={`Needs you: ${arrivals.length}`}>
+      <h2 className="stage-needs-title stage-needs-line" ref={headRef} tabIndex={-1}>
+        <button type="button" className="stage-needs-arrival" aria-label={`${text}${arrivals.length > 1 ? ` from ${names}` : ""}: show ${arrivals.length === 1 ? "it" : "them"}`}
+          onClick={() => { focusAt.current = 0; reveal(); }}>
+          <span className="stage-needs-dot" aria-hidden="true" />
+          <span className="stage-needs-line-text" role="status">{text}</span>
+          <span className="stage-needs-more-pill" aria-hidden="true"><span>Show</span><Icon name="ChevronDown" aria-hidden="true" /></span>
+        </button>
+      </h2>
     </section>;
   }
   if (state === "empty" || state === "checking") {
@@ -277,16 +307,15 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   return <section className="stage-needs" data-state={state} data-open={open || undefined} data-stale={staleShown ? "" : undefined}
     aria-label={waiting ? `Needs you: ${waiting}` : "Nothing needs you"}>
     <h2 className="stage-needs-title" ref={headRef} tabIndex={-1}>
-      {staleShown ? null : <span className="stage-needs-dot" aria-hidden="true" />}
-      <span className="stage-needs-heading">{title}</span>
-      {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : moreLabel} title={open ? "Show less" : moreLabel} onClick={() => setAll(value => !value)}>
-        <span className="stage-needs-more-pill">{open && staleShown ? null : <span>{open ? "Show less" : moreText}</span>}
-          <Icon name="ChevronDown" aria-hidden="true" /></span>
+      {staleShown ? <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" /> : <span className="stage-needs-dot" aria-hidden="true" />}
+      {staleShown ? <StaleText stale={staleShown} /> : <span className="stage-needs-heading">{title}</span>}
+      {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={collapse} aria-label={pillLabel} title={pillLabel}
+        onClick={() => { if (arrivals.length) { reveal(); setAll(true); } else setAll(value => !value); }}>
+        <span className="stage-needs-more-pill"><span>{pillText}</span><Icon name="ChevronDown" aria-hidden="true" /></span>
       </button> : null}
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
-      {waiting ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
+      {waiting && !staleShown ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
-    {staleShown ? <StaleLine stale={staleShown} /> : null}
     <ul ref={listRef}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
       {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)} onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer ? label => onAnswer(item, label) : undefined} />)}
@@ -306,17 +335,9 @@ function UndoLine({ undo }: { undo: NotNowToast }) {
   </span>;
 }
 
-function StaleLine({ stale }: { stale: StaleNote }) {
-  return <p className="stage-needs-stale">
-    <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" />
-    <StaleText stale={stale} />
-    <RetryButton stale={stale} at="line" />
-  </p>;
-}
-
 function StaleText({ stale }: { stale: StaleNote }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const forms = [`Can't reach bots · showing ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`];
+  const forms = [`Can't reach bots · showing ${stale.asOf}`, `Can't reach bots · ${stale.asOf}`, `Offline · ${stale.asOf}`];
   const [fit, setFit] = useState(0);
   useLayoutEffect(() => {
     const box = ref.current;
@@ -377,14 +398,14 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
   const parkable = !!item.notNowKey && !item.state;
-  const canPark = !!onNotNow && parkable;
+  const canPark = (!!onNotNow || offline) && parkable;
   const answers = onAnswer ? boxAnswers(item) : [];
   const sending = outcome?.result === "sending";
   const note = outcome?.result === "draft" ? "Your draft is in the message box: send or clear it first" : outcome?.result === "failed" ? "Not sent. Try again" : sending ? "Sending\u2026" : "";
   const sentAs = item.state === "answered" && outcome?.result === "sent" ? outcome.text : "";
-  const footStatus = item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span>
-    : sentAs ? <span className="stage-needs-later-mark stage-needs-sent"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></span>
-    : item.state ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span>
+  const headStatus = item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span>
+    : item.state && !sentAs ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span>
+    : sentAs ? null
     : shownAge ? <span className="stage-needs-age">{shownAge}</span> : null;
   const hint = item.inPanel ? "Show the question" : answers.length ? "Open the chat" : item.options?.length ? "Open: its answers show above the message box" : "Open";
   return <li data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} {...press}
@@ -405,35 +426,40 @@ function NeedRow({ item, bot, now, current, offline, outcome, onOpen, onMenu, on
       onClick={event => { if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
-        <span className="stage-needs-who"><b>{shortName}</b></span>
+        <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
         <FitLines className="stage-needs-what" forms={askForms(what, OPEN_FORMS, fitWhat, item.title, item.options?.length ?? 0)} />
       </span>
     </button>
-    {answers.length ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} data-pair={answers.length === 2 && answers.every(label => label.length <= PAIR_CHARS) || undefined}>
-      {answers.map(label => <button key={label} type="button" className="stage-needs-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
-        onPointerDown={event => event.stopPropagation()}
-        onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
-    </div> : null}
+    {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
     <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      <span className="stage-needs-status" aria-hidden="true">{footStatus}{note ? <span className="stage-needs-off" role="status">{note}</span> : offline && parkable ? <span className="stage-needs-off" data-keep="">Not now unavailable</span> : null}</span>
-      {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-label={`Not now: ${notNowLabel(item)}`} title="Not now: move to Later until the bot asks again"
-        onPointerDown={event => event.stopPropagation()}
-        onClick={event => {
-          event.stopPropagation();
-          const keyboard = event.detail === 0;
-          if (!keyboard) itemRef.current?.focus({ preventScroll: true });
-          onNotNow!(keyboard);
-        }}><span className="radar-not-now-pill">Not now</span></button> : null}
-      {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
-        trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
-          onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
-          <Icon name="MoreHorizontal" aria-hidden="true" />
-        </button>} />
-        : item.kind !== "thread" ? <button type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-haspopup="dialog" aria-label={menuLabel} title={menuLabel}
+      {answers.length && !sentAs ? <div className="stage-needs-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
+        {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
-          <Icon name="MoreHorizontal" aria-hidden="true" />
-        </button> : null}
+          onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}
+      </div> : null}
+      {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
+      <span className="stage-needs-tools">
+        {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
+          aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => {
+            event.stopPropagation();
+            if (offline || !onNotNow) return;
+            const keyboard = event.detail === 0;
+            if (!keyboard) itemRef.current?.focus({ preventScroll: true });
+            onNotNow(keyboard);
+          }}><span className="radar-not-now-pill">Not now</span></button> : null}
+        {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
+          trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
+            onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
+            <Icon name="MoreHorizontal" aria-hidden="true" />
+          </button>} />
+          : item.kind !== "thread" ? <button type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-haspopup="dialog" aria-label={menuLabel} title={menuLabel}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
+            <Icon name="MoreHorizontal" aria-hidden="true" />
+          </button> : null}
+      </span>
     </div>
   </li>;
 }

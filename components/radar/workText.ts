@@ -465,9 +465,9 @@ export function paragraphs(text: string): string {
 }
 
 function cleanAsk(text: string, mine: boolean, receiver?: string): { text: string; cut: boolean } {
-  const source = paragraphs(text).replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
+  const source = paragraphs(text.replace(/^[ \t]*(?:>[ \t]?)+/gm, "").replace(/^[ \t]*#{1,6}[ \t]+/gm, "")).replace(RELAYED_WORDS, "").replace(RELAYED_ASIDE, "").replace(RELAYED_ASKED, "");
   const shown = (mine ? userWordsShown : botWordsShown)(mine ? source : botFiles(source));
-  const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^[,;:\s]+/, "");
+  const flat = plainText(plainMarkdown(shown.text).replace(INTERNAL_REF, "").replace(/\b(?:thr|env|proj|host)_[a-z0-9]+\u2026?/gi, "").replace(/\(\s*[,;]\s*/g, "(").replace(/\s+/g, " ")).replace(/^(?:[>#]+\s*|[-*]\s+)+/, "").replace(/^[,;:\s]+/, "");
   return { text: mine ? flat : botToBotWords(flat, receiver), cut: shown.cut };
 }
 

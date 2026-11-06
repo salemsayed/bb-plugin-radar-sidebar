@@ -213,6 +213,13 @@ export function noteRowForms(text: string, title: string): string[] {
     if (subject.some(word => theirs.some(other => other.length > 2 && (other.startsWith(word.slice(0, 5)) || word.startsWith(other.slice(0, 5)))))) {
       const done = verb[2]!.replace(/^(?:was|were|is|are|has been|have been|got) /, "");
       const number = /(?:^|\s)(#\d+|v?\d+(?:\.\d+)+)(?=\s|$)/.exec(verb[1]!)?.[1];
+      const named = verb[1]!.replace(/\s*#\d+\b/g, "").replace(/\s{2,}/g, " ").trim();
+      const word = done.split(/\s+/)[0]!;
+      const version = /\bv?\d+(?:\.\d+)+\b/.exec(done)?.[0];
+      if (number && named.length >= 3 && named !== verb[1]) {
+        if (version) forms.push(`${capitalFirst(named)} ${version} ${word}`);
+        forms.push(`${capitalFirst(named)} ${word}`);
+      }
       if (number) forms.push(`${number} ${done}`);
       else forms.push(capitalFirst(done));
     }
@@ -303,7 +310,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
     .sort((a, b) => Number(!!a.later) - Number(!!b.later) || (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   if (waiting.length) {
     const noted = noteLook(waiting[0]!);
-    return { pose: "waiting", ...(noted ?? { line: waitLine(waiting[0]!, ctx.now) }), extra: plural(waiting.length, "task waiting", "tasks waiting"), tone: "quiet", quiet: true };
+    return { pose: "waiting", ...(noted ?? { line: waitLine(waiting[0]!, ctx.now) }), extra: plural(waiting.length, "open task", "open tasks"), tone: "quiet", quiet: true };
   }
   const todo = open.find(notStarted);
   if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", ["Not started: "]), extra: "", tone: "quiet", quiet: true };
