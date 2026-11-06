@@ -6,6 +6,7 @@ import { primeScrollRoute } from "./lib/primeScrollRoute";
 // Saved bot asks and alerts show in the list's Needs-you lane: there is no
 // separate Attention panel or Crew page.
 import { ThreadPresence } from "./lib/ThreadPresence";
+import { AskStrip } from "./components/radar/AskStrip";
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { migrateLegacyPreferences } from "./components/storage";
 import { RadarThreadList } from "./components/radar/RadarThreadList";
@@ -21,6 +22,7 @@ primeScrollRoute();
 
 export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({ id: "thread-presence", component: ThreadPresence });
+  app.slots.experimental_appOverlay({ id: "ask-strip", component: AskStrip });
   app.slots.experimental_tab({ context: { kind: "thread" }, availability: "action", id: "remind-when", title: "Remind me", icon: "Bell", component: RemindMePanel });
   app.slots.messageAction(remindMeAction);
   app.slots.experimental_threadAction(botWorkAction);

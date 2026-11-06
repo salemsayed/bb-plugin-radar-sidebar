@@ -106,6 +106,24 @@ const RUN_ID = /\b(run|job|pipeline|build|workflow)\s+#?\d{6,}\b/gi;
 const SLASH_COMMAND = /(^|[\s(])\/([a-z][a-z]+)-([a-z]+)\b(?:\s+(?:xhigh|high|max|medium|low))?/g;
 const CLI_FLAG = /\s+(?:added |run |called )?(?:with |using |via )?--[a-z][\w-]+\b/g;
 
+const TECH_WORDS: [RegExp, string][] = [
+  [/\boff Codex\b/g, "off the old models"],
+  [/,?\s*Codex only reviews\b/g, ", the old models only review"],
+  [/\bon Claude\b/g, "on the main models"],
+  [/\breaching Claude\b/g, "reaching the AI model"],
+  [/\bthe Claude provider\b/g, "the AI provider"],
+  [/\bsimulator CI\b/g, "simulator checks"],
+  [/\bCI on (?:the )?fork\b/g, "checks on the fork"],
+  [/\breal-iPhone (?:iOS app build|IPA|app build)(?: with (?:a |the )?local bundle)?/g, "real-iPhone app build"],
+  [/\brebase, ready, CI \+ /g, "rebase, mark ready, checks, "],
+  [/\bCI \+ /g, "checks, "],
+  [/\bCI\b(?!\/)/g, "checks"],
+];
+
+export function plainTech(text: string): string {
+  return TECH_WORDS.reduce((out, [pattern, words]) => out.replace(pattern, words), text);
+}
+
 export function plainText(text: string): string {
   return text
     .replace(/\bthe [a-z][\w-]*!(\d{3,}) job\b/gi, "the $1 job")
@@ -119,6 +137,7 @@ export function plainText(text: string): string {
     .replace(/\brange-diff unchanged\b/g, "same changes")
     .replace(/\bxhigh\b/g, "thorough")
     .replace(/\bIPA\b/g, "iOS app build")
+    .replace(/[^]*/, plainTech)
     .replace(REPO_MERGE_REQUEST, "merge request $1")
     .replace(/(^|[\s(])!(\d{3,})\b/g, "$1merge request $2")
     .replace(MEMORY_SLUG_ASIDE, "")
@@ -163,7 +182,7 @@ export function plainQueue(line: string): string {
   const retry = tail.filter(part => /^retry\b/i.test(part)).join(" · ");
   const rest = tail.filter(part => !/^retry\b/i.test(part));
   if (reason && !ROUTING_WORDS.test(reason)) return line;
-  const why = /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : "Not started yet";
+  const why = /\b(?:machine|host|offline)\b/i.test(reason) ? "Starts when its machine is back" : /\bbrowser\b/i.test(reason) ? "Its browser test hasn't started yet" : "Its next step hasn't started yet";
   return [why, retry, ...rest].filter(Boolean).join(" · ");
 }
 
@@ -238,7 +257,7 @@ const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers?|judges?|workers?|takeover|re-check|recheck|reviews?|checks?|fix|build|routes?)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
-  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
     const kind = match?.[1];
@@ -552,12 +571,23 @@ export function wholeSentences(text: string): string {
   return clauseCut(body, body.length - 1) || cutAtWord(`${body}\u2026`, body.length);
 }
 
+const PREVIEW_STRETCH = 24;
+
 export function readableCut(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= max && !/(?:\u2026|\.\.\.)$/.test(flat)) return flat;
+  const clipped = /(?:\u2026|\.\.\.)$/.test(flat);
+  if (flat.length <= max && !clipped) return flat;
+  const bare = flat.replace(/(?:\u2026|\.\.\.)$/, "").trimEnd();
+  if (!clipped && bare.length <= max + PREVIEW_STRETCH) return bare;
   const first = /^(.+?(?<!\b(?:e\.g|i\.e|etc|vs|approx))[.!?])(?=["\u201d\u2019)]?\s|$)/.exec(flat)?.[1];
   if (first && first.length <= max && first.length >= 12) return first;
-  return clauseCut(flat.replace(/(?:\u2026|\.\.\.)$/, ""), max) || cutAtWord(flat, max);
+  for (const match of bare.matchAll(CLAUSE_END)) {
+    const at = match.index!;
+    if (at < max) continue;
+    if (at > max + PREVIEW_STRETCH) break;
+    return /[,;]/.test(bare[at]!) ? `${bare.slice(0, at)}\u2026` : bare.slice(0, at + 1);
+  }
+  return clauseCut(bare, max) || cutAtWord(flat, max);
 }
 
 export const ASK_PREVIEW = 84;

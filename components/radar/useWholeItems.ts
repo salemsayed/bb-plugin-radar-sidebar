@@ -9,8 +9,13 @@ export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean
     if (!node) return;
     if (!open) { node.style.maxHeight = ""; return; }
     const fit = () => {
-      const cap = Math.min(window.innerHeight * CAP_SHARE, CAP_MAX);
+      node.style.maxHeight = "";
       const items = Array.from(node.children) as HTMLElement[];
+      const scroller = node.closest<HTMLElement>(".radar-list-body");
+      const over = scroller ? Math.max(0, scroller.scrollHeight - scroller.clientHeight) : 0;
+      const floor = items.length > 1 ? items[1]!.getBoundingClientRect().bottom - node.getBoundingClientRect().top : 0;
+      const room = over > 0 ? Math.max(floor, node.scrollHeight - over) : Infinity;
+      const cap = Math.min(window.innerHeight * CAP_SHARE, CAP_MAX, room);
       const top = node.getBoundingClientRect().top - node.scrollTop;
       let used = 0;
       for (const item of items) {

@@ -5,7 +5,7 @@ import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { createPortal, flushSync } from "react-dom";
-import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotDesk, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
+import { answerOptions, deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, shortModel, STATE_LABEL, type BotDesk, type BotTasksData, type BotTasksBot, type BotTaskRow, type Attempt } from "@/lib/botTasks";
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
@@ -23,7 +23,9 @@ import { useRailHomeCurrent } from "./useRailHomeCurrent";
 import { answeredHere, deskNeedLine, isOldAsk, needAsk, needsCount, rowLook, scheduledWait, stageText, stageTitle, withOldAsks, type RowLook } from "./stage";
 import { isQuestionRow, needsTopic, questionInPanel, questionTopic, withQuestions } from "./questions";
 import { FitLines, cutForms } from "./FitLines";
+import { askForms } from "./choiceFit";
 import { requestFill } from "@/lib/composerFill";
+import { armAskStrip } from "@/lib/askStrip";
 import { askedAgo } from "./NeedsSummary";
 import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
 import { applyNotNow, bringBack, notNow, taskNotNowKey, useNotNow } from "@/lib/notNow";
@@ -429,11 +431,12 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const scope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   const loose = threadsSummary(claims.ready ? claims.loose : []);
   const collapsedThreads = { text: loose.text, tone: loose.needs ? "needs" as const : loose.failed ? "failed" as const : loose.loud ? "unread" as const : null, count: claims.ready ? claims.loose.length : null };
+  const askChecking = bell.status === "loading" && bell.items === null && !unreachable;
   const rows = orderedBots(data).map(b => {
     const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
     const workers = snapshot.byBot[b.key] ?? [];
     const base = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
-    const look = base;
+    const look = askChecking && base.pose !== "asking" ? { ...base, line: "Checking…", alts: undefined, whole: undefined, ask: undefined, extra: "", tone: "quiet" as const, kind: "calm" as const, badge: null, quiet: true } : base;
     const current = opening ? opening === b.coordinatorThreadId : activeThreadId === b.coordinatorThreadId;
     return { bot: b, unread, look, current, here: !opening && hereKey === b.key, needs: needsCount(b) };
   });
@@ -443,7 +446,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot">
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={open}
+      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.since === "asked" ? item.at : undefined }); open(id, seq); }}
         checking={!bothFresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
         onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
@@ -652,7 +655,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   const busy = (snapshot.byBot[bot.key]?.length ?? 0) > 0 || chatting || tasks.some(t => ["working", "queued"].includes(t.displayState));
   const currentDeskId = activeThreadId ? needDesks.find(desk => desk.threadId === activeThreadId)?.id : undefined;
   const currentTaskId = activeThreadId ? [...asks, ...others, ...recent].find(t => t.conversationThreadId === activeThreadId)?.id : undefined;
-  const titleOf = (task: BotTaskRow) => task.displayState === "needs" && task.needs?.question ? needsTopic(task.needs.question, stageTitle(task.title, task.outcome)) : isQuestionRow(task) ? questionTopic(task.needs?.question ?? task.title) : stageTitle(task.title, task.outcome);
+  const titleOf = (task: BotTaskRow) => task.displayState === "needs" && task.needs?.question && /\?/.test(task.needs.question) ? needsTopic(task.needs.question, stageTitle(task.title, task.outcome)) : isQuestionRow(task) ? questionTopic(task.needs?.question ?? task.title) : stageTitle(task.title, task.outcome);
   const askedMeta = (task: BotTaskRow) => {
     const at = task.needs?.askedAt;
     if (at === undefined) return "";
@@ -698,7 +701,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const waitsOn = running.length ? null : idleWait(task, bot, snapshot, now);
     const laterNote = task.displayState === "waiting" && task.laterNote ? task.laterNote : null;
     const baseStatus = task.displayState === "needs" ? fitWhat(cardStatus(task, running, now, waitsOn), isCompactViewport ? CARD_ASK_PHONE : CARD_ASK) : cardStatus(task, running, now, waitsOn);
-    const status = laterNote ? `${baseStatus.split(" \u00b7 ")[0]} \u00b7 may be out of date` : baseStatus;
+    const laterHead = laterNote ? capitalFirst(readableCut(readerWords(plainNote(laterNote.text)).split(/(?<=[.!?])\s+/)[0]!, 80).replace(/[.]$/, "")) : "";
+    const status = laterNote ? `${laterHead} \u00b7 ${dayAndTime(laterNote.at, now)}` : baseStatus;
     const options = task.displayState === "needs" ? (task.needs?.options ?? []).filter(Boolean).slice(0, 4) : [];
     const reason = detailReason(stageText(task.needs?.question ?? task.line, task.displayState === "needs"));
     const question = isQuestionRow(task);
@@ -723,12 +727,13 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const said = !question && noteOwner.get(reason) === task.id ? closedNote(task, reason) : "";
     const split = yourAskSplit(said);
     const shownSaid = split ? split.status : said;
-    const stale = running.length > 0 && /^(?:Starts when|Not started yet|Queued\b|Next check\b)/i.test(shownSaid);
+    const stale = running.length > 0 && /^(?:Starts when|Not started yet|Its (?:browser test|next step) hasn't started|Queued\b|Next check\b)/i.test(shownSaid);
     const extra = shownSaid && !stale && !CRITERIA.test(shownSaid) && !status.includes(shownSaid) && !shownSaid.startsWith(status) ? capCut(shownSaid, task.line.length >= LINE_CAP - 1 ? 0 : Infinity) : "";
     const extraCut = /\u2026$/.test(extra);
     const yours = parts?.kind === "yours";
-    const go = () => { if (task.displayState === "needs") { const place = askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); } else onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); };
-    const label = notNowLabel({ botName: bot.name, title: name, what: task.displayState === "needs" ? status : question ? task.needs?.question ?? name : name });
+    const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: cardStatus(task, running, now, waitsOn), title: name, options: answerOptions(task.needs?.options), botName: bot.name, askedAt: task.needs?.askedAt }); return place; };
+    const go = () => { if (task.displayState === "needs") { const place = arm(); onNavigate(place.threadId, place.messageSeq); } else onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); };
+    const label = notNowLabel({ botName: bot.name, title: name, what: task.displayState === "needs" ? status : question ? task.needs?.question ?? name : name, options: task.needs?.options });
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone} data-task={task.id}>
       <div className="dispatch-card-head">
         <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} aria-label={`${name}. ${status}`} onClick={go}>
@@ -737,33 +742,33 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
         {task.displayState === "needs" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${label}`} title="Not now: move to Later until the bot asks again" onClick={event => parkFrom(event.currentTarget, task.id, () => notNow(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Not now</span></button>
           : task.later?.reason === "not-now" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back: ${label}`} title="Put it back in Needs you" onClick={event => parkFrom(event.currentTarget, task.id, () => bringBack(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Bring back</span></button> : null}
         <button type="button" className="dispatch-task-continue" aria-label={question && questionInPanel(task) ? `Reply to ${name} in the bot's chat` : `Continue ${name}`} title={question && questionInPanel(task) ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={() => {
-          if (question) { const place = askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
+          if (question) { const place = needsCard ? arm() : askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
           window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: name.slice(0, 80) } }));
           onNavigate(bot.coordinatorThreadId);
         }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{question && questionInPanel(task) ? "Reply in chat" : "Continue"}</span></button>
       </div>
-      <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={cutForms(cardStatus(task, running, now, waitsOn), fitWhat, STATUS_FORMS)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
-      {laterNote ? <p className="dispatch-ask-line dispatch-later-note" dir="auto"><span className="dispatch-ask-text"><Isolated text={`Newer from the bot, ${dayAndTime(laterNote.at, now)}: \u201c${readableCut(readerWords(plainNote(laterNote.text)), 110)}\u201d`} /></span></p> : null}
+      <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line"><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(cardStatus(task, running, now, waitsOn), STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options" role="group" aria-label={`Answers to ${name}`}>
-        <span className="dispatch-options-label" aria-hidden="true">Reply with</span>
+        <span className="dispatch-options-label" aria-hidden="true">Answer here or in chat</span>
         {options.map(option => <button key={option} type="button" className="dispatch-option" aria-label={`Reply “${option}” in the chat: opens the chat with it typed, ready to send`} title="Opens the chat with this reply typed, ready to send" onClick={() => {
-          const place = askPlace(task, bot.coordinatorThreadId);
-          requestFill(place.threadId, option);
+          const place = arm();
+          requestFill(place.threadId, option, options);
           onNavigate(place.threadId, place.messageSeq);
         }}><Isolated text={plainNote(option)} /></button>)}
       </div> : null}
       {(question || needsCard || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
       {ask ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={toggleDetails}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
-      {outcome || extra || split || attempts.length || fullAsk ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
+      {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
         {fullAsk ? <p className="dispatch-full" dir="auto"><span>{fullAsk.excerpt ? `${fullAsk.head} · ${fullAsk.part ?? "excerpt"}` : fullAsk.kind === "yours" || fullAsk.kind === "ask" ? `${fullAsk.head}, in full` : fullAsk.head}</span><Isolated text={`\u201c${fullAsk.full}\u201d`} /></p> : null}
-        {fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open dispatch-ask-open-inline" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open in chat</button> : null}
         {outcome ? <p className="dispatch-full" dir="auto"><span>{goalCut ? "Goal · excerpt" : "Goal"}</span><Isolated text={afterStop(outcome)} /></p> : null}
+        {laterNote ? <p className="dispatch-full" dir="auto"><span>{`From the bot, ${dayAndTime(laterNote.at, now)}`}</span><Isolated text={`\u201c${readerWords(plainNote(laterNote.text))}\u201d`} /></p> : null}
+        {laterNote ? <p className="dispatch-full" dir="auto"><span>Before that</span><Isolated text={baseStatus} /></p> : null}
         {split ? <p className="dispatch-full" dir="auto"><span>Your standing instruction</span><Isolated text={`\u201c${split.asked}\u201d`} /></p> : null}
         {extra ? extraCut ? <p className="dispatch-full" dir="auto"><span>Latest note · excerpt</span><Isolated text={afterStop(extra)} /></p> : <p className="dispatch-full-status" dir="auto"><Isolated text={extra} /></p> : null}
         {attempts.length ? <WorkerList attempts={attempts} now={now} onOpen={onNavigate} /> : null}
-        {task.ask && !fullAsk?.excerpt ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>Open in chat</button> : null}
+        {task.ask ? <button type="button" className="dispatch-ask-open" onClick={() => onNavigate(task.ask!.ref.threadId)}>{fullAsk?.excerpt ? "Read the whole message in chat" : "Open in chat"}</button> : null}
       </details> : null}
     </article>;
   };

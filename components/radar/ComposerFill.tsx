@@ -11,7 +11,7 @@ export function ComposerFill() {
     if (!composer) return;
     clearFill(request);
     try {
-      if (composer.isEmpty) composer.replace({ text: request.text, mentions: [] });
+      if (composer.isEmpty || request.swap.includes(composer.text.trim())) composer.replace({ text: request.text, mentions: [] });
       composer.focus();
     } catch {}
   }, [request, composers]);

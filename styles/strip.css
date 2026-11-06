@@ -1,0 +1,36 @@
+.radar-ask-strip {
+  --strip-ask: light-dark(#7a4a00, #ffd36b);
+  --strip-fill: light-dark(#f5a300, #f2b233);
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--strip-fill) 45%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--strip-fill) 9%, var(--background));
+  box-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.25);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.radar-ask-strip-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.radar-ask-strip-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--strip-fill); }
+.radar-ask-strip-who { flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-ask-strip-who b { font-weight: 650; color: var(--strip-ask); }
+.radar-ask-strip-close { flex: none; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px -4px -4px 0; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.radar-ask-strip-close svg, .radar-ask-strip-close [data-icon-root] { width: 14px; height: 14px; }
+.radar-ask-strip-close:hover { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
+.radar-ask-strip-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-ask-strip-question { font-size: 13.5px; font-weight: 600; line-height: 19px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.radar-ask-strip-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.radar-ask-strip-option { display: inline-flex; align-items: center; min-height: 30px; max-width: 100%; padding: 4px 12px; border: 1px solid color-mix(in oklab, var(--strip-ask) 35%, var(--border)); border-radius: 15px; background: color-mix(in oklab, var(--strip-fill) 14%, var(--background)); color: var(--foreground); font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.3; text-align: start; cursor: pointer; }
+.radar-ask-strip-option:hover { background: color-mix(in oklab, var(--strip-fill) 26%, var(--background)); }
+.radar-ask-strip-option[aria-pressed="true"] { border-color: var(--strip-ask); box-shadow: inset 0 0 0 1px var(--strip-ask); }
+.radar-ask-strip-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.radar-ask-strip-note { font-size: 12px; color: var(--muted-foreground); }
+@media (pointer: coarse) {
+  .radar-ask-strip-option { min-height: 44px; }
+  .radar-ask-strip-close { width: 44px; height: 44px; margin: -14px -12px -14px 0; }
+}

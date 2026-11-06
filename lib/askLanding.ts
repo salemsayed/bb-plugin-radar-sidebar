@@ -1,3 +1,4 @@
+import { askStripTop } from "./askStrip";
 const WAIT_MS = 30_000;
 const STEP_MS = 150;
 const STEADY_MS = 450;
@@ -42,7 +43,19 @@ export function askArea(node: HTMLElement): { top: number; bottom: number } {
 function visibleBand(viewport: HTMLElement): { top: number; bottom: number } {
   const box = viewport.getBoundingClientRect();
   const footer = Array.from(viewport.querySelectorAll<HTMLElement>(FOOTER)).map(node => node.getBoundingClientRect()).find(rect => rect.height > 0 && rect.top < box.bottom);
-  return { top: box.top, bottom: footer ? Math.min(box.bottom, footer.top) : box.bottom };
+  const strip = askStripTop();
+  const bottom = footer ? Math.min(box.bottom, footer.top) : box.bottom;
+  return { top: box.top, bottom: strip !== null && strip > box.top + 120 ? Math.min(bottom, strip) : bottom };
+}
+
+export function chatFooter(): DOMRect | null {
+  return Array.from(document.querySelectorAll<HTMLElement>(FOOTER)).map(node => node.getBoundingClientRect()).find(rect => rect.height > 0 && rect.width > 200) ?? null;
+}
+
+export function askCardAnswers(seq: number): string[] | null {
+  const node = message(seq);
+  if (!node) return null;
+  return Array.from(node.querySelectorAll<HTMLElement>("button")).filter(button => button.getBoundingClientRect().height > 0).map(label).filter(text => text && !CARD_FOOT.test(text) && !MESSAGE_TOOLS.test(text));
 }
 
 export function settleAskInView(seq: number): void {
