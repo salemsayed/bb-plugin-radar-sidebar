@@ -1,4 +1,3 @@
-import { answerSides } from "./answerSides";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { threadActionTarget } from "./threadActions";
@@ -15,7 +14,7 @@ import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
 import { capitalFirst, plainNote } from "./workText";
 import { recommendedOption, withoutMarks } from "./recommend";
-import { AnswerLabel, AskImpact, answerName, fitWhole } from "./AnswerLabel";
+import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
 
 const OPEN_WHAT = 96;
 
@@ -142,16 +141,18 @@ export function askTime(task: Pick<BotTasksData["bots"][number]["tasks"][number]
   return task.observedAt !== undefined ? { at: task.observedAt - task.ageMs, since: "open" } : {};
 }
 
-function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: string) => boolean = () => false): { items: NeedItem[]; arrivals: NeedItem[] } {
+function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: string) => boolean = () => false, seen = false): { items: NeedItem[]; arrivals: NeedItem[] } {
   const [frozen, setFrozen] = useState<{ items: NeedItem[]; rebase: number } | null>(null);
-  if (hold && (frozen === null || frozen.rebase !== rebase)) setFrozen({ items: live, rebase });
-  if (!hold && frozen !== null) setFrozen(null);
-  if (!hold || frozen === null) return { items: live, arrivals: [] };
+  const kept = new Set(frozen?.items.map(item => item.id) ?? []);
+  const arrivals = frozen ? live.filter(item => !kept.has(item.id) && !item.state && !item.old) : [];
+  const keep = hold || seen && frozen !== null && frozen.rebase === rebase && arrivals.length > 0;
+  if (keep && (frozen === null || frozen.rebase !== rebase)) setFrozen({ items: live, rebase });
+  if (!keep && frozen !== null) setFrozen(null);
+  if (!keep || frozen === null) return { items: live, arrivals: [] };
   const now = new Map(live.map(item => [item.id, item]));
-  const kept = new Set(frozen.items.map(item => item.id));
   return {
     items: frozen.items.map(item => now.get(item.id) ?? { ...item, state: item.notNowKey && parked(item.notNowKey) ? "later" as const : "gone" as const }),
-    arrivals: live.filter(item => !kept.has(item.id) && !item.state && !item.old),
+    arrivals,
   };
 }
 
@@ -185,13 +186,21 @@ function FitOne({ forms, className }: { forms: readonly string[]; className: str
   return <span className={className} role="status" ref={ref}>{forms[fit]}</span>;
 }
 
-function ArrivalText({ lead, what, answers }: { lead: string; what: string; answers: readonly string[] }) {
+export function compactForms(what: string, title = "", count = 0): string[] {
+  const head = what.split(" \u00b7 ")[0]!.trim();
+  const parts = head.split(/(?<=[.!?])\s+(?=\S)/);
+  const asked = parts.length > 1 ? [...parts].reverse().find(part => /\?\s*$/.test(part) && part.split(/\s+/).length >= 3) : undefined;
+  const base = asked ?? head;
+  return [...new Set([head, base, ...askForms(base, OPEN_FORMS, fitWhat, title, count), fitWhat(base, 40)])];
+}
+
+function ArrivalText({ what, title, answers }: { what: string; title?: string; answers: readonly string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
   const key = answers.join("\n");
   const leads = answers.map(answer => /^(yes|no)\b/i.exec(answer.trim())?.[1]);
   const yesNo = answers.length === 2 && leads.every(Boolean) && new Set(leads.map(lead => lead!.toLowerCase())).size === 2 ? leads.map(lead => capitalFirst(lead!.toLowerCase())).join(" or ") : "";
   const tails = answers.length > 1 ? [answers.join(" / "), ...(yesNo ? [yesNo] : []), `${answers.length} answers`] : [];
-  const [shown, setShown] = useState<{ text: string; tail: string }>({ text: what, tail: tails[0] ?? "" });
+  const [shown, setShown] = useState<{ text: string; tail: string }>({ text: what, tail: "" });
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box) return;
@@ -204,28 +213,26 @@ function ArrivalText({ lead, what, answers }: { lead: string; what: string; answ
       probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;inset-inline-start:0;top:0;width:${box.clientWidth}px;display:block;overflow:visible;-webkit-line-clamp:none;line-clamp:none`;
       host.appendChild(probe);
       const fits = (form: string, tail = "") => {
-        const name = document.createElement("b");
-        name.textContent = `${lead}:`;
-        const parts: (Node | string)[] = [name, ` ${form}`];
+        const parts: (Node | string)[] = [form];
         if (tail) { const more = document.createElement("span"); more.className = "stage-needs-arrival-answers"; more.textContent = ` \u00b7 ${tail}`; parts.push(more); }
         probe.replaceChildren(...parts);
         return probe.scrollHeight <= lines * 2 + 1;
       };
-      const forms = [what, ...questionCuts(what)];
       let pick: { text: string; tail: string } | null = null;
-      for (const tail of tails) {
-        const form = forms.find(f => fits(f, tail));
-        if (form !== undefined) { pick = { text: form, tail }; break; }
+      for (const form of compactForms(what, title, answers.length)) {
+        const tail = tails.find(t => fits(form, t));
+        if (tail !== undefined) { pick = { text: form, tail }; break; }
+        if (fits(form)) { pick = { text: form, tail: "" }; break; }
       }
-      setShown(pick ?? { text: forms.find(form => fits(form)) ?? fitWords(what, form => fits(form)), tail: "" });
+      setShown(pick ?? { text: fitWords(what, form => fits(form)), tail: "" });
       probe.remove();
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [lead, what, key]);
-  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><b>{lead}:</b> <Isolated text={shown.text} />{shown.tail ? <span className="stage-needs-arrival-answers">{" \u00b7 "}<Isolated text={shown.tail} /></span> : null}</span>;
+  }, [what, title, key]);
+  return <span className="stage-needs-arrival-text" dir="auto" ref={ref}><Isolated text={shown.text} />{shown.tail ? <span className="stage-needs-arrival-answers">{" \u00b7 "}<Isolated text={shown.tail} /></span> : null}</span>;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
@@ -279,13 +286,14 @@ function useHashSeq(): number | null {
 
 export interface StaleNote { asOf: string; retrying: boolean; onRetry: () => void }
 
-export function NeedsSummary({ data, extra, answered, hold, watching = false, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
+export function NeedsSummary({ data, extra, answered, hold, watching = false, seen = false, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
   data: BotTasksData;
   activeThreadId: string | null;
   extra: readonly NeedItem[];
   answered: readonly NeedItem[];
   hold: boolean;
   watching?: boolean;
+  seen?: boolean;
   now: number;
   checking?: boolean;
   cold?: boolean;
@@ -312,7 +320,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const frozen = (hold || watching) && !checking;
   if (!frozen && skip.size) setSkip(new Set());
   const fresh = needItems(data);
-  const held = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], frozen, rebase, parked);
+  const held = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], frozen, rebase, parked, seen && !checking);
   const arrivals = held.arrivals;
   const items = held.items.filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)))
     .map(item => !item.state && liveOutcome(item, outcomes, now)?.result === "sent" ? { ...item, state: "answered" as const } : item);
@@ -378,7 +386,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       const full = rows.map(row => fullHeights.current.get(row.dataset.need!)! + gap);
       let next: string[] = [];
       if (full.reduce((sum, h) => sum + h, 0) - gap > room + 1) {
-        const line = matchMedia("(pointer: coarse)").matches ? 44 : 36;
+        const line = matchMedia("(pointer: coarse)").matches ? 44 : 40;
         let keep = 0;
         for (let k = full.length - 1; k >= 1; k--) {
           if (full.slice(0, k).reduce((sum, h) => sum + h, 0) + (full.length - k) * (line + gap) <= room + 1) { keep = k; break; }
@@ -421,8 +429,8 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
         <button type="button" className="stage-needs-arrival" title={single ? `${lead}: ${single.what}` : undefined}
           aria-label={single ? `${lead}: ${single.what.replace(/[.\s]+$/, "")}.${boxAnswers(single).length > 1 ? ` ${boxAnswers(single).length} answers.` : ""} Show` : `${text} from ${names}: show them`}
           onClick={() => { focusAt.current = 0; reveal(); }}>
-          <span className="stage-needs-dot" aria-hidden="true" />
-          {single ? <ArrivalText lead={lead} what={single.what} answers={boxAnswers(single)} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
+          {single && faces.get(single.botKey) ? <BotTaskFace bot={faces.get(single.botKey)!} size={16} /> : <span className="stage-needs-dot" aria-hidden="true" />}
+          {single ? <ArrivalText what={single.what} title={single.title} answers={boxAnswers(single)} /> : <FitOne className="stage-needs-line-text" forms={forms} />}
           <span className="stage-needs-more-pill" data-icon-only={single ? "" : undefined} aria-hidden="true">{single ? null : <span>Show</span>}<Icon name="ChevronDown" aria-hidden="true" /></span>
         </button>
       </h2>
@@ -512,35 +520,30 @@ export function ageLabel(age: string, _since?: "asked" | "open"): string {
   return askedAgo(age);
 }
 
-function WordLine({ text, className }: { text: string; className: string }) {
+function AgeFit({ forms, className }: { forms: readonly string[]; className: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [shown, setShown] = useState(text);
-  const [width, setWidth] = useState(0);
+  const [fit, setFit] = useState(0);
+  const key = forms.join("\n");
   useLayoutEffect(() => {
     const node = ref.current;
-    if (!node) return;
-    const observer = new ResizeObserver(entries => {
-      const next = Math.round(entries[0]!.contentRect.width);
-      setWidth(prev => Math.abs(prev - next) > 1 ? next : prev);
-    });
-    observer.observe(node);
+    const row = node?.closest<HTMLElement>(".stage-needs-who");
+    if (!node || !row) return;
+    const measure = () => {
+      const style = getComputedStyle(row);
+      const name = row.querySelector<HTMLElement>("b");
+      const gap = Number.parseFloat(style.columnGap) || 0;
+      const room = row.clientWidth - (Number.parseFloat(style.paddingInlineEnd) || 0) - (Number.parseFloat(style.paddingInlineStart) || 0) - (name?.getBoundingClientRect().width ?? 0) - gap;
+      const own = getComputedStyle(node);
+      const font = `${own.fontWeight} ${own.fontSize} ${own.fontFamily}`;
+      const at = forms.findIndex(form => textWidth(form, font) <= room);
+      setFit(at < 0 ? forms.length : at);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
     return () => observer.disconnect();
-  }, []);
-  useLayoutEffect(() => {
-    const node = ref.current;
-    const host = node?.parentElement;
-    if (!node || !host) return;
-    const room = node.getBoundingClientRect().width;
-    const probe = document.createElement("span");
-    probe.className = node.className;
-    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;width:auto;max-width:none;white-space:nowrap;display:inline;overflow:visible";
-    host.appendChild(probe);
-    const fits = (form: string) => { probe.textContent = form; return probe.getBoundingClientRect().width <= room + 0.5; };
-    const next = fitWhole(text, fits);
-    probe.remove();
-    setShown(next);
-  }, [text, width]);
-  return <span ref={ref} className={className} dir="auto"><Isolated text={shown} /></span>;
+  }, [key]);
+  return <span ref={ref} className={className}>{forms[fit] ?? ""}</span>;
 }
 
 function NeedRow({ item, bot, now, current, offline, outcome, lined = false, folded: foldedAsked = false, onUnfold, onOpen, onMenu, onNotNow, onAnswer }: {
@@ -564,7 +567,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
   const itemRef = useRef<HTMLButtonElement>(null);
   const what = item.what;
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
-  const shownAge = item.old && age ? `${age} old` : age ? askedAgo(age) : "";
+  const ageForms = item.old && age ? [`${age} old`] : age ? age === "now" ? ["asked just now", "just now", "now"] : [askedAgo(age), `${age} ago`, age] : [];
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
   const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? askedAgo(age) : "";
@@ -572,7 +575,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
   const parkable = !!item.notNowKey && !item.state;
-  const canPark = (!!onNotNow || offline) && parkable && !folded && !lined;
+  const canPark = (!!onNotNow || offline) && parkable && !lined;
   const sentAs = item.state === "answered" && outcome?.result === "sent" ? outcome.text : "";
   const answers = onAnswer && !folded && !lined ? boxAnswers(item) : [];
   const spent = !!item.state && !sentAs && !lined ? onAnswer ? boxAnswers({ ...item, state: undefined }) : [] : [];
@@ -582,45 +585,25 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
   const headStatus = item.state === "later" ? <span className="stage-needs-later-mark"><Icon name="Clock" aria-hidden="true" />Later</span>
     : item.state && !sentAs ? <span className="stage-needs-later-mark"><Icon name="Check" aria-hidden="true" className="stage-needs-done" />{item.state === "answered" ? "Answered" : "Done"}</span>
     : sentAs ? null
-    : shownAge ? <span className="stage-needs-age">{shownAge}</span> : null;
-  const parkOnly = canPark && !(answers.length && !sentAs) && !spent.length && !note && !keepPark && !sentAs && !(item.consequence && !folded);
-  const liRef = useRef<HTMLLIElement>(null);
-  const [inlinePark, setInlinePark] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const li = liRef.current;
-    if (!li || !parkOnly || matchMedia("(pointer: coarse)").matches) { setInlinePark(null); return; }
-    const measure = () => {
-      const text = li.querySelector<HTMLElement>(".stage-needs-what");
-      const foot = li.querySelector<HTMLElement>(".stage-needs-foot");
-      const pill = li.querySelector<HTMLElement>(".stage-needs-foot .radar-not-now");
-      if (!text || !foot || !pill) return;
-      if (text.scrollHeight > text.clientHeight + 1) { setInlinePark(null); return; }
-      const box = text.getBoundingClientRect();
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const lines = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.bottom <= box.bottom + 1 && rect.top >= box.top - 1);
-      if (!lines.length) { setInlinePark(null); return; }
-      const lastTop = Math.max(...lines.map(rect => rect.top));
-      const last = lines.filter(rect => Math.abs(rect.top - lastTop) < 4);
-      const right = Math.max(...last.map(rect => rect.right));
-      const end = li.getBoundingClientRect().right - 4;
-      const width = pill.getBoundingClientRect().width;
-      if (end - right < width + 12) { setInlinePark(null); return; }
-      const applied = Number.parseFloat(getComputedStyle(foot).marginTop) || 0;
-      const naturalTop = foot.getBoundingClientRect().top - applied;
-      const lineTop = Math.min(...last.map(rect => rect.top));
-      const lift = Math.round(naturalTop - lineTop - 2);
-      const placed = { left: end - width, right: end, top: lineTop + 2, bottom: lineTop + 2 + pill.getBoundingClientRect().height };
-      const hits = lines.some(rect => rect.right > placed.left && rect.left < placed.right && rect.bottom > placed.top + 0.5 && rect.top < placed.bottom - 0.5);
-      setInlinePark(hits || lift <= 0 ? null : lift);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(li);
-    return () => observer.disconnect();
-  }, [parkOnly, what]);
+    : ageForms.length ? <AgeFit className="stage-needs-age" forms={ageForms} /> : null;
   const hint = folded ? "Show its answers" : item.inPanel ? "Show the question" : answers.length ? "Open the chat" : item.options?.length ? "Open: its answers show above the message box" : "Open";
-  return <li ref={liRef} data-need={item.id} data-lined={lined || undefined} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} {...press}
+  const parkTool = canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
+      aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
+      onPointerDown={event => event.stopPropagation()}
+      onClick={event => {
+        event.stopPropagation();
+        if (offline || !onNotNow) return;
+        const keyboard = event.detail === 0;
+        if (!keyboard) itemRef.current?.focus({ preventScroll: true });
+        onNotNow(keyboard);
+      }}><span className="radar-not-now-pill">Not now</span></button>
+    : keepPark ? <span className="stage-needs-later radar-not-now" data-spent="" aria-hidden="true"><span className="radar-not-now-pill">Not now</span></span> : null;
+  const threadMenu = item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
+      trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
+        onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
+        <Icon name="MoreHorizontal" aria-hidden="true" />
+      </button>} /> : null;
+  return <li data-need={item.id} data-lined={lined || undefined} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} data-park={parkTool ? "" : undefined} data-menu={threadMenu ? "" : undefined} {...press}
     onFocus={() => setInside(true)}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInside(false); }}
     onContextMenu={event => {
@@ -633,49 +616,27 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" ref={itemRef} className="stage-needs-item" data-lined={lined || undefined} data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel && !folded ? "dialog" : undefined} aria-expanded={folded ? false : undefined}
       onClick={event => { if (folded) onUnfold?.(); else if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
-        {lined ? <WordLine className="stage-needs-what" text={what} /> : <FitLines className="stage-needs-what" forms={oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)} />}
+        <FitLines className="stage-needs-what" forms={lined ? compactForms(what, item.title, item.options?.length ?? 0) : oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)} />
         {!folded && !lined && !item.state ? <AskImpact className="stage-needs-impact" text={item.consequence} /> : null}
         {folded ? <span className="stage-needs-unfold" aria-hidden="true">{`${boxAnswers(item).length} answers`}<Icon name="ChevronDown" aria-hidden="true" /></span> : null}
       </span>
     </button>
-    {lined ? null : <span className="stage-needs-tools">
-      {item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
-          trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
-            onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
-            <Icon name="MoreHorizontal" aria-hidden="true" />
-          </button>} />
-          : item.kind !== "thread" ? <button type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-haspopup="dialog" aria-label={menuLabel} title={menuLabel}
-            onPointerDown={event => event.stopPropagation()}
-            onClick={event => { event.stopPropagation(); onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); }}>
-            <Icon name="MoreHorizontal" aria-hidden="true" />
-          </button> : null}
-    </span>}
+    {lined || !(parkTool || threadMenu) ? null : <span className="stage-needs-tools">{parkTool}{threadMenu}</span>}
     {sentAs && !lined ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
-    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark !== null || undefined} style={parkOnly && inlinePark !== null ? { marginTop: -inlinePark } : undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} ref={answerSides}>
+    {answers.length && !sentAs || spent.length || note ? <div className="stage-needs-foot" onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
+      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
         {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send ${answerName(label, isRecommended(item, label))} to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
           onClick={event => { event.stopPropagation(); onAnswer!(label); }}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
       </div> : null}
       {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><Isolated text={label} /></button>)}</div> : null}
       {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
-      {keepPark ? <span className="stage-needs-later radar-not-now" data-spent="" aria-hidden="true"><span className="radar-not-now-pill">Not now</span></span> : null}
-      {canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
-          aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
-          onPointerDown={event => event.stopPropagation()}
-          onClick={event => {
-            event.stopPropagation();
-            if (offline || !onNotNow) return;
-            const keyboard = event.detail === 0;
-            if (!keyboard) itemRef.current?.focus({ preventScroll: true });
-            onNotNow(keyboard);
-          }}><span className="radar-not-now-pill">Not now</span></button> : null}
     </div> : null}
   </li>;
 }

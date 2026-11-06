@@ -1,4 +1,3 @@
-import { answerSides } from "./answerSides";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
@@ -60,6 +59,8 @@ export function AskStrip() {
   const [note, setNote] = useState<string | null>(null);
   const seen = useRef<string | null>(null);
   const marker = useRef<HTMLSpanElement>(null);
+  const whoWatch = useRef<{ node: HTMLElement; observer: ResizeObserver } | null>(null);
+  useEffect(() => () => whoWatch.current?.observer.disconnect(), []);
   useEffect(() => {
     if (!entry) { seen.current = null; return; }
     if (here) { seen.current = entry.key; return; }
@@ -127,6 +128,20 @@ export function AskStrip() {
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
   }, [visible, entry, composer]);
+  const whoLine = (node: HTMLSpanElement | null) => {
+    if (!node || whoWatch.current?.node === node) return;
+    whoWatch.current?.observer.disconnect();
+    const place = () => {
+      node.removeAttribute("data-wrapped");
+      const name = node.querySelector("b");
+      const tail = node.querySelector<HTMLElement>(".radar-ask-strip-hint");
+      if (name && tail && tail.getBoundingClientRect().top > name.getBoundingClientRect().top + 4) node.setAttribute("data-wrapped", "");
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(node);
+    whoWatch.current = { node, observer };
+    place();
+  };
   const base = <><span ref={marker} hidden /><ComposerFill /></>;
   if (!visible || !entry || !place || !host) return base;
   const age = entry.askedAt !== undefined ? since(entry.askedAt, now) : "";
@@ -154,12 +169,12 @@ export function AskStrip() {
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(true); } }}>
     <header className="radar-ask-strip-head">
       <span className="radar-ask-strip-dot" aria-hidden="true" />
-      <span className="radar-ask-strip-who"><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
+      <span className="radar-ask-strip-who" ref={whoLine}><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
     <FitLines className="radar-ask-strip-question" forms={oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length)} />
     <AskImpact className="radar-ask-strip-impact" text={entry.consequence} />
-    {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerSides}>
+    {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
         aria-label={`Send ${answerName(label, rec(label))} to ${entry.botName}`} title="Sends this reply to the bot"
         onClick={() => { void choose(label); }}><AnswerLabel label={label} recommended={rec(label)} /></button>)}

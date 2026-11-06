@@ -179,3 +179,7 @@ p.dispatch-ask-line { cursor: default; }
 .dispatch-panel .dispatch-card-foot-actions button.dispatch-later-action, .dispatch-panel .dispatch-card-foot-actions button.dispatch-task-continue { align-self: center; margin-top: 0; }
 .dispatch-status-line[hidden] { display: none; }
 .dispatch-nowrap { white-space: nowrap; }
+.dispatch-ask-more { font-weight: 600; color: var(--foreground); white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); }
+.dispatch-task b:has(> .dispatch-title-fit) { display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
+.dispatch-title-fit { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: break-word; }
+.dispatch-recent .dispatch-title-fit { -webkit-line-clamp: 2; line-clamp: 2; }

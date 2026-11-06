@@ -123,7 +123,8 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const titleOf = (attempt: Attempt) => names.get(attempt.threadId) ?? "Worker";
   const known = snapshot.known.has(bot.key);
   const busyTasks = open.filter(t => (t.displayState === "working" || t.displayState === "queued" || t.displayState === "retrying" || t.displayState === "overdue" || t.displayState === "checking") && !(snapshot.byTask[t.id] ?? []).some(a => a.state === "running"));
-  const waiting = open.filter(t => t.displayState === "waiting" || t.displayState === "ready" || t.displayState === "offline")
+  const askTitles = new Set(asks.map(t => stageTitle(t.title).toLowerCase()));
+  const waiting = open.filter(t => (t.displayState === "waiting" || t.displayState === "ready" || t.displayState === "offline") && !askTitles.has(stageTitle(t.title).toLowerCase()))
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   const closed = bot.tasks.filter(t => t.displayState === "done" && t.completedAt !== undefined).sort((a, b) => b.completedAt! - a.completedAt!);
   const done = closed.filter(t => isSameLocalDay(t.completedAt!, now));

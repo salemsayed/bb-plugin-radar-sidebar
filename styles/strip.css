@@ -44,3 +44,5 @@
   .radar-ask-strip-hint { display: inline; }
   .radar-ask-strip-who > span { white-space: nowrap; }
 }
+.radar-ask-strip-who[data-wrapped] > .radar-ask-strip-sep { display: none; }
+.radar-ask-strip-who[data-wrapped] > .radar-ask-strip-hint { display: block; }

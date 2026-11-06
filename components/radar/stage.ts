@@ -5,6 +5,7 @@ import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
 import { isQuestionRow, isStepAsk } from "./questions";
 import { withoutMarks } from "./recommend";
+import { plainAnswers } from "@/lib/plainAnswers";
 
 export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
   const asked = isQuestionRow(task) ? task.needs?.question ?? task.title : needAsk((task.needs?.question || task.line || task.title).replace(/^(?:needs you|waiting for you)\s*[:\u00b7-]\s*/i, ""), stageTitle(task.title, task.outcome));
@@ -129,7 +130,9 @@ export function instructionAsk(question: string): boolean {
 }
 
 export function askOptions(task: Pick<BotTaskRow, "needs">): string[] {
-  return task.needs && !instructionAsk(task.needs.question) ? answerOptions(task.needs.options) : [];
+  if (!task.needs || instructionAsk(task.needs.question)) return [];
+  const given = answerOptions(task.needs.options);
+  return given.length || task.needs.interactionId ? given : plainAnswers(stageText(task.needs.question, true));
 }
 
 const IMPERATIVE = /^(?:type|enter|paste|sign in|log in|unplug|scan|tap|press|insert|unlock|approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab)\b(?!\s+(?:is|was|are|were|has|have|had|will|would|can|could|cannot|can't|should|did|does|do|got|gets|went|looks|passed|failed|stays|works|landed|shipped|deployed|ran|runs|needs|needed)\b)/i;

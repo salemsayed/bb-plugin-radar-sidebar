@@ -756,9 +756,9 @@ export function askPreview(ask: { excerpt: string; full?: string; label: string;
   if (!parts.quote) return { line: parts.head, shown: "", partial: false };
   const room = Math.max(48, PREVIEW_LINES - parts.head.length);
   const source = parts.full && parts.full.length > parts.quote.length && parts.full.startsWith(parts.quote.replace(/(?:\u2026|\.\.\.)$/, "").slice(0, 24)) ? parts.full : parts.quote;
-  const unit = previewUnit(source, room);
+  const unit = previewUnit(source, room - 9);
   const partial = unit.partial || parts.excerpt;
-  const text = partial ? `${unit.text}${/[.!?]$/.test(unit.text) ? " \u2026" : "\u2026"}` : unit.text;
+  const text = partial && !/[.!?]$/.test(unit.text) ? `${unit.text}\u2026` : unit.text;
   return { line: `${datedHead(parts.head)}: \u201c${text}\u201d`, shown: unit.text, partial };
 }
 
@@ -786,4 +786,12 @@ export function stateTone(state: string): StateTone {
   if (state === "done") return "done";
   if (state === "cancelled" || state === "stopped") return "ended";
   return "quiet";
+}
+
+const TITLE_CUT = /\s+(?=(?:with|after|and|for|to|via|before|until|so|by|from|on|in|at|plus)\s)|,\s+|\s+[\u2013\u2014]\s+|\s+(?=\()/gi;
+
+export function titleForms(title: string): string[] {
+  const cuts = [...title.matchAll(TITLE_CUT)].map(match => match.index!).filter(at => title.slice(0, at).trim().split(/\s+/).length >= 3);
+  const forms = [title, ...cuts.reverse().map(at => title.slice(0, at).replace(/[\s,;:\u2013\u2014-]+$/, ""))];
+  return [...new Set(forms.filter(Boolean))];
 }

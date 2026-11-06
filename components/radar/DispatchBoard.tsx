@@ -1,4 +1,3 @@
-import { answerSides } from "./answerSides";
 import { DeskThreads } from "./DeskThreads";
 import { ChatCard, ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
@@ -10,6 +9,7 @@ import { deskTitle, isClosed, needsYou, layoutBot, orderedBots, rowStartedAt, sh
 import { BotTaskFace, asOf, clearsLine, clockFormatter, clearsWeekdayFormatter, rowDetail, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
 import { automationsHref } from "./automationsLink";
+import { titleForms } from "./workText";
 import { askPreview, askParts, datedHead, capCut, readableCut, capitalFirst, cardOrder, cutAtWord, plainNote, plainQueue, plainWorkerTitle, readerWords, workerNames, sameJob, stateTone, taskHeadline, waitingOn, mergeRequestWords, ASK_PREVIEW, type OriginalOf } from "./workText";
 import { Isolated } from "./Isolated";
 import { keepHyphens, sentenceEnd } from "./displayText";
@@ -432,15 +432,16 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     if (!pointerIn) return;
     const check = (event: PointerEvent) => { if (!inside(event.target)) setPointerIn(false); };
     const away = () => setPointerIn(false);
+    const blurred = () => setPointerIn(!!root.current?.matches(":hover"));
     document.addEventListener("pointermove", check, true);
     document.addEventListener("pointerdown", check, true);
     document.documentElement.addEventListener("pointerleave", away);
-    window.addEventListener("blur", away);
+    window.addEventListener("blur", blurred);
     return () => {
       document.removeEventListener("pointermove", check, true);
       document.removeEventListener("pointerdown", check, true);
       document.documentElement.removeEventListener("pointerleave", away);
-      window.removeEventListener("blur", away);
+      window.removeEventListener("blur", blurred);
     };
   }, [pointerIn]);
   useEffect(() => { if (!later.toast) setPointerIn(value => value && !!root.current?.matches(":hover")); }, [later.toast]);
@@ -509,7 +510,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot" ref={slot}><div ref={slotInner}>
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} watching={watching} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
+      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} watching={watching} seen={visible} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
         onAnswer={(item, label) => { armItem(item); requestFill(item.threadId, label, boxAnswers(item), true, item.id); open(item.threadId, item.messageSeq); }}
         checking={!bothFresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
@@ -573,8 +574,8 @@ function DeskNeedCard({ desk, now, current, onOpen, botName }: { desk: BotDesk; 
   const channel = parts.length > 1 && CHANNEL.test(parts[0]!) ? parts.shift()! : desk.label.trim();
   const person = parts.length > 1 ? parts[0]! : "";
   const subject = capitalFirst(parts.length > 1 ? parts.slice(1).join(" · ") : parts[0] ?? channel);
-  const where = /^whatsapp$/i.test(channel) ? "WhatsApp chat" : capitalFirst(channel || "Desk");
-  const meta = `${where}${person ? ` with ${person}` : ""} · ${askedAgo(elapsed(desk.updatedAt, now))}`;
+  const where = /^whatsapp$/i.test(channel) ? "WhatsApp chat" : (channel || "desk").toLowerCase();
+  const meta = [`${capitalFirst(askedAgo(elapsed(desk.updatedAt, now)))}`, dayAndTime(desk.updatedAt, now), `${where}${person ? ` with ${person}` : ""}`];
   const parked = desk.later !== undefined;
   const ask = parked ? "Back when the desk changes" : deskNeedLine(desk);
   const open = () => { if (desk.threadId) onOpen(desk.threadId); };
@@ -584,12 +585,13 @@ function DeskNeedCard({ desk, now, current, onOpen, botName }: { desk: BotDesk; 
       <button type="button" className="dispatch-task" disabled={!desk.threadId} aria-current={current ? "page" : undefined} aria-label={`${subject}. ${ask}`} onClick={open}>
         <b dir="auto"><Isolated text={subject} /></b>
       </button>
-      {parked ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back ${subject}`} title="Put it back in Needs you" onClick={() => void bringBack(key, subject)}><span className="radar-not-now-pill">Bring back</span></button>
-        : <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${notNowLabel({ botName, title: subject, what: ask })}`} title="Not now: move to Later until the desk changes" onClick={() => void notNow(key, notNowLabel({ botName, title: subject, what: ask }))}><span className="radar-not-now-pill">Not now</span></button>}
-      {desk.threadId ? <button type="button" className="dispatch-task-continue" aria-label={`Continue ${subject}`} title="Continue in this chat" onClick={open}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Continue</span></button> : null}
     </div>
     <div className="dispatch-card-ask" aria-hidden="true" onClick={open}><span className="dispatch-status-line"><i aria-hidden="true" /><span dir="auto"><Isolated text={ask} /></span></span></div>
-    <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={meta} /></span></p>
+    <div className="dispatch-card-foot"><span className="dispatch-ask-text" dir="auto">{meta.map((part, i) => <span key={i} className="dispatch-nowrap"><Isolated text={part} />{i < meta.length - 1 ? " \u00b7 " : ""}</span>)}</span><span className="dispatch-card-foot-actions">
+      {parked ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back ${subject}`} title="Put it back in Needs you" onClick={() => void bringBack(key, subject)}><span className="radar-not-now-pill">Bring back</span></button>
+        : <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${notNowLabel({ botName, title: subject, what: ask })}`} title="Not now: move to Later until the desk changes" onClick={() => void notNow(key, notNowLabel({ botName, title: subject, what: ask }))}><span className="radar-not-now-pill">Not now</span></button>}
+      {desk.threadId ? <button type="button" className="dispatch-task-continue" data-primary={parked ? undefined : ""} aria-label={`Continue ${subject}`} title="Continue in this chat" onClick={open}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />Continue</span></button> : null}
+    </span></div>
   </article>;
 }
 const WORKERS_SHOWN = 5;
@@ -684,7 +686,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   const tasks = cardOrder(bot.tasks.filter(t => !isClosed(t.displayState)));
   const asks = tasks.filter(t => t.displayState === "needs");
   const laterTasks = tasks.filter(t => t.displayState !== "needs" && t.later?.reason === "not-now");
-  const others = tasks.filter(t => t.displayState !== "needs" && t.later?.reason !== "not-now");
+  const askTitles = new Set(asks.map(t => stageTitle(t.title).toLowerCase()));
+  const others = tasks.filter(t => t.displayState !== "needs" && t.later?.reason !== "not-now" && !(t.displayState === "waiting" && askTitles.has(stageTitle(t.title).toLowerCase())));
   const needDesks = bot.desks.filter(needsYou);
   const laterDesks = bot.desks.filter(desk => desk.later !== undefined);
   const otherDesks = bot.desks.filter(desk => !needsYou(desk) && desk.later === undefined);
@@ -793,8 +796,8 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const sameAsTitle = needsCard && flatWords(statusText) === flatWords(name);
     return <article key={task.id} className="dispatch-task-group dispatch-card" data-tone={tone} data-task={task.id}>
       <div className="dispatch-card-head">
-        <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} aria-label={`${name}. ${status}`} onClick={go}>
-          <b dir="auto"><Isolated text={name} /></b>
+        <button type="button" className="dispatch-task" aria-current={task.id === currentTaskId ? "page" : undefined} aria-label={`${name}. ${status}`} title={name} onClick={go}>
+          <b dir="auto"><FitLines className="dispatch-title-fit" forms={titleForms(name)} /></b>
         </button>
         {needsCard ? null : cardActions}
       </div>
@@ -802,7 +805,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       {consequence ? <AskImpact className="dispatch-card-impact" text={consequence} /> : null}
       {options.length ? <div className="dispatch-options">
         {options.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
-        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length} ref={answerSides}>
+        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length}>
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(label, !!recommended && plainNote(recommended) === label)} to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);
@@ -812,7 +815,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       </div> : null}
       {needsCard ? <div className="dispatch-card-foot">{!ask && askedMeta(task) ? <span className="dispatch-ask-text" dir="auto" data-old={isOldAsk(task) || undefined}>{askedMeta(task).split(" \u00b7 ").map((part, i, all) => <span key={i} className="dispatch-nowrap">{part}{i < all.length - 1 ? " \u00b7 " : ""}</span>)}</span> : <span />}<span className="dispatch-card-foot-actions">{cardActions}</span></div> : null}
       {!needsCard && (question || isOldAsk(task)) && !ask && askedMeta(task) ? <p className="dispatch-ask-line" dir="auto" data-old={isOldAsk(task) || undefined}><span className="dispatch-ask-text"><Isolated text={askedMeta(task)} /></span></p> : null}
-      {ask && !(askOpen && fullAsk) ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={event => { const card = event.currentTarget.closest("article"); toggleDetails(); if (fullAsk) requestAnimationFrame(() => card?.querySelector<HTMLElement>("details > summary")?.focus({ preventScroll: true })); }}><span className="dispatch-ask-text"><Isolated text={ask} /></span></button>
+      {ask && !(askOpen && fullAsk) ? fullAsk || outcome || extra || split || attempts.length ? <button type="button" className="dispatch-ask-line" dir="auto" aria-expanded={askOpen} aria-controls={`dispatch-details-${task.id}`} title={askOpen ? "Hide details" : "Show the full ask and details"} onClick={event => { const card = event.currentTarget.closest("article"); toggleDetails(); if (fullAsk) requestAnimationFrame(() => card?.querySelector<HTMLElement>("details > summary")?.focus({ preventScroll: true })); }}><span className="dispatch-ask-text"><Isolated text={ask} />{preview?.partial && fullAsk ? <span className="dispatch-ask-more" aria-hidden="true">{" Show all"}</span> : null}</span></button>
         : <p className="dispatch-ask-line" dir="auto"><span className="dispatch-ask-text"><Isolated text={ask} /></span></p> : null}
       {outcome || extra || split || attempts.length || fullAsk || laterNote ? <details className="dispatch-details" id={`dispatch-details-${task.id}`} open={askOpen} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (open !== askOpen) toggleDetails(); }}>
         <summary>Details<Icon name="ChevronDown" aria-hidden="true" /></summary>
