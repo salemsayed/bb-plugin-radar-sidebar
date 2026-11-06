@@ -451,7 +451,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs-more:focus-visible { outline: none; }
 .stage-needs-more:focus-visible .stage-needs-more-pill { outline: 2px solid var(--ring); outline-offset: 0; }
 .stage-needs[data-stale] { background: color-mix(in oklab, var(--muted) 70%, var(--sidebar, var(--background))); box-shadow: inset 0 0 0 1px var(--border); }
-.stage-needs[data-stale] .stage-needs-title { color: var(--foreground); margin-bottom: 0; }
+.stage-needs[data-stale] .stage-needs-title { color: var(--foreground); }
 .stage-needs-stale { display: flex; align-items: center; gap: 5px; height: 18px; margin: 0 4px 1px 10px; font-size: 11.5px; font-weight: 500; line-height: 18px; color: var(--muted-foreground); }
 .stage-needs-stale-text { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
 .stage-needs-title .stage-needs-retry { height: 24px; margin-block: -1px; padding: 0 6px; font-size: 12px; }
