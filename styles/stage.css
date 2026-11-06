@@ -469,6 +469,7 @@ body:has(.dispatch-overlay) [data-radix-popper-content-wrapper] { z-index: 100 !
 .stage-needs ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .stage-needs[data-open] ul { margin-inline-end: -4px; max-height: min(46vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-snap-type: y mandatory; }
 .stage-needs[data-open] li { scroll-snap-align: start; }
+.stage-needs[data-open] ul { scrollbar-gutter: stable; }
 .stage-needs li { position: relative; border-radius: 9px; user-select: none; -webkit-touch-callout: none; }
 .stage-needs li[data-current] { background: color-mix(in oklab, var(--stage-ask-fill) 20%, transparent); box-shadow: inset 3px 0 0 var(--stage-selection); }
 .stage-needs-item:active { background: color-mix(in oklab, var(--stage-ask-fill) 24%, transparent); }

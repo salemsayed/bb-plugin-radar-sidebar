@@ -229,7 +229,7 @@ export function NeedsSummary({ data, extra, answered, hold, now, activeThreadId,
   return <section className="stage-needs" data-state={state} data-open={open || undefined} data-stale={staleShown ? "" : undefined}
     aria-label={waiting ? `Needs you: ${waiting}` : state === "checking" ? "Needs you: checking" : "Needs you: nothing right now"}>
     <h2 className="stage-needs-title" ref={headRef} tabIndex={-1}>
-      {staleShown ? <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" /> : <span className="stage-needs-dot" aria-hidden="true" />}
+      {staleShown ? null : <span className="stage-needs-dot" aria-hidden="true" />}
       <span className="stage-needs-heading">{title}</span>
       {more > 0 ? <button type="button" className="stage-needs-more" aria-expanded={open} aria-label={open ? "Show less" : moreLabel} title={open ? undefined : moreLabel} onClick={() => setAll(value => !value)}>
         <span className="stage-needs-more-pill"><span>{open ? "Show less" : moreText}</span>
@@ -272,6 +272,7 @@ function StaleLine({ stale }: { stale: StaleNote }) {
     return () => observer.disconnect();
   }, [stale.asOf]);
   return <p className="stage-needs-stale" role="alert">
+    <Icon name="AlertCircle" aria-hidden="true" className="stage-needs-stale-icon" />
     <span className="stage-needs-stale-text" ref={ref} title={`Bots can't be reached. Showing what we had at ${stale.asOf}`}>
       <span aria-hidden="true">{forms[fit]}</span>
       <span className="stage-needs-sr">Bots can't be reached. Showing what we had at {stale.asOf}</span>
