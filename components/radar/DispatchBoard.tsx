@@ -54,7 +54,7 @@ function useBotPage(watch: boolean): string | null {
 
 function quoteShown(text: string, cut: boolean): string {
   const body = text.replace(/^You \([^)]*\) on the Needs you item [\u201c"][^\u201d"]*[\u201d"]:\s*/, "").replace(/^[\u201c"]([^\u201c\u201d"]+)[\u201d"]$/, "$1");
-  return cut && !/(?:\u2026|\.\.\.)$/.test(body) ? `${body.replace(/[.\s]+$/, "")}\u2026` : body;
+  return cut && !/(?:\u2026|\.\.\.|[.!?])$/.test(body.trim()) ? `${body.trim()}\u2026` : body;
 }
 
 export function elapsed(at: number, now: number) {
@@ -756,7 +756,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const capped = !!task.outcome && CORE_CAPS.includes(task.outcome.length) && !/[.!?]$/.test(task.outcome.trim());
     const outcome = goal ? capped ? cutAtWord(`${goal}\u2026`, goal.length) : capCut(goal, OUTCOME_CAP - (task.outcome!.length - goal.length)) : "";
     const goalCut = !!outcome && /\u2026$/.test(outcome);
-    const said = !question && noteOwner.get(reason) === task.id ? closedNote(task, reason) : "";
+    const said = !question && noteOwner.get(reason) === task.id ? closedNote(task, reason).replace(/\s*\((?:reply |comment |chat )?note #?\d{6,}\)/gi, "") : "";
     const split = yourAskSplit(said);
     const shownSaid = split ? split.status : said;
     const stale = running.length > 0 && /^(?:Starts when|Not started yet|Its (?:browser test|next step) hasn't started|Queued\b|Next check\b)/i.test(shownSaid);
