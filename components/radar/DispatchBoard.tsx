@@ -625,7 +625,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   const needDesks = bot.desks.filter(needsYou);
   const laterDesks = bot.desks.filter(desk => desk.later !== undefined);
   const otherDesks = bot.desks.filter(desk => !needsYou(desk) && desk.later === undefined);
-  const recent = bot.tasks.filter(t => isClosed(t.displayState) && !/^TEST\b/.test(t.title)).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+  const recent = bot.tasks.filter(t => isClosed(t.displayState) && !/^TEST\b/.test(t.title) && !/^TEST fixture\b/i.test(t.outcome ?? "")).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const workerCount = snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null;
   const chatting = snapshot.chat.has(bot.key);
   const busy = (snapshot.byBot[bot.key]?.length ?? 0) > 0 || chatting || tasks.some(t => ["working", "queued"].includes(t.displayState));
