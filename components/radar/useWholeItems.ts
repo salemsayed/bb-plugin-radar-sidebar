@@ -9,6 +9,7 @@ export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean
     if (!node) return;
     if (!open) { node.style.maxHeight = ""; return; }
     const fit = () => {
+      const keep = node.scrollTop;
       node.style.maxHeight = "";
       const items = Array.from(node.children) as HTMLElement[];
       const scroller = node.closest<HTMLElement>(".radar-list-body");
@@ -24,9 +25,14 @@ export function useWholeItems(list: RefObject<HTMLElement | null>, open: boolean
         used = bottom;
       }
       node.style.maxHeight = used > 0 && used < node.scrollHeight - 0.5 ? `${Math.ceil(used)}px` : "";
+      node.scrollTop = keep;
     };
     fit();
+    let frame = 0;
+    const later = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(fit); };
+    const observer = new ResizeObserver(later);
+    for (const item of Array.from(node.children)) observer.observe(item);
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", fit); };
   }, [list, open, count]);
 }

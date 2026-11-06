@@ -571,7 +571,7 @@ export function wholeSentences(text: string): string {
   return clauseCut(body, body.length - 1) || cutAtWord(`${body}\u2026`, body.length);
 }
 
-const PREVIEW_STRETCH = 24;
+const PREVIEW_STRETCH = 40;
 
 export function readableCut(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();

@@ -312,7 +312,14 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
   const sinceWord = item.since ?? "asked";
   const fullAge = item.old && age ? `${age} old` : age ? ageLabel(age, sinceWord) : "";
-  const shownAge = fullAge;
+  const briefAge = item.old || !age ? fullAge : sinceWord === "open" ? age === "now" ? "now" : age : age === "now" ? "just now" : `${age} ago`;
+  const [tight, setTight] = useState(false);
+  useLayoutEffect(() => { setTight(false); }, [fullAge, item.botName, open]);
+  useLayoutEffect(() => {
+    const name = nameRef.current;
+    if (!tight && name && briefAge !== fullAge && name.scrollWidth > name.clientWidth + 1) setTight(true);
+  });
+  const shownAge = tight ? briefAge : fullAge;
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
   const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? sinceWord === "open" ? age === "now" ? "waiting from just now" : `waiting ${age}` : askedAgo(age) : "";
@@ -333,7 +340,7 @@ function NeedRow({ item, bot, open, now, current, onOpen, onMenu, onNotNow }: {
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" className="stage-needs-item" data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. ${item.inPanel ? "Show the question" : "Open"}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : ""}${asked ? `, ${asked}` : ""}. ${item.inPanel ? "Show the question" : item.options?.length ? "Open: its answers show above the message box" : "Open"}${canPark ? ". Right arrow for Not now and more" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel ? "dialog" : undefined}
       onClick={event => { if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
