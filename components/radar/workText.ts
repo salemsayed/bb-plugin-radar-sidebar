@@ -312,7 +312,7 @@ const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0
 const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers?|judges?|workers?|takeover|re-check|recheck|reviews?|checks?|fix|build|routes?)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
-  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, (whole: string, _n: string, at: number, text: string) => /merge request\s*$/i.test(text.slice(0, at)) ? whole.trim() : `${/^\s/.test(whole) ? " " : ""}merge request ${whole.trim()}`).replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   out = out.replace(/^Radar:\s+/, "Sidebar: ");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
