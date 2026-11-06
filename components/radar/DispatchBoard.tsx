@@ -624,7 +624,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
   const busy = (snapshot.byBot[bot.key]?.length ?? 0) > 0 || chatting || tasks.some(t => ["working", "queued"].includes(t.displayState));
   const currentDeskId = activeThreadId ? needDesks.find(desk => desk.threadId === activeThreadId)?.id : undefined;
   const currentTaskId = activeThreadId ? [...asks, ...others, ...recent].find(t => t.conversationThreadId === activeThreadId)?.id : undefined;
-  const titleOf = (task: BotTaskRow) => isQuestionRow(task) ? (task.needs?.askedAt !== undefined ? `Asked ${dayAndTime(task.needs.askedAt, now)}` : "Asked earlier") : stageTitle(task.title, task.outcome);
+  const titleOf = (task: BotTaskRow) => isQuestionRow(task) ? (task.needs?.askedAt !== undefined ? `Asked ${dayAndTime(task.needs.askedAt, now).replace(/^yesterday .*$/, "yesterday")}` : "Asked earlier") : stageTitle(task.title, task.outcome);
   const sameLook = new Map<string, number>();
   for (const task of [...tasks, ...recent]) { const key = `${titleOf(task)}\n${taskStatus(task, now)}`; sameLook.set(key, (sameLook.get(key) ?? 0) + 1); }
   const lookSeen = new Map<string, number>();
