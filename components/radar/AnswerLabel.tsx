@@ -13,7 +13,7 @@ export function answerName(label: string, recommended?: boolean): string {
 
 const LOOSE_END = /^(?:and|or|but|nor|so|the|a|an|of|to|for|with|as|in|on|at|by|from|into|than|that|which|who|its|their|your|our|my|this|these|those|is|are|was|were|be|will|would|can|could|if|when|while|then)$/i;
 
-function fitImpact(text: string, fits: (form: string) => boolean): string {
+export function fitWhole(text: string, fits: (form: string) => boolean): string {
   const words = text.split(/\s+/).filter(Boolean);
   for (let n = words.length - 1; n >= 1; n--) {
     const head = words.slice(0, n).join(" ").replace(/[\s,;:·–—-]+$/, "");
@@ -52,7 +52,7 @@ export function AskImpact({ text, className }: { text?: string; className: strin
     probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;display:block;width:${box.getBoundingClientRect().width}px;-webkit-line-clamp:none;line-clamp:none;overflow:visible`;
     host.appendChild(probe);
     const fits = (form: string) => { probe.textContent = form; return probe.scrollHeight <= limit; };
-    const next = fits(text) ? null : fitImpact(text, fits);
+    const next = fits(text) ? null : fitWhole(text, fits);
     probe.remove();
     setShown(next);
   }, [text, open, width]);

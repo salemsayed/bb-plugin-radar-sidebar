@@ -15,7 +15,7 @@ import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
 import { capitalFirst, plainNote } from "./workText";
 import { recommendedOption, withoutMarks } from "./recommend";
-import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
+import { AnswerLabel, AskImpact, answerName, fitWhole } from "./AnswerLabel";
 
 const OPEN_WHAT = 96;
 
@@ -372,7 +372,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       const slot = box.closest<HTMLElement>(".stage-needs-slot") ?? box;
       const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect(), slotBox = slot.getBoundingClientRect();
       const top = sb.top - area.scrollTop;
-      const end = Math.max(...Array.from(area.children).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
+      const end = Math.max(...Array.from(area.children).flatMap(child => child.contains(box) ? Array.from(child.children) : [child]).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
       const room = area.clientHeight - (end - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
       const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
       const full = rows.map(row => fullHeights.current.get(row.dataset.need!)! + gap);
@@ -536,7 +536,7 @@ function WordLine({ text, className }: { text: string; className: string }) {
     probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;width:auto;max-width:none;white-space:nowrap;display:inline;overflow:visible";
     host.appendChild(probe);
     const fits = (form: string) => { probe.textContent = form; return probe.getBoundingClientRect().width <= room + 0.5; };
-    const next = fitWords(text, fits);
+    const next = fitWhole(text, fits);
     probe.remove();
     setShown(next);
   }, [text, width]);
