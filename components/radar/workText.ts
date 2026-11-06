@@ -144,7 +144,21 @@ const RUN_ID = /\b(run|job|pipeline|build|workflow)\s+#?\d{6,}\b/gi;
 const SLASH_COMMAND = /(^|[\s(])\/([a-z][a-z]+)-([a-z]+)\b(?:\s+(?:xhigh|high|max|medium|low))?/g;
 const CLI_FLAG = /\s+(?:added |run |called )?(?:with |using |via )?--[a-z][\w-]+\b/g;
 
+const ISO_TIME = /\b(20\d\d)-(\d\d)-(\d\d)[ T](\d\d):(\d\d)(?::\d\d)?Z\b/g;
+const isoShown = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Cairo", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+function plainTimes(text: string): string {
+  return text.replace(ISO_TIME, (whole, y: string, mo: string, d: string, h: string, mi: string) => {
+    const at = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
+    return Number.isFinite(at) ? isoShown.format(new Date(at)) : whole;
+  });
+}
+
 const TECH_WORDS: [RegExp, string][] = [
+  [/\bCouldn't show <path>/g, "Couldn't show the file"],
+  [/<(?:path|file|url|link)>/g, "the file"],
+  [/@scrypted\/cloud\b/g, "Scrypted Cloud"],
+  [/\bon (\d{2,5})\/(\d{2,5})\b/g, "on ports $1 and $2"],
   [/\boff Codex\b/g, "off the old models"],
   [/,?\s*Codex only reviews\b/g, ", the old models only review"],
   [/\bon Claude\b/g, "on the main models"],
@@ -159,7 +173,7 @@ const TECH_WORDS: [RegExp, string][] = [
 ];
 
 export function plainTech(text: string): string {
-  return TECH_WORDS.reduce((out, [pattern, words]) => out.replace(pattern, words), text);
+  return plainTimes(TECH_WORDS.reduce((out, [pattern, words]) => out.replace(pattern, words), text));
 }
 
 export function plainText(text: string): string {
