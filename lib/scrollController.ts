@@ -761,6 +761,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     touching = false;
     gestureAt = t;
     if (!dragged && !panned) actionAt = t;
+    if (container && container.scrollTop <= 0.5) settleHost("lift");
     trace("touch-end", { source, dragged, panned, pinned });
     if (phase === "live" && !dragged && !panned && pinned) requestAnimationFrame(() => {
       if (held() || !pinned) return;
