@@ -86,7 +86,7 @@ function Row({ title, meta, detail, target, here, done, live, ask, onOpen, onCon
   const body = <>
     <span className="bot-item-title">{live ? <i className="bot-live-dot" aria-hidden="true" /> : null}<span dir="auto">{title}</span></span>
     <span className="bot-item-meta" dir="auto">{meta}</span>
-    {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ChevronRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
+    {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ArrowUpRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
   </>;
   if (!opens && !more) return <div className={cls} role="listitem">{body}</div>;
   return <div className="bot-item-wrap" role="listitem" data-open={open || undefined}>

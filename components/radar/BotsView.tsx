@@ -139,7 +139,7 @@ let dropLiftGuard: (() => void) | null = null;
 function guardLift(): void {
   dropLiftGuard?.();
   const swallow = (event: MouseEvent) => {
-    if (event.detail === 0) return;
+    if (event.detail === 0 && (event as PointerEvent).pointerType !== "touch" && (event as PointerEvent).pointerType !== "pen") return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();

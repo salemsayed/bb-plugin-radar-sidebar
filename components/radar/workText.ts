@@ -9,7 +9,6 @@ const HASH_ASIDE_LEAD = new RegExp(`\\((?:at|in|on|commit|head)\\s+${HASH}\\s*[,
 const HASH_ASIDE = new RegExp(`\\s*\\((?:(?:at|in|on|commit|head)\\s+)?${HASH}\\)`, "g");
 const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
-const REPO_MERGE_REQUEST = /\b[a-z][\w-]*!(\d+)\b/gi;
 const MEMORY_SLUG_ASIDE = /\s*\((?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\)/gi;
 const MEMORY_SLUG = /\b(?:shared |global |project )?memory (?:mem_)?[a-z0-9]+(?:-[a-z0-9]+)+\b/gi;
 const NO_MODEL = /\bno (?:AI |LLM )?model\b/gi;
@@ -176,6 +175,21 @@ export function plainTech(text: string): string {
   return plainTimes(TECH_WORDS.reduce((out, [pattern, words]) => out.replace(pattern, words), text));
 }
 
+const QUOTED = /(\u201c[^\u201d]*\u201d|"[^"\n]*")/;
+const MR_TOKEN = /\b((?:merge request|MR)\s+)?[a-z][\w-]*!(\d+)\b/gi;
+const MR_BANG = /(^|[\s(])((?:merge request|MR)\s+)?!(\d{3,})\b/gi;
+const mrWords = (lead: string | undefined) => lead && /^M(?!R)/.test(lead) ? "Merge request" : "merge request";
+
+const ITEM_CODE_ALONE = /\s*\((?:item|SKU|product code|code)\s*#?\d{6,}\)/gi;
+const ITEM_CODE_LEAD = /\((?:item|SKU|product code|code)\s*#?\d{6,},\s*/gi;
+
+export function mergeRequestNumbers(text: string): string {
+  return text.split(QUOTED).map((part, i) => i % 2 ? part : part
+    .replace(MR_TOKEN, (_whole: string, lead: string | undefined, n: string) => `${mrWords(lead)} ${n}`)
+    .replace(MR_BANG, (_whole: string, edge: string, lead: string | undefined, n: string) => `${edge}${mrWords(lead)} ${n}`)
+    .replace(/\b([Mm])erge request (\d+) and merge request (\d+)\b/g, "$1erge requests $2 and $3")).join("");
+}
+
 export function plainText(text: string): string {
   return text
     .replace(/\bthe ([a-z][\w-]*!\d{3,}) job\b/gi, "merge request $1")
@@ -193,8 +207,9 @@ export function plainText(text: string): string {
     .replace(/\bxhigh\b/g, "thorough")
     .replace(/\bIPA\b/g, "iOS app build")
     .replace(/[^]*/, plainTech)
-    .replace(REPO_MERGE_REQUEST, (token, _n, at: number, whole: string) => /merge request\s*$/i.test(whole.slice(0, at)) ? token : `merge request ${token}`)
-    .replace(/(^|[\s(])(!\d{3,})\b/g, (_, lead: string, token: string, at: number, whole: string) => /merge request\s*$/i.test(whole.slice(0, at + lead.length)) ? `${lead}${token}` : `${lead}merge request ${token}`)
+    .replace(/[^]*/, mergeRequestNumbers)
+    .replace(ITEM_CODE_ALONE, "")
+    .replace(ITEM_CODE_LEAD, "(")
     .replace(MEMORY_SLUG_ASIDE, "")
     .replace(MEMORY_SLUG, "a saved rule")
     .replace(NO_MODEL_LISTED, "")
@@ -217,6 +232,7 @@ export function plainText(text: string): string {
     .replace(HASH_AT, "")
     .replace(HASH_TO, "")
     .replace(HASH_ALONE, "")
+    .replace(/\s*\((?:reply |comment |chat )?note #?\d{6,}\)/gi, "")
     .replace(/\bonto (?:master|main)\b/g, "onto the main branch")
     .replace(/\b(into|on|to|from|against) (?:the )?master\b/g, "$1 the main branch")
     .replace(/\(\s*[,;]\s*/g, "(")
@@ -303,7 +319,6 @@ export function plainMarkdown(text: string): string {
   return MARKDOWN.reduce((out, [pattern, to]) => out.replace(pattern, to), text).replace(/\s{2,}/g, " ").trim();
 }
 
-const MERGE_REQUEST_REF = /\b[a-z][\w-]*!(\d+)\b/gi;
 const ROUTE_PREFIX = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:\s*/i;
 const ROUTE_ONLY = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\w.-]*|claude[\w.-]*|browser)\s*(?:review|re-check|recheck|confirm|takeover|check|fix|build)?\s*:/i;
 
@@ -330,7 +345,7 @@ export function workerNames<T extends { threadId: string; title?: string | null;
 }
 
 export function plainWorkerTitle(title: string): string {
-  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, (whole: string, _n: string, at: number, text: string) => /merge request\s*$/i.test(text.slice(0, at)) ? whole.trim() : `${/^\s/.test(whole) ? " " : ""}merge request ${whole.trim()}`).replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
+  let out = botTokens(botWords(title.trim())).replace(/(^|\s)\/code-review\b(?:\s+(?:xhigh|high|max|medium|low))?/g, "$1code review").replace(/\bIPA\b/g, "iOS app build").replace(/[^]*/, plainTech).replace(/^Repair:\s*/i, "Fixing ").replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(/[^]*/, mergeRequestNumbers).replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
   out = out.replace(/^Radar:\s+/, "Sidebar: ");
   if (ROUTE_ONLY.test(out)) {
     const match = ROUTE_PREFIX.exec(out);
@@ -377,7 +392,7 @@ export function waitingOn(line: string, outcome = ""): string {
   const doer = /^([A-Z][a-z]{2,})(?:'s)?\s+(?:to\s+)?(?:merg|review|test|approv|check|publish|releas|sign|confirm|repl|answer)\w*\b/.exec(reason);
   if (doer && !/^(?:The|This|That|Its|Our|Your|Waiting|Next)$/.test(doer[1]!)) return doer[1]!;
   const item = /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(reason) ?? /\bwait(?:s|ing)? (?:for|on) ((?:merge request|pull request|MR|PR) (?:#|[a-z][\w-]*!|!)?\d+)/i.exec(outcome);
-  if (item) return item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request");
+  if (item) return mergeRequestNumbers(item[1]!.replace(/^MR\b/, "merge request").replace(/^PR\b/, "pull request"));
   return "";
 }
 
@@ -593,6 +608,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const via = relayed && named && named !== own ? ` via ${named}` : "";
   const starter = named ?? (ask.ref ? askerOf?.(ask.ref.threadId) : undefined) ?? own;
   if (kind === "brief") return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind };
+  if (!mine && !rawFull.trim()) return { head: `${starter ?? "A bot"} started this ${when}`, quote: "", full: "", excerpt: false, kind: "brief" };
   const from = !asker || asker === "Another chat" ? handedFrom(rawFull) : "";
   const handedBy = YOU_HANDED.test(rawFull) ? `You handed this over${from ? ` from ${from[0]!.toLowerCase()}${from.slice(1)}` : ""}` : `${from || asker || "Another chat"} handed this over`;
   const shared = label === "You asked" && !relayed && !requestsSomething(rawFull) && PASTED_NOTICE.test(rawFull.trim());

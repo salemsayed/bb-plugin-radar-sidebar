@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
+import { answerSides } from "./answerSides";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
 import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { threadActionTarget } from "./threadActions";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
@@ -298,6 +299,31 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   const inThread = activeThreadId ? items.filter(item => item.threadId === activeThreadId) : [];
   const currentId = (inThread.find(item => item.messageSeq !== undefined && item.messageSeq === hashSeq) ?? inThread[0])?.id;
   const hiddenNames = hiddenBots.map(item => item.botName);
+  const [listCap, setListCap] = useState<number | null>(null);
+  const capKey = open ? `${shown.map(item => item.id).join("|")}:${[...unfolded].join("|")}` : "";
+  useLayoutEffect(() => { setListCap(null); }, [capKey]);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || !open || listCap !== null) return;
+    const rows = [...list.querySelectorAll<HTMLElement>(":scope > li:not(.stage-needs-undo)")];
+    const scroller = scrollParent(list);
+    if (rows.length < 3 || !scroller) return;
+    const over = scroller.scrollHeight - scroller.clientHeight;
+    if (over <= 0) return;
+    const box = list.getBoundingClientRect();
+    const two = rows[1]!.getBoundingClientRect().bottom - box.top + 22;
+    const cap = Math.round(Math.max(box.height - over, two));
+    if (cap < box.height - 4) setListCap(cap);
+  });
+  useEffect(() => {
+    const list = listRef.current;
+    const scroller = list ? scrollParent(list) : null;
+    if (!scroller || !open) return;
+    let height = scroller.clientHeight;
+    const observer = new ResizeObserver(() => { if (Math.abs(scroller.clientHeight - height) > 1) { height = scroller.clientHeight; setListCap(null); } });
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [open]);
   const hiddenOld = hidden.filter(item => item.old && !item.state).length;
   const onlyOld = hiddenOld > 0 && hiddenOld === hidden.length;
   const collapse = open && !arrivals.length;
@@ -379,7 +405,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
-    <ul ref={listRef}>
+    <ul ref={listRef} data-capped={open && listCap !== null || undefined} style={open && listCap !== null ? { maxHeight: listCap } : undefined}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
       {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)}
         folded={open && index > 0 && item.id !== currentId && !unfolded.has(item.id) && !!onAnswer && boxAnswers(item).length > 0}
@@ -389,8 +415,16 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, no
   </section>;
 }
 
+function scrollParent(node: HTMLElement): HTMLElement | null {
+  for (let at = node.parentElement; at; at = at.parentElement) {
+    const overflow = getComputedStyle(at).overflowY;
+    if ((overflow === "auto" || overflow === "scroll") && at.clientHeight > 0) return at;
+  }
+  return null;
+}
+
 function RetryButton({ stale, at }: { stale: StaleNote; at: "head" | "line" }) {
-  return <button type="button" className="stage-needs-retry" data-at={at} disabled={stale.retrying} aria-label={stale.retrying ? "Trying to reach the bots" : `Retry: bots can't be reached, showing what we had at ${stale.asOf}`} onClick={stale.onRetry}>{stale.retrying ? "Trying…" : "Retry"}</button>;
+  return <button type="button" className="stage-needs-retry" data-at={at} disabled={stale.retrying} aria-label={stale.retrying ? "Trying to reach the bots" : `Retry: bots can't be reached, showing what we had at ${stale.asOf}`} onClick={stale.onRetry}>{at === "head" ? <Icon name="RotateCcw" aria-hidden="true" className="stage-needs-retry-icon" /> : null}<span className="stage-needs-retry-text">{stale.retrying ? "Trying…" : "Retry"}</span></button>;
 }
 
 function UndoLine({ undo }: { undo: NotNowToast }) {
@@ -476,23 +510,34 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
     : shownAge ? <span className="stage-needs-age">{shownAge}</span> : null;
   const parkOnly = canPark && !(answers.length && !sentAs) && !spent.length && !note && !keepPark && !sentAs;
   const liRef = useRef<HTMLLIElement>(null);
-  const [inlinePark, setInlinePark] = useState(false);
+  const [inlinePark, setInlinePark] = useState<number | null>(null);
   useLayoutEffect(() => {
     const li = liRef.current;
-    if (!li || !parkOnly) { setInlinePark(false); return; }
+    if (!li || !parkOnly || matchMedia("(pointer: coarse)").matches) { setInlinePark(null); return; }
     const measure = () => {
       const text = li.querySelector<HTMLElement>(".stage-needs-what");
-      const pill = li.querySelector<HTMLElement>(".stage-needs-foot .radar-not-now-pill");
-      if (!text || !pill) return;
+      const foot = li.querySelector<HTMLElement>(".stage-needs-foot");
+      const pill = li.querySelector<HTMLElement>(".stage-needs-foot .radar-not-now");
+      if (!text || !foot || !pill) return;
+      if (text.scrollHeight > text.clientHeight + 1) { setInlinePark(null); return; }
+      const box = text.getBoundingClientRect();
       const range = document.createRange();
       range.selectNodeContents(text);
-      const lines = [...range.getClientRects()].filter(rect => rect.width > 0);
-      const last = lines.at(-1);
-      if (!last) return;
+      const lines = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.bottom <= box.bottom + 1 && rect.top >= box.top - 1);
+      if (!lines.length) { setInlinePark(null); return; }
       const lastTop = Math.max(...lines.map(rect => rect.top));
-      const right = Math.max(...lines.filter(rect => Math.abs(rect.top - lastTop) < 4).map(rect => rect.right));
-      const end = li.getBoundingClientRect().right - (matchMedia("(pointer: coarse)").matches ? 0 : 4);
-      setInlinePark(end - right >= pill.getBoundingClientRect().width + 12);
+      const last = lines.filter(rect => Math.abs(rect.top - lastTop) < 4);
+      const right = Math.max(...last.map(rect => rect.right));
+      const end = li.getBoundingClientRect().right - 4;
+      const width = pill.getBoundingClientRect().width;
+      if (end - right < width + 12) { setInlinePark(null); return; }
+      const applied = Number.parseFloat(getComputedStyle(foot).marginTop) || 0;
+      const naturalTop = foot.getBoundingClientRect().top - applied;
+      const lineTop = Math.min(...last.map(rect => rect.top));
+      const lift = Math.round(naturalTop - lineTop - 2);
+      const placed = { left: end - width, right: end, top: lineTop + 2, bottom: lineTop + 2 + pill.getBoundingClientRect().height };
+      const hits = lines.some(rect => rect.right > placed.left && rect.left < placed.right && rect.bottom > placed.top + 0.5 && rect.top < placed.bottom - 0.5);
+      setInlinePark(hits || lift <= 0 ? null : lift);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -536,8 +581,8 @@ function NeedRow({ item, bot, now, current, offline, outcome, folded = false, on
           </button> : null}
     </span>
     {sentAs ? <p className="stage-needs-sent" aria-hidden="true"><Icon name="Check" aria-hidden="true" className="stage-needs-done" /><span>Sent: <Isolated text={`\u201c${sentAs}\u201d`} /></span></p> : null}
-    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark || undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
-      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length}>
+    {answers.length && !sentAs || spent.length || keepPark || note || canPark ? <div className="stage-needs-foot" data-inline-park={parkOnly && inlinePark !== null || undefined} style={parkOnly && inlinePark !== null ? { marginTop: -inlinePark } : undefined} onClick={event => { if (!(event.target instanceof Element && event.target.closest("button"))) itemRef.current?.click(); }}>
+      {answers.length && !sentAs ? <div className="stage-needs-answers radar-answers" role="group" aria-label={`Answers to: ${what}`} data-count={answers.length} ref={answerSides}>
         {answers.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" disabled={sending} aria-label={`Send \u201c${label}\u201d to ${item.botName}: opens the chat and sends it`} title="Opens the chat and sends this reply"
           onPointerDown={event => event.stopPropagation()}
           onClick={event => { event.stopPropagation(); onAnswer!(label); }}><Isolated text={label} /></button>)}

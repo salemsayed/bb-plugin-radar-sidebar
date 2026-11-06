@@ -1,3 +1,4 @@
+import { answerSides } from "./answerSides";
 import { DeskThreads } from "./DeskThreads";
 import { ClaimedThreads, useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
@@ -276,7 +277,7 @@ function FitLine({ look }: { look: RowLook }) {
       if (whole >= 0 || room <= 0) { setPick(Math.max(whole, 0)); setCut(null); return; }
       const plain = options.filter(option => !/\u2026$/.test(option));
       const narrowest = [...plain].sort((a, b) => lineWidth(a, font) - lineWidth(b, font))[0] ?? options[0]!;
-      const shorter = plain.flatMap(shorterForms).find(fits);
+      const shorter = look.exact ? undefined : plain.flatMap(shorterForms).find(fits);
       if (shorter) { setCut(shorter); return; }
       const at = options.findIndex(fits);
       setPick(at >= 0 ? at : 0);
@@ -289,7 +290,7 @@ function FitLine({ look }: { look: RowLook }) {
     void document.fonts?.ready.then(() => { if (live) measure(); });
     document.fonts?.addEventListener("loadingdone", measure);
     return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
-  }, [options, look.tone]);
+  }, [options, look.tone, look.exact]);
   const said = look.whole ?? look.line;
   const shown = cut ?? options[pick] ?? look.line;
   return <span className="stage-line" ref={ref} title={shown !== said ? said : undefined}><bdi>{keepHyphens(shown)}</bdi></span>;
@@ -748,6 +749,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const offTopic = told?.kind === "update" && !sameJob(task.ask!.full ?? task.ask!.excerpt, [task.title, task.outcome ?? "", ...attempts.map(a => a.title)]);
     const parts = offTopic ? null : told;
     const needsCard = task.displayState === "needs";
+    const finished = isClosed(task.displayState);
     const preview = task.ask && parts && !needsCard ? askPreview(task.ask, now, askerOf, bot.name, originalOf) : null;
     const ask = preview?.line ?? "";
     const bare = (text: string) => text.replace(/\u2026$/, "").trim();
@@ -776,11 +778,12 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const cardActions = <>
         {task.displayState === "needs" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Not now: ${label}`} title="Not now: move to Later until the bot asks again" onClick={event => parkFrom(event.currentTarget, task.id, () => notNow(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Not now</span></button>
           : task.later?.reason === "not-now" ? <button type="button" className="dispatch-later-action radar-not-now" aria-label={`Bring back: ${label}`} title="Put it back in Needs you" onClick={event => parkFrom(event.currentTarget, task.id, () => bringBack(taskNotNowKey(task), label))}><span className="radar-not-now-pill">Bring back</span></button> : null}
-        <button type="button" className="dispatch-task-continue" aria-label={question && questionInPanel(task) ? `Reply to ${name} in the bot's chat` : `Continue ${name}`} title={question && questionInPanel(task) ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={() => {
+        <button type="button" className="dispatch-task-continue" data-primary={needsCard || undefined} aria-label={question && questionInPanel(task) ? `Reply to ${name} in the bot's chat` : finished ? `Open the chat for ${name}` : `Continue ${name}`} title={question && questionInPanel(task) ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : finished ? "Opens the chat where this was done" : "Continue in the bot's chat"} onClick={() => {
+          if (finished) { onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); return; }
           if (question) { const place = needsCard ? arm() : askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
           window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: name.slice(0, 80) } }));
           onNavigate(bot.coordinatorThreadId);
-        }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{question && questionInPanel(task) ? "Reply in chat" : "Continue"}</span></button>
+        }}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{question && questionInPanel(task) ? "Reply in chat" : finished ? "Open chat" : "Continue"}</span></button>
     </>;
     const shownStatus = needsCard ? cardStatus(task, running, now, waitsOn) : "";
     const statusText = shownStatus.toLowerCase().startsWith(`${name.toLowerCase()} \u00b7 `) ? shownStatus.slice(name.length + 3) : shownStatus;
@@ -795,7 +798,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
       <div className="dispatch-card-ask" aria-hidden="true" onClick={go}><span className="dispatch-status-line" hidden={sameAsTitle || undefined}><i aria-hidden="true" />{needsCard ? <FitLines forms={askForms(statusText, STATUS_FORMS, fitWhat, name, options.length)} /> : <span dir="auto"><Isolated text={question ? `${task.needs?.question ?? ""} \u00b7 ${status}` : status} /></span>}</span></div>
       {options.length ? <div className="dispatch-options">
         {options.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
-        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length}>
+        <div className="radar-answers" role="group" aria-label={`Answers to ${name}`} data-count={options.length} ref={answerSides}>
         {options.map(option => plainNote(option)).map((label, _i, labels) => <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send “${label}” to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
           const place = arm();
           requestFill(place.threadId, label, labels, true);

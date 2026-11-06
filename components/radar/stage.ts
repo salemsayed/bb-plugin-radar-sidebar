@@ -17,6 +17,7 @@ export interface StageLook {
   line: string;
   alts?: string[];
   whole?: string;
+  exact?: boolean;
   ask?: string;
   extra: string;
   tone: StageTone;
@@ -158,7 +159,7 @@ function participleEnd(title: string, outcome: string): string {
 
 export function stageTitle(raw: string, outcome?: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
-  if (request) return `Merge request ${request[1]}!${request[2]}`;
+  if (request) return `Merge request ${request[2]}`;
   const whole = outcome ? participleEnd(wholeTitle(raw, outcome), outcome) : raw;
   return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))));
 }
@@ -254,9 +255,24 @@ function personWaitLook(task: BotTaskRow, now: number): Pick<StageLook, "line" |
   return { line: forms[0]!, alts: forms.slice(1), whole: forms[0]! };
 }
 
+const RUN_NAMED = /\b(\d{1,2}):(\d{2})\b(?=[^\u00b7.;]{0,30}?\b(?:run|report|job|watch|digest)\b)|\b(?:starts|runs)\b[^\u00b7.;]{0,24}?\b(\d{1,2}):(\d{2})\b/i;
+
+export function runBeforeCheck(line: string, wakeAt: number): string {
+  const said = line.split(/\s\u00b7\s(?:wakes|next check)\b/)[0] ?? "";
+  const run = RUN_NAMED.exec(said);
+  if (!run) return "";
+  const hour = Number(run[1] ?? run[3]), minute = Number(run[2] ?? run[4]);
+  const wake = new Date(wakeAt);
+  const gap = wake.getHours() * 60 + wake.getMinutes() - (hour * 60 + minute);
+  return gap > 0 && gap <= 360 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
+}
+
 export function waitLine(task: BotTaskRow, now: number): string {
   if (task.later) return laterLine(task.later);
-  if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
+  if (task.wakeAt !== undefined) {
+    const run = runBeforeCheck(task.line, task.wakeAt);
+    return `${nextCheck(task.wakeAt, now)}${run ? `, after the ${run} run` : ""}`;
+  }
   if (task.waitFor === "you") return "Waiting on you";
   if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
   const scheduled = scheduledWait(task.line);
@@ -335,7 +351,7 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   if (todo) return { pose: "idle", ...fitted("Not started yet: ", stageTitle(todo.title), "", ["Not started: "]), extra: "", tone: "quiet", quiet: true };
   const last = bot.tasks.filter(task => task.completedAt !== undefined && task.displayState === "done")
     .sort((a, b) => b.completedAt! - a.completedAt!)[0];
-  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", ...fitted("Done: ", stageTitle(last.title)), extra: "", tone: "good", quiet: false };
+  if (last && isSameLocalDay(last.completedAt!, ctx.now)) return { pose: "done", ...fitted("Done: ", stageTitle(last.title)), exact: true, extra: "", tone: "good", quiet: false };
   return { pose: "idle", line: "Idle, nothing waiting", extra: "", tone: "quiet", quiet: true };
 }
 
