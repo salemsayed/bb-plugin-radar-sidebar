@@ -1,6 +1,5 @@
 const watched = new WeakMap<HTMLElement, ResizeObserver>();
 let canvas: HTMLCanvasElement | null = null;
-const MAX_LINES = 3;
 
 function textWidth(text: string, font: string): number {
   canvas ??= document.createElement("canvas");
@@ -35,7 +34,8 @@ function place(group: HTMLElement) {
       const parts = [...label.childNodes].map(node => node.textContent ?? "");
       const runs = [...button.querySelectorAll<HTMLElement>(".radar-rtl-run")].map(run => textWidth(run.textContent ?? "", font));
       const words = (button.textContent ?? "").split(/\s+/).filter(Boolean).map(word => textWidth(word, font));
-      return textWidth(parts.join(" ").trim(), font) <= inner * MAX_LINES * 0.92 && Math.max(0, ...words, ...runs) <= inner;
+      const lines = matchMedia("(pointer: coarse)").matches ? 3 : 2;
+      return textWidth(parts.join(" ").trim(), font) <= inner * lines * 0.92 && Math.max(0, ...words, ...runs) <= inner;
     });
     if (fits) { group.setAttribute("data-layout", "share"); return; }
   }
