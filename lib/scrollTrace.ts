@@ -8,7 +8,29 @@ const BATCH_MAX = 400;
 type DebugWindow = Window & { __radarScrollDebug?: boolean };
 const buffer: TraceEvent[] = [];
 const page = `${Math.round(performance.timeOrigin)}-${Math.random().toString(36).slice(2, 8)}`;
-let installed = false;
+let installed = false, own = 0;
+const hooked = new WeakSet<Element>();
+
+export function ownWrite(write: () => void) {
+  own++;
+  try { write(); } finally { own--; }
+}
+function hookWrites(scroller: HTMLElement, threadId: string) {
+  if (hooked.has(scroller)) return;
+  hooked.add(scroller);
+  const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+  if (!scrollTop?.get || !scrollTop.set) return;
+  const get = scrollTop.get, set = scrollTop.set;
+  const note = (from: number, via: string) => {
+    const to = get.call(scroller) as number;
+    if (traceOn() && Math.abs(to - from) >= 0.5) emitTrace("write", threadId, { from: Math.round(from), to: Math.round(to), by: own > 0 ? "radar" : "host", via, gap: Math.round(scroller.scrollHeight - scroller.clientHeight - to) });
+  };
+  Object.defineProperty(scroller, "scrollTop", { configurable: true, get() { return get.call(scroller); }, set(value: number) { const from = get.call(scroller) as number; set.call(scroller, value); note(from, "top"); } });
+  for (const name of ["scrollTo", "scrollBy"] as const) {
+    const original = scroller[name];
+    Object.defineProperty(scroller, name, { configurable: true, value: (...args: Parameters<typeof original>) => { const from = get.call(scroller) as number; (original as (...a: unknown[]) => void).apply(scroller, args); note(from, name); } });
+  }
+}
 
 export function traceOn() {
   return Boolean((window as DebugWindow).__radarScrollDebug);
@@ -41,6 +63,7 @@ function sample() {
     threadId = /\/threads\/([^/?#]+)$/.exec(location.pathname)?.[1] ?? null;
     if (threadId && !scroller?.isConnected) scroller = scrollerOf(threadId);
     if (threadId && scroller) {
+      hookWrites(scroller, threadId);
       const rect = scroller.getBoundingClientRect();
       const top = rect.top + scroller.clientTop;
       const first = Array.from(scroller.querySelectorAll<HTMLElement>(MESSAGE)).find(e => { const b = e.getBoundingClientRect(); return b.bottom > top && b.top < rect.bottom; });

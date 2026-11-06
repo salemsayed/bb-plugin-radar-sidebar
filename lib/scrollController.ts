@@ -1,20 +1,21 @@
 import { AT_BOTTOM, BOTTOM_GAP, capturePosition, restoreDelta, textHash, type LineAnchor, type ScrollPosition } from "./scrollPosition";
-import { emitTrace } from "./scrollTrace";
+import { emitTrace, ownWrite } from "./scrollTrace";
 import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, messageAnchors, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
 
 const FIND_MAX_MS = 60000;
 const WAIT_MAX_MS = 5000;
-const STEADY_MAX_MS = 400;
-const LINE_WAIT_MS = 600;
+const STEADY_MAX_MS = 1200;
+const LINE_WAIT_MS = 1500;
 const REVEAL_MAX_MS = 400;
+const REVEAL_CAP_MS = 2000;
 const SETTLE_QUIET_MS = 1200;
 const SETTLE_MAX_MS = 20000;
 const PAGE_GRACE_MS = 4000;
 const GESTURE_TAIL_MS = 300;
 const MOMENTUM_MS = 1500;
-const HELD_MAX_MS = 15000;
+const HELD_MAX_MS = 60000;
 const FINGER_MS = 500;
 const INTENT_MS = 1500;
 const CHAIN_MS = 250;
@@ -33,10 +34,11 @@ export type ScrollStore = {
 };
 
 type Phase = "waiting" | "restoring" | "settling" | "live";
-type Pin = { element: Element; offset: number };
+type Pin = { element: Element; offset: number; row: string | null; path: number[] | null; hash: number | null; inner: number };
 type Line = { message: HTMLElement | null; element: HTMLElement; offset: number; anchor: LineAnchor };
 const MESSAGE = "[data-notification-thread][data-notification-message]";
 const ROW = "[data-timeline-row-id]";
+const RAW_CARD = "pre > code.language-ui";
 
 function rowsColumn(container: HTMLElement) {
   const list = container.querySelector<HTMLElement>('[data-timeline-row-list="top-level"]');
@@ -74,6 +76,19 @@ function byPath(root: HTMLElement, line: LineAnchor) {
   }
   return textHash(el.textContent ?? "") === line.hash && hasBox(el) ? el as HTMLElement : null;
 }
+function uniqueByText(root: HTMLElement, hash: number, inner: number) {
+  const rootTop = root.getBoundingClientRect().top;
+  const found: { node: HTMLElement; gap: number }[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  for (let node = walker.currentNode as HTMLElement | null; node; node = walker.nextNode() as HTMLElement | null) {
+    if (textHash(node.textContent ?? "") === hash && hasBox(node)) found.push({ node, gap: Math.abs(node.getBoundingClientRect().top - rootTop - inner) });
+  }
+  found.sort((a, b) => a.gap - b.gap);
+  const best = found[0];
+  if (!best) return null;
+  const rival = found.find(f => !best.node.contains(f.node) && !f.node.contains(best.node));
+  return !rival || rival.gap - best.gap > 40 ? best.node : null;
+}
 function byText(root: HTMLElement, line: LineAnchor) {
   const rootTop = root.getBoundingClientRect().top;
   let best: HTMLElement | null = null, bestGap = Infinity;
@@ -95,18 +110,18 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const primed = claimPrime(threadId);
   const primedBefore = primed?.before ?? false;
   trace("begin", { position, phase, primed: veiledSince(threadId) !== null, primedBefore });
-  let disposed = false, frozen = false, keepSaved = false, lateChecked = false;
+  let disposed = false, frozen = false, keepSaved = position !== null && !position.atBottom, lateChecked = false;
   let container: HTMLElement | null = null, resize: ResizeObserver | null = null, frame = 0;
   let veiledAt: number | null = veiledSince(threadId), rowsAt: number | null = null, quiet = false;
   let requested = primed?.requested ?? false, stable = 0, heights = 0, placedAt: number | null = null, settledAt = 0, lastFixAt = 0, changedAt = 0, lineReady = false, lineReadyAt: number | null = null, revealed = false;
   let lineCache: { root: HTMLElement; element: HTMLElement } | null = null, asked = false, oldestSeq = Infinity, progressAt = -Infinity;
   let fingerRef: Pin | null = null, fingerMovedAt = -Infinity, fingerMoved = false, dragged = false;
   let fine: Pin | null = null;
-  let guardRef: Pin | null = null, intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
+  let intentAt = -Infinity, sentAt = -Infinity, sentSeq = 0;
   let touching = false, pointerDown = false, touchAt = -Infinity, gestureAt = -Infinity, userScrollAt = -Infinity, dragAt = -Infinity, ownTop: number | null = null;
   let pinned = false, lastHeight = 0, lastScrollHeight = 0, lastWidth = 0, lastScrollTop = 0, behavior: string | null = null;
   let muted: HTMLElement | null = primed?.requested ? document.documentElement : null;
-  let lastFine: Pin | null = null;
+  let lastFine: Pin | null = null, edgeTop: number | null = null, waitedCards = false;
   const widths = new Map<number, { anchor: ScrollPosition; fine: Pin | null; userAt: number }>();
   let lastSaved = "", lastAnchor: ScrollPosition | null = null, saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -117,6 +132,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const deferredByHost = () => container !== null && Boolean(rowsColumn(container)?.style.transform);
   const gap = () => container ? container.scrollHeight - container.clientHeight - container.scrollTop : 0;
   const atBottomNow = () => container !== null && gap() <= BOTTOM_GAP;
+  const topNow = () => container?.scrollTop ?? null;
+  const movedUp = () => container !== null && edgeTop !== null && edgeTop - container.scrollTop > 2 && gap() > 2;
   const measure = () => {
     if (!container) return;
     lastHeight = container.clientHeight;
@@ -126,25 +143,28 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const write = (top: number) => {
     if (!container) return;
     container.dispatchEvent(new WheelEvent("wheel", { deltaY: 0, bubbles: false, cancelable: false }));
-    const behavior = container.style.scrollBehavior;
-    container.style.scrollBehavior = "auto";
-    container.scrollTop = top;
-    container.style.scrollBehavior = behavior;
-    ownTop = container.scrollTop;
+    const target = container;
+    const behavior = target.style.scrollBehavior;
+    target.style.scrollBehavior = "auto";
+    ownWrite(() => { target.scrollTop = top; });
+    target.style.scrollBehavior = behavior;
+    ownTop = target.scrollTop;
   };
   const follow = (reason: string) => {
     if (!container || held()) return;
     const bottom = container.scrollHeight - container.clientHeight;
     if (bottom - container.scrollTop <= 0.5) return;
     trace("follow", { reason, from: Math.round(container.scrollTop), to: Math.round(bottom) });
-    container.scrollTop = bottom;
-    ownTop = container.scrollTop;
+    const target = container;
+    ownWrite(() => { target.scrollTop = bottom; });
+    ownTop = edgeTop = target.scrollTop;
   };
   const composerEmpty = () => {
     const editor = container?.querySelector("[data-scroll-footer] [contenteditable=true], [data-scroll-footer] textarea");
     return !editor || (editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent ?? "").trim() === "";
   };
   const setPinned = (value: boolean, reason: string) => {
+    if (value && (reason === "intent" || reason === "sent")) keepSaved = false;
     if (pinned === value) return;
     pinned = value;
     trace("pinned", { value, reason, gap: Math.round(gap()) });
@@ -162,7 +182,29 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (container && behavior !== null) container.style.scrollBehavior = behavior;
     behavior = null;
   };
-  const anchorFor = (seq: number) => messageAnchors(threadId).find(e => Number(e.dataset.notificationMessage) === seq && container!.contains(e)) ?? null;
+  const anchorFor = (seq: number) => {
+    const found = messageAnchors(threadId).filter(e => Number(e.dataset.notificationMessage) === seq && container!.contains(e));
+    return found.find(e => e.matches(ROW)) ?? found[0] ?? null;
+  };
+  const pinOf = (element: Element, offset: number, line: boolean): Pin => {
+    const root = element.closest<HTMLElement>(ROW);
+    const inner = root ? element.getBoundingClientRect().top - root.getBoundingClientRect().top : 0;
+    return { element, offset, row: root?.getAttribute("data-timeline-row-id") ?? null, path: line && root ? pathOf(element as HTMLElement, root) : null, hash: line ? textHash(element.textContent ?? "") : null, inner };
+  };
+  const refind = (pin: Pin): Pin | null => {
+    if (!container || !pin.row) return null;
+    const root = container.querySelector<HTMLElement>(`[data-timeline-row-id="${CSS.escape(pin.row)}"]`);
+    if (!root) return null;
+    if (pin.hash === null) {
+      if (pin.element.matches(ROW)) return { ...pin, element: root };
+      const seq = (pin.element as HTMLElement).dataset?.notificationMessage;
+      const element = seq ? root.querySelector(`[data-notification-message="${CSS.escape(seq)}"]`) : null;
+      return element ? { ...pin, element } : null;
+    }
+    const exact = pin.path ? byPath(root, { path: pin.path, hash: pin.hash, offset: pin.offset }) : null;
+    const element = exact ?? uniqueByText(root, pin.hash, pin.inner);
+    return element ? { ...pin, element } : null;
+  };
   const targetFor = (anchor: Element, offset: number) => {
     const delta = restoreDelta(anchor.getBoundingClientRect().top, container!.getBoundingClientRect().top + container!.clientTop, offset);
     return Math.min(Math.max(container!.scrollTop + delta, 0), Math.max(0, container!.scrollHeight - container!.clientHeight));
@@ -193,11 +235,13 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const bounds = container.getBoundingClientRect();
     const top = bounds.top + container.clientTop;
     const shift = anchor.getBoundingClientRect().top - top - offset;
+    const root = lineRoot(anchor, line, container);
+    if (!root) return null;
     for (let d = 0; d <= 160; d += 8) {
       for (const y of d ? [6 + shift + d, 6 + shift - d] : [6 + shift]) {
         if (y < 0 || y > container.clientHeight) continue;
         const hit = document.elementFromPoint(bounds.left + bounds.width / 2, top + y);
-        for (let el = hit as HTMLElement | null; el && el !== container && container.contains(el); el = el.parentElement) {
+        for (let el = hit as HTMLElement | null; el && el !== root && root.contains(el); el = el.parentElement) {
           if (el.getBoundingClientRect().top > top + y || !hasBox(el)) continue;
           if (textHash(el.textContent ?? "") === line.hash) return el;
           if (el.matches(ROW)) break;
@@ -210,7 +254,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (!container) return null;
     const root = lineRoot(message, line, container);
     if (!root) return null;
-    if (lineCache && lineCache.root === root && lineCache.element.isConnected && root.contains(lineCache.element)) return lineCache.element;
+    if (lineCache && lineCache.root === root && lineCache.element.isConnected && root.contains(lineCache.element) && textHash(lineCache.element.textContent ?? "") === line.hash) return lineCache.element;
     const element = byPath(root, line) ?? byText(root, line);
     lineCache = element ? { root, element } : null;
     return element;
@@ -218,7 +262,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const placeFor = (anchor: HTMLElement): { target: number; pin: Pin | null } => {
     const line = position && !position.atBottom && position.line ? position.line : null;
     const element = line && container ? resolveLine(anchor, line) ?? searchLine(anchor, line, position && !position.atBottom ? position.offset : 0) : null;
-    if (element && line) return { target: targetFor(element, line.offset), pin: { element, offset: line.offset } };
+    if (element && line) return { target: targetFor(element, line.offset), pin: pinOf(element, line.offset, true) };
     return { target: targetFor(anchor, position && !position.atBottom ? position.offset : 0), pin: null };
   };
 
@@ -241,10 +285,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "live";
     observer.disconnect();
     measure();
-    pinned = atBottomNow() || reason === "bottom" || reason === "loaded" && position?.atBottom === true;
-    guardRef = visiblePin();
+    pinned = reason !== "anchor-timeout" && (atBottomNow() || reason === "bottom" || reason === "loaded" && position?.atBottom === true);
     trace("live", { reason, keepSaved, pinned });
-    if (pinned) follow("live");
+    if (pinned) { edgeTop = topNow(); follow("live"); }
   };
   const abandon = (reason: string) => {
     keepSaved = true;
@@ -255,12 +298,21 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   const heightsNow = () => {
     if (!container) return 0;
     const rect = container.getBoundingClientRect();
-    let sum = container.scrollHeight;
+    let sum = 0;
     for (const row of container.querySelectorAll<HTMLElement>(ROW)) {
       const box = row.getBoundingClientRect();
-      if (box.bottom > rect.top && box.top < rect.bottom) sum = Math.imul(sum, 31) + Math.round(box.height) | 0;
+      if (box.bottom > rect.top - container.clientHeight && box.top < rect.bottom) sum = Math.imul(sum, 31) + Math.round(box.height) + Math.round(box.top - rect.top) * 7 | 0;
     }
     return sum;
+  };
+  const rawCardsNear = () => {
+    if (!container) return false;
+    const rect = container.getBoundingClientRect();
+    for (const code of container.querySelectorAll(RAW_CARD)) {
+      const box = code.getBoundingClientRect();
+      if (box.bottom > rect.top - container.clientHeight && box.top < rect.bottom) return true;
+    }
+    return false;
   };
   const settle = () => {
     phase = "settling";
@@ -268,10 +320,9 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     show();
     const anchor = position && !position.atBottom ? anchorFor(position.messageSeq) : null;
     const placed = anchor ? placeFor(anchor).pin : null;
-    const line = placed ? null : lineAt();
-    fine = placed ?? (line ? { element: line.element, offset: line.offset } : null);
+    fine = placed ?? (anchor && position && !position.atBottom ? pinOf(anchor, position.offset, false) : visiblePin());
     if (requested) store.anchorReady?.();
-    trace("placed", { position, top: container ? Math.round(container.scrollTop) : null, line: placed ? "saved" : line ? "visible" : null });
+    trace("placed", { position, top: container ? Math.round(container.scrollTop) : null, line: placed ? "saved" : anchor ? "message" : fine ? "visible" : null, pin: fine ? { row: fine.row?.slice(-14) ?? null, path: fine.path, inner: Math.round(fine.inner), text: (fine.element.textContent ?? "").slice(0, 24) } : null });
     measure();
   };
 
@@ -321,8 +372,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const waitLine = veiledAt !== null && position.line !== undefined && !pin && now() - placedAt < LINE_WAIT_MS;
     const revealing = veiledAt !== null && requested && !revealed && now() - placedAt < REVEAL_MAX_MS;
     if (revealing && found.querySelector(".bb-search-flash")) { revealed = true; trace("revealed", { afterMs: Math.round(now() - placedAt) }); return; }
-    const steady = stable >= 2 || now() - (lineReadyAt ?? placedAt) > STEADY_MAX_MS;
-    if (expired || veiledAt === null || !waitLine && !revealing && steady) settle();
+    const steady = stable >= 2 || now() - (lineReadyAt ?? placedAt) > STEADY_MAX_MS || now() - placedAt > REVEAL_CAP_MS;
+    const cards = veiledAt !== null && now() - placedAt < REVEAL_CAP_MS && rawCardsNear();
+    if (cards && !waitedCards) { waitedCards = true; trace("cards-wait", null); }
+    if (expired || veiledAt === null || !waitLine && !revealing && !cards && steady) settle();
   };
   const keep = () => {
     if (disposed || phase !== "settling") return;
@@ -332,19 +385,21 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     if (t - settledAt > SETTLE_MAX_MS || t - Math.max(lastFixAt, changedAt) > SETTLE_QUIET_MS) { goLive("settled"); return; }
     if (deferredByHost()) return;
     if (fine && !fine.element.isConnected) {
-      const anchor = anchorFor(position.messageSeq);
-      const again = anchor ? placeFor(anchor).pin : null;
-      const line = again ? null : lineAt();
-      fine = again ?? (line ? { element: line.element, offset: line.offset } : null);
+      const again = refind(fine);
+      trace(again ? "repin" : "pin-lost", { row: fine.row?.slice(-14) ?? null, line: fine.hash !== null });
+      fine = again;
     }
-    const anchor = fine ? fine.element : anchorFor(position.messageSeq);
-    if (!anchor) return;
-    const target = targetFor(anchor, fine ? fine.offset : position.offset);
-    if (Math.abs(target - container.scrollTop) > PLACED_PX) {
-      trace("keep", { from: Math.round(container.scrollTop), to: Math.round(target), by: fine ? "line" : "message" });
-      write(target);
-      lastFixAt = t;
+    if (!fine) { goLive("pin-lost"); return; }
+    if (fine.hash !== null && textHash(fine.element.textContent ?? "") !== fine.hash) {
+      const again = refind(fine);
+      if (again && again.element !== fine.element) { trace("repin", { row: fine.row?.slice(-14) ?? null, changed: true }); fine = again; }
     }
+    const target = targetFor(fine.element, fine.offset);
+    if (Math.abs(target - container.scrollTop) <= PLACED_PX) return;
+    if (Math.abs(target - container.scrollTop) > container.clientHeight * 1.5) { trace("keep-skip", { from: Math.round(container.scrollTop), to: Math.round(target) }); goLive("keep-skip"); return; }
+    trace("keep", { from: Math.round(container.scrollTop), to: Math.round(target), by: fine.hash !== null ? "line" : "message" });
+    write(target);
+    lastFixAt = t;
   };
   const hold = (reason: string, anchor: ScrollPosition, pin: Pin | null) => {
     if (anchor.atBottom || !container) return;
@@ -352,7 +407,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     phase = "settling";
     settledAt = lastFixAt = now();
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    fine = pin?.element.isConnected ? pin : null;
+    const message = pin?.element.isConnected ? null : anchorFor(anchor.messageSeq);
+    fine = pin?.element.isConnected ? pin : message ? pinOf(message, anchor.offset, false) : null;
     trace("hold", { reason, position, fine: fine ? Math.round(fine.offset) : null });
     frame = requestAnimationFrame(tick);
     keep();
@@ -360,7 +416,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const visiblePin = (): Pin | null => {
     const line = lineAt();
-    return line ? { element: line.element, offset: line.offset } : null;
+    return line ? pinOf(line.element, line.offset, true) : null;
   };
   const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, Number(e.dataset.notificationMessage)), 0);
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
@@ -372,17 +428,8 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     trace("finger-hold", { from: Math.round(container.scrollTop), to: Math.round(target) });
     write(target);
   };
-  const userDriven = () => held() || now() - intentAt < INTENT_MS || now() - userScrollAt < CHAIN_MS || /^#msg=/.test(location.hash);
-  const guard = (source: string) => {
-    if (phase !== "live" || !container || deferredByHost()) return;
-    if (quiet || pinned || userDriven() || !guardRef?.element.isConnected) { guardRef = visiblePin(); return; }
-    const target = targetFor(guardRef.element, guardRef.offset);
-    if (Math.abs(target - container.scrollTop) <= 2) return;
-    trace("guard", { source, from: Math.round(container.scrollTop), to: Math.round(target) });
-    write(target);
-  };
   const capture = (force = false) => {
-    if (disposed || frozen || phase !== "live" || keepSaved || !force && !isActive()) return;
+    if (disposed || frozen || phase !== "live" || !force && !isActive()) return;
     const found = bind();
     if (!found?.isConnected) return;
     if (Math.abs(found.clientWidth - lastWidth) >= 1) return;
@@ -396,10 +443,12 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     }).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!measured) return;
     const line = measured.atBottom ? null : lineAt();
-    const next: ScrollPosition = !measured.atBottom && line ? { ...measured, line: line.anchor } : measured;
+    const kept = !line && !measured.atBottom && lastAnchor && !lastAnchor.atBottom && lastAnchor.line && lastAnchor.messageSeq === measured.messageSeq && Math.abs(lastAnchor.offset - measured.offset) < 1 ? lastAnchor : null;
+    const next: ScrollPosition = kept ?? (!measured.atBottom && line ? { ...measured, line: line.anchor } : measured);
     lastAnchor = next;
-    lastFine = line ? { element: line.element, offset: line.offset } : null;
+    if (!kept) lastFine = line ? pinOf(line.element, line.offset, true) : null;
     widths.set(Math.round(found.clientWidth), { anchor: next, fine: lastFine, userAt: dragAt });
+    if (keepSaved) return;
     const serialized = JSON.stringify(next);
     if (serialized === lastSaved) return;
     lastSaved = serialized;
@@ -421,14 +470,16 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
       if (fingerScrolling()) { fingerMoved = false; dragged = true; fingerRef = visiblePin(); }
       else { keepFinger(); return; }
     }
+    const user = !ours && (gesture || now() - userScrollAt < 1);
     if (!ours) {
-      if (gesture || /^#msg=/.test(location.hash)) setPinned(atBottomNow(), gesture ? "gesture" : "link");
+      if (user || /^#msg=/.test(location.hash)) { keepSaved = false; setPinned(atBottomNow(), user ? "gesture" : "link"); }
       else if (atBottomNow() && (now() - intentAt < INTENT_MS || now() - sentAt < SEND_MS)) setPinned(true, "intent");
-      else if (pinned && container.scrollTop < lastScrollTop - container.clientHeight / 2) setPinned(false, "jump");
-      else if (pinned && !gestureActive()) follow("scroll");
-      guard("scroll");
+      else if (pinned && movedUp()) setPinned(false, "up");
+      else if (!pinned && gap() <= 2) setPinned(true, "scroll");
     }
     lastScrollTop = container.scrollTop;
+    if (gap() <= 2 || user && atBottomNow()) edgeTop = container.scrollTop;
+    else if (pinned) edgeTop = Math.max(edgeTop ?? container.scrollTop, container.scrollTop);
     measure();
     capture();
     clearTimeout(saveTimer);
@@ -444,13 +495,14 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     const widthChanged = Math.abs(container.clientWidth - lastWidth) >= 1;
     const changed = widthChanged || lastHeight !== container.clientHeight || lastScrollHeight !== container.scrollHeight;
     if (!pinned && now() - sentAt < SEND_MS && newestSeq() > sentSeq && composerEmpty()) setPinned(true, "sent");
-    if (changed && pinned && !gestureActive()) follow(widthChanged ? "width" : "resize");
-    else if (widthChanged && !pinned && !gestureActive() && !keepSaved) {
+    if (changed && pinned && !widthChanged && movedUp()) setPinned(false, "up");
+    else if (changed && pinned && !gestureActive()) follow(widthChanged ? "width" : "resize");
+    else if (widthChanged && !pinned && !gestureActive() && !quiet) {
       const memory = widths.get(width);
       const own = memory && memory.userAt === dragAt && !memory.anchor.atBottom ? memory : null;
       const from = own ? own.anchor : lastAnchor;
       if (from) { hold(own ? "width-return" : "width", from, own ? own.fine : lastFine); return; }
-    } else if (!widthChanged) guard("resize");
+    }
     lastScrollTop = container.scrollTop;
     measure();
   };
@@ -491,7 +543,6 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
 
   const interacted = (type: string) => {
     frozen = false;
-    keepSaved = false;
     quiet = false;
     if (phase === "live") return;
     trace("input", type);
@@ -587,6 +638,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
     void store.load!().then(value => {
       if (disposed || phase !== "waiting") return;
       position = value;
+      keepSaved = value !== null && !value.atBottom;
       trace("loaded", value);
       if (!value || value.atBottom) { goLive("loaded"); return; }
       startRestore();
@@ -596,7 +648,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, isActive = 
   else {
     if (veiledAt !== null) show();
     bind();
-    if (phase === "live") { measure(); pinned = atBottomNow() || position?.atBottom === true; guardRef = visiblePin(); trace("live", { reason: "start", pinned }); }
+    if (phase === "live") { measure(); pinned = atBottomNow() || position?.atBottom === true; if (pinned) edgeTop = topNow(); trace("live", { reason: "start", pinned }); }
   }
   const timer = setInterval(() => {
     if (phase === "restoring") attempt();

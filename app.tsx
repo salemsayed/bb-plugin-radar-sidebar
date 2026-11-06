@@ -1,4 +1,4 @@
-import { primeScrollRoute } from "./lib/primeScrollRoute";
+import "./lib/scrollBoot";
 // bb-plugin-radar-sidebar — a thread list you can read at a glance, for BB.
 //
 // Replaces the sidebar thread list (activity-grouped threads, nested families,
@@ -18,7 +18,6 @@ import "./app.css";
 // Runs before any slot renders, so preferences read below the rename are
 // already carried forward from the `codex-sidebar:` era.
 migrateLegacyPreferences();
-primeScrollRoute();
 
 export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({ id: "thread-presence", component: ThreadPresence });
