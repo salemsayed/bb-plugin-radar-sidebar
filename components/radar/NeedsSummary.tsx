@@ -137,8 +137,9 @@ function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: 
 
 export function arrivalText(arrivals: readonly Pick<NeedItem, "botName" | "kind">[]): string {
   const names = [...new Set(arrivals.map(item => item.kind === "thread" ? "a thread" : item.botName.replace(/\s+Bot$/, "")))];
-  if (arrivals.length === 1) return `New question from ${names[0]}`;
-  return `${arrivals.length} new questions`;
+  const asks = arrivals.every(item => item.kind === "ask");
+  if (arrivals.length === 1) return asks ? `New question from ${names[0]}` : `${names[0]} needs you`;
+  return asks ? `${arrivals.length} new questions` : `${arrivals.length} new for you`;
 }
 
 function verticalKeys(event: KeyboardEvent<HTMLElement>): boolean {
