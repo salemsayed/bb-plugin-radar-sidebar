@@ -55,10 +55,19 @@ function capitalize(text: string): string {
   return text ? text[0]!.toUpperCase() + text.slice(1) : text;
 }
 
+const PERSON = /^[A-Z][a-z]+(?: [A-Z][a-z]+)?$/;
+function awaitedPerson(task: BotTaskRow): string {
+  if (task.waitFor !== "someone else") return "";
+  const who = waitingOn(task.line, task.outcome);
+  return PERSON.test(who) ? who : "";
+}
+
 function waitWhen(task: BotTaskRow, now: number): string {
   if (task.displayState === "offline") return "Its machine is off";
   if (task.displayState === "ready" || /^filed\.\s*not started/i.test(task.line)) return "Not started yet";
-  return capitalize(waitLine(task, now));
+  const line = capitalize(waitLine(task, now));
+  const who = awaitedPerson(task);
+  return who && !line.includes(who) ? `Waiting on ${who} · ${line[0]!.toLowerCase()}${line.slice(1)}` : line;
 }
 
 function busyWords(task: BotTaskRow, botName: string): string {
@@ -115,7 +124,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const clock = (attempt: Attempt) => attempt.startedAt != null ? new Date(attempt.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
   const titleOf = (attempt: Attempt) => {
     const base = baseTitle(attempt);
-    const twins = running.filter(a => baseTitle(a) === base).sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+    const twins = running.filter(a => baseTitle(a) === base);
     if (twins.length < 2) return base;
     const roles = twins.map(roleOf);
     if (roles.every(Boolean) && new Set(roles).size === twins.length) return `${base} · ${roleOf(attempt)}`;
@@ -129,7 +138,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     .sort((a, b) => (a.wakeAt ?? Infinity) - (b.wakeAt ?? Infinity));
   const closed = bot.tasks.filter(t => t.displayState === "done" && t.completedAt !== undefined).sort((a, b) => b.completedAt! - a.completedAt!);
   const done = closed.filter(t => isSameLocalDay(t.completedAt!, now));
-  const awaited = [...new Set(waiting.filter(t => t.waitFor === "someone else").map(t => waitingOn(t.line, t.outcome)))];
+  const awaited = [...new Set(waiting.map(awaitedPerson))];
   const headerWords = statusWords(look) === "Waiting" && awaited.length === 1 && awaited[0] && waiting.every(t => t.waitFor === "someone else") ? `Waiting on ${awaited[0]}` : statusWords(look);
   const earlier = closed.filter(t => !isSameLocalDay(t.completedAt!, now) && now - t.completedAt! < 7 * 86_400_000).slice(0, Math.max(3, 6 - done.length));
   const go = (id: string) => navigate.toThread(id);

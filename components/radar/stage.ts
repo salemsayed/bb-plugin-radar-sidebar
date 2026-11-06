@@ -237,11 +237,7 @@ function noteLook(task: BotTaskRow): Pick<StageLook, "line" | "alts" | "whole"> 
 
 export function waitLine(task: BotTaskRow, now: number): string {
   if (task.later) return laterLine(task.later);
-  if (task.wakeAt !== undefined) {
-    const when = nextCheck(task.wakeAt, now);
-    const who = task.waitFor === "someone else" ? waitingOn(task.line, task.outcome) : "";
-    return who ? `Waiting on ${who} · ${when[0]!.toLowerCase()}${when.slice(1)}` : when;
-  }
+  if (task.wakeAt !== undefined) return nextCheck(task.wakeAt, now);
   if (task.waitFor === "you") return "Waiting on you";
   if (task.waitFor && task.waitFor !== "the bot") return waitingOn(task.line) ? `Waiting on ${waitingOn(task.line)}` : "Waiting on someone else";
   const scheduled = scheduledWait(task.line);
