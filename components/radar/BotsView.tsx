@@ -216,7 +216,7 @@ function BoardSkeleton() {
     <div className="stage-needs-slot">
       <section className="stage-needs" data-state="checking" aria-label="Needs you: checking">
         <h2 className="stage-needs-title"><span className="stage-needs-dot" aria-hidden="true" /><span className="stage-needs-heading">Needs you</span></h2>
-        <p className="stage-needs-empty" role="status"><Icon name="Clock" aria-hidden="true" /><span><b>Checking for new asks…</b><span>Loading the bots</span></span></p>
+        <p className="stage-needs-empty" role="status"><Icon name="Clock" aria-hidden="true" /><span><b>Checking for new questions…</b><span>Loading the bots</span></span></p>
       </section>
     </div>
     <div className="stage-bots-head" aria-hidden="true"><span>Bots</span><span>Last reply</span></div>

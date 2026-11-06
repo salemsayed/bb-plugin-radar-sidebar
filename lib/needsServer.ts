@@ -1,7 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { z } from "zod";
 import { rosterSchema, type RosterBot } from "../components/radar/bots";
-import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, type NeedsItem } from "./needs";
+import { NEEDS_PLUGIN, needsListSchema, needsResultSchema, needsRpcContract, normalizedNeedsText, type NeedsItem } from "./needs";
 
 const ACTIVE = ["open", "snoozed", "reminded"] as const;
 
@@ -37,7 +37,45 @@ export function askJudgements(items: readonly NeedsItem[], bots: readonly Roster
   });
 }
 
+const ASK_PAGES = 5;
+const MISS_TTL_MS = 5 * 60_000;
+const BEFORE_ASK_MS = 10 * 60_000;
+
+export function askNeedle(text: string): string {
+  return normalizedNeedsText(text).slice(0, 60).trim();
+}
+
+export function createAskFinder(bb: BbPluginApi) {
+  const found = new Map<string, { seq: number | null; at: number }>();
+  return async function askSeq(item: NeedsItem): Promise<number | null> {
+    const threadId = item.source.threadId;
+    if (item.kind !== "decision" || !threadId) return null;
+    const hit = found.get(item.id);
+    if (hit && (hit.seq !== null || Date.now() - hit.at < MISS_TTL_MS)) return hit.seq;
+    const needle = askNeedle(item.text);
+    const since = Date.parse(item.createdAt) - BEFORE_ASK_MS;
+    let seq: number | null = null;
+    try {
+      let before: string | undefined;
+      for (let page = 0; page < ASK_PAGES && seq === null; page++) {
+        const rows = await bb.sdk.threads.events.list({ threadId, order: "desc", limit: "100", types: ["item/completed"], ...(before ? { beforeSeq: before } : {}) });
+        for (const row of rows) {
+          const said = (row.data as { item?: { type?: string; text?: string; parentToolCallId?: string } }).item;
+          if (said?.type === "agentMessage" && !said.parentToolCallId && needle.length >= 12 && normalizedNeedsText(said.text ?? "").includes(needle)) { seq = row.seq; break; }
+        }
+        const last = rows.at(-1);
+        if (rows.length < 100 || !last || last.createdAt < since) break;
+        before = String(last.seq);
+      }
+    } catch { seq = null; }
+    found.set(item.id, { seq, at: Date.now() });
+    while (found.size > 500) found.delete(found.keys().next().value!);
+    return seq;
+  };
+}
+
 export function createNeedsServer(bb: BbPluginApi) {
+  const askSeq = createAskFinder(bb);
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
   const update = (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) =>
@@ -50,7 +88,9 @@ export function createNeedsServer(bb: BbPluginApi) {
     handlers: {
       async crew_needs_list(): Promise<{ items: NeedsItem[] | null }> {
         // A list read never starts a classifier: bots, Salem and ChatGPT close items.
-        try { return { items: (await list()).items }; } catch { return { items: null }; }
+        let items: NeedsItem[];
+        try { items = (await list()).items; } catch { return { items: null }; }
+        return { items: await Promise.all(items.map(async item => item.kind === "decision" ? { ...item, askSeq: await askSeq(item) } : item)) };
       },
       // Closing an item also clears its bot's ask: asks are read from the open items.
       crew_needs_update: (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) => update(input),

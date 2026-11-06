@@ -4,6 +4,8 @@ const TECHNICAL_ID = /\s*\b(?:thr|env|proj|host|notif|auto|ptask|evt)_[a-z0-9_-]
 const HASH = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
 const HASH_AT = new RegExp(`\\s+(?:at|@|in|commit|head)\\s+${HASH}\\b`, "g");
 const HASH_ALONE = new RegExp(`\\s*\\b${HASH}\\b`, "g");
+const HASH_ASIDE_LEAD = new RegExp(`\\((?:at|in|on|commit|head)\\s+${HASH}\\s*[,;]\\s*`, "g");
+const HASH_ASIDE = new RegExp(`\\s*\\((?:(?:at|in|on|commit|head)\\s+)?${HASH}\\)`, "g");
 const COMMENT_ID = /\s*\(?\b(?:issuecomment|discussion_r|pullrequestreview|note)[-_]\d+\b\)?/gi;
 
 const REPO_MERGE_REQUEST = /\b[a-z][\w-]*!(\d+)\b/gi;
@@ -20,15 +22,14 @@ const REDACTED_AFTER = /\b(on|in|for|of|to|from|with|by|at) ([a-z]+) \[redacted\
 const REDACTED = /\s*\[redacted\]/gi;
 const SKILL_WITH = /\s*,?\s*\b(?:with|using|via|through|by) (?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
 const SKILL_SLUG = /\b(?:the |its |a |an )?[a-z0-9]+(?:-[a-z0-9]+)+ skill\b/gi;
-const SEQ_REF = /\s*\(?\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\)?/gi;
+const SEQ_REF = /\s*\((?:seq|msg)\s*#?\d+(?:\/\d+)*\)|\s*\b(?:seq|msg)\s*#?\d+(?:\/\d+)*\b/gi;
+const WHO_ASIDE = /\s*\((?:Salem|you)\)/g;
+const PROVIDER_TOPIC = /\b(?:Codex|Claude|OpenAI|Anthropic|GPT[\w.-]*)\s+(phase-out|switch|migration|rollout|cutover)\b/g;
 const ASK_REF = /[,;]?\s*\b(?:(?:asked|filed|raised|tracked|sent|logged)\s+)?(?:in|as|via|under)\s+bask_[a-z0-9]+\b/gi;
 const ASK_ID = /\s*\(?\bbask_[a-z0-9]+\b\)?/gi;
 const HTTP_ASIDE = /\s*\((?:HTTP|status)\s*\d{3}\)/gi;
 const HTTP_CODE = /\b(?:an? )?HTTP\s*\d{3}(?: error)?\b/gi;
 const BUILD_TAG = /\s*\b(?:prod|staging|release|build)-[0-9a-f]{6,}\b/gi;
-const CHECKER = /\bJev(?:['\u2019]s)?\s+(?:task\s+|core\s+)?(?:judges?|checks?|checker)\b/g;
-const CHECKER_LEAD = /^Jev\b/;
-const CHECKER_ALONE = /\b((?:on|to|from|by|with|via|for|of|in|restore|restores|restored|fix|fixes|fixed)\s+)?Jev\b/g;
 const IP = "\\d{1,3}(?:\\.\\d{1,3}){3}(?:\\/\\d{1,2})?(?::\\d{2,5})?";
 const IP_EXIT = new RegExp(`\\bexit\\s+(?:IP\\s+)?${IP}`, "g");
 const IP_AFTER = new RegExp(`\\s*(?:\\((?:at|on|via|IP|address)\\s+${IP}\\)|\\b(?:at|on|via|IP|address)\\s+${IP}\\b)`, "g");
@@ -56,12 +57,9 @@ const PACKAGE_ASIDE = /\s*\((?:com|org|net|io|app|dev)\.[a-z0-9]+(?:\.[a-z0-9]+)
 const PACKAGE_ID = /\s*\b(?:com|org|net)\.[a-z0-9]+(?:\.[a-z0-9]+)+\b/g;
 const TEST_ACCOUNT = /\s+(?:with|using|on account) \d{6,}\b/g;
 
-export function botTokens(text: string, keepNames = false): string {
-  const named = keepNames ? text : text
-    .replace(CHECKER, "task checker")
-    .replace(CHECKER_LEAD, "Checker")
-    .replace(CHECKER_ALONE, (_, lead?: string) => lead ? `${lead}the checker` : "checker");
-  return named
+export function botTokens(text: string, _keepNames = false): string {
+  return text
+    .replace(PROVIDER_TOPIC, "model $1")
     .replace(NAMED_COORDINATOR, "$1 Bot")
     .replace(COORDINATOR_TASKS, "main-chat $1")
     .replace(COORDINATOR_OWNS, whole => /s$/.test(whole) ? "the bot's" : "the bot")
@@ -115,11 +113,14 @@ export function plainText(text: string): string {
     .replace(ASK_REF, "")
     .replace(ASK_ID, "")
     .replace(SEQ_REF, "")
+    .replace(WHO_ASIDE, "")
     .replace(HTTP_ASIDE, "")
     .replace(HTTP_CODE, "an error")
     .replace(BUILD_TAG, "")
     .replace(TECHNICAL_ID, "")
     .replace(COMMENT_ID, "")
+    .replace(HASH_ASIDE_LEAD, "(")
+    .replace(HASH_ASIDE, "")
     .replace(HASH_AT, "")
     .replace(HASH_ALONE, "")
     .replace(/\bonto (?:master|main)\b/g, "onto the main branch")
@@ -187,7 +188,8 @@ const MARKDOWN = [
   [/\[([^\]]+)\]\([^)]*\)/g, "$1"],
   [/\*\*|__|`/g, ""],
   [/(^|[\s(])_([^_\n]+)_(?=$|[\s.,;:!?)])/g, "$1$2"],
-  [/\s+(?:\d+[.)]|[-*•])\s+(?=\S)/g, " · "],
+  [/(^|[\n.:;!?])[ \t]*\n?\s*\d{1,2}[.)]\s+(?=\S)/g, "$1 · "],
+  [/\s+[-*•]\s+(?=\S)/g, " · "],
   [/(\S)\*+(?=$|[\s.,;:!?…])/g, "$1"],
   [/(^|\s)\*+(?=\S)/g, "$1"],
   [/^(?:\d+[.)]|[-*•])\s+/, ""],
@@ -204,7 +206,7 @@ const ROUTE_ONLY = /^(?:astra|terra|opus|sonnet|sol|fable|haiku|luna|codex|gpt[\
 
 const MODEL = "(?:Opus|Sonnet|Sol|Fable|Astra|Terra|Haiku|Luna|Codex|GPT[\\w.-]*|Claude[\\w.-]*)";
 const MODEL_ASIDE = new RegExp(`\\s*\\((?:on |via |with )?${MODEL}(?: [\\w-]+){0,2}\\)`, "gi");
-const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorer|builder|reviewer|judge|worker|takeover|re-check|recheck|review|check|fix|build)\\b(?!-))`, "gi");
+const MODEL_ROLE = new RegExp(`\\b${MODEL}\\s+(?=(?:scorers?|builders?|reviewers?|judges?|workers?|takeover|re-check|recheck|reviews?|checks?|fix|build|routes?)\\b(?!-))`, "gi");
 
 export function plainWorkerTitle(title: string): string {
   let out = botTokens(botWords(title.trim())).replace(SEQ_REF, "").replace(ASK_ID, "").replace(BUILD_TAG, "").replace(MERGE_REQUEST_REF, "merge request $1").replace(MODEL_ASIDE, "").replace(MODEL_ROLE, "");
@@ -214,7 +216,7 @@ export function plainWorkerTitle(title: string): string {
     out = out.slice(match?.[0].length ?? 0);
     if (kind) out = `${kind[0]!.toUpperCase()}${kind.slice(1).toLowerCase().replace("recheck", "re-check")}: ${out}`;
   }
-  out = out.replace(/^merge request/, "Merge request").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your").replace(/(?<![\w-])Salem\b(?![-\w])/g, "you");
+  out = out.replace(/:\s*(?:workers?|reviews?|reviewers?)(?:\s*(?:,|and)\s*(?:workers?|reviews?|reviewers?))*\s*$/i, "").replace(/^merge request/, "Merge request").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your").replace(/(?<![\w-])Salem\b(?![-\w])/g, "you");
   return capitalFirst(out);
 }
 
@@ -280,8 +282,10 @@ function youVerb(word: string): string {
 
 const YOUR_NOUN = /(?<![\w-])Salem(?:['\u2019]s)? (approval|go-ahead|go|OK|okay|answer|decision|call|sign-off|reply|review|pick|choice|input|confirmation|consent|permission|word|words|request|ask)\b/g;
 
+const HIS_WORDS = /((?<![\w-])Salem\b[^"\u201c\u201d]{0,160}?)\bhis (words|choices?|go|call|pick)\b/g;
+
 export function youWords(text: string): string {
-  const out = text.replace(YOUR_NOUN, "your $1").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your")
+  const out = text.replace(HIS_WORDS, "$1your $2").replace(YOUR_NOUN, "your $1").replace(/(?<![\w-])Salem['\u2019]s\b/g, "your")
     .replace(/(?<![\w-])Salem\b(?!-)(?:(\s+)((?:[a-z]+ly\s+)?)([A-Za-z]+)\b)?(?:(\s+(?:or|and)\s+)([A-Za-z]+)\b)?/g, (_, gap?: string, adverb?: string, word?: string, join?: string, second?: string) =>
       word ? `you${gap}${adverb ?? ""}${youVerb(word)}${join && second ? `${join}${youVerb(second)}` : ""}` : "you")
     .replace(/\bhis\b(?= (?:OK|go|answer|pick|choice|decision|call|ask|reply))/g, "your").trim()
@@ -471,8 +475,29 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   }
   const trailing = /(?:\u2026|\.\.\.)["\u201d\u2019]?$/.test(fullShown.text);
   const cut = trailing || fullShown.cut;
-  const full = trailing ? wholeSentences(fullShown.text.replace(/["\u201d\u2019]$/, "")) : fullShown.text;
-  return { head, quote: quoteShown.cut ? full : quoteShown.text, full, excerpt: cut, kind };
+  const whole = trailing ? wholeSentences(fullShown.text.replace(/["\u201d\u2019]$/, "")) : fullShown.text;
+  const relay = kind !== "yours";
+  const kept = relay ? dropOrders(whole) : whole;
+  const long = relay && kept.length > RELAY_CAP;
+  const full = long ? sentencesUpTo(kept, RELAY_CAP) : kept;
+  const quote = quoteShown.cut ? full : relay ? dropOrders(quoteShown.text) : quoteShown.text;
+  return { head, quote, full, excerpt: cut || long, kind };
+}
+
+const RELAY_CAP = 300;
+const BOT_ORDER = /^["\u201c]?(?:reply (?:with|to)|report back|continue (?:that|this|the|with)|no reply(?: to me)? is needed|please (?:reply|confirm|recheck|report|continue|keep|let me)|let me know|send me|tell me|ping me)\b/i;
+const ORDER_CLAUSE = /[;,]\s*(?:and\s+)?no reply(?: to me)? is needed\b/gi;
+
+export function dropOrders(text: string): string {
+  const parts = text.replace(ORDER_CLAUSE, "").split(/(?<=[.!?]["\u201d]?)\s+(?=["\u201c]?[A-Z])/);
+  return parts.filter((part, i) => i === 0 || !BOT_ORDER.test(part.trim())).join(" ").trim();
+}
+
+export function sentencesUpTo(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let end = -1;
+  for (const match of text.slice(0, max + 1).matchAll(SENTENCE_END)) end = match.index! + 1;
+  return end >= 40 ? text.slice(0, end) : clauseCut(text, max) || cutAtWord(text, max);
 }
 
 const SENTENCE_END = /(?<!\b(?:e\.g|i\.e|etc|vs|approx))[.!?](?=["\u201d\u2019)]?\s)/g;

@@ -3,6 +3,12 @@ import { clockFormatter, clearsLine, clearsWeekdayFormatter } from "./BotsView";
 import { capitalFirst, cutAtWord, plainNote, plainWorkerTitle, taskHeadline, waitingOn, youWords } from "./workText";
 import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
+import { isQuestionRow } from "./questions";
+
+export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
+  if (isQuestionRow(task)) return task.needs?.question ?? task.title;
+  return needAsk(task.needs?.question || task.line || task.title, stageTitle(task.title, task.outcome));
+}
 
 export type StageTone = "ask" | "blocked" | "busy" | "news" | "good" | "quiet";
 
@@ -185,7 +191,7 @@ export function answeredHere(later: { reason: string; messageSeq?: number }): bo
 }
 
 export function laterLine(later: { reason: string; messageSeq?: number }): string {
-  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · back when it asks again";
+  return answeredHere(later) ? "You answered · bot to follow up" : later.reason === "answered" ? "Moved to Later" : "Later · until it asks again";
 }
 
 function waitLine(task: BotTaskRow, now: number): string {
@@ -223,8 +229,8 @@ export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const desks = sortDesks(bot.desks.filter(needsYou));
   if (needs.length || desks.length) {
     const first = needs[0];
-    const ask = first ? needAsk(first.needs?.question || first.line || first.title, stageTitle(first.title, first.outcome)) || "Has a question for you" : deskNeedLine(desks[0]!);
-    return { pose: "asking", line: `Waiting on you · ${plural(needs.length + desks.length, "ask", "asks")}`, ask, extra: "", tone: "ask", quiet: false };
+    const ask = first ? taskAsk(first) || "Has a question for you" : deskNeedLine(desks[0]!);
+    return { pose: "asking", line: `Waiting on you · ${plural(needs.length + desks.length, "question", "questions")}`, ask, extra: "", tone: "ask", quiet: false };
   }
   const blocked = open.find(task => BLOCKED.has(task.displayState));
   if (blocked) {

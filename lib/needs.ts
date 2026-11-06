@@ -13,6 +13,7 @@ export const needsItemSchema = z.object({
   subject: z.string().nullable().optional(),
   source: z.object({ threadId: z.string().optional(), messageId: z.string().optional(), automationId: z.string().optional() }),
   key: z.string().nullable(), createdAt: z.string(), closedAt: z.string().nullable(), reminders: z.number(),
+  askSeq: z.number().nullable().optional(),
 });
 export type NeedsItem = z.infer<typeof needsItemSchema>;
 export const needsListSchema = z.object({ items: z.array(needsItemSchema) });
