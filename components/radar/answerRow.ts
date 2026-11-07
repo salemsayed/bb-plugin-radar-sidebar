@@ -34,13 +34,14 @@ function place(group: HTMLElement) {
     if (natural(group, buttons) <= room) { group.setAttribute("data-layout", "row"); return; }
     group.removeAttribute("data-tight");
   }
-  if (share(group, buttons)) { group.setAttribute("data-layout", "share"); return; }
+  if (share(group, buttons, buttons.length)) { group.setAttribute("data-layout", "share"); return; }
+  if (buttons.length >= 3 && share(group, buttons, 2)) { group.setAttribute("data-layout", "pairs"); return; }
   group.setAttribute("data-layout", "stack");
 }
 
-function share(group: HTMLElement, buttons: HTMLElement[]): boolean {
+function share(group: HTMLElement, buttons: HTMLElement[], columns: number): boolean {
   const gap = Number.parseFloat(getComputedStyle(group).columnGap) || 0;
-  const each = (group.clientWidth - gap * (buttons.length - 1)) / buttons.length;
+  const each = (group.clientWidth - gap * (columns - 1)) / columns;
   const lines = matchMedia("(pointer: coarse)").matches ? 3 : 2;
   return buttons.every(button => {
     const label = button.querySelector<HTMLElement>(".radar-answer-text") ?? button;

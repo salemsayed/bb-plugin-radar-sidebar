@@ -684,6 +684,8 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .radar-answers { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; width: 100%; min-width: 0; margin: 0; }
 .radar-answers[data-layout="row"], .radar-answers[data-layout="share"], .radar-answers[data-layout="measure"] { flex-wrap: nowrap; }
 .radar-answers[data-layout="share"] > .radar-answer { flex: 1 1 0; }
+.radar-answers[data-layout="pairs"] > .radar-answer, .dispatch-panel .radar-answers[data-layout="pairs"] > button.dispatch-option.radar-answer { flex: 0 0 calc(50% - 3px); max-width: calc(50% - 3px); }
+@media (pointer: coarse) { .stage-needs-answers.radar-answers[data-layout="pairs"] > .radar-answer { flex-basis: calc(50% - 2px); max-width: calc(50% - 2px); } }
 .radar-answers[data-layout="measure"] > .radar-answer { flex: none; max-width: none; white-space: nowrap; }
 .radar-answers[data-layout="stack"] { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
 .radar-answers[data-layout="stack"] > .radar-answer, .dispatch-panel .radar-answers[data-layout="stack"] > button.dispatch-option.radar-answer { flex: none; width: 100%; max-width: 100%; }
