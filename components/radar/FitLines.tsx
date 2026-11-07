@@ -3,13 +3,13 @@ import { Isolated } from "./Isolated";
 import { keepHyphens } from "./displayText";
 import { fitWhole } from "./AnswerLabel";
 
-export function FitLines({ forms, className, dir = "auto", lead, aside }: { forms: readonly string[]; className?: string; dir?: "auto" | "ltr" | "rtl"; lead?: ReactNode; aside?: ReactNode }) {
+export function FitLines({ forms, className, dir = "auto", lead, aside, room = 0 }: { forms: readonly string[]; className?: string; dir?: "auto" | "ltr" | "rtl"; lead?: ReactNode; aside?: ReactNode; room?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const key = forms.join("\n");
   const [at, setAt] = useState(0);
   const [cut, setCut] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
-  useLayoutEffect(() => { setAt(0); setCut(null); }, [key, width]);
+  useLayoutEffect(() => { setAt(0); setCut(null); }, [key, width, room]);
   useLayoutEffect(() => {
     const node = ref.current;
     if (!node || cut !== null || node.scrollHeight <= node.clientHeight + 1) return;

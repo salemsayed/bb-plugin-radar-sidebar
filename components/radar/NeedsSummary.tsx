@@ -382,6 +382,36 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
     const buttons = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".stage-needs-item:not([data-state])") ?? []);
     (buttons[Math.min(at, buttons.length - 1)] ?? headRef.current)?.focus();
   });
+  const shownKey = open ? shown.map(item => item.id).join("|") : "";
+  const [budget, setBudget] = useState(3);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const box = list?.closest<HTMLElement>(".stage-needs");
+    if (!open || !list || !box) return;
+    let scroller: HTMLElement | null = box.parentElement;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    if (!scroller) return;
+    const area = scroller;
+    const decide = () => {
+      const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > li"));
+      const slot = box.closest<HTMLElement>(".stage-needs-slot") ?? box;
+      const sb = area.getBoundingClientRect(), bb = box.getBoundingClientRect(), lb = list.getBoundingClientRect(), slotBox = slot.getBoundingClientRect();
+      const top = sb.top - area.scrollTop;
+      const end = Math.max(...Array.from(area.children).flatMap(child => child.contains(box) ? Array.from(child.children) : [child]).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
+      const room = area.clientHeight - (end - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
+      const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
+      const tall = (matchMedia("(pointer: coarse)").matches ? 12 : 10) + 48;
+      const need = rows.reduce((sum, row) => sum + (row.hasAttribute("data-lined") ? tall : row.getBoundingClientRect().height) + gap, 0) - gap;
+      setBudget(need <= room + 1 ? 3 : 2);
+    };
+    decide();
+    const observer = new ResizeObserver(decide);
+    observer.observe(area);
+    if (box.parentElement && box.parentElement !== area) observer.observe(box.parentElement);
+    for (const child of Array.from(area.children)) if (!child.contains(box)) observer.observe(child);
+    const settle = [setTimeout(decide, 350), setTimeout(decide, 900)];
+    return () => { observer.disconnect(); settle.forEach(clearTimeout); };
+  }, [open, shownKey]);
   const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : olderOpen ? `${olderOpen} older ${olderOpen === 1 ? "question" : "questions"}` : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
     if (!onNotNow) return;
@@ -436,10 +466,10 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
-    <ul ref={listRef}>
+    <ul ref={listRef} data-lines={open ? budget : undefined}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
       {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)}
-        lined={open && !unfolded.has(item.id)}
+        lined={open && !unfolded.has(item.id)} budget={budget}
         folded={open && index > 0 && item.id !== currentId && !unfolded.has(item.id) && !!onAnswer && boxAnswers(item).length > 0}
         onUnfold={() => setUnfolded(prev => new Set(prev).add(item.id))}
         onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer ? label => onAnswer(item, label) : undefined} />)}
@@ -524,9 +554,10 @@ function AgeFit({ forms, className }: { forms: readonly string[]; className: str
   return <span ref={ref} className={className}>{forms[fit] ?? ""}</span>;
 }
 
-function NeedRow({ item, bot, now, current, offline, outcome, lined = false, folded: foldedAsked = false, onUnfold, onOpen, onMenu, onNotNow, onAnswer }: {
+function NeedRow({ item, bot, now, current, offline, outcome, lined = false, budget = 2, folded: foldedAsked = false, onUnfold, onOpen, onMenu, onNotNow, onAnswer }: {
   item: NeedItem;
   lined?: boolean;
+  budget?: number;
   folded?: boolean;
   onUnfold?: () => void;
   bot: BotTasksData["bots"][number] | undefined;
@@ -602,6 +633,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, fol
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
         <FitLines className="stage-needs-what" forms={lined ? compactForms(what, item.title, item.options?.length ?? 0) : oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)}
+          room={lined ? budget : 0}
           lead={lined ? <span className="stage-needs-lined-who" data-text={shortName} aria-hidden="true" /> : undefined}
           aside={lined ? <span className="stage-needs-lined-age" data-text={item.state === "later" ? "Later" : item.state ? item.state === "answered" ? "Answered" : "Done" : ageText} aria-hidden="true" /> : undefined} />
         {!folded && !lined && !item.state ? <AskImpact className="stage-needs-impact" text={item.consequence} /> : null}
