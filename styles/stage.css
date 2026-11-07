@@ -698,6 +698,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-impact { grid-column: 1 / -1; margin-top: 2px; }
 .radar-ask-strip-impact { margin: 2px 0 6px; --impact-lines: 2; }
 .stage-needs .stage-needs-impact { --impact-lines: 1; }
+@media not (pointer: coarse) { .stage-needs .stage-needs-impact { --impact-lines: 3; } }
 @media (max-width: 767px) { .radar-ask-strip-impact { --impact-lines: 1; } }
 .dispatch-card-impact { margin: -4px 0 10px 14px; }
 .stage-needs-item[data-lined] { display: flex; align-items: flex-start; gap: 6px; min-height: 0; padding: 5px 10px; }
