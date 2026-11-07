@@ -816,7 +816,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       queueCheck("write");
     });
     dirtyWatch.observe(bound, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "open", "hidden"] });
-    unrender = prerenderRows(bound, (count, waiting) => trace("prerender", waiting ? { count, held: waiting } : { count }), () => hostDefers && (held() || now() - movedAt < BUSY_MS));
+    unrender = prerenderRows(bound, (count, waiting) => trace("prerender", waiting ? { count, held: waiting } : { count }), () => (hostDefers || phase !== "live") && (held() || now() - movedAt < BUSY_MS));
     watchColumn();
     if (typeof ResizeObserver !== "undefined") queueMicrotask(() => {
       if (disposed || container !== bound || resize) return;
