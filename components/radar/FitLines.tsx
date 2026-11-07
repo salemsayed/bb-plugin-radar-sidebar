@@ -36,7 +36,9 @@ export function FitLines({ forms, className, dir = "auto", lead, aside, trail, r
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  return <span ref={ref} className={className} dir={dir} data-short={cut !== null || at > 0 ? "" : undefined}>{aside}{lead}<Isolated text={keepHyphens(cut ?? forms[Math.min(at, forms.length - 1)] ?? "")} />{trail}</span>;
+  const shown = cut ?? forms[Math.min(at, forms.length - 1)] ?? "";
+  const short = cut !== null || at > 0;
+  return <span ref={ref} className={className} dir={dir} data-short={short ? "" : undefined} data-loss={short ? Math.max(0, (forms[0]?.length ?? 0) - shown.length) : undefined}>{aside}{lead}<Isolated text={keepHyphens(shown)} />{trail}</span>;
 }
 
 export function cutForms(whole: string, fit: (text: string, max: number) => string, sizes: readonly number[]): string[] {

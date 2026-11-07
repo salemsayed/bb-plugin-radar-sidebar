@@ -716,6 +716,8 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-lined-age::before { content: attr(data-text); }
 @media (pointer: coarse) {
   .stage-needs-item[data-lined] { min-height: 44px; padding: 6px 10px; }
+  .stage-needs li[data-lines="3"] > .stage-needs-item[data-lined] { padding-block: 4px; }
+  .radar-list-body:has(.stage-needs[data-open]), .stage:has(.stage-needs[data-open]) { padding-bottom: 0; }
 }
 .stage-needs-arrival > .radar-tasks-face { flex: none; }
 @media (pointer: coarse) {

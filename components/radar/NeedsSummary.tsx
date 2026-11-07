@@ -455,22 +455,26 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
       const end = Math.max(...Array.from(area.children).flatMap(child => child.contains(box) ? Array.from(child.children) : [child]).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
       const room = area.clientHeight - (end - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
       const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
+      const coarse = matchMedia("(pointer: coarse)").matches;
       const plan = rows.map(row => {
         const height = row.getBoundingClientRect().height;
         const text = row.querySelector<HTMLElement>(".stage-needs-what");
-        if (!row.hasAttribute("data-lined") || !text) return { id: row.dataset.need ?? "", low: height, gain: 0 };
+        const item = row.querySelector<HTMLElement>(".stage-needs-item");
+        if (!row.hasAttribute("data-lined") || !text || !item) return { id: row.dataset.need ?? "", low: height, gain: 0, loss: 0 };
         const step = Number.parseFloat(getComputedStyle(text).lineHeight) || 16;
+        const floor = Number.parseFloat(getComputedStyle(item).minHeight) || 0;
+        const tall = (lines: number) => Math.max(floor, (coarse ? lines >= 3 ? 8 : 12 : 10) + lines * step);
         const used = Math.round(text.getBoundingClientRect().height / step);
         const lines = Number(row.dataset.lines) || 3;
-        const low = height - step * Math.max(0, used - 2);
-        const gain = lines >= 3 ? used >= 3 ? step : 0 : text.hasAttribute("data-short") ? step : 0;
-        return { id: row.dataset.need ?? "", low, gain };
+        const wants = lines >= 3 ? used >= 3 : text.hasAttribute("data-short");
+        const low = lines >= 3 && used >= 3 ? tall(2) : height;
+        return { id: row.dataset.need ?? "", low, gain: wants ? tall(3) - tall(2) : 0, loss: Number(text.dataset.loss) || 0 };
       });
       let spare = room + 1 - (plan.reduce((sum, row) => sum + row.low + gap, 0) - gap);
       const next: Record<string, number> = {};
-      for (const row of plan) {
-        if (!row.id) continue;
-        if (row.gain > 0 && row.gain <= spare) { next[row.id] = 3; spare -= row.gain; } else next[row.id] = row.gain > 0 ? 2 : 3;
+      for (const row of plan) if (row.id) next[row.id] = row.gain > 0 ? 2 : 3;
+      for (const row of [...plan].filter(row => row.id && row.gain > 0).sort((a, b) => a.loss - b.loss)) {
+        if (row.gain <= spare) { next[row.id] = 3; spare -= row.gain; }
       }
       setLineMap(prev => Object.keys(next).length === Object.keys(prev).length && Object.entries(next).every(([id, n]) => prev[id] === n) ? prev : next);
     };
