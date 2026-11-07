@@ -111,6 +111,10 @@ function clearVeilStyle() {
   const style = veilStyle(false);
   if (style && (!style.dataset.owner || style.dataset.owner === instance)) style.textContent = "";
 }
+function dropPreveil() {
+  const style = veilStyle(false);
+  if (style && !style.dataset.owner) style.textContent = "";
+}
 export function veilChat(threadId: string, capMs = VEIL_MAX_MS + VEIL_SAFETY_MS) {
   if (veil?.threadId === threadId) return veil.at;
   unveilChat(null);
@@ -274,4 +278,5 @@ export function primeScrollRoute() {
     } else if (marker && Date.now() - marker.at > 60000) sessionStorage.removeItem(ROUTE_KEY);
   } catch {}
   try { primeVeil(); } catch {}
+  if (!veil) dropPreveil();
 }

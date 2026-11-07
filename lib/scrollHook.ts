@@ -6,6 +6,12 @@ const hooked = new Set<HTMLElement>();
 const notes = new WeakMap<HTMLElement, (from: number, via: string, smooth?: number | null) => void>();
 let own = 0;
 let intoView: { original: Element["scrollIntoView"]; wrapper: Element["scrollIntoView"] } | null = null;
+const gates = new Set<(element: Element) => boolean>();
+
+export function gateIntoView(gate: (element: Element) => boolean) {
+  gates.add(gate);
+  return () => { gates.delete(gate); };
+}
 
 export function ownWrite(write: () => void) {
   own++;
@@ -61,6 +67,9 @@ function hookIntoView() {
   const original = Element.prototype.scrollIntoView;
   if (typeof original !== "function") return;
   const wrapper = function (this: Element, ...args: unknown[]) {
+    for (const gate of gates) {
+      try { if (gate(this)) return; } catch {}
+    }
     const around: { scroller: HTMLElement; from: number }[] = [];
     for (const scroller of hooked) if (scroller !== this && scroller.contains(this)) around.push({ scroller, from: scroller.scrollTop });
     try { return (original as (...a: unknown[]) => void).apply(this, args); }
@@ -87,6 +96,7 @@ export function releaseScrollHooks() {
     notes.delete(scroller);
   }
   hooked.clear();
+  gates.clear();
   if (intoView && Element.prototype.scrollIntoView === intoView.wrapper) Element.prototype.scrollIntoView = intoView.original;
   intoView = null;
 }
