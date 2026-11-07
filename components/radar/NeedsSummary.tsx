@@ -468,7 +468,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
         const lines = Number(row.dataset.lines) || 3;
         const wants = lines >= 3 ? used >= 3 : text.hasAttribute("data-short");
         const low = lines >= 3 && used >= 3 ? tall(2) : height;
-        return { id: row.dataset.need ?? "", low, gain: wants ? tall(3) - tall(2) : 0, loss: Number(text.dataset.loss) || 0 };
+        return { id: row.dataset.need ?? "", low, gain: wants ? tall(3) - tall(2) : 0, loss: Number(text.dataset.whole) || 0 };
       });
       let spare = room + 1 - (plan.reduce((sum, row) => sum + row.low + gap, 0) - gap);
       const next: Record<string, number> = {};
