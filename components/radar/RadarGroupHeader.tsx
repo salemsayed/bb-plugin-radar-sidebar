@@ -80,7 +80,6 @@ interface HeaderProps {
   onToggle: () => void;
   onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
   onNewThread?: () => void;
-  trailing?: ReactNode;
   /** Drag-to-reorder affordance; only project grouping supplies these. */
   drag?: {
     attributes: ReturnType<typeof useSortable>["attributes"];
@@ -95,7 +94,6 @@ export function GroupHeader({
   onToggle,
   onContextMenu,
   onNewThread,
-  trailing,
   drag,
 }: HeaderProps) {
   const counts =
@@ -161,7 +159,6 @@ export function GroupHeader({
           <Icon name="MessageSquarePlus" aria-hidden="true" />
         </button>
       ) : null}
-      {trailing}
     </div>
   );
 }
