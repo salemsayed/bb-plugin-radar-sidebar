@@ -18,6 +18,7 @@ import { recommendedOption, withoutMarks } from "./recommend";
 import { AnswerLabel, AskImpact, answerName } from "./AnswerLabel";
 
 const OPEN_WHAT = 96;
+const MAX_LINES = 4;
 
 const MIN_CONTEXT = 18;
 const OPEN_FORMS = [OPEN_WHAT, 84, 72, 60, 48, 40];
@@ -460,21 +461,24 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
         const height = row.getBoundingClientRect().height;
         const text = row.querySelector<HTMLElement>(".stage-needs-what");
         const item = row.querySelector<HTMLElement>(".stage-needs-item");
-        if (!row.hasAttribute("data-lined") || !text || !item) return { id: row.dataset.need ?? "", low: height, gain: 0, loss: 0 };
+        if (!row.hasAttribute("data-lined") || !text || !item) return { id: row.dataset.need ?? "", low: height, need: 0, tall: (_: number) => height, whole: 0 };
         const step = Number.parseFloat(getComputedStyle(text).lineHeight) || 16;
         const floor = Number.parseFloat(getComputedStyle(item).minHeight) || 0;
         const tall = (lines: number) => Math.max(floor, (coarse ? lines >= 3 ? 8 : 12 : 10) + lines * step);
         const used = Math.round(text.getBoundingClientRect().height / step);
-        const lines = Number(row.dataset.lines) || 3;
-        const wants = lines >= 3 ? used >= 3 : text.hasAttribute("data-short");
-        const low = lines >= 3 && used >= 3 ? tall(2) : height;
-        return { id: row.dataset.need ?? "", low, gain: wants ? tall(3) - tall(2) : 0, loss: Number(text.dataset.whole) || 0 };
+        const need = text.hasAttribute("data-short") ? MAX_LINES : Math.min(used, MAX_LINES);
+        return { id: row.dataset.need ?? "", low: tall(Math.min(2, Math.max(1, need))), need, tall, whole: Number(text.dataset.whole) || 0 };
       });
       let spare = room + 1 - (plan.reduce((sum, row) => sum + row.low + gap, 0) - gap);
       const next: Record<string, number> = {};
-      for (const row of plan) if (row.id) next[row.id] = row.gain > 0 ? 2 : 3;
-      for (const row of [...plan].filter(row => row.id && row.gain > 0).sort((a, b) => a.loss - b.loss)) {
-        if (row.gain <= spare) { next[row.id] = 3; spare -= row.gain; }
+      for (const row of plan) if (row.id) next[row.id] = 2;
+      const order = [...plan].filter(row => row.id && row.need > 2).sort((a, b) => a.whole - b.whole);
+      for (let lines = 3; lines <= MAX_LINES; lines++) {
+        for (const row of order) {
+          if (row.need < lines || next[row.id] !== lines - 1) continue;
+          const gain = row.tall(lines) - row.tall(lines - 1);
+          if (gain <= spare) { next[row.id] = lines; spare -= gain; }
+        }
       }
       setLineMap(prev => Object.keys(next).length === Object.keys(prev).length && Object.entries(next).every(([id, n]) => prev[id] === n) ? prev : next);
     };

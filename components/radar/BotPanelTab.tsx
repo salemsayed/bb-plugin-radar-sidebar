@@ -95,10 +95,9 @@ function Row({ title, meta, detail, impact, target, here, done, live, ask, after
   const more = !opens && (!!detail || !!onContinue);
   const cls = ["bot-item", done ? "bot-item-done" : "", ask ? "bot-item-ask" : "", opens ? "bot-item-opens" : ""].filter(Boolean).join(" ");
   const body = <>
-    {ask ? <span className="bot-item-meta bot-item-kicker" dir="auto">{meta}</span> : null}
     <span className="bot-item-title">{live ? <i className="bot-live-dot" aria-hidden="true" /> : null}<span dir="auto">{title}</span></span>
     {impact ? <span className="bot-item-impact" dir="auto">{impact}</span> : null}
-    {ask ? null : <span className="bot-item-meta" dir="auto">{meta}</span>}
+    <span className={ask ? "bot-item-meta bot-item-kicker" : "bot-item-meta"} dir="auto">{meta}</span>
     {opens || more ? <span className="bot-item-go" aria-hidden="true"><Icon name={opens ? "ArrowUpRight" : open ? "ChevronUp" : "ChevronDown"} aria-hidden="true" /></span> : null}
   </>;
   if (!opens && !more) return after ? <div className="bot-item-wrap" role="listitem" data-ask={ask || undefined}><div className={cls}>{body}</div>{after}</div> : <div className={cls} role="listitem">{body}</div>;

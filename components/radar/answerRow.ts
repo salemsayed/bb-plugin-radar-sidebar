@@ -34,7 +34,24 @@ function place(group: HTMLElement) {
     if (natural(group, buttons) <= room) { group.setAttribute("data-layout", "row"); return; }
     group.removeAttribute("data-tight");
   }
+  if (share(group, buttons)) { group.setAttribute("data-layout", "share"); return; }
   group.setAttribute("data-layout", "stack");
+}
+
+function share(group: HTMLElement, buttons: HTMLElement[]): boolean {
+  const gap = Number.parseFloat(getComputedStyle(group).columnGap) || 0;
+  const each = (group.clientWidth - gap * (buttons.length - 1)) / buttons.length;
+  const lines = matchMedia("(pointer: coarse)").matches ? 3 : 2;
+  return buttons.every(button => {
+    const label = button.querySelector<HTMLElement>(".radar-answer-text") ?? button;
+    const style = getComputedStyle(label);
+    const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const inner = each - chrome(button);
+    const parts = [...label.childNodes].map(node => node.textContent ?? "");
+    const runs = [...button.querySelectorAll<HTMLElement>(".radar-rtl-run")].map(run => textWidth(run.textContent ?? "", font));
+    const words = (button.textContent ?? "").split(/\s+/).filter(Boolean).map(word => textWidth(word, font));
+    return textWidth(parts.join(" ").trim(), font) <= inner * lines * 0.92 && Math.max(0, ...words, ...runs) <= inner;
+  });
 }
 
 export function answerRow(group: HTMLElement | null) {

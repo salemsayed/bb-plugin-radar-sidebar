@@ -682,7 +682,8 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-unfold [data-icon-root], .stage-needs-unfold svg { width: 14px; height: 14px; }
 @media (pointer: coarse) { .stage-needs li[data-folded] .stage-needs-item { min-height: 44px; } }
 .radar-answers { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; width: 100%; min-width: 0; margin: 0; }
-.radar-answers[data-layout="row"], .radar-answers[data-layout="measure"] { flex-wrap: nowrap; }
+.radar-answers[data-layout="row"], .radar-answers[data-layout="share"], .radar-answers[data-layout="measure"] { flex-wrap: nowrap; }
+.radar-answers[data-layout="share"] > .radar-answer { flex: 1 1 0; }
 .radar-answers[data-layout="measure"] > .radar-answer { flex: none; max-width: none; white-space: nowrap; }
 .radar-answers[data-layout="stack"] { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
 .radar-answers[data-layout="stack"] > .radar-answer, .dispatch-panel .radar-answers[data-layout="stack"] > button.dispatch-option.radar-answer { flex: none; width: 100%; max-width: 100%; }
@@ -711,12 +712,13 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .stage-needs-item[data-lined] .stage-needs-status { display: none; }
 .stage-needs-item[data-lined] .stage-needs-what { display: block; max-height: 32px; overflow: hidden; -webkit-line-clamp: none; line-clamp: none; overflow-wrap: break-word; }
 .stage-needs li[data-lines="3"] .stage-needs-item[data-lined] .stage-needs-what { max-height: 48px; }
+.stage-needs li[data-lines="4"] .stage-needs-item[data-lined] .stage-needs-what { max-height: 64px; }
 .stage-needs-lined-who::before { content: attr(data-text); font-weight: 650; margin-inline-end: 5px; }
 .stage-needs-lined-age { float: inline-end; margin-inline-start: 8px; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stage-needs-lined-age::before { content: attr(data-text); }
 @media (pointer: coarse) {
   .stage-needs-item[data-lined] { min-height: 44px; padding: 6px 10px; }
-  .stage-needs li[data-lines="3"] > .stage-needs-item[data-lined] { padding-block: 4px; }
+  .stage-needs li:is([data-lines="3"], [data-lines="4"]) > .stage-needs-item[data-lined] { padding-block: 4px; }
   .radar-list-body:has(.stage-needs[data-open]), .stage:has(.stage-needs[data-open]) { padding-bottom: 0; }
   .stage:has(.stage-needs[data-open]) > .stage-needs-slot { margin-bottom: 2px; }
 }
@@ -725,4 +727,4 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   .radar-list-shell[data-radar-mode="bots"] .radar-list-body { scrollbar-width: none; }
   .radar-list-shell[data-radar-mode="bots"] .radar-list-body::-webkit-scrollbar { display: none; }
 }
-.bot-item-kicker { font-size: 11.5px; font-weight: 600; }
+.bot-item-kicker { order: -1; font-size: 11.5px; font-weight: 600; }
