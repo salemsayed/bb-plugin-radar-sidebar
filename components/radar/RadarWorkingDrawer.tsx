@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/icon";
 import { GroupHeader } from "./RadarGroupHeader";
 import { RadarWorkingPeek } from "./RadarWorkingPeek";
 import { Fold, renderSubtree, type RenderRow } from "./RadarGroupList";
 import { isLiveThread } from "./time";
 import type { ThreadGroup } from "./useThreadGroups";
+
+const WORKING_ROUTE = "/plugins/orchestrator-mode/working";
 
 /**
  * Threads with work in flight, folded under the list. Hovering the header
@@ -91,6 +94,16 @@ export function RadarWorkingDrawer({
               isCollapsed={!open}
               onToggle={onToggle}
               onContextMenu={(event) => event.preventDefault()}
+              trailing={
+                <a
+                  className="radar-group-new-thread radar-working-all"
+                  href={WORKING_ROUTE}
+                  aria-label="Open every bot's working tasks"
+                  title="Every bot's working tasks"
+                >
+                  <Icon name="ListTodo" aria-hidden="true" />
+                </a>
+              }
             />
           </div>
           <Fold collapsed={!open} role="list" label={`${workingGroup.label} threads`}>
