@@ -52,12 +52,13 @@ export function isRunningThread(thread: PluginSidebarThread): boolean {
     return true;
   }
   const activity = thread.activity;
+  const goals = (activity as { goals?: number }).goals ?? 0;
   if (
     activity.workflows +
       activity.backgroundAgents +
       activity.backgroundCommands +
       activity.planMode +
-      activity.goals >
+      goals >
     0
   ) {
     return true;

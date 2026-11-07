@@ -17,6 +17,14 @@ const LIST_LIMIT = 200;
  * shape bb uses for that project.
  */
 export function toSidebarThread(raw: ListedThread, feed: readonly PluginSidebarThread[] = []): PluginSidebarThread {
+  const goals = (raw.activity as { activeGoalCount?: number } | undefined)?.activeGoalCount ?? 0;
+  const activity = {
+    workflows: raw.activity?.activeWorkflowCount ?? 0,
+    backgroundAgents: raw.activity?.activeBackgroundAgentCount ?? 0,
+    backgroundCommands: raw.activity?.activeBackgroundCommandCount ?? 0,
+    planMode: raw.activity?.activePlanModeCount ?? 0,
+    goals,
+  };
   const sibling = feed.find(thread => thread.projectId === raw.projectId && thread.href.endsWith(`/${thread.id}`));
   const hostName = raw.environmentHostId ? feed.find(thread => thread.host?.id === raw.environmentHostId)?.host?.name : undefined;
   return {
@@ -37,13 +45,7 @@ export function toSidebarThread(raw: ListedThread, feed: readonly PluginSidebarT
     runtimeStatus: raw.runtime?.displayStatus ?? raw.status,
     queuedWork: "none",
     hasPendingInteraction: false,
-    activity: {
-      workflows: raw.activity?.activeWorkflowCount ?? 0,
-      backgroundAgents: raw.activity?.activeBackgroundAgentCount ?? 0,
-      backgroundCommands: raw.activity?.activeBackgroundCommandCount ?? 0,
-      planMode: raw.activity?.activePlanModeCount ?? 0,
-      goals: raw.activity?.activeGoalCount ?? 0,
-    },
+    activity,
     indicator: "none",
     indicatorLabel: null,
     isUnread: false,
