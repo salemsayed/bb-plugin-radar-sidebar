@@ -116,6 +116,15 @@ export function choiceForms(question: string, title = "", count = 0): string[] {
   return forms.filter((form, i) => form && forms.indexOf(form) === i);
 }
 
+export function choicePairs(question: string, count = 0): string[] {
+  const choice = splitChoice(question, count);
+  if (!choice || choice.options.length !== 2) return [];
+  const [first, second] = choice.options.map(optionCuts) as [string[], string[]];
+  const out: string[] = [];
+  for (const b of second) out.push(...first.map(a => joined([a, b])).sort((x, y) => y.length - x.length));
+  return out.filter((form, i) => out.indexOf(form) === i);
+}
+
 export function isChoice(question: string, count = 0): boolean {
   return splitChoice(question, count) !== null;
 }

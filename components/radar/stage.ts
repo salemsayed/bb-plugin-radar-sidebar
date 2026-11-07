@@ -180,8 +180,10 @@ export function stageTitle(raw: string, outcome?: string): string {
   const request = MERGE_REQUEST.exec(raw.trim());
   if (request) return `Merge request ${request[2]}`;
   const whole = outcome ? participleEnd(wholeTitle(raw, outcome), outcome) : raw;
-  return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))));
+  return capitalFirst(plainNote(secondPerson(flatten(taskHeadline(plainWorkerTitle(whole))).replace(/(?<![\w-])Salem's\b/g, "your").replace(/(?<![\w-])Salem\b(?!-)/g, "you"))).replace(OWNED_LEAD, ""));
 }
+
+const OWNED_LEAD = /^(?:One\s+)?(?:Lab|Bricks|Home|Work|Personal|Security|ERBareeq)-owned\s+(?=\S)/i;
 
 const SCHEDULED_RUN = /\bwakes on automation-run\b/i;
 const RUN_TIME = /\b(today's|tonight's|tomorrow's|(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day's)\s+(\d{1,2}:\d{2})\b/;
@@ -205,7 +207,7 @@ export function nextCheck(at: number, now: number): string {
   if (days === 0) return `Next check ${time}`;
   if (days === 1) return `Next check tomorrow\u00a0${time}`;
   if (days < 7) return `Next check ${clearsWeekdayFormatter.format(new Date(at))}\u00a0${time}`;
-  return `Next check ${when}`;
+  return `Next check ${when.replace(/\s+/g, "\u00a0")}`;
 }
 
 export function answeredHere(later: { reason: string; messageSeq?: number }): boolean {

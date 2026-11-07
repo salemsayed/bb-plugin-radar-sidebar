@@ -9,7 +9,7 @@ import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { clauseCut, cutAtWord } from "./workText";
 import { FitLines, fitWords } from "./FitLines";
-import { askForms, isChoice, questionCuts, shortChoice } from "./choiceFit";
+import { askForms, choiceForms, choicePairs, isChoice, optionCuts, questionCuts, shortChoice, splitChoice } from "./choiceFit";
 import { Isolated } from "./Isolated";
 import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
@@ -213,6 +213,60 @@ export function compactForms(what: string, title = "", count = 0): string[] {
   return [...new Set([head, base, ...clauses, ...prefixCuts(base, choice), ...askForms(base, OPEN_FORMS, fitWhat, title, count), fitWhat(base, 40)])];
 }
 
+const TOPIC = /^[^:?.!]{3,40}:\s+(?=\S)/;
+const MONEY = /(?:EGP|USD|EUR|SAR|AED|\$|€|£)\s?\d[\d,.]*|\d[\d,.]*\s?(?:EGP|USD|EUR|SAR|AED)\b/g;
+const PAREN_MONEY = /\s*\((?=[^()]*\d)[^()]{1,40}\)\s*$/;
+
+export function askedSentence(what: string): string {
+  const head = what.split(" \u00b7 ")[0]!.trim();
+  const parts = head.split(/(?<=[.!?])\s+(?=\S)/);
+  const asked = parts.length > 1 ? [...parts].reverse().find(part => /\?\s*$/.test(part) && part.split(/\s+/).length >= 3) : undefined;
+  const base = asked ?? head;
+  const topic = TOPIC.exec(base);
+  return topic ? capitalFirst(base.slice(topic[0].length)) : base;
+}
+
+export function keepsDecision(form: string, whole: string, count = 0): boolean {
+  if (splitChoice(whole, count) && (!/,?\s+or\s+\S/i.test(form.replace(/\([^()]*\)/g, "")) || form.endsWith("\u2026"))) return false;
+  return [...whole.matchAll(MONEY)].every(match => form.includes(match[0]));
+}
+
+export function linedForms(what: string, title = "", count = 0): string[] {
+  const head = what.split(" \u00b7 ")[0]!.trim();
+  const bare = askedSentence(what);
+  const choice = splitChoice(bare, count);
+  const shorter = choice ? choice.options.length === 2 ? choicePairs(bare, count) : choiceForms(bare, title, count) : askForms(bare, OPEN_FORMS, fitWhat, title, count);
+  const forms = [head, bare, ...questionCuts(bare), ...shorter].filter(form => keepsDecision(form, bare, count));
+  return [...new Set(forms.length ? forms : [bare])];
+}
+
+export function protectedCut(what: string, count: number, fits: (form: string) => boolean): string {
+  const text = askedSentence(what);
+  const mark = /\?\s*$/.test(text) ? "?" : "";
+  const body = text.replace(/\?\s*$/, "");
+  const choice = splitChoice(text, count);
+  let lead = body;
+  const tails: string[] = [];
+  if (choice && choice.options.length === 2) {
+    const at = body.search(/,?\s+or\s+(?!.*\s+or\s)/i);
+    if (at > 0) { lead = body.slice(0, at); for (const cut of optionCuts(choice.options[1]!)) tails.push(`, or ${cut}${mark}`); }
+  } else {
+    const money = PAREN_MONEY.exec(body);
+    if (money && MONEY.test(money[0])) { lead = body.slice(0, money.index); tails.push(`${money[0].trimEnd()}${mark}`); }
+    MONEY.lastIndex = 0;
+  }
+  if (!tails.length) return fitWords(text, fits);
+  const words = lead.split(/\s+/).filter(Boolean);
+  for (const tail of tails) {
+    for (let n = words.length - 1; n >= 2; n--) {
+      if (LOOSE.test(words[n - 1]!.replace(/[^\p{L}\p{N}]/gu, ""))) continue;
+      const form = `${words.slice(0, n).join(" ").replace(/[\s,;:\u00b7\u2013\u2014-]+$/, "")}\u2026${tail}`;
+      if (fits(form)) return form;
+    }
+  }
+  return `${words.slice(0, 2).join(" ")}\u2026${tails[tails.length - 1]}`;
+}
+
 function ArrivalText({ what, title, answers }: { what: string; title?: string; answers: readonly string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
   const key = answers.join("\n");
@@ -383,11 +437,12 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
     (buttons[Math.min(at, buttons.length - 1)] ?? headRef.current)?.focus();
   });
   const shownKey = open ? shown.map(item => item.id).join("|") : "";
-  const [budget, setBudget] = useState(3);
+  const [lineMap, setLineMap] = useState<Readonly<Record<string, number>>>({});
+  const frozenLines = unfolded.size > 0;
   useLayoutEffect(() => {
     const list = listRef.current;
     const box = list?.closest<HTMLElement>(".stage-needs");
-    if (!open || !list || !box) return;
+    if (!open || !list || !box || frozenLines) return;
     let scroller: HTMLElement | null = box.parentElement;
     while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
     if (!scroller) return;
@@ -400,9 +455,24 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
       const end = Math.max(...Array.from(area.children).flatMap(child => child.contains(box) ? Array.from(child.children) : [child]).map(child => child.getBoundingClientRect().bottom - top + (Number.parseFloat(getComputedStyle(child).marginBottom) || 0))) + (Number.parseFloat(getComputedStyle(area).paddingBottom) || 0);
       const room = area.clientHeight - (end - (slotBox.bottom - top)) - (lb.top - top) - (bb.bottom - lb.bottom);
       const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
-      const tall = (matchMedia("(pointer: coarse)").matches ? 12 : 10) + 48;
-      const need = rows.reduce((sum, row) => sum + (row.hasAttribute("data-lined") ? tall : row.getBoundingClientRect().height) + gap, 0) - gap;
-      setBudget(need <= room + 1 ? 3 : 2);
+      const plan = rows.map(row => {
+        const height = row.getBoundingClientRect().height;
+        const text = row.querySelector<HTMLElement>(".stage-needs-what");
+        if (!row.hasAttribute("data-lined") || !text) return { id: row.dataset.need ?? "", low: height, gain: 0 };
+        const step = Number.parseFloat(getComputedStyle(text).lineHeight) || 16;
+        const used = Math.round(text.getBoundingClientRect().height / step);
+        const lines = Number(row.dataset.lines) || 3;
+        const low = height - step * Math.max(0, used - 2);
+        const gain = lines >= 3 ? used >= 3 ? step : 0 : text.hasAttribute("data-short") ? step : 0;
+        return { id: row.dataset.need ?? "", low, gain };
+      });
+      let spare = room + 1 - (plan.reduce((sum, row) => sum + row.low + gap, 0) - gap);
+      const next: Record<string, number> = {};
+      for (const row of plan) {
+        if (!row.id) continue;
+        if (row.gain > 0 && row.gain <= spare) { next[row.id] = 3; spare -= row.gain; } else next[row.id] = row.gain > 0 ? 2 : 3;
+      }
+      setLineMap(prev => Object.keys(next).length === Object.keys(prev).length && Object.entries(next).every(([id, n]) => prev[id] === n) ? prev : next);
     };
     decide();
     const observer = new ResizeObserver(decide);
@@ -411,7 +481,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
     for (const child of Array.from(area.children)) if (!child.contains(box)) observer.observe(child);
     const settle = [setTimeout(decide, 350), setTimeout(decide, 900)];
     return () => { observer.disconnect(); settle.forEach(clearTimeout); };
-  }, [open, shownKey]);
+  }, [open, shownKey, frozenLines]);
   const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : olderOpen ? `${olderOpen} older ${olderOpen === 1 ? "question" : "questions"}` : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
     if (!onNotNow) return;
@@ -466,10 +536,10 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
       {staleShown ? <RetryButton stale={staleShown} at="head" /> : null}
       {waiting && !staleShown && (collapse || more === 0) ? <span className="stage-needs-count" title={`${waiting} waiting for you`} aria-hidden="true">{waiting}</span> : null}
     </h2>
-    <ul ref={listRef} data-lines={open ? budget : undefined}>
+    <ul ref={listRef}>
       {undoRow ? <li className="stage-needs-undo">{undoRow}</li> : null}
       {shown.map((item, index) => <NeedRow key={item.id} item={item} bot={faces.get(item.botKey)} now={now} current={item.id === currentId} offline={!!staleShown} outcome={liveOutcome(item, outcomes, now)}
-        lined={open && !unfolded.has(item.id)} budget={budget}
+        lined={open && !unfolded.has(item.id)} lines={lineMap[item.id] ?? 3}
         folded={open && index > 0 && item.id !== currentId && !unfolded.has(item.id) && !!onAnswer && boxAnswers(item).length > 0}
         onUnfold={() => setUnfolded(prev => new Set(prev).add(item.id))}
         onOpen={onOpen} onMenu={onMenu} onNotNow={onNotNow && !staleShown ? keyboard => notNowFrom(item, index, keyboard) : undefined} onAnswer={onAnswer ? label => onAnswer(item, label) : undefined} />)}
@@ -554,10 +624,10 @@ function AgeFit({ forms, className }: { forms: readonly string[]; className: str
   return <span ref={ref} className={className}>{forms[fit] ?? ""}</span>;
 }
 
-function NeedRow({ item, bot, now, current, offline, outcome, lined = false, budget = 2, folded: foldedAsked = false, onUnfold, onOpen, onMenu, onNotNow, onAnswer }: {
+function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lines = 3, folded: foldedAsked = false, onUnfold, onOpen, onMenu, onNotNow, onAnswer }: {
   item: NeedItem;
   lined?: boolean;
-  budget?: number;
+  lines?: number;
   folded?: boolean;
   onUnfold?: () => void;
   bot: BotTasksData["bots"][number] | undefined;
@@ -613,7 +683,8 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, bud
         onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
         <Icon name="MoreHorizontal" aria-hidden="true" />
       </button>} /> : null;
-  return <li data-need={item.id} data-lined={lined || undefined} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} data-park={parkTool ? "" : undefined} data-menu={threadMenu ? "" : undefined} {...press}
+  const count = item.options?.length ?? 0;
+  return <li data-need={item.id} data-lined={lined || undefined} data-lines={lined ? lines : undefined} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} data-park={parkTool ? "" : undefined} data-menu={threadMenu ? "" : undefined} {...press}
     onFocus={() => setInside(true)}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInside(false); }}
     onContextMenu={event => {
@@ -632,10 +703,11 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, bud
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}
       <span className="stage-needs-copy">
         <span className="stage-needs-who"><b>{shortName}</b><span className="stage-needs-status" aria-hidden="true">{headStatus}</span></span>
-        <FitLines className="stage-needs-what" forms={lined ? compactForms(what, item.title, item.options?.length ?? 0) : oneForms(what, OPEN_FORMS, item.title, item.options?.length ?? 0)}
-          room={lined ? budget : 0}
+        <FitLines className="stage-needs-what" forms={lined ? linedForms(what, item.title, count) : oneForms(what, OPEN_FORMS, item.title, count)}
+          room={lined ? lines : 0}
+          fallback={lined ? fits => protectedCut(what, count, fits) : undefined}
           lead={lined ? <span className="stage-needs-lined-who" data-text={shortName} aria-hidden="true" /> : undefined}
-          aside={lined ? <span className="stage-needs-lined-age" data-text={item.state === "later" ? "Later" : item.state ? item.state === "answered" ? "Answered" : "Done" : ageText} aria-hidden="true" /> : undefined} />
+          trail={lined ? <span className="stage-needs-lined-age" data-text={item.state === "later" ? "Later" : item.state ? item.state === "answered" ? "Answered" : "Done" : ageText} data-trail="" aria-hidden="true" /> : undefined} />
         {!folded && !lined && !item.state ? <AskImpact className="stage-needs-impact" text={item.consequence} /> : null}
         {folded ? <span className="stage-needs-unfold" aria-hidden="true">{`${boxAnswers(item).length} answers`}<Icon name="ChevronDown" aria-hidden="true" /></span> : null}
       </span>

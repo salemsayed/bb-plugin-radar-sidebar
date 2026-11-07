@@ -3,7 +3,7 @@ import { Isolated } from "./Isolated";
 import { keepHyphens } from "./displayText";
 import { fitWhole } from "./AnswerLabel";
 
-export function FitLines({ forms, className, dir = "auto", lead, aside, room = 0 }: { forms: readonly string[]; className?: string; dir?: "auto" | "ltr" | "rtl"; lead?: ReactNode; aside?: ReactNode; room?: number }) {
+export function FitLines({ forms, className, dir = "auto", lead, aside, trail, room = 0, fallback }: { forms: readonly string[]; className?: string; dir?: "auto" | "ltr" | "rtl"; lead?: ReactNode; aside?: ReactNode; trail?: ReactNode; room?: number; fallback?: (fits: (form: string) => boolean) => string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const key = forms.join("\n");
   const [at, setAt] = useState(0);
@@ -18,10 +18,11 @@ export function FitLines({ forms, className, dir = "auto", lead, aside, room = 0
     if (!host) return;
     const probe = node.cloneNode(false) as HTMLElement;
     probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;width:${node.getBoundingClientRect().width}px`;
-    const keep = Array.from(node.children).filter(child => child.hasAttribute("data-text")).map(child => child.cloneNode(true));
+    const keep = Array.from(node.children).filter(child => child.hasAttribute("data-text") && !child.hasAttribute("data-trail")).map(child => child.cloneNode(true));
+    const after = Array.from(node.children).filter(child => child.hasAttribute("data-trail")).map(child => child.cloneNode(true));
     host.appendChild(probe);
-    const fits = (form: string) => { probe.replaceChildren(...keep, document.createTextNode(form)); return probe.scrollHeight <= probe.clientHeight + 1; };
-    const next = fitWhole(forms[0] ?? "", fits);
+    const fits = (form: string) => { probe.replaceChildren(...keep, document.createTextNode(form), ...after); return probe.scrollHeight <= probe.clientHeight + 1; };
+    const next = fallback ? fallback(fits) : fitWhole(forms[0] ?? "", fits);
     probe.remove();
     setCut(next);
   });
@@ -35,7 +36,7 @@ export function FitLines({ forms, className, dir = "auto", lead, aside, room = 0
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  return <span ref={ref} className={className} dir={dir}>{aside}{lead}<Isolated text={keepHyphens(cut ?? forms[Math.min(at, forms.length - 1)] ?? "")} /></span>;
+  return <span ref={ref} className={className} dir={dir} data-short={cut !== null || at > 0 ? "" : undefined}>{aside}{lead}<Isolated text={keepHyphens(cut ?? forms[Math.min(at, forms.length - 1)] ?? "")} />{trail}</span>;
 }
 
 export function cutForms(whole: string, fit: (text: string, max: number) => string, sizes: readonly number[]): string[] {

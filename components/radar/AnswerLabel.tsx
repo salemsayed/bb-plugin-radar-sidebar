@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Isolated } from "./Isolated";
 
 
@@ -51,9 +51,10 @@ export function fitImpact(text: string, fits: (form: string) => boolean): string
   return impactForms(text).find(fits) ?? fitWhole(text, fits);
 }
 
-export function AskImpact({ text, className }: { text?: string; className: string }) {
+export function AskImpact({ text, className, growWithin }: { text?: string; className: string; growWithin?: { root: string; share: number } }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
+  const [grown, setGrown] = useState(false);
   const [shown, setShown] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
@@ -71,21 +72,28 @@ export function AskImpact({ text, className }: { text?: string; className: strin
     const host = box?.parentElement;
     if (!box || !host || !text || open) { setShown(null); return; }
     const style = getComputedStyle(box);
-    const lines = Number.parseInt(style.getPropertyValue("-webkit-line-clamp"), 10) || Number.parseInt(getComputedStyle(host).getPropertyValue("--impact-lines"), 10) || 1;
-    const limit = lines * (Number.parseFloat(style.lineHeight) || 16) + 1;
+    const step = Number.parseFloat(style.lineHeight) || 16;
+    const base = grown ? 1 : Number.parseInt(style.getPropertyValue("-webkit-line-clamp"), 10) || Number.parseInt(getComputedStyle(host).getPropertyValue("--impact-lines"), 10) || 1;
+    const root = growWithin ? box.closest<HTMLElement>(growWithin.root) : null;
+    const room = root && base < 2 ? root.getBoundingClientRect().height - box.getBoundingClientRect().height + step * 2 <= innerHeight * growWithin!.share - 0.5 : false;
+    const lines = room ? 2 : base;
+    const limit = lines * step + 1;
     const probe = document.createElement("span");
     probe.className = box.className;
     probe.dir = "auto";
     probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:0;top:0;display:block;width:${box.getBoundingClientRect().width}px;-webkit-line-clamp:none;line-clamp:none;overflow:visible`;
     host.appendChild(probe);
     const fits = (form: string) => { probe.textContent = form; return probe.scrollHeight <= limit; };
+    probe.textContent = text;
+    const wants = probe.scrollHeight > step + 1;
     const next = fits(text) ? null : fitImpact(text, fits);
     probe.remove();
+    setGrown(room && wants);
     setShown(next);
   }, [text, open, width]);
   if (!text) return null;
   const toggle = (event: { stopPropagation: () => void; preventDefault: () => void }) => { event.stopPropagation(); event.preventDefault(); setOpen(value => !value); };
-  return <span className={`${className} radar-impact`} data-open={open || undefined}>
+  return <span className={`${className} radar-impact`} data-open={open || undefined} style={grown ? { "--impact-lines": 2 } as CSSProperties : undefined}>
     <span className="radar-impact-text" ref={ref} dir="auto" title={shown !== null ? text : undefined}><Isolated text={shown ?? text} /></span>
     {shown !== null || open ? <span role="button" tabIndex={-1} className="radar-impact-more" aria-hidden="true" onPointerDown={event => event.stopPropagation()} onClick={toggle}>{open ? "less" : "more"}</span> : null}
   </span>;
