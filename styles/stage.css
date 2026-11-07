@@ -725,3 +725,4 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   .radar-list-shell[data-radar-mode="bots"] .radar-list-body { scrollbar-width: none; }
   .radar-list-shell[data-radar-mode="bots"] .radar-list-body::-webkit-scrollbar { display: none; }
 }
+.bot-item-kicker { font-size: 11.5px; font-weight: 600; }
