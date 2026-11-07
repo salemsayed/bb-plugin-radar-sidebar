@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Removed (2026-11-07, Salem: "I want to stop the ChatGPT bridge, stop, remove, delete it all")
+
+- The ChatGPT bridge's traces: the "Relayed via ChatGPT" request label and the `[via ChatGPT]` exclusion from Salem's own turns. Requests read "You asked" or "Bot request".
+
 ### Changed (2026-11-05, Salem: "i want a ui/ux/interaction/text/clarity hillclimb on the bots sidebar", round 1)
 
 - A "Needs you" box at the top lists every question, desk and thread waiting on you, with the bot and age; one tap opens it. When nothing waits it says so.

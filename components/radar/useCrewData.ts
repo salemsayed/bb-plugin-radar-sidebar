@@ -14,7 +14,7 @@ export function needsKeyOf(items: readonly { id: string; state: string }[] | nul
  * Whether each settled coordinator is waiting on Salem, from its bot's saved
  * Needs You items on the server (lib/needsServer askJudgements). Asks again
  * when a coordinator settles on a new reply and whenever the Needs You list
- * changes, here or elsewhere (a bot or ChatGPT closing an ask). Working
+ * changes, here or elsewhere (a bot closing an ask). Working
  * coordinators are asked about too: the answer comes from the saved items,
  * not the reply, and skipping them kept a closed ask on screen while its bot
  * was busy (Astra, 2026-10-10).
@@ -55,7 +55,7 @@ export function useCrewJudgements(coordinators: readonly PluginSidebarThread[], 
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
     };
-    // needsKey: Needs You changes made elsewhere (a bot or ChatGPT closing an ask) re-judge too.
+    // needsKey: Needs You changes made elsewhere (a bot closing an ask) re-judge too.
   }, [rpc, key, retry, needsKey]);
   return judgements;
 }

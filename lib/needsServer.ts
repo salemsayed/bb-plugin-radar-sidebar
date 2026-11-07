@@ -54,7 +54,7 @@ export function salemTurn(data: unknown): boolean {
   const d = data as { initiator?: string; senderThreadId?: string | null; originPluginId?: string | null; source?: string; systemMessageKind?: string; input?: { type?: string; text?: string; visibility?: string }[] };
   const text = (d.input ?? []).filter(part => (!part.type || part.type === "text") && !part.visibility).map(part => part.text ?? "").join("\n");
   return d.initiator === "user" && !d.senderThreadId && !d.originPluginId && d.source !== "spawn" && (!d.systemMessageKind || d.systemMessageKind === "unlabeled")
-    && !!text.trim() && !/^\s*(?:\[via ChatGPT\]|[\u21b3\u2937]|\/[a-z][\w-]*\s*$)/i.test(text) && !TEST_MESSAGE.test(text);
+    && !!text.trim() && !/^\s*(?:[\u21b3\u2937]|\/[a-z][\w-]*\s*$)/i.test(text) && !TEST_MESSAGE.test(text);
 }
 
 const CHIP = /::task\{\s*id\s*=\s*"([^"]+)"\s*\}/g;
@@ -339,7 +339,7 @@ export function createNeedsServer(bb: BbPluginApi) {
     },
     handlers: {
       async crew_needs_list(): Promise<{ items: NeedsItem[] | null }> {
-        // A list read never starts a classifier: bots, Salem and ChatGPT close items.
+        // A list read never starts a classifier: bots and Salem close items.
         let items: NeedsItem[];
         try { items = (await list()).items; } catch { return { items: null }; }
         return { items: await Promise.all(items.map(item => item.kind === "decision" ? withPlace(item) : item)) };

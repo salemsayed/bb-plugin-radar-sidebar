@@ -611,7 +611,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
     const parts = askParts({ ...ask, label: "You asked", excerpt: answers, full: answers }, now, askerOf, own);
     return { ...parts, head: parts.head.replace(/^You asked\b/, "You answered"), excerpt: long || parts.excerpt, kind: "yours", ...(long ? { part: "excerpt" } : {}) };
   }
-  const label = /^(You asked|Relayed via ChatGPT|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
+  const label = /^(You asked|Bot request)/.exec(ask.label)?.[1] ?? "You asked";
   const found = ASKER.exec(ask.excerpt);
   const named = found?.[2]?.trim() || (found?.[1] ? askerOf?.(found[1]) : undefined);
   const asker = named && named !== own ? named : named ? "Its own chat" : found?.[1] ? "Another chat" : undefined;
