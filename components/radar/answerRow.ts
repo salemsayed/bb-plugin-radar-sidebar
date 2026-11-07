@@ -64,3 +64,14 @@ function share(group: HTMLElement, buttons: HTMLElement[], columns: number): boo
     return total <= inner * lines * 0.92 && widest <= inner;
   });
 }
+
+export function answerRow(group: HTMLElement | null) {
+  if (!group) return;
+  place(group);
+  if (watched.has(group)) return;
+  let width = group.clientWidth;
+  const observer = new ResizeObserver(() => { if (Math.abs(group.clientWidth - width) < 1) return; width = group.clientWidth; place(group); });
+  observer.observe(group);
+  watched.set(group, observer);
+  void document.fonts?.ready.then(() => place(group));
+}
