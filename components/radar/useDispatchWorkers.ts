@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { experimental_useSidebarThreads, useSdk } from "@get-bb/plugin-sdk/app";
-import { isClosed, taskAttempts, taskDetailSchema, type Attempt, type BotTasksData } from "@/lib/botTasks";
+import { z } from "zod";
+import { isClosed, taskAttempts, taskDetailSchema, type Attempt, type BotTasksData, type TaskDetail } from "@/lib/botTasks";
 import { isQuestionRow } from "./questions";
 
 export type WorkerSnapshot = { byTask: Record<string, Attempt[]>; byBot: Record<string, Attempt[]>; known: Set<string>; failedChecks: Set<string>; chat: Set<string> };
@@ -46,58 +47,101 @@ export function withNamedWorkers(snapshot: WorkerSnapshot, bots: BotTasksData["b
   return next ?? snapshot;
 }
 
+const THREAD_LIST_MAX_IDS = 200;
+async function listThreads(sdk: Sdk, ids: readonly string[]) {
+  const rows: Awaited<ReturnType<Sdk["threads"]["list"]>> = [];
+  for (let at = 0; at < ids.length; at += THREAD_LIST_MAX_IDS) rows.push(...await sdk.threads.list({ threadIds: ids.slice(at, at + THREAD_LIST_MAX_IDS), includeHidden: true }));
+  return rows;
+}
+
+const taskDetailsSchema = z.object({ details: z.array(taskDetailSchema.nullable()) });
+async function taskDetails(sdk: Sdk, taskIds: readonly string[]): Promise<(TaskDetail | null)[]> {
+  if (!taskIds.length) return [];
+  try {
+    const out: (TaskDetail | null)[] = [];
+    for (let at = 0; at < taskIds.length; at += 200) {
+      const page = await sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "task_details", input: { taskIds: taskIds.slice(at, at + 200) }, outputSchema: taskDetailsSchema });
+      if (page.details.length !== Math.min(200, taskIds.length - at)) throw new Error("task_details answered a different number of tasks");
+      out.push(...page.details);
+    }
+    return out;
+  } catch {
+    return Promise.all(taskIds.map(taskId => sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "task_detail", input: { taskId }, outputSchema: taskDetailSchema }).catch(() => null)));
+  }
+}
+
+export async function scanWorkers(sdk: Sdk, bots: BotTasksData["bots"]): Promise<WorkerSnapshot> {
+  const next = empty();
+  const chat = chatting(sdk, bots);
+  const open = bots.map(bot => bot.tasks.filter(task => !isClosed(task.displayState) && !isQuestionRow(task)));
+  const flat = await taskDetails(sdk, open.flat().map(task => task.id));
+  let cursor = 0;
+  const details = open.map(tasks => tasks.map(() => flat[cursor++] ?? null));
+  const ids = [...new Set([...details.flat().flatMap(detail => detail?.workers.map(worker => worker.threadId) ?? []), ...bots.flatMap(bot => bot.unlinked.map(w => w.threadId))])];
+  let rows: Awaited<ReturnType<typeof listThreads>> | null = [];
+  try { if (ids.length) rows = await listThreads(sdk, ids); } catch { rows = null; }
+  const pick = (wanted: readonly string[]) => { const set = new Set(wanted); return (rows ?? []).filter(t => set.has(t.id)); };
+  bots.forEach((bot, b) => {
+    let known = true;
+    const workers = new Map<string, Attempt>();
+    open[b]!.forEach((task, i) => {
+      const detail = details[b]![i];
+      if (!detail) { known = false; return; }
+      if (detail.checks.some(check => check.status === "fail" || check.verdict === "insufficient" || check.verdict === "contradicted")) next.failedChecks.add(task.id);
+      const workerIds = detail.workers.map(worker => worker.threadId);
+      if (workerIds.length && rows === null) { known = false; return; }
+      const threads = workerIds.length ? pick(workerIds) : [];
+      const attempts = taskAttempts({ conversationThreadId: null }, detail, threads.map(t => ({ ...t, status: t.status === "active" ? "running" : t.status })));
+      next.byTask[task.id] = attempts;
+      attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId && !bot.desks.some(desk => desk.threadId === a.threadId)).forEach(a => workers.set(a.threadId, a));
+    });
+    if (bot.unlinked.length) {
+      if (rows === null) known = false;
+      else {
+        const threads = pick(bot.unlinked.map(w => w.threadId));
+        if (threads.length < bot.unlinked.length) known = false;
+        threads.filter(t => LIVE.includes(t.status) && t.id !== bot.coordinatorThreadId).forEach(t => workers.set(t.id, { threadId: t.id, title: t.title ?? "Worker", model: null, effort: null, state: "running", startedAt: t.createdAt, endedAt: null, latest: true }));
+      }
+    }
+    next.byBot[bot.key] = [...workers.values()];
+    if (known) next.known.add(bot.key);
+  });
+  next.chat = await chat ?? new Set();
+  return next;
+}
+
+export function workerScanKey(data: BotTasksData, threads: readonly { id: string; status: string; parentThreadId: string | null; lifecycleOwnerThreadId: string | null }[], watched: ReadonlySet<string>, tick: number): string {
+  const coordinators = new Set(data.bots.map(bot => bot.coordinatorThreadId));
+  const live = threads.filter(t => coordinators.has(t.id) || watched.has(t.id) || coordinators.has(t.parentThreadId ?? "") || coordinators.has(t.lifecycleOwnerThreadId ?? ""))
+    .map(t => `${t.id}:${t.status}`).sort();
+  return JSON.stringify([tick, data.observedAt, data.bots, live]);
+}
+
 export function useDispatchWorkers(data: BotTasksData, enabled = true): WorkerSnapshot {
   const sdk = useSdk();
+  const { threads } = experimental_useSidebarThreads();
   const [snapshot, setState] = useState<WorkerSnapshot>(() => lastSnapshot ?? empty());
+  const [tick, setTick] = useState(0);
   const setSnapshot = (update: WorkerSnapshot | ((previous: WorkerSnapshot) => WorkerSnapshot)) => setState(previous => {
     const next = typeof update === "function" ? update(previous) : update;
     lastSnapshot = next;
     return next;
   });
+  const latest = useRef(data);
+  latest.current = data;
+  const watched = useMemo(() => new Set(Object.values(snapshot.byTask).flat().map(attempt => attempt.threadId)), [snapshot]);
+  const key = useMemo(() => workerScanKey(data, threads, watched, tick), [data, threads, watched, tick]);
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    void (async () => {
-      const next = empty();
-      const chat = chatting(sdk, data.bots);
-      await Promise.all(data.bots.map(async bot => {
-        let known = true;
-        const workers = new Map<string, Attempt>();
-        await Promise.all(bot.tasks.filter(task => !isClosed(task.displayState) && !isQuestionRow(task)).map(async task => {
-          try {
-            const detail = await sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "task_detail", input: { taskId: task.id }, outputSchema: taskDetailSchema });
-            if (detail.checks.some(check => check.status === "fail" || check.verdict === "insufficient" || check.verdict === "contradicted")) next.failedChecks.add(task.id);
-            const ids = detail.workers.map(worker => worker.threadId);
-            const threads = ids.length ? await sdk.threads.list({ threadIds: ids, includeHidden: true }) : [];
-            const attempts = taskAttempts({ conversationThreadId: null }, detail, threads.map(t => ({ ...t, status: t.status === "active" ? "running" : t.status })));
-            next.byTask[task.id] = attempts;
-            attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId && !bot.desks.some(desk => desk.threadId === a.threadId)).forEach(a => workers.set(a.threadId, a));
-          } catch { known = false; }
-        }));
-        if (bot.unlinked.length) {
-          try {
-            const threads = await sdk.threads.list({ threadIds: bot.unlinked.map(w => w.threadId), includeHidden: true });
-            if (threads.length < bot.unlinked.length) known = false;
-            threads.filter(t => LIVE.includes(t.status) && t.id !== bot.coordinatorThreadId).forEach(t => workers.set(t.id, { threadId: t.id, title: t.title ?? "Worker", model: null, effort: null, state: "running", startedAt: t.createdAt, endedAt: null, latest: true }));
-          } catch { known = false; }
-        }
-        next.byBot[bot.key] = [...workers.values()];
-        if (known) next.known.add(bot.key);
-      }));
-      next.chat = await chat ?? new Set();
-      if (!cancelled) setSnapshot(next);
-    })();
+    void scanWorkers(sdk, latest.current.bots).then(next => { if (!cancelled) setSnapshot(next); });
     return () => { cancelled = true; };
-  }, [data, sdk, enabled]);
+  }, [key, sdk, enabled]);
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
-    const timer = setInterval(() => void chatting(sdk, data.bots).then(chat => {
-      if (cancelled || !chat) return;
-      setSnapshot(previous => Object.keys(previous.byBot).length && !same(previous.chat, chat) ? { ...previous, chat } : previous);
-    }), COORDINATOR_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [data, sdk, enabled]);
+    const timer = setInterval(() => setTick(value => value + 1), COORDINATOR_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [enabled]);
   return snapshot;
 }
 
