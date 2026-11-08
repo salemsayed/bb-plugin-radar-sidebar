@@ -1,8 +1,8 @@
 import type { ComposerDraftReplacement } from "@get-bb/plugin-sdk/app";
-import { currentAskStrip } from "./askStrip";
+import { currentAskStrip, type AskStripEntry } from "./askStrip";
 const KEEP_MS = 15_000;
 
-export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean; key?: string };
+export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean; draft: ComposerDraftReplacement; key?: string };
 export type FillOutcome = { key: string; text: string; result: "sending" | "sent" | "draft" | "failed"; at: number };
 
 let pending: FillRequest | null = null;
@@ -14,7 +14,7 @@ function changed() {
 }
 
 export function requestFill(threadId: string, text: string, swap: readonly string[] = [], send = false, key?: string): void {
-  pending = { threadId, text, at: Date.now(), swap, send, ...(key ? { key } : {}) };
+  pending = { threadId, text, draft: answerDraft(text, threadId), at: Date.now(), swap, send, ...(key ? { key } : {}) };
   if (key && send) outcomes = new Map(outcomes).set(key, { key, text, result: "sending", at: Date.now() });
   changed();
 }
@@ -52,8 +52,7 @@ export function subscribeFill(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
-export function answerDraft(text: string, threadId: string): ComposerDraftReplacement {
-  const ask = currentAskStrip();
+export function answerDraft(text: string, threadId: string, ask: AskStripEntry | null = currentAskStrip()): ComposerDraftReplacement {
   const taskId = ask?.threadId === threadId ? /^ask:(.+)$/.exec(ask.key)?.[1] : undefined;
   if (!taskId || !ask) return { text, mentions: [] };
   const label = ask.title || "Task";

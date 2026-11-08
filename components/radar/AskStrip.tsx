@@ -107,7 +107,7 @@ export function AskStrip() {
   }, [composer, entry]);
   const visible = !!entry && here && !!place && !!host && ready && !offered;
   useEffect(() => {
-    if (visible && entry && composer?.isEmpty && entry.key.startsWith("ask:")) composer.replace(answerDraft("", entry.threadId));
+    if (visible && entry && composer?.isEmpty && entry.key.startsWith("ask:")) composer.replace(answerDraft("", entry.threadId, entry));
   }, [visible, entry, composer]);
   const close = (refocus: boolean) => {
     if (!entry) return;
@@ -160,7 +160,7 @@ export function AskStrip() {
     setPicked(label);
     setNote("Sending…");
     try {
-      composer.replace(answerDraft(label, entry.threadId));
+      composer.replace(answerDraft(label, entry.threadId, entry));
       await new Promise(resolve => requestAnimationFrame(resolve));
       await composer.submit();
     } catch (error) {
