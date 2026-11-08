@@ -26,7 +26,7 @@ const PATH = /(?:~|\/(?:home|Users|root|tmp|var|etc|opt|srv|mnt))(?:\/[\w.@%+-]+
 const PATH_ASIDE = /\s*\((?:[^()]*?\s)?(?:~|\/(?:home|Users|root|tmp|var|etc|opt|srv|mnt))\/[^()]*\)/g;
 const URL = /\bhttps?:\/\/([\w.-]+)(?:\/[^\s)"”]*)?/g;
 
-const BB_COMMAND = "bb (?:saelmbot|bot-automation|thread|plugin|memory|secret|secrets|browser-automation|own-chrome|voice|connect|guide|status|pool|composer-predictions)(?: [a-z][\\w-]*){0,3}";
+const BB_COMMAND = "bb (?:saelmbot|bot-automation|thread|plugin|memory|secret|secrets|browser-automation|browse|own-chrome|voice|connect|guide|status|pool|composer-predictions)(?: [a-z][\\w-]*){0,3}";
 const CLI_ASIDE = new RegExp(`\\s*\\((?:[^()]*?,\\s*)?${BB_COMMAND}(?:,[^()]*)?\\)`, "g");
 const CLI_VIA = new RegExp(`\\s*\\b(?:through|via|with|using|by running) ${BB_COMMAND}\\b`, "g");
 const CLI_ALONE = new RegExp(`\\b${BB_COMMAND}\\b`, "g");
