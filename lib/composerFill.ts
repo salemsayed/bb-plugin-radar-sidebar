@@ -53,7 +53,7 @@ export function subscribeFill(listener: () => void): () => void {
 }
 
 export function answerDraft(text: string, threadId: string, ask: AskStripEntry | null = currentAskStrip()): ComposerDraftReplacement {
-  const taskId = ask?.threadId === threadId ? /^ask:(.+)$/.exec(ask.key)?.[1] : undefined;
+  const taskId = ask?.threadId === threadId ? /^ask:(ptask_.+)$/.exec(ask.key)?.[1] : undefined;
   if (!taskId || !ask) return { text, mentions: [] };
   const label = ask.title || "Task";
   const prefix = `@${label}`;
