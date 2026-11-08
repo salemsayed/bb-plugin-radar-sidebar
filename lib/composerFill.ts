@@ -52,10 +52,21 @@ export function subscribeFill(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
+const CHIP_LABEL = 60;
+
+export function answerBinding(key: string): { provider: "task" | "question"; id: string } | null {
+  const id = /^ask:(.+)$/.exec(key)?.[1];
+  if (!id) return null;
+  if (id.startsWith("ptask_")) return { provider: "task", id };
+  if (id.startsWith("need_")) return { provider: "question", id };
+  return null;
+}
+
 export function answerDraft(text: string, threadId: string, ask: AskStripEntry | null = currentAskStrip()): ComposerDraftReplacement {
-  const taskId = ask?.threadId === threadId ? /^ask:(ptask_.+)$/.exec(ask.key)?.[1] : undefined;
-  if (!taskId || !ask) return { text, mentions: [] };
-  const label = ask.title || "Task";
+  const bound = ask?.threadId === threadId ? answerBinding(ask.key) : null;
+  if (!bound || !ask) return { text, mentions: [] };
+  const named = (ask.title || (bound.provider === "task" ? "Task" : "Question")).trim();
+  const label = named.length > CHIP_LABEL ? `${named.slice(0, CHIP_LABEL - 1).trimEnd()}\u2026` : named;
   const prefix = `@${label}`;
-  return { text: `${prefix} ${text}`, mentions: [{ from: 0, to: prefix.length, label, kind: "plugin", pluginId: "orchestrator-mode", provider: "task", id: taskId }] };
+  return { text: `${prefix} ${text}`, mentions: [{ from: 0, to: prefix.length, label, kind: "plugin", pluginId: "orchestrator-mode", provider: bound.provider, id: bound.id }] };
 }
