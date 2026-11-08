@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
-import { BODY, CHEEK, INK, PALETTE, behind, onTop, type Palette } from "./BotFace";
-import { botStyle, shortBotName, type BotMascot } from "./bots";
+import { BODY, CHEEK, INK, behind, onTop, paletteFor, type Palette } from "./BotFace";
+import { botStyle, type BotMascot } from "./bots";
 
 export type StagePose = "idle" | "working" | "asking" | "unread" | "waiting" | "checking" | "blocked" | "offline" | "done";
 
@@ -12,10 +12,11 @@ const ARMS: Record<BotMascot, [number, number, number]> = {
   work: [7, 37, 29],
   erbareeq: [9.6, 34.4, 30],
   lab: [10.5, 33.5, 31],
+  store: [8, 36, 29],
+  generic: [7.4, 36.6, 27],
 };
 
 const GREY: Palette = { base: "hsl(260 6% 52%)", light: "hsl(260 8% 72%)", line: "hsl(260 10% 26%)" };
-const LETTER_BODY = "M22 8a15 15 0 1 1 0 30a15 15 0 1 1 0-30Z";
 
 const line = { fill: "none", stroke: INK, strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -139,18 +140,18 @@ const BARE_POSES: ReadonlySet<StagePose> = new Set(["asking", "unread"]);
 
 export function StageFace({ botKey, name, pose, size = 88, bare = false }: { botKey: string; name: string; pose: StagePose; size?: number; bare?: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const { mascot, hue } = botStyle(botKey, name);
+  const { mascot } = botStyle(botKey, name);
   const grey = pose === "offline";
-  const palette = grey ? GREY : mascot ? PALETTE[mascot] : { base: `hsl(${hue} 50% 45%)`, light: `hsl(${hue} 65% 62%)`, line: `hsl(${hue} 50% 22%)` };
-  const body = mascot ? BODY[mascot] : { d: LETTER_BODY, box: [20.6, 21, 14, 14] as [number, number, number, number], face: [22, 25] as [number, number] };
-  const arms = mascot ? ARMS[mascot] : [7.4, 36.6, 26] as [number, number, number];
+  const palette = grey ? GREY : paletteFor(botKey);
+  const body = BODY[mascot];
+  const arms = ARMS[mascot];
   const [cx, cy, rx, ry] = body.box;
   const fill = `stage-fill-${id}`, clip = `stage-clip-${id}`;
   const drawn = props(pose, palette, arms);
   const { arms: limbs, before } = drawn;
   const after = bare && BARE_POSES.has(pose) ? null : drawn.after;
   return (
-    <svg className="stage-face" data-pose={pose} data-mascot={mascot ?? "letter"} width={size} height={size * 46 / 48} viewBox="-2 0 48 46" aria-hidden="true" focusable="false" opacity={grey ? 0.8 : undefined}>
+    <svg className="stage-face" data-pose={pose} data-mascot={mascot} width={size} height={size * 46 / 48} viewBox="-2 0 48 46" aria-hidden="true" focusable="false" opacity={grey ? 0.8 : undefined}>
       <defs>
         <linearGradient id={fill} x1="0" y1="0" x2="0.35" y2="1">
           <stop offset="0" stopColor={palette.light} />
@@ -159,7 +160,7 @@ export function StageFace({ botKey, name, pose, size = 88, bare = false }: { bot
         <clipPath id={clip}><path d={body.d} /></clipPath>
       </defs>
       {before}
-      {mascot ? behind(mascot, palette) : null}
+      {behind(mascot, palette)}
       <g className="stage-body">
         {limbs}
         <g clipPath={`url(#${clip})`}>
@@ -170,9 +171,8 @@ export function StageFace({ botKey, name, pose, size = 88, bare = false }: { bot
         </g>
         <path d={body.d} fill="none" stroke={palette.line} strokeOpacity="0.4" strokeWidth="1.2" strokeLinejoin="round" />
         {mascot === "lab" ? <path d="M10.8 23h22.4" stroke={palette.line} strokeWidth="1" strokeLinecap="round" opacity="0.35" /> : null}
-        {mascot ? null : <text x="22" y="20" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff" opacity=".9">{shortBotName(name).slice(0, 1).toUpperCase()}</text>}
         {face(pose, body.face[1])}
-        {mascot ? onTop(mascot, palette) : null}
+        {onTop(mascot, palette)}
       </g>
       {after}
     </svg>

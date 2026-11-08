@@ -171,25 +171,29 @@ export function shortBotName(name: string): string {
   return name.replace(/\s+Bot$/i, "");
 }
 
-/** A mascot and colour per bot, so the deck reads at a glance. Unknown keys get a stable hue from their name. */
-export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq" | "lab" | "security";
+export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq" | "store" | "lab" | "security" | "generic";
 const KNOWN_STYLE: Record<string, { emoji: string; hue: number; mascot: BotMascot }> = {
   personal: { emoji: "🧭", hue: 212, mascot: "personal" },
   home: { emoji: "🏠", hue: 146, mascot: "home" },
   bricks: { emoji: "🧱", hue: 24, mascot: "bricks" },
   work: { emoji: "💼", hue: 268, mascot: "work" },
   erbareeq: { emoji: "⚡", hue: 44, mascot: "erbareeq" },
-  // Lab keeps the pink its letter fallback wore before it had a face (Salem's sidebar, 2026-10-29).
+  store: { emoji: "🛒", hue: 95, mascot: "store" },
   security: { emoji: "🛡️", hue: 185, mascot: "security" },
   lab: { emoji: "🧪", hue: 335, mascot: "lab" },
 };
-export interface BotStyle { emoji: string; hue: number; mascot: BotMascot | null }
-export function botStyle(key: string, name: string): BotStyle {
-  const known = KNOWN_STYLE[key];
-  if (known) return known;
+const TAKEN_HUES = Object.values(KNOWN_STYLE).map(style => style.hue);
+const hueGap = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+export function derivedHue(key: string): number {
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  return { emoji: shortBotName(name).slice(0, 1).toUpperCase(), hue: Math.abs(hash) % 360, mascot: null };
+  let hue = Math.abs(hash) % 360;
+  for (let step = 0; step < 12 && TAKEN_HUES.some(taken => hueGap(taken, hue) < 20); step += 1) hue = (hue + 29) % 360;
+  return hue;
+}
+export interface BotStyle { emoji: string; hue: number; mascot: BotMascot }
+export function botStyle(key: string, _name?: string): BotStyle {
+  return KNOWN_STYLE[key] ?? { emoji: "🤖", hue: derivedHue(key), mascot: "generic" };
 }
 
 /** One line for the crew header: what, across all bots, is waiting on Salem or still moving. */

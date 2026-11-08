@@ -25,19 +25,12 @@ export function asOf(observedAt: number, now: number): string {
   return (isSameLocalDay(observedAt, now) ? timeFormatter : dateTimeFormatter).format(new Date(observedAt));
 }
 
-/** A bot's still face: its faceUrl, its mascot for the named crew, else its initial in its colour. No WebGL. */
 export function BotTaskFace({ bot, size = 20, state }: { bot: Pick<BotTasksBot, "key" | "name" | "color" | "faceUrl">; size?: number; state?: BotState }) {
   const [broken, setBroken] = useState(false);
   if (bot.faceUrl && !broken) {
     return <img className="radar-tasks-face" src={bot.faceUrl} alt="" width={size} height={size} loading="lazy" onError={() => setBroken(true)} />;
   }
-  const style = botStyle(bot.key, bot.name);
-  if (style.mascot) return <span className="radar-tasks-face" style={{ width: size, height: size }}><BotFace botKey={bot.key} name={bot.name} state={state} size={size} /></span>;
-  return (
-    <span className="radar-tasks-face radar-tasks-face-letter" style={{ width: size, height: size, background: bot.color ?? `hsl(${style.hue} 55% 45%)` }}>
-      {shortBotName(bot.name).slice(0, 1).toUpperCase()}
-    </span>
-  );
+  return <span className="radar-tasks-face" style={{ width: size, height: size }}><BotFace botKey={bot.key} name={bot.name} state={state} size={size} /></span>;
 }
 
 /** The expression a bot's hero face wears for its mood: the crew's own face language, not a new one. */

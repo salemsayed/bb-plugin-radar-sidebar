@@ -9,7 +9,7 @@ import { botStyle, type BotMascot, type BotState } from "./bots";
  */
 
 export interface Palette { base: string; light: string; line: string }
-export const PALETTE: Record<BotMascot, Palette> = {
+export const PALETTE: Record<Exclude<BotMascot, "generic">, Palette> = {
   security: { base: "hsl(185 62% 36%)", light: "hsl(182 70% 57%)", line: "hsl(190 60% 19%)" },
   personal: { base: "hsl(214 72% 52%)", light: "hsl(211 88% 66%)", line: "hsl(220 55% 24%)" },
   home: { base: "hsl(152 58% 38%)", light: "hsl(148 60% 52%)", line: "hsl(158 55% 17%)" },
@@ -17,7 +17,12 @@ export const PALETTE: Record<BotMascot, Palette> = {
   work: { base: "hsl(266 46% 48%)", light: "hsl(264 62% 66%)", line: "hsl(268 45% 24%)" },
   erbareeq: { base: "hsl(34 90% 46%)", light: "hsl(44 96% 57%)", line: "hsl(28 70% 22%)" },
   lab: { base: "hsl(332 64% 46%)", light: "hsl(336 78% 60%)", line: "hsl(330 55% 22%)" },
+  store: { base: "hsl(88 58% 38%)", light: "hsl(82 68% 50%)", line: "hsl(95 50% 18%)" },
 };
+export function paletteFor(key: string): Palette {
+  const { mascot, hue } = botStyle(key);
+  return mascot === "generic" ? { base: `hsl(${hue} 56% 42%)`, light: `hsl(${hue} 68% 60%)`, line: `hsl(${hue} 52% 20%)` } : PALETTE[mascot];
+}
 export const INK = "#1b1726";
 const HAT = "hsl(46 96% 56%)";
 const HAT_EDGE = "hsl(38 80% 38%)";
@@ -32,6 +37,8 @@ export const BODY: Record<BotMascot, { d: string; box: [number, number, number, 
   work: { d: "M12 15.5h20a6 6 0 0 1 6 6v9.5a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-9.5a6 6 0 0 1 6-6Z", box: [20.6, 24.6, 16.2, 10.5], face: [22, 27] },
   erbareeq: { d: "M22 5.5C29.5 14.5 35 22 35 29.5A13 13 0 1 1 9 29.5C9 22 14.5 14.5 22 5.5Z", box: [20.6, 26, 12.8, 15.5], face: [22, 29.5] },
   lab: { d: "M17 5.5h10a1.6 1.6 0 0 1 0 3.2h-.4v6.6l9.4 17A3.8 3.8 0 0 1 32.7 38h-21.4A3.8 3.8 0 0 1 8 32.3l9.4-17V8.7H17a1.6 1.6 0 0 1 0-3.2Z", box: [21, 31.6, 12.5, 7.6], face: [22, 30.5] },
+  store: { d: "M11.6 15.5h20.8a2 2 0 0 1 2 1.8l2 18.6a3.4 3.4 0 0 1-3.4 3.8H11a3.4 3.4 0 0 1-3.4-3.8l2-18.6a2 2 0 0 1 2-1.8Z", box: [20.6, 27, 15.5, 11], face: [22, 28] },
+  generic: { d: "M22 8.5c8.6 0 14 5.6 14 14.5v5.5c0 6.8-5.6 10.5-14 10.5S8 35.3 8 28.5V23c0-8.9 5.4-14.5 14-14.5Z", box: [20.6, 24, 14, 13], face: [22, 26] },
 };
 
 /** What sits behind the body (drawn first) and on top of it (drawn last). */
@@ -39,6 +46,8 @@ export function behind(mascot: BotMascot, palette: Palette): ReactNode {
   if (mascot === "home") return <rect x="27" y="9.5" width="4.6" height="8.5" rx="1" fill={palette.base} stroke={palette.line} strokeOpacity="0.4" strokeWidth="1.2" />;
   if (mascot === "work") return <path d="M17 15.5v-2.2a3.2 3.2 0 0 1 3.2-3.2h3.6a3.2 3.2 0 0 1 3.2 3.2v2.2" fill="none" stroke={palette.base} strokeWidth="2.6" strokeLinecap="round" />;
   if (mascot === "personal") return <path d="M22 9V5.4" stroke={palette.base} strokeWidth="1.6" strokeLinecap="round" />;
+  if (mascot === "store") return <path d="M16.6 18.6v-4.2a5.4 5.4 0 0 1 10.8 0v4.2" fill="none" stroke={palette.base} strokeWidth="2.4" strokeLinecap="round" />;
+  if (mascot === "generic") return <path d="M22 8.6V4.8" stroke={palette.base} strokeWidth="1.6" strokeLinecap="round" />;
   return null;
 }
 export function onTop(mascot: BotMascot, palette: Palette): ReactNode {
@@ -58,6 +67,10 @@ export function onTop(mascot: BotMascot, palette: Palette): ReactNode {
       return <path d="M23.6 10.2 19.4 16.6h2.9l-.9 4.6 4.8-6.8h-2.9z" fill="#fff" opacity="0.95" />;
     case "lab":
       return <g fill="#fff" opacity="0.85"><circle cx="15" cy="34.4" r="1.4" /><circle cx="29.4" cy="35" r="1" /><circle cx="31" cy="32.2" r="0.7" /></g>;
+    case "store":
+      return <g fill={palette.line} opacity="0.5"><circle cx="16.6" cy="19.2" r="1.1" /><circle cx="27.4" cy="19.2" r="1.1" /></g>;
+    case "generic":
+      return <circle cx="22" cy="4" r="2" fill={palette.light} stroke={palette.line} strokeOpacity="0.45" strokeWidth="0.9" />;
     default:
       return null;
   }
@@ -99,12 +112,10 @@ function face(state: BotState | undefined, [fx, fy]: [number, number], palette: 
   return <g>{cheeks}{eye(fx - 4.6, fy)}{eye(fx + 4.6, fy)}<path d={`M${fx - 2.6} ${my}q2.6 2.5 5.2 0`} {...stroke} /></g>;
 }
 
-/** A bot's face: a character in its colours for the named crew, its letter otherwise. */
 export function BotFace({ botKey, name, state, size = 24 }: { botKey: string; name: string; state?: BotState; size?: number | string }) {
-  const { emoji, mascot } = botStyle(botKey, name);
+  const { mascot } = botStyle(botKey, name);
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  if (!mascot) return <span className="bot-face-text">{emoji}</span>;
-  const palette = PALETTE[mascot];
+  const palette = paletteFor(botKey);
   const body = BODY[mascot];
   const [cx, cy, rx, ry] = body.box;
   const fill = `bot-fill-${id}`, clip = `bot-clip-${id}`;
