@@ -3,6 +3,7 @@ import { emitTrace } from "./scrollTrace";
 import { gateIntoView, onScrollWrite, ownWrite } from "./scrollHook";
 import { prerenderRows } from "./rowPrerender";
 import { hostScrollOf, hostSettlesOverscroll } from "./hostScroll";
+import { ROW, closestMessageRow, rowSeq, threadRows } from "./messageRows";
 import { LATE_CUT_MS, LATE_MS, VEIL_BUDGET_MS, VEIL_MAX_MS, VEIL_SAFETY_MS, armVeil, chatScroller, chatShownAt, claimPrime, markPendingRestore, messageAnchors, scrollRetired, takePendingRestore, untouchedSince, unveilChat, veilChat, veilLifted, veiledSince } from "./primeScrollRoute";
 
 export { chatScroller, messageAnchors };
@@ -60,8 +61,6 @@ type Phase = "waiting" | "restoring" | "settling" | "live";
 type Pin = { element: Element; offset: number; row: string | null; path: number[] | null; hash: number | null; inner: number };
 type Line = { message: HTMLElement | null; element: HTMLElement; offset: number; anchor: LineAnchor };
 type Track = { pin: Pin; base: number; comp: number; width: number; height: number };
-const MESSAGE = "[data-notification-thread][data-notification-message]";
-const ROW = "[data-timeline-row-id]";
 const RAW_CARD = "pre > code.language-ui";
 const RAW_DIRECTIVE = /^::[a-z][\w-]*\{/i;
 const WORK_ROW = /:turn:\d+$/;
@@ -232,7 +231,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     behavior = null;
   };
   const anchorFor = (seq: number) => {
-    const found = messageAnchors(threadId).filter(e => Number(e.dataset.notificationMessage) === seq && container!.contains(e));
+    const found = messageAnchors(threadId).filter(e => rowSeq(e) === seq && container!.contains(e));
     return found.find(e => e.matches(ROW)) ?? found[0] ?? null;
   };
   const pinOf = (element: Element, offset: number, line: boolean): Pin => {
@@ -274,8 +273,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       const root = hit.closest<HTMLElement>(ROW);
       const row = root?.getAttribute("data-timeline-row-id");
       if (!root || !row || !container.contains(root) || strict && WORK_ROW.test(row)) continue;
-      const found = hit.closest<HTMLElement>(MESSAGE);
-      const message = found && found.dataset.notificationThread === threadId && Number(found.dataset.notificationMessage) > 0 ? found : null;
+      const message = closestMessageRow(hit, threadId);
       const element = blockOf(hit, root);
       if (!readable(element) || solid && floating(element, container) || element.getBoundingClientRect().height > tallest) continue;
       const path = pathOf(element, root);
@@ -413,7 +411,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
   const attempt = (frameTick = false) => {
     if (disposed || phase !== "restoring") return;
     if (veiledAt !== null && veilLifted(threadId)) { abandon("veil-lifted"); return; }
-    if (!container?.isConnected && !document.querySelector(`[data-notification-thread="${CSS.escape(threadId)}"]`)) { if (now() - startedAt > FIND_MAX_MS) abandon("no-chat"); return; }
+    if (!container?.isConnected && !document.querySelector(threadRows(threadId))) { if (now() - startedAt > FIND_MAX_MS) abandon("no-chat"); return; }
     const found = bind();
     if (phase !== "restoring") return;
     if (!found) { if (now() - startedAt > FIND_MAX_MS) abandon("no-chat"); return; }
@@ -424,7 +422,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
       if (veiledAt !== null) armVeil(threadId, VEIL_MAX_MS + VEIL_SAFETY_MS - (now() - rowsAt));
       trace("rows", { afterMs: Math.round(rowsAt - startedAt), veiled: veiledAt !== null, budgetMs: Math.round(Math.min(VEIL_MAX_MS, Math.max(VEIL_BUDGET_MS, 2 * (rowsAt - startedAt)))) });
     }
-    const oldest = messageAnchors(threadId).reduce((min, e) => found.contains(e) ? Math.min(min, Number(e.dataset.notificationMessage)) : min, Infinity);
+    const oldest = messageAnchors(threadId).reduce((min, e) => found.contains(e) ? Math.min(min, rowSeq(e)) : min, Infinity);
     if (oldest < oldestSeq) { if (oldestSeq !== Infinity) progressAt = now(); oldestSeq = oldest; }
     const budget = Math.min(VEIL_MAX_MS, Math.max(VEIL_BUDGET_MS, 2 * (rowsAt - startedAt)));
     const expired = now() - rowsAt > VEIL_MAX_MS || now() - rowsAt > budget && now() - progressAt > PAGE_GRACE_MS;
@@ -571,7 +569,7 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     const line = lineAt();
     return line ? pinOf(line.element, line.offset, true) : null;
   };
-  const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, Number(e.dataset.notificationMessage)), 0);
+  const newestSeq = () => messageAnchors(threadId).reduce((max, e) => Math.max(max, rowSeq(e)), 0);
   const fingerScrolling = () => dragged || fingerMoved || now() - fingerMovedAt < FINGER_MS;
   const keepFinger = () => {
     if (!container || !fingerRef || now() - touchAt < REST_MS || touchGap > BOTTOM_GAP) return;
@@ -690,10 +688,10 @@ export function rememberScroll(threadId: string, store: ScrollStore, activeCheck
     if (!anchors.length) return;
     const rect = found.getBoundingClientRect();
     const measured = pinned ? AT_BOTTOM : capturePosition(found.scrollTop, found.clientHeight, found.scrollHeight, rect.top + found.clientTop, anchors.filter(e => {
-      const row = e.closest<HTMLElement>("[data-timeline-row-id]") ?? e;
+      const row = e.closest<HTMLElement>(ROW) ?? e;
       const bounds = row.getBoundingClientRect();
       return bounds.bottom > rect.top && bounds.top < rect.bottom;
-    }).map(e => ({ seq: Number(e.dataset.notificationMessage), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
+    }).map(e => ({ seq: rowSeq(e), top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
     if (!measured) return;
     const line = measured.atBottom ? null : lineAt(true);
     const kept = !line && !measured.atBottom && lastAnchor && !lastAnchor.atBottom && lastAnchor.line && lastAnchor.messageSeq === measured.messageSeq && Math.abs(lastAnchor.offset - measured.offset) < 1 ? lastAnchor : null;

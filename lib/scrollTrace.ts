@@ -1,8 +1,8 @@
 import type { TraceEvent } from "./scrollPosition";
 import { onScrollWrite } from "./scrollHook";
+import { messageRows, rowSeq } from "./messageRows";
 
 const FLAG_KEY = "radar-scroll-debug";
-const MESSAGE = "[data-notification-thread][data-notification-message]";
 const BUFFER_MAX = 4000;
 const BATCH_MAX = 400;
 
@@ -31,8 +31,7 @@ export function emitTrace(event: string, threadId: string | null, data: unknown 
 }
 
 function scrollerOf(threadId: string) {
-  for (const anchor of document.querySelectorAll<HTMLElement>(MESSAGE)) {
-    if (anchor.dataset.notificationThread !== threadId) continue;
+  for (const anchor of messageRows(threadId)) {
     for (let el = anchor.parentElement; el && el !== document.body; el = el.parentElement) {
       if (/^(auto|scroll)$/.test(getComputedStyle(el).overflowY) && el.clientHeight > 0) return el;
     }
@@ -56,11 +55,11 @@ function sample() {
       hookWrites(scroller, threadId);
       const rect = scroller.getBoundingClientRect();
       const top = rect.top + scroller.clientTop;
-      const first = Array.from(scroller.querySelectorAll<HTMLElement>(MESSAGE)).find(e => { const b = e.getBoundingClientRect(); return b.bottom > top && b.top < rect.bottom; });
+      const first = messageRows(undefined, scroller).find(e => { const b = e.getBoundingClientRect(); return b.bottom > top && b.top < rect.bottom; });
       const hit = document.elementFromPoint(rect.left + rect.width / 2, top + 8);
       const line = hit && scroller.contains(hit) && !hit.closest("[data-scroll-footer]") ? hit : null;
       const row = {
-        seq: first ? Number(first.dataset.notificationMessage) : null,
+        seq: first ? rowSeq(first) : null,
         off: first ? Math.round(first.getBoundingClientRect().top - top) : null,
         st: Math.round(scroller.scrollTop),
         sh: scroller.scrollHeight,

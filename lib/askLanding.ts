@@ -1,4 +1,5 @@
 import { askStripTop } from "./askStrip";
+import { messageRowsWithSeq } from "./messageRows";
 const WAIT_MS = 30_000;
 const STEP_MS = 150;
 const STEADY_MS = 450;
@@ -13,7 +14,7 @@ let running: { cancel: () => void } | null = null;
 
 function message(seq: number): HTMLElement | null {
   const wide = innerWidth >= 500;
-  return Array.from(document.querySelectorAll<HTMLElement>(`[data-notification-message="${seq}"]`)).find(node => {
+  return messageRowsWithSeq(seq).find(node => {
     const box = node.getBoundingClientRect();
     return box.height > 0 && (!wide || !node.closest(".radar-list-shell, [data-testid=\"nav-rail-sidebar-body\"]"));
   }) ?? null;

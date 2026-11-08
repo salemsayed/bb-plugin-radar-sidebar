@@ -2,6 +2,7 @@ import { BOTTOM_GAP, positionSchema, type ScrollPosition } from "./scrollPositio
 import { startScrollTrace } from "./scrollTrace";
 import { installTouchCoast } from "./touchCoast";
 import { releaseScrollHooks } from "./scrollHook";
+import { closestMessageRow, firstMessageRow, messageRows, rowSeq, rowThread, threadOfRows, threadRows } from "./messageRows";
 
 const ROUTE_KEY = "radar-scroll-route";
 const PENDING_KEY = "radar-scroll-pending";
@@ -9,7 +10,6 @@ const PENDING_MS = 20000;
 const ENABLED_KEY = "radar-scroll-enabled";
 const VEIL_ID = "radar-scroll-veil";
 const VIEWPORT = "[data-page-scroll-viewport]";
-const MESSAGE = "[data-notification-thread][data-notification-message]";
 export const LATE_MS = 300;
 export const LATE_CUT_MS = 4000;
 export const VEIL_BUDGET_MS = 12000;
@@ -64,7 +64,7 @@ export function releaseScrollAnchor(threadId: string | null, notify: boolean) {
 }
 
 export function messageAnchors(threadId: string) {
-  return Array.from(document.querySelectorAll<HTMLElement>(MESSAGE)).filter(e => e.dataset.notificationThread === threadId && Number.isSafeInteger(Number(e.dataset.notificationMessage)) && Number(e.dataset.notificationMessage) > 0);
+  return messageRows(threadId);
 }
 export function chatScroller(threadId: string): HTMLElement | null {
   for (const anchor of messageAnchors(threadId)) {
@@ -126,8 +126,7 @@ export function veilChat(threadId: string, capMs = VEIL_MAX_MS + VEIL_SAFETY_MS)
     document.addEventListener("animationend", lifted, true);
     stops.push(() => document.removeEventListener("animationend", lifted, true));
   }
-  const id = CSS.escape(threadId);
-  style.textContent = `${VIEWPORT}:has([data-notification-thread="${id}"]) > * > :not([data-scroll-footer]) { opacity: 0; animation: ${UNVEIL} 1ms linear ${capMs}ms forwards; } @keyframes ${UNVEIL} { to { opacity: 1; } }`;
+  style.textContent = `${VIEWPORT}:has(:is(${threadRows(threadId)})) > * > :not([data-scroll-footer]) { opacity: 0; animation: ${UNVEIL} 1ms linear ${capMs}ms forwards; } @keyframes ${UNVEIL} { to { opacity: 1; } }`;
   veil = { threadId, at: performance.now(), timer: null, lifted: false };
   return veil.at;
 }
@@ -188,7 +187,7 @@ function primeVeil() {
     if (shownAt !== null && (performance.now() - shownAt > LATE_CUT_MS || !untouchedSince(container, shownAt))) return;
   }
   veilChat(threadId);
-  const loaded = messageAnchors(threadId).some(e => Number(e.dataset.notificationMessage) === saved.messageSeq);
+  const loaded = messageAnchors(threadId).some(e => rowSeq(e) === saved.messageSeq);
   if (!loaded) {
     document.documentElement.setAttribute("data-radar-scroll-restore", "");
     requestScrollAnchor(threadId, saved.messageSeq);
@@ -208,8 +207,8 @@ const painted: { at: number; element: Element }[] = [];
 let paintObserver: PerformanceObserver | null = null;
 
 function threadOf(element: Element) {
-  const message = element.closest<HTMLElement>(MESSAGE) ?? element.querySelector<HTMLElement>(MESSAGE);
-  return message?.dataset.notificationThread ?? null;
+  const message = closestMessageRow(element) ?? firstMessageRow(element);
+  return message ? rowThread(message) : null;
 }
 
 function notePaints(entries: PerformanceEntryList) {
@@ -221,8 +220,7 @@ function notePaints(entries: PerformanceEntryList) {
 
 function noteViewports(at: number) {
   for (const viewport of document.querySelectorAll(VIEWPORT)) {
-    const message = viewport.querySelector<HTMLElement>(MESSAGE);
-    const threadId = message?.dataset.notificationThread;
+    const threadId = threadOfRows(viewport);
     if (!threadId) continue;
     if (shown.get(viewport)?.threadId !== threadId) shown.set(viewport, { threadId, at });
   }
