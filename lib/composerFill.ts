@@ -1,3 +1,5 @@
+import type { ComposerDraftReplacement } from "@get-bb/plugin-sdk/app";
+import { currentAskStrip } from "./askStrip";
 const KEEP_MS = 15_000;
 
 export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean; key?: string };
@@ -48,4 +50,13 @@ export function fillOutcomes(): ReadonlyMap<string, FillOutcome> {
 export function subscribeFill(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
+}
+
+export function answerDraft(text: string, threadId: string): ComposerDraftReplacement {
+  const ask = currentAskStrip();
+  const taskId = ask?.threadId === threadId ? /^ask:(.+)$/.exec(ask.key)?.[1] : undefined;
+  if (!taskId || !ask) return { text, mentions: [] };
+  const label = ask.title || "Task";
+  const prefix = `@${label}`;
+  return { text: `${prefix} ${text}`, mentions: [{ from: 0, to: prefix.length, label, kind: "plugin", pluginId: "orchestrator-mode", provider: "task", id: taskId }] };
 }

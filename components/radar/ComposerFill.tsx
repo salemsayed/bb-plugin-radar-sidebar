@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useComposers } from "@get-bb/plugin-sdk/app";
-import { clearFill, pendingFill, reportFill, subscribeFill } from "@/lib/composerFill";
+import { answerDraft, clearFill, pendingFill, reportFill, subscribeFill } from "@/lib/composerFill";
 
 export function ComposerFill() {
   const request = useSyncExternalStore(subscribeFill, pendingFill, () => null);
@@ -12,7 +12,7 @@ export function ComposerFill() {
     clearFill(request);
     const free = composer.isEmpty || request.swap.includes(composer.text.trim());
     try {
-      if (free) composer.replace({ text: request.text, mentions: [] });
+      if (free) composer.replace(answerDraft(request.text, request.threadId));
       composer.focus();
     } catch { if (request.send) reportFill(request, "failed"); return; }
     if (!request.send) return;

@@ -781,7 +781,7 @@ export function BotWorkPanel({ bot, anchor, focusDesks = false, keyboard = false
     const yours = parts?.kind === "yours";
     const recommended = needsCard ? task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "") : undefined;
     const consequence = needsCard ? task.needs?.consequence : undefined;
-    const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: cardStatus(task, running, now, waitsOn, bot.name), title: name, options: askOptions(task), botName: bot.name, askedAt: task.needs?.askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) }); return place; };
+    const arm = () => { const place = askPlace(task, bot.coordinatorThreadId); armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: task.needs?.question ?? cardStatus(task, running, now, waitsOn, bot.name), title: name, options: askOptions(task), botName: bot.name, askedAt: task.needs?.askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) }); return place; };
     const go = () => { if (task.displayState === "needs") { const place = arm(); onNavigate(place.threadId, place.messageSeq); } else onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId); };
     const label = notNowLabel({ botName: bot.name, title: name, what: task.displayState === "needs" ? status : question ? task.needs?.question ?? name : name, options: task.needs?.options });
     const cardActions = <>

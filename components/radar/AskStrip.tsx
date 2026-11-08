@@ -5,7 +5,7 @@ import { useBbContext, useComposers } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { askCardAnswers, askMessageShown, chatFooter, composerEditor, stripAnchor } from "@/lib/askLanding";
 import { clearAskStrip, currentAskStrip, subscribeAskStrip, type AskStripEntry } from "@/lib/askStrip";
-import { requestFill } from "@/lib/composerFill";
+import { answerDraft, requestFill } from "@/lib/composerFill";
 import { plainNote } from "./workText";
 import { clockNow, since } from "./stage";
 import { answerHint, coarsePointer } from "./answerHint";
@@ -106,6 +106,9 @@ export function AskStrip() {
     return composer.onSubmitted(() => clearAskStrip(entry.key));
   }, [composer, entry]);
   const visible = !!entry && here && !!place && !!host && ready && !offered;
+  useEffect(() => {
+    if (visible && entry && composer?.isEmpty && entry.key.startsWith("ask:")) composer.replace(answerDraft("", entry.threadId));
+  }, [visible, entry, composer]);
   const close = (refocus: boolean) => {
     if (!entry) return;
     clearAskStrip(entry.key);
@@ -152,12 +155,12 @@ export function AskStrip() {
   const hint = shown.length ? coarsePointer() ? "Tap one to send" : answerHint() : "Type your answer below";
   const choose = async (label: string) => {
     if (!composer) { requestFill(entry.threadId, label, shown); return; }
-    const draft = composer.text.trim();
+    const draft = composer.draft.mentions.reduce((text, mention) => text.replace(`@${mention.label}`, ""), composer.text).trim();
     if (draft && !shown.includes(draft)) { setNote("Your draft is in the message box: send or clear it first"); return; }
     setPicked(label);
     setNote("Sending…");
     try {
-      composer.replace({ text: label, mentions: [] });
+      composer.replace(answerDraft(label, entry.threadId));
       await new Promise(resolve => requestAnimationFrame(resolve));
       await composer.submit();
     } catch (error) {
@@ -173,7 +176,7 @@ export function AskStrip() {
       <span className="radar-ask-strip-who" ref={whoLine}><b>{asked}</b><span className="radar-ask-strip-sep" aria-hidden="true"> · </span><span className="radar-ask-strip-hint">{hint}</span></span>
       <button type="button" className="radar-ask-strip-close" aria-label="Hide this question" title="Hide (Esc)" onClick={() => close(true)}><Icon name="X" aria-hidden="true" /></button>
     </header>
-    <FitLines className="radar-ask-strip-question" forms={[...new Set([...oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length), ...compactForms(entry.question, entry.title, entry.options.length)])]} />
+    {entry.question.includes("\n") ? <details className="radar-ask-strip-question" open><summary>{entry.title || "Your questions"}</summary><div style={{ whiteSpace: "pre-wrap", maxHeight: "35vh", overflowY: "auto" }}>{entry.question}</div></details> : <FitLines className="radar-ask-strip-question" forms={[...new Set([...oneForms(entry.question, QUESTION_FORMS, entry.title, entry.options.length), ...compactForms(entry.question, entry.title, entry.options.length)])]} />}
     <AskImpact className="radar-ask-strip-impact" text={entry.consequence} growWithin={{ root: ".radar-ask-strip", share: 0.2 }} />
     {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerRow}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}

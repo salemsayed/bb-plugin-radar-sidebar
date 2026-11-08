@@ -8,6 +8,7 @@ import { withoutMarks } from "./recommend";
 import { plainAnswers } from "@/lib/plainAnswers";
 
 export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
+  if (task.needs?.question.includes("\n")) return task.needs.question;
   const asked = isQuestionRow(task) ? task.needs?.question ?? task.title : needAsk((task.needs?.question || task.line || task.title).replace(/^(?:needs you|waiting for you)\s*[:\u00b7-]\s*/i, ""), stageTitle(task.title, task.outcome));
   return task.needs?.recommended ? withoutMarks(asked) : asked;
 }
@@ -131,6 +132,7 @@ export function instructionAsk(question: string): boolean {
 }
 
 export function askOptions(task: Pick<BotTaskRow, "needs">): string[] {
+  if (task.needs?.question.includes("\n")) return task.needs.options ?? [];
   if (!task.needs || instructionAsk(task.needs.question)) return [];
   const given = answerOptions(task.needs.options);
   return given.length || task.needs.interactionId ? given : plainAnswers(stageText(task.needs.question, true));

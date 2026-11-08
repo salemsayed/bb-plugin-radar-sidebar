@@ -153,10 +153,9 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb),
       if (row.type !== "client/turn/requested" || !salemTurn(row.data)) continue;
       const text = turnText(row.data).trim();
       const base = { seq: row.seq, at: row.createdAt, text: text.slice(0, 300) };
-      if (sameOption(text, ask.options)) { turns.push({ ...base, how: "button" }); reply = { seq: row.seq, at: row.createdAt, by: "button" }; break; }
       const tasks = turnTasks(row.data);
-      if (ask.taskId && tasks.includes(ask.taskId)) { turns.push({ ...base, how: "task" }); reply = { seq: row.seq, at: row.createdAt, by: "task" }; break; }
-      if (tasks.length) { turns.push({ ...base, how: "other-task" }); continue; }
+      if (tasks.length && (!ask.taskId || !tasks.includes(ask.taskId))) { turns.push({ ...base, how: "other-task" }); continue; }
+      if (sameOption(text, ask.options)) { turns.push({ ...base, how: "button" }); reply = { seq: row.seq, at: row.createdAt, by: "button" }; break; }
       const vkey = `${ask.id}#${row.seq}`;
       let v = verdicts.get(vkey);
       if (v && v.verdict !== "yes" && Date.now() - v.at > VERDICT_TTL_MS) v = undefined;
