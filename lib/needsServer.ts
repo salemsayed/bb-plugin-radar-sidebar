@@ -83,8 +83,8 @@ export function turnTasks(data: unknown): string[] {
 }
 
 export type Verdict = "yes" | "no" | "unsure";
-export type AnswerHow = "button" | "form" | "task" | "jev";
-export interface AnswerTurn { seq: number; at: number; text: string; how: AnswerHow | "other-task" | Verdict | "pending"; p?: number; error?: string }
+export type AnswerHow = "button" | "task" | "jev";
+export interface AnswerTurn { seq: number; at: number; text: string; how: AnswerHow | "form" | "other-task" | Verdict | "pending"; p?: number; error?: string }
 export interface AnswerCheck { reply: { seq: number; at: number; by: AnswerHow } | null; followedUp: { seq: number; at: number } | null; turns: AnswerTurn[] }
 export interface AnswerAsk { id: string; threadId: string; askSeq: number; question: string; options: readonly string[]; fields?: readonly string[]; rivals?: readonly (readonly string[])[]; taskId?: string }
 type Judge = (state: { botAsked: string; options: readonly string[]; salemMessage: string }) => Promise<number | null>;
@@ -156,7 +156,7 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb),
       const tasks = turnTasks(row.data);
       if (tasks.length && (!ask.taskId || !tasks.includes(ask.taskId))) { turns.push({ ...base, how: "other-task" }); continue; }
       if (sameOption(text, ask.options)) { turns.push({ ...base, how: "button" }); reply = { seq: row.seq, at: row.createdAt, by: "button" }; break; }
-      if (formAnswer(text, ask.fields ?? []) && !(ask.rivals ?? []).some(fields => formAnswer(text, fields))) { turns.push({ ...base, how: "form" }); reply = { seq: row.seq, at: row.createdAt, by: "form" }; break; }
+      if (formAnswer(text, ask.fields ?? []) && !(ask.rivals ?? []).some(fields => formAnswer(text, fields))) { turns.push({ ...base, how: "form" }); reply = { seq: row.seq, at: row.createdAt, by: "button" }; break; }
       const vkey = `${ask.id}#${row.seq}`;
       let v = verdicts.get(vkey);
       if (v && v.verdict !== "yes" && Date.now() - v.at > VERDICT_TTL_MS) v = undefined;
