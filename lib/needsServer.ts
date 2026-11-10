@@ -249,7 +249,8 @@ export function formLabels(text: string): string[] {
 export function formAnswer(text: string, labels: readonly string[]): boolean {
   const keys = labels.map(label => label.trim().toLowerCase().replace(/\s*:$/, "")).filter(Boolean);
   const lines = text.split(/\r?\n/).map(line => line.trim().toLowerCase()).filter(Boolean);
-  return lines.length > 0 && keys.length > 0 && lines.every(line => keys.some(key => line.startsWith(key) && /^\s*:/.test(line.slice(key.length))));
+  const after = (key: string, rest: string) => /^\s*:/.test(rest) || key.endsWith("?") && /^(?:\s|$)/.test(rest);
+  return lines.length > 0 && keys.length > 0 && lines.every(line => keys.some(key => line.startsWith(key) && after(key, line.slice(key.length))));
 }
 
 export function cardAsks(text: string): boolean {
