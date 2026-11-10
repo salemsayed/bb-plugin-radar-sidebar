@@ -14,7 +14,7 @@ export const needsItemSchema = z.object({
   source: z.object({ threadId: z.string().optional(), messageId: z.string().optional(), automationId: z.string().optional() }),
   key: z.string().nullable(), createdAt: z.string(), closedAt: z.string().nullable(), reminders: z.number(),
   askSeq: z.number().nullable().optional(),
-  answered: z.object({ seq: z.number(), at: z.number(), by: z.enum(["button", "task", "jev"]).optional() }).nullable().optional(),
+  answered: z.object({ seq: z.number(), at: z.number(), by: z.enum(["button", "form", "task", "jev"]).optional() }).nullable().optional(),
   followedUp: z.object({ seq: z.number(), at: z.number() }).nullable().optional(),
   cleared: z.object({ at: z.number(), why: z.string() }).nullable().optional(),
   options: z.array(z.string()).optional(),

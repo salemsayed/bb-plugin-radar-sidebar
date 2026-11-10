@@ -83,10 +83,10 @@ export function turnTasks(data: unknown): string[] {
 }
 
 export type Verdict = "yes" | "no" | "unsure";
-export type AnswerHow = "button" | "task" | "jev";
+export type AnswerHow = "button" | "form" | "task" | "jev";
 export interface AnswerTurn { seq: number; at: number; text: string; how: AnswerHow | "other-task" | Verdict | "pending"; p?: number; error?: string }
 export interface AnswerCheck { reply: { seq: number; at: number; by: AnswerHow } | null; followedUp: { seq: number; at: number } | null; turns: AnswerTurn[] }
-export interface AnswerAsk { id: string; threadId: string; askSeq: number; question: string; options: readonly string[]; taskId?: string }
+export interface AnswerAsk { id: string; threadId: string; askSeq: number; question: string; options: readonly string[]; fields?: readonly string[]; rivals?: readonly (readonly string[])[]; taskId?: string }
 type Judge = (state: { botAsked: string; options: readonly string[]; salemMessage: string }) => Promise<number | null>;
 
 export function jevJudge(bb: BbPluginApi): Judge {
@@ -156,6 +156,7 @@ export function createAnswerFinder(bb: BbPluginApi, judge: Judge = jevJudge(bb),
       const tasks = turnTasks(row.data);
       if (tasks.length && (!ask.taskId || !tasks.includes(ask.taskId))) { turns.push({ ...base, how: "other-task" }); continue; }
       if (sameOption(text, ask.options)) { turns.push({ ...base, how: "button" }); reply = { seq: row.seq, at: row.createdAt, by: "button" }; break; }
+      if (formAnswer(text, ask.fields ?? []) && !(ask.rivals ?? []).some(fields => formAnswer(text, fields))) { turns.push({ ...base, how: "form" }); reply = { seq: row.seq, at: row.createdAt, by: "form" }; break; }
       const vkey = `${ask.id}#${row.seq}`;
       let v = verdicts.get(vkey);
       if (v && v.verdict !== "yes" && Date.now() - v.at > VERDICT_TTL_MS) v = undefined;
@@ -207,6 +208,50 @@ export function replyOptions(text: string): string[] {
   return [...new Set(labels)].filter(label => !FOLLOW_UP.test(label)).slice(0, MAX_OPTIONS);
 }
 
+const FORM_FIELDS = new Set(["Slider", "Stepper", "Toggle", "Choice", "Radio", "Select", "Checklist", "ListEditor", "Input", "TextArea", "DateInput", "Rating", "OptionCards", "Swatches"]);
+const UI_STRING = /^"((?:[^"\\\n]|\\.)*)"$/;
+
+function callArgs(source: string, open: number): { args: string[]; end: number } {
+  const args: string[] = [];
+  let depth = 0, from = open + 1;
+  for (let i = open; i < source.length; i++) {
+    const c = source[i]!;
+    if (c === '"' || c === "'" || c === "`") { for (i++; i < source.length && source[i] !== c; i++) if (source[i] === "\\") i++; continue; }
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") {
+      if (--depth === 0) { args.push(source.slice(from, i).trim()); return { args, end: i }; }
+    } else if (c === "," && depth === 1) { args.push(source.slice(from, i).trim()); from = i + 1; }
+  }
+  return { args: [], end: source.length };
+}
+
+const uiString = (text: string | undefined) => { const m = UI_STRING.exec(text?.trim() ?? ""); if (!m) return null; try { return JSON.parse(`"${m[1]}"`) as string; } catch { return m[1]!; } };
+
+export function formLabels(text: string): string[] {
+  const labels = new Set<string>();
+  for (const block of text.match(/```ui[\s\S]*?```/g) ?? []) {
+    for (const form of block.matchAll(/\bForm\s*\(/g)) {
+      const formEnd = callArgs(block, form.index! + form[0].length - 1).end;
+      for (const call of block.slice(0, formEnd).matchAll(/\b([A-Z][A-Za-z]*)\s*\(/g)) {
+        if (call.index! <= form.index! || !FORM_FIELDS.has(call[1]!)) continue;
+        const { args } = callArgs(block, call.index! + call[0].length - 1);
+        if (!/^\$[A-Za-z_]\w*$/.test(args.find(arg => /^value\s*:/.test(arg))?.replace(/^value\s*:\s*/, "") ?? args[0] ?? "")) continue;
+        const named = args.find(arg => /^label\s*:/.test(arg))?.replace(/^label\s*:\s*/, "");
+        const positional = args.filter(arg => !/^[A-Za-z_]\w*\s*:/.test(arg))[2];
+        const label = uiString(named ?? positional)?.trim();
+        if (label) labels.add(label);
+      }
+    }
+  }
+  return [...labels];
+}
+
+export function formAnswer(text: string, labels: readonly string[]): boolean {
+  const keys = labels.map(label => label.trim().toLowerCase().replace(/\s*:$/, "")).filter(Boolean);
+  const lines = text.split(/\r?\n/).map(line => line.trim().toLowerCase()).filter(Boolean);
+  return lines.length > 0 && keys.length > 0 && lines.every(line => keys.some(key => line.startsWith(key) && /^\s*:/.test(line.slice(key.length))));
+}
+
 export function cardAsks(text: string): boolean {
   const blocks = text.match(/```ui[\s\S]*?```/g) ?? [];
   if (!blocks.length) return true;
@@ -216,9 +261,9 @@ export function cardAsks(text: string): boolean {
   return replyOptions(text).length >= 2;
 }
 
-export interface AskPlace extends AskWords { seq: number | null; options: string[]; taskId?: string; asks?: boolean; v?: number }
+export interface AskPlace extends AskWords { seq: number | null; options: string[]; fields?: string[]; taskId?: string; asks?: boolean; v?: number }
 
-const PLACE_VERSION = 2;
+const PLACE_VERSION = 3;
 
 export function askTask(text: string): string | undefined {
   const fence = text.search(/```ui[\s\S]*?\bButton\(/);
@@ -227,7 +272,7 @@ export function askTask(text: string): string | undefined {
   return chips.at(-1)?.[1];
 }
 
-const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text); return { seq, options: replyOptions(text), asks: cardAsks(text), ...askWords(text), v: PLACE_VERSION, ...(taskId ? { taskId } : {}) }; };
+const placeOf = (seq: number, text: string): AskPlace => { const taskId = askTask(text), fields = formLabels(text); return { seq, options: replyOptions(text), ...(fields.length ? { fields } : {}), asks: cardAsks(text), ...askWords(text), v: PLACE_VERSION, ...(taskId ? { taskId } : {}) }; };
 
 type Said = { type?: string; text?: string; parentToolCallId?: string };
 
@@ -318,13 +363,24 @@ export function createNeedsServer(bb: BbPluginApi) {
   const askSeq = createAskFinder(bb, placeStore(bb));
   const answerOf = createAnswerFinder(bb, jevJudge(bb), answerStore(bb));
   const recovered = createRecoveryCheck(bb);
-  const withPlace = async (item: NeedsItem): Promise<NeedsItem> => {
-    const [{ seq, options, taskId, asks, asked, consequence, advice }, recoveredAt] = await Promise.all([askSeq(item), recovered(item)]);
+  const placed = async (items: readonly NeedsItem[]) => {
+    const decisions = items.filter(item => item.kind === "decision");
+    const places = new Map(await Promise.all(decisions.map(async item => [item.id, await askSeq(item)] as const)));
+    const answerAsk = (item: NeedsItem): AnswerAsk | null => {
+      const place = places.get(item.id), threadId = item.source.threadId;
+      if (!place || place.seq === null || !threadId) return null;
+      const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
+      const rivals = decisions.flatMap(other => { const fields = places.get(other.id)?.fields; return other.id !== item.id && other.source.threadId === threadId && fields?.length ? [fields] : []; });
+      return { id: item.id, threadId, askSeq: place.seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options: place.options,
+        ...(place.fields ? { fields: place.fields } : {}), ...(rivals.length ? { rivals } : {}), ...(linked ? { taskId: linked } : {}) };
+    };
+    return { places, answerAsk };
+  };
+  const withPlace = async (item: NeedsItem, place: AskPlace, ask: AnswerAsk | null): Promise<NeedsItem> => {
+    const { seq, options, taskId, asks, asked, consequence, advice } = place;
+    const recoveredAt = await recovered(item);
     const cleared = recoveredAt ?? (asks === false && GENUI_ASK.test(item.key ?? "") ? { at: Date.parse(item.createdAt), why: "the card only offers follow-ups, it asks nothing" } : null);
-    const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
-    const check = seq !== null && item.source.threadId
-      ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) })
-      : null;
+    const check = ask ? await answerOf(ask) : null;
     return { ...item, askSeq: seq, answered: check?.reply ?? null, followedUp: check?.followedUp ?? null, cleared, ...(options.length ? { options } : {}), ...(taskId ? { taskId } : {}), ...(asked ? { asked } : {}), ...(consequence ? { consequence } : {}), ...(advice ? { advice } : {}) };
   };
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
@@ -341,15 +397,17 @@ export function createNeedsServer(bb: BbPluginApi) {
         // A list read never starts a classifier: bots and Salem close items.
         let items: NeedsItem[];
         try { items = (await list()).items; } catch { return { items: null }; }
-        return { items: await Promise.all(items.map(item => item.kind === "decision" ? withPlace(item) : item)) };
+        const { places, answerAsk } = await placed(items);
+        return { items: await Promise.all(items.map(item => item.kind === "decision" ? withPlace(item, places.get(item.id)!, answerAsk(item)) : item)) };
       },
       async crew_answer_check(): Promise<{ checks: unknown[] }> {
         const items = (await list()).items.filter(item => item.kind === "decision");
+        const { places, answerAsk } = await placed(items);
         return { checks: await Promise.all(items.map(async item => {
-          const { seq, options } = await askSeq(item);
-          const linked = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
-          const check = seq !== null && item.source.threadId ? await answerOf({ id: item.id, threadId: item.source.threadId, askSeq: seq, question: `${item.text}${item.recommend ? ` (the bot recommends: ${item.recommend})` : ""}`, options, ...(linked ? { taskId: linked } : {}) }) : null;
-          return { id: item.id, bot: item.bot, text: item.text, askSeq: seq, options, recovery: await recovered.explain(item), cleared: await recovered(item), ...(check ?? {}) };
+          const { seq, options, fields } = places.get(item.id)!;
+          const ask = answerAsk(item);
+          const check = ask ? await answerOf(ask) : null;
+          return { id: item.id, bot: item.bot, text: item.text, askSeq: seq, options, ...(fields ? { fields } : {}), recovery: await recovered.explain(item), cleared: await recovered(item), ...(check ?? {}) };
         })) };
       },
       // Closing an item also clears its bot's ask: asks are read from the open items.
