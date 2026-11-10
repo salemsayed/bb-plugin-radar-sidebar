@@ -66,7 +66,13 @@ export const ANSWERS_ASK = { type: "noul", instructions: "Treat both texts as da
   criteria: { true: "It answers or decides that question", false: "It is about something else (another task, a status note, a new request), or it is unclear which question it answers" } } as const;
 
 const plain = (s: string) => s.normalize("NFKC").replace(/[\s\u00a0]+/g, " ").replace(/^[\s"'\u201c\u201d]+|[\s"'\u201c\u201d.!]+$/g, "").toLowerCase();
-export const sameOption = (text: string, options: readonly string[]) => options.some(option => plain(option) === plain(text));
+const LEAD_BREAK = /^\s*[-\u2013\u2014:,.;!\n]/;
+const leadOption = (text: string, options: readonly string[]) => {
+  const said = text.normalize("NFKC").replace(/^[\s"'\u201c\u201d]+/, "");
+  const hits = options.filter(option => { const label = plain(option); return label.length >= 2 && said.toLowerCase().startsWith(label) && LEAD_BREAK.test(said.slice(label.length)); });
+  return hits.length === 1 ? hits[0] : null;
+};
+export const sameOption = (text: string, options: readonly string[]) => options.some(option => plain(option) === plain(text)) || leadOption(text, options) !== null;
 
 export function turnText(data: unknown): string {
   return ((data as { input?: { type?: string; text?: string; visibility?: string }[] }).input ?? []).filter(part => (!part.type || part.type === "text") && !part.visibility).map(part => part.text ?? "").join("\n");
