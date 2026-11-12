@@ -230,8 +230,7 @@ export const CASES = [
       const box = page.locator('[contenteditable="true"]').last();
       await box.waitFor({ state: "visible", timeout: 20_000 });
       for (let attempt = 0; attempt < 4 && (await driver.composer())?.text; attempt++) {
-        await box.focus();
-        await page.keyboard.press("ControlOrMeta+A");
+        await box.evaluate(node => { node.focus(); const range = document.createRange(); range.selectNodeContents(node); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); });
         await page.keyboard.press("Backspace");
         await sleep(300);
       }
