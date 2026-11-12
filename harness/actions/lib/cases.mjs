@@ -681,7 +681,7 @@ export const CASES = [
     },
   },
   {
-    scenario: "reply", id: "unbound", action: "Salem types a plain reply in the bot's chat (no task chip): \"ok, go ahead with both, I will check the courier later\"", expect: "every question asked in that chat before it closes (the task's card, the task's wait, the card with no task): any reply from him in that chat, no answer-guessing; they stay out after a reload",
+    scenario: "reply", id: "unbound", action: "Salem types a plain reply in the bot's chat (no task chip): \"ok, go ahead with both, I will check the courier later\"", expect: "every question asked in that chat before it closes (the task's card, the task's wait, the card with no task, the saved ask, whose needs item is marked done): any reply from him in that chat, no answer-guessing; they stay out after a reload",
     async run({ iso, bot, world, driver }) {
       const keys = [`task:${world.card}`, `task:${world.wait}`];
       const loose = await poll(() => savedQuestion(iso, bot, world.loose), 15_000);
@@ -694,11 +694,13 @@ export const CASES = [
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("go ahead with both")), 20_000);
       const rows = await poll(() => { const a = bot.row(world.card), b = bot.row(world.wait); return a && b && a.displayState !== "needs" && b.displayState !== "needs" ? [a, b] : null; }, 30_000) ?? [bot.row(world.card), bot.row(world.wait)];
       const card = await poll(() => { const q = savedQuestion(iso, bot, world.loose); return q?.closed ? q : null; }, 20_000) ?? savedQuestion(iso, bot, world.loose);
+      const saved = await poll(() => { const n = iso.needs().find(i => i.id === world.saved); return n && n.state === "done" ? n : null; }, 20_000) ?? iso.needs().find(i => i.id === world.saved);
       await driver.home();
       return [check("all three were in Needs you before", shown.every(group => group === "needs"), shown),
         check("his reply landed as Salem's", sent?.from === "salem", sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
         check("both task questions closed in core", rows.every(r => r && r.displayState !== "needs"), rows.map(r => r ? `${r.displayState} · ${short(r.line)}` : "gone")),
         check("the card with no task closed in core", card?.closed, card ? card.state : "none"),
+        check("the saved ask closed and its needs item is done", saved?.state === "done", saved ? `${saved.state}${recordOf(iso, q => q.need_id === world.saved) ? ` · record ${recordOf(iso, q => q.need_id === world.saved).state} by ${recordOf(iso, q => q.need_id === world.saved).closed_by}` : ""}` : "none"),
         ...[await groupIs(driver, bot, keys[0], "waiting", "panel after"), await groupIs(driver, bot, keys[1], "waiting", "panel after"), await groupIs(driver, bot, loose?.itemKey ?? "task:?", null, "panel after")],
         await groupIs(driver, bot, keys[0], "waiting", "after reload", true)];
     },

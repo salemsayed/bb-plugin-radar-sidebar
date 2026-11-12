@@ -198,6 +198,7 @@ export const SCENARIOS = [
       w.cardAsk = await bot.say(`${chip(w.card)}\nThe LED panel prices are ready.\n\n${buttons("Which LED panel margin?", ["10 percent", "14 percent"])}`, { about: w.card });
       bot.waitOnSalem(w.card, "Which margin for the LED panels?");
       bot.waitOnSalem(w.wait, "Send the Mansoura delivery today?");
+      w.saved = bot.need("Book the Aswan courier for Thursday?").item.id;
     },
   },
   {
