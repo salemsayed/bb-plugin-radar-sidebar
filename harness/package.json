@@ -1,0 +1,15 @@
+{
+  "name": "radar-sidebar-harness",
+  "private": true,
+  "type": "module",
+  "description": "Scenario harness for Radar's bot panel: renders the real components with fixture data and screenshots every scenario.",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node build.mjs --serve",
+    "shoot": "node shoot.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright-core": "^1.50.0"
+  }
+}

@@ -13,7 +13,7 @@ export const DISPLAY_STATES = ["needs", "working", "queued", "offline", "retryin
 const displayState = z.string().transform((state): DisplayState =>
   (DISPLAY_STATES as readonly string[]).includes(state) ? state as DisplayState : "ready");
 
-const taskSchema = z.object({
+export const taskSchema = z.object({
   id: z.string(),
   bot: z.string().default(""),
   title: z.string().default(""),

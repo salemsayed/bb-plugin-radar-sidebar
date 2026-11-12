@@ -26,3 +26,7 @@ npm-debug.log*
 *.swp
 .DS_Store
 Thumbs.db
+
+# Scenario harness output
+harness/dist/
+harness/shots/

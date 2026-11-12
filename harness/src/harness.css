@@ -1,0 +1,20 @@
+html, body, #root { height: 100%; }
+body { font-family: var(--font-sans); background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; }
+.harness-app { display: flex; height: 100%; }
+.harness-rail { flex: none; width: 48px; background: var(--sidebar); border-inline-end: 1px solid var(--sidebar-border); }
+.harness-sidebar { flex: none; width: 271px; min-height: 0; display: flex; flex-direction: column; overflow: auto; background: var(--sidebar); border-inline-end: 1px solid var(--sidebar-border); }
+.harness-app[data-view="phone"] .harness-sidebar { width: 100%; border: 0; }
+.harness-sidebar > .radar-list-shell { flex: 1; min-height: 0; }
+.harness-main { flex: 1; min-width: 0; padding: 28px 32px 28px 460px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--muted-foreground); }
+.harness-main h1 { font-size: 18px; font-weight: 650; color: var(--foreground); }
+.harness-main p { max-width: 52ch; line-height: 1.5; }
+.harness-main a { color: var(--muted-foreground); text-decoration: underline; text-underline-offset: 3px; }
+.harness-bot { font-variant-numeric: tabular-nums; }
+.harness-log { margin-top: 12px; font: 12px/1.6 ui-monospace, monospace; }
+.harness-index { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; font-size: 14px; }
+.harness-index h1 { font-size: 20px; font-weight: 650; margin-bottom: 6px; }
+.harness-index > p { color: var(--muted-foreground); margin-bottom: 20px; }
+.harness-index li { display: grid; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border); }
+.harness-index li span { color: var(--muted-foreground); line-height: 1.5; }
+.harness-index nav { display: flex; gap: 14px; margin-top: 4px; }
+.harness-index a { text-decoration: underline; text-underline-offset: 3px; }

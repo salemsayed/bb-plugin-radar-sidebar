@@ -1,0 +1,76 @@
+import { desk, need, tasks } from "../build";
+import { DAY, HOUR, MINUTE, ago, ahead, cairo } from "../clock";
+import type { Scenario } from "./types";
+
+export const crowded: Scenario[] = [
+  {
+    id: "crowded",
+    title: "A crowded bot (30+ items)",
+    look: "Three questions, two desk asks, six tasks running, five waiting, two in trouble, twelve desks, three parked and a week of history. What needs Salem must still be first and the rest scannable.",
+    sketch: {
+      focus: "erbareeq",
+      bots: {
+        erbareeq: {
+          lastReply: ago(MINUTE),
+          unlinked: [{ title: "Dealer price list PDF", started: 9 * MINUTE }],
+          startedByYou: [{ title: "Quick question about returns", active: 50 * MINUTE }],
+          desks: [
+            desk("erbareeq", "chat", "هندسة (U-01)", "R-000230 BQ138 carton + 80 BQ1323→BQ1383", "blocked", { updated: 8 * MINUTE }),
+            desk("erbareeq", "whatsapp", "Abanoub", "80W floodlight quote", "draft", { updated: 31 * MINUTE }),
+            desk("erbareeq", "chat", "Finance", "split order 8841", "working", { updated: 3 * MINUTE }),
+            desk("erbareeq", "bricks", "", "#4412 warranty date reset", "working", { updated: 12 * MINUTE }),
+            desk("erbareeq", "chat", "محمد عمر", "3 rejected lamps", "working", { updated: 20 * MINUTE }),
+            desk("erbareeq", "chat", "أوامر الشغل", "Gaman 20W limit (on hold)", "waiting", { updated: 40 * MINUTE, waitingOn: "Sherif", wakeAt: cairo(1, "09:00") }),
+            desk("erbareeq", "chat", "Warehouse", "carton count for invoice 54098", "waiting", { updated: 2 * HOUR }),
+            desk("erbareeq", "whatsapp", "الفقير الي الله", "new message", "info", { updated: 2 * HOUR }),
+            desk("erbareeq", "campaign", "", "Black Friday broadcast", "deferred", { updated: 25 * MINUTE, deadline: cairo(1, "18:00"), deferredReason: "The account pool is at its limit" }),
+            desk("erbareeq", "chat", "Sherif", "health tab crash fixed, told him", "done", { updated: 3 * HOUR }),
+            desk("erbareeq", "redemption", "", "R-000228 gift card", "done", { updated: 6 * HOUR }),
+            desk("erbareeq", "chat", "محمد سرحان", "Abanoub 80W floodlight follow-up", "done", { updated: 2 * DAY }),
+            desk("erbareeq", "feedback", "Yasser", "export button missing on phone", "blocked", { updated: 4 * HOUR, later: ago(3 * HOUR) }),
+          ],
+          tasks: [
+            tasks.needs({ bot: "erbareeq", title: "Invoice 54105 scan", outcome: "Invoice 54105 can leave today", asked: { text: "وده كود الكرتونه", at: ago(38 * MINUTE) } },
+              "Send invoice 54105 with the carton the warehouse scanned, or hold it until the scanner fix is live?", ago(3 * MINUTE), { options: ["Send it now", "Hold until the fix"], recommended: "Send it now", consequence: "The truck leaves at 15:00; after that the invoice ships tomorrow." }),
+            tasks.needs({ id: "t-refund", bot: "erbareeq", title: "Refund for order 8790", outcome: "Order 8790's refund is settled", asked: { text: "customer wants his money back", at: ago(2 * HOUR) } },
+              "How should order 8790 be refunded?", ago(47 * MINUTE), { interactionId: "int_refund", options: ["Full refund to card", "Store credit", "Replace the lamps", "Ask the customer"] }),
+            tasks.needs({ bot: "erbareeq", title: "Dealer discount tiers", outcome: "The new dealer tiers are live", asked: { text: "tiers need a refresh", at: cairo(-3, "10:00") } },
+              "The new dealer tiers are drafted; they wait for your go before the price list changes.", cairo(-2, "16:20")),
+            tasks.working({ id: "c-scan", bot: "erbareeq", title: "Scanner fix for postponed invoices", outcome: "The scanner handles a postponed invoice whose carton left on another invoice", asked: { text: "وده كود الكرتونه", at: ago(38 * MINUTE) } }, "Worker builds the scanner fix", { runningFor: 24 * MINUTE, progress: { done: "The fix is saved on the live server and its early checks passed.", now: "Waiting for the last checks, then testing the invoice." } }),
+            tasks.working({ id: "c-photos", bot: "erbareeq", title: "Desktop profile photos", outcome: "The desktop chat app shows real profile photos", asked: { text: "rune desktop app is not showing profile photos", at: ago(26 * MINUTE) } }, "Worker adds photos, then releases 0.6.2", { runningFor: 13 * MINUTE, progress: { done: "The old version's missing photos are reproduced.", now: "Writing the code that loads and shows profile photos." } }),
+            tasks.working({ id: "c-web", bot: "erbareeq", title: "Web chat loading", outcome: "The web chat loads conversations every time", asked: { text: "keeps coming back", at: ago(38 * MINUTE) } }, "Worker times every request", { runningFor: 29 * MINUTE, progress: { done: "All 16 chat opens loaded fast.", now: "Restarting the desktop app to compare the results." } }),
+            tasks.working({ id: "c-spec", bot: "erbareeq", title: "Sherif spec: technician program dashboard", outcome: "The dashboard has a verified plan", asked: { text: "grab the two emails", at: ago(10 * MINUTE) } }, "Worker checks the scan rules, then writes the plan", { runningFor: 6 * MINUTE }),
+            tasks.working({ id: "c-stock", bot: "erbareeq", title: "Orange stock mismatch", outcome: "Orange stock matches the warehouse count", asked: { text: "orange shows 40 but we have 12", at: ago(95 * MINUTE) } }, "Worker compares both counts line by line", { runningFor: 80 * MINUTE, alert: "quiet" }),
+            tasks.working({ id: "c-prices", bot: "erbareeq", title: "December price update", outcome: "December prices are loaded and checked", asked: { text: "new prices from the 1st", at: ago(3 * HOUR) } }, "Worker loads the sheet into staging", { runningFor: 50 * MINUTE }),
+            tasks.overdue({ bot: "erbareeq", title: "Supplier payment proof", outcome: "The supplier has the transfer receipt", asked: { text: "send him the receipt", at: cairo(-1, "13:00") } }, cairo(0, "10:00")),
+            tasks.checkFailed({ bot: "erbareeq", title: "Warranty lookup speed", outcome: "A warranty lookup answers in under a second", asked: { text: "warranty page is slow", at: cairo(-1, "09:00") } }, 1, 2, cairo(-1, "19:00")),
+            tasks.waitingOnSomeone({ bot: "erbareeq", title: "Bot handles every payment case", outcome: "The bot handles every prepaid case without finance", asked: { text: "Can the bot handle split orders without finance?", at: cairo(-3, "11:10") } }, "Waiting for Sherif to approve how the leftover piastres are handled.", "Sherif's approval", cairo(1, "10:00")),
+            tasks.waitingOnSomeone({ bot: "erbareeq", title: "Orange bulk SMS sender name", outcome: "Order confirmations go out under the Bareeq sender name" }, "Orange is reviewing the sender-name request.", "Orange", cairo(2, "12:00")),
+            tasks.waitingOnBot({ bot: "erbareeq", title: "When the Black Friday watch ends", outcome: "Its schedule is removed and the final results are reported" }, "Black Friday watch runs until Mon 30 Nov 21:30 Cairo", cairo(18, "21:45"), 2 * DAY),
+            tasks.waitingOnBot({ bot: "erbareeq", title: "Klaviyo cancel check", outcome: "No new Klaviyo charge lands on the card" }, "Waiting for Klaviyo's renewal time on 15 November.", cairo(3, "13:45")),
+            tasks.queued({ bot: "erbareeq", title: "Dealer statements for October", outcome: "Every dealer gets an October statement", asked: { text: "statements are late", at: ago(15 * MINUTE) } }, "waiting for a free worker", ahead(6 * MINUTE)),
+            tasks.notNow({ bot: "erbareeq", title: "Desktop chat update", outcome: "The chat app updates itself", asked: { text: "on my salem-pc omarchy desktop", at: cairo(0, "12:37") } }, "acceptance: the desktop chat update fix is live on Salem's PC.", cairo(0, "13:12"), cairo(1, "10:00")),
+            tasks.answered({ bot: "erbareeq", title: "Returns policy wording", outcome: "The returns policy says 14 days everywhere", asked: { text: "policy says 7 in one place", at: cairo(-1, "12:00") } }, "The bot updates the three pages that still say 7 days.", cairo(0, "09:40")),
+            tasks.done({ bot: "erbareeq", title: "U-01 missed message" }, ago(12 * MINUTE)),
+            tasks.done({ bot: "erbareeq", title: "Demo password swap" }, ago(44 * MINUTE)),
+            tasks.done({ bot: "erbareeq", title: "Minimum app version 1.0.8" }, ago(52 * MINUTE)),
+            tasks.unconfirmed({ bot: "erbareeq", title: "Carton label template" }, ago(2 * HOUR)),
+            ...Array.from({ length: 36 }, (_, i) => tasks.done({ bot: "erbareeq", title: ["Orange stock sync", "Price list export", "Dealer onboarding email", "Invoice PDF footer", "Warranty QR batch", "Order status SMS"][i % 6]! + ` ${i + 1}` }, cairo(-1 - Math.floor(i / 7), `${String(9 + (i % 7)).padStart(2, "0")}:30`))),
+          ],
+        },
+      },
+      needs: [
+        need("erbareeq", "Decision needed: 14 orders are stuck in 'awaiting payment proof' for over 48 h. Cancel them or send one last reminder?", ago(5 * HOUR), { options: ["Send a last reminder", "Cancel all 14"], asked: "Cancel the 14 orders stuck without payment proof, or send one last reminder?", askSeq: 5120 }),
+      ],
+      workers: {
+        "c-scan": [{ title: "Scanner fix", state: "running", started: 24 * MINUTE }],
+        "c-photos": [{ title: "Desktop profile photos", state: "running", started: 13 * MINUTE }],
+        "c-web": [{ title: "Web chat loading", state: "running", started: 29 * MINUTE }],
+        "c-spec": [{ title: "Technician dashboard spec", state: "running", started: 6 * MINUTE }],
+        "c-stock": [{ title: "Orange stock mismatch", state: "running", started: 80 * MINUTE }],
+        "c-prices": [{ title: "December price update", state: "running", started: 50 * MINUTE }, { title: "December price update: first load", state: "idle", started: 170 * MINUTE, ended: 60 * MINUTE }],
+        "t-refund": [{ title: "Refund for order 8790", state: "idle", started: 110 * MINUTE, ended: 47 * MINUTE }],
+      },
+    },
+  },
+];
