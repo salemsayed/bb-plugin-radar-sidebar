@@ -71,14 +71,16 @@ export class Driver {
     await sleep(1500);
   }
 
-  async sidebar() {
-    const row = this.page.locator(".stage-chat").first();
+  async sidebar(key) {
+    const row = key ? this.page.locator(`.stage-chat[data-rove="${key}"]`) : this.page.locator(".stage-chat").first();
     await row.waitFor({ state: "attached", timeout: 30_000 });
     if (!this.phone) return;
     const hidden = () => row.evaluate(node => {
+      if (node.closest("[inert]")) return true;
+      node.scrollIntoView({ block: "center" });
       const box = node.getBoundingClientRect();
       const x = box.left + box.width / 2, y = box.top + box.height / 2;
-      if (node.closest("[inert]") || x <= 0 || x >= innerWidth || y <= 0 || y >= innerHeight) return true;
+      if (x <= 0 || x >= innerWidth || y <= 0 || y >= innerHeight) return true;
       const hit = document.elementFromPoint(x, y);
       return !hit || !node.parentElement.contains(hit);
     });
@@ -95,7 +97,7 @@ export class Driver {
   async openPanel(bot) {
     if (await this.panel().isVisible().catch(() => false)) await this.closePanel();
     await this.rightPanelClosed();
-    await this.sidebar();
+    await this.sidebar(bot.key);
     const row = this.botRow(bot.key);
     await row.waitFor({ state: "visible", timeout: 20_000 });
     if (this.phone) await this.press(row.locator(".stage-more"));
