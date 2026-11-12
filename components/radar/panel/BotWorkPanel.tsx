@@ -66,7 +66,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
   const body = useRef<HTMLDivElement>(null);
   const target = useCoordinatorTarget(bot.coordinatorThreadId);
   const drag = useRef<number | null>(null);
-  const openedAt = useRef(performance.now());
+  const quietUntil = useRef(isCompactViewport ? performance.now() + SETTLE_MS : 0);
   useEffect(() => {
     const firstAsk = focusNeeds && keyboard ? panel.current?.querySelector<HTMLElement>(".panel-ask-question") : null;
     if (firstAsk) (firstAsk as HTMLElement & { focus(options: FocusOptions & { focusVisible?: boolean }): void }).focus({ preventScroll: true, focusVisible: true });
@@ -108,6 +108,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
     const siblings = Array.from(holder?.parentElement?.querySelectorAll<HTMLElement>(":scope > [data-item]") ?? []);
     const at = holder ? siblings.indexOf(holder) : -1;
     const next = siblings[at + 1] ?? siblings[at - 1];
+    quietUntil.current = performance.now() + SETTLE_MS;
     void act();
     requestAnimationFrame(() => ((next?.isConnected ? next.querySelector<HTMLElement>("button") : null) ?? panel.current)?.focus({ preventScroll: false }));
   };
@@ -123,7 +124,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
     : "Ask for something in its chat and it shows up here.";
 
   return createPortal(<div className={`dispatch-overlay${isCompactViewport ? " dispatch-phone" : ""}${anchored ? " dispatch-anchored" : ""}`} data-bb-portaled-overlay="" data-bb-plugin={scope}
-    onClickCapture={event => { if (isCompactViewport && performance.now() - openedAt.current < SETTLE_MS) { event.preventDefault(); event.stopPropagation(); } }}
+    onClickCapture={event => { if (performance.now() < quietUntil.current) { event.preventDefault(); event.stopPropagation(); } }}
     onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="dispatch-panel" data-caret={anchored && anchor?.rowCenter !== undefined || undefined} style={{ "--bot-hue": botStyle(bot.key, bot.name).hue, ...(anchored ? anchoredStyle(anchor) : {}) } as CSSProperties} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${bot.name}: tasks and desks`}
       onKeyDown={event => {
