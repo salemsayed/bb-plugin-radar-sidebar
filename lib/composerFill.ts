@@ -58,7 +58,7 @@ export function answerBinding(key: string): { provider: "task" | "question"; id:
   const id = /^ask:(.+)$/.exec(key)?.[1];
   if (!id) return null;
   if (id.startsWith("ptask_")) return { provider: "task", id };
-  if (id.startsWith("need_")) return { provider: "question", id };
+  if (id.startsWith("need_") || id.startsWith("q_")) return { provider: "question", id };
   return null;
 }
 

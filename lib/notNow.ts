@@ -5,7 +5,7 @@ import { needsChanged } from "./needsClient";
 import type { BotTasksData } from "./botTasks";
 
 export const NOT_NOW_PLUGIN = "orchestrator-mode";
-const resultSchema = z.object({ key: z.string(), at: z.number().nullable() });
+const resultSchema = z.object({ id: z.string(), state: z.enum(["open", "later", "closed"]), at: z.number().nullable() });
 const UNDO_MS = 8_000;
 const SETTLE_MS = 20_000;
 
@@ -30,43 +30,43 @@ function scheduleToastEnd(toast: NotNowToast | null) {
   timer = setTimeout(() => { if (state.toast?.key === toast.key && !state.toast.busy) set({ toast: null }); }, Math.max(0, toast.expiresAt - Date.now()));
 }
 
-async function call(key: string, on: boolean) {
+async function call(id: string, on: boolean) {
   if (!sdk) throw new Error("Not now is unavailable here");
-  return sdk.plugins.callRpc({ pluginId: NOT_NOW_PLUGIN, method: "needs_not_now", input: { key, on }, outputSchema: resultSchema });
+  return sdk.plugins.callRpc({ pluginId: NOT_NOW_PLUGIN, method: "needs_not_now", input: { id, on }, outputSchema: resultSchema });
 }
 
-function withLocal(key: string, value: { on: boolean; at: number } | null) {
+function withLocal(id: string, value: { on: boolean; at: number } | null) {
   const local = new Map(state.local);
-  if (value) local.set(key, value); else local.delete(key);
+  if (value) local.set(id, value); else local.delete(id);
   return local;
 }
 
-export async function notNow(key: string, label: string) {
+export async function notNow(id: string, label: string) {
   const at = Date.now();
-  const toast: NotNowToast = { key, label, expiresAt: at + UNDO_MS, busy: false, error: null };
-  set({ local: withLocal(key, { on: true, at }), toast });
+  const toast: NotNowToast = { key: id, label, expiresAt: at + UNDO_MS, busy: false, error: null };
+  set({ local: withLocal(id, { on: true, at }), toast });
   scheduleToastEnd(toast);
   try {
-    await call(key, true);
+    await call(id, true);
     needsChanged();
   } catch {
     const failed = { ...toast, error: "Couldn't move it to Later. Try again in a moment.", expiresAt: Date.now() + UNDO_MS };
-    set({ local: withLocal(key, null), toast: failed });
+    set({ local: withLocal(id, null), toast: failed });
     scheduleToastEnd(failed);
   }
 }
 
-export async function bringBack(key: string, label?: string) {
-  const current = state.toast?.key === key ? state.toast : null;
+export async function bringBack(id: string, label?: string) {
+  const current = state.toast?.key === id ? state.toast : null;
   if (current) set({ toast: { ...current, busy: true, error: null } });
-  set({ local: withLocal(key, { on: false, at: Date.now() }) });
+  set({ local: withLocal(id, { on: false, at: Date.now() }) });
   try {
-    await call(key, false);
-    if (state.toast?.key === key) set({ toast: null });
+    await call(id, false);
+    if (state.toast?.key === id) set({ toast: null });
     needsChanged();
   } catch {
-    const failed: NotNowToast = { key, label: label ?? current?.label ?? "this", expiresAt: Date.now() + UNDO_MS, busy: false, error: "Couldn't bring it back. Try Bring back in the bot's panel." };
-    set({ local: withLocal(key, { on: true, at: Date.now() }), toast: failed });
+    const failed: NotNowToast = { key: id, label: label ?? current?.label ?? "this", expiresAt: Date.now() + UNDO_MS, busy: false, error: "Couldn't bring it back. Try Bring back in the bot's panel." };
+    set({ local: withLocal(id, { on: true, at: Date.now() }), toast: failed });
     scheduleToastEnd(failed);
   }
 }
@@ -75,54 +75,39 @@ export function dismissToast() { clearTimeout(timer); set({ toast: null }); }
 
 export interface NotNowView {
   toast: NotNowToast | null;
-  laterAt: (key: string, since?: number) => number | null;
-  pending: (key: string) => number | null;
+  pending: (id: string) => { on: boolean; at: number } | null;
 }
 
-export function taskNotNowKey(task: { id: string; waitFor?: string; needs?: { interactionId: string } }): string {
-  return task.waitFor === "you" || !task.needs?.interactionId ? `task:${task.id}` : `form:${task.needs.interactionId}`;
-}
-
-export function useNotNow(server: BotTasksData["notNow"] | undefined): NotNowView {
+export function useNotNow(): NotNowView {
   sdk = useSdk();
   const store = useSyncExternalStore(subscribe, read, read);
-  const saved = new Map((server ?? []).map(entry => [entry.key, entry.at]));
   return {
     toast: store.toast,
-    laterAt: (key, since) => {
-      const local = store.local.get(key);
-      if (local && !local.on) return null;
-      const at = local?.on ? local.at : saved.get(key) ?? null;
-      return at !== null && (since === undefined || at >= since) ? at : null;
-    },
-    pending: key => {
-      const local = store.local.get(key);
-      return local?.on && Date.now() - local.at < SETTLE_MS ? local.at : null;
+    pending: id => {
+      const local = store.local.get(id);
+      return local && Date.now() - local.at < SETTLE_MS ? local : null;
     },
   };
 }
 
+export function questionIdOf(task: { needs?: { questionId?: string }; later?: unknown; id: string }, data: Pick<BotTasksData, "questions">): string | null {
+  return task.needs?.questionId ?? data.questions.find(q => q.taskId === task.id)?.id ?? null;
+}
+
 export function applyNotNow(data: BotTasksData, view: NotNowView): BotTasksData {
-  let changed = false;
-  const bots = data.bots.map(bot => {
-    let touched = false;
-    const tasks = bot.tasks.map(task => {
-      if (task.displayState !== "needs") return task;
-      const at = view.pending(taskNotNowKey(task));
-      if (at === null) return task;
-      touched = true;
-      return { ...task, displayState: "waiting" as const, waitFor: "you", later: { reason: "not-now" as const, at } };
-    });
-    const desks = bot.desks.map(desk => {
-      if (desk.status !== "draft" && desk.status !== "blocked") return desk;
-      const at = view.laterAt(`desk:${desk.id}`, desk.updatedAt);
-      if (at === null) return desk;
-      touched = true;
-      return { ...desk, later: at };
-    });
-    if (!touched) return bot;
-    changed = true;
-    return { ...bot, tasks, desks };
-  });
-  return changed ? { ...data, bots } : data;
+  if (!data.questions.some(q => view.pending(q.id))) return data;
+  const parked = (id: string | undefined) => { const local = id ? view.pending(id) : null; return local?.on ? local.at : null; };
+  const bots = data.bots.map(bot => ({
+    ...bot,
+    tasks: bot.tasks.map(task => {
+      const at = task.displayState === "needs" ? parked(task.needs?.questionId) : null;
+      return at === null ? task : { ...task, displayState: "waiting" as const, waitFor: "you", later: { reason: "not-now" as const, at } };
+    }),
+    desks: bot.desks.map(desk => {
+      const at = desk.question?.state === "open" ? parked(desk.question.id) : null;
+      return at === null ? desk : { ...desk, question: { ...desk.question!, state: "later" as const, laterAt: at } };
+    }),
+  }));
+  const questions = data.questions.map(q => { const at = q.state === "open" ? parked(q.id) : null; return at === null ? q : { ...q, state: "later" as const, laterAt: at }; });
+  return { ...data, bots, questions };
 }

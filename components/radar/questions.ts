@@ -1,11 +1,8 @@
-import { isClosed, type BotTaskRow, type BotTasksData } from "@/lib/botTasks";
-import { normalizedNeedsText, type NeedsItem } from "@/lib/needs";
-import { askFirst, needAsk, stageText, stageTitle } from "./stage";
+import type { BotTaskRow } from "@/lib/botTasks";
+import { IN_PANEL_TAG, QUESTION_TAG } from "@/lib/questionRecords";
 import { capitalFirst, cutAtWord, plainText } from "./workText";
-import { recommendedOption } from "./recommend";
 
-export const QUESTION_TAG = "radar:question";
-export const IN_PANEL_TAG = "radar:question-in-panel";
+export { IN_PANEL_TAG, QUESTION_TAG };
 
 export function isQuestionRow(task: Pick<BotTaskRow, "tags">): boolean {
   return task.tags.includes(QUESTION_TAG);
@@ -13,59 +10,6 @@ export function isQuestionRow(task: Pick<BotTaskRow, "tags">): boolean {
 
 export function questionInPanel(task: Pick<BotTaskRow, "tags">): boolean {
   return task.tags.includes(IN_PANEL_TAG);
-}
-
-const STATUS_TAG = /^(?:overdue|reminder|decision(?: needed)?|question|heads-up|fyi)\s*[:·-]\s*/i;
-const GO_WAIT = /^(.*?)[;,.]\s*(?:still\s+)?(?:waiting|waits) (?:for|on) your (?:go|go-ahead|ok|okay|approval|decision|answer|call|sign-off)\b(.*)$/i;
-const CHOICE = /\byour (?:choice|pick) of ((?:an? |the )?[^(,;.]+?)\s*(?:\(|[,;.]|$)/i;
-const FINISH: [RegExp, string][] = [
-  [/,?\s*\b(?:unpublished|not (?:yet )?published)\b/i, "Publish"],
-  [/,?\s*\b(?:undeployed|not (?:yet )?deployed)\b/i, "Deploy"],
-  [/,?\s*\b(?:unmerged|not (?:yet )?merged)\b/i, "Merge"],
-  [/,?\s*\b(?:unsent|not (?:yet )?sent)\b/i, "Send"],
-  [/,?\s*\bnot (?:yet )?(?:shipped|released)\b/i, "Ship"],
-];
-const SUBJECT = /^([A-Za-z][\w-]*(?: [A-Za-z][\w-]*)?)\s+(?:is |was |has been )?(?:built|ready|done|checked|tested|finished|prepared|drafted|written)\b/;
-
-function waitedGo(text: string, title: string): string {
-  const wait = GO_WAIT.exec(text);
-  if (!wait) return "";
-  let status = wait[1]!.trim();
-  let verb = "";
-  for (const [pattern, word] of FINISH) if (pattern.test(status)) { verb = word; status = status.replace(pattern, "").trim(); break; }
-  const subject = SUBJECT.exec(status)?.[1] ?? "";
-  const named = title && subject && title.toLowerCase().includes(subject.toLowerCase()) ? title : subject.toLowerCase() || title;
-  const thing = named ? `the ${named.replace(/^the /i, "")}` : "it";
-  const choice = CHOICE.exec(wait[2] ?? "")?.[1]?.trim();
-  const lead = `${verb || "Go ahead with"} ${thing}${choice ? ` and pick ${choice}` : ""}?`;
-  const context = subject ? status.slice(subject.length).trim().replace(/^(?:is|was|has been)\s+/, "") : status;
-  return context ? `${lead} · ${capitalFirst(context.replace(/[,;.\s]+$/, ""))}` : lead;
-}
-
-const PLAN = /^(.+?)\s*[:\u00b7\u2013\u2014-]\s*(?:the |a )?plan$/i;
-const NAMED_ITEM = /^merge request (?:[a-z][\w-]*!|!)?\d+\b/i;
-
-function lowerLead(text: string): string {
-  return /^[A-Z][a-z]/.test(text) && !/^[A-Z][a-z]+(?:\s+[A-Z]|$)/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
-}
-
-const FIRST_PERSON = /\b(?:I|I'll|I'm|I've|I'd|my|mine|myself|me)\b/;
-const TO_YOU: Record<string, string> = { "I'll": "you'll", "I'm": "you're", "I've": "you've", "I'd": "you'd", I: "you", my: "your", mine: "yours", myself: "yourself", me: "you" };
-
-export function askedVoice(option: string, later: boolean): string {
-  const plain = stageText(option, true).replace(/\s*\((?:recommended|suggested|default|preferred)\)/gi, "").replace(/[.?!]+$/, "").replace(/^(?:yes|no),\s+(?=\S)/i, "").trim();
-  if (!FIRST_PERSON.test(plain)) return plain;
-  const turned = plain.replace(/\b(?:I'll|I'm|I've|I'd|I|my|mine|myself|me)\b/g, word => TO_YOU[word] ?? word);
-  return later ? turned.replace(/^you(?:'ll| will)\s+/i, "") : turned;
-}
-
-function choice(options: readonly string[]): string {
-  const said = options.map((option, i) => {
-    const plain = askedVoice(option, i > 0);
-    return i === 0 ? capitalFirst(plain) : lowerLead(plain);
-  });
-  const last = said.pop()!;
-  return `${said.length ? `${said.join(", ")}, or ${last}` : last}?`;
 }
 
 export function questionTopic(question: string): string {
@@ -95,35 +39,8 @@ export function needsTopic(question: string, fallback = ""): string {
   return fallback || questionTopic(head);
 }
 
-export function recordQuestion(text: string, title = "", options: readonly string[] = []): string {
-  const body = stageText(text.replace(STATUS_TAG, "").trim(), true).replace(/\s*\([^()]*\b\d{6,}\b[^()]*\)/g, "").trim();
-  if (options.length >= 2 && !/\?/.test(body)) return choice(options);
-  if (/\?/.test(body)) return askFirst(body, title);
-  const plan = PLAN.exec(body);
-  if (plan) return `Approve the plan for ${lowerLead(plan[1]!.trim())}?`;
-  if (NAMED_ITEM.test(body)) return `Reply needed on ${lowerLead(body)}`;
-  return waitedGo(body, title) || needAsk(body, title);
-}
-
-type TaskNeeds = NonNullable<BotTaskRow["needs"]>;
-
-function twinNeeds(needs: TaskNeeds, item: NeedsItem): TaskNeeds {
-  const options = needs.options?.length ? needs.options : item.options ?? [];
-  const question = item.asked && !/\?/.test(needs.question) ? item.asked : needs.question;
-  const recommended = needs.recommended ?? recommendedOption(options, question, item.advice ?? item.recommend ?? "");
-  return { ...needs, question, ...(options.length ? { options } : {}), ...(item.askSeq != null && needs.messageSeq === undefined ? { messageSeq: item.askSeq } : {}), ...(item.consequence && !needs.consequence ? { consequence: item.consequence } : {}), ...(recommended ? { recommended } : {}) };
-}
-
-export interface DroppedQuestion { id: string; bot: string; why: string; text: string }
-
-function sameAsk(a: string, b: string): boolean {
-  const x = normalizedNeedsText(a).slice(0, 60), y = normalizedNeedsText(b).slice(0, 60);
-  return x.length >= 12 && y.length >= 12 && (x.includes(y) || y.includes(x));
-}
-
 const STEP_VERB = /^(?:type|enter|paste|log ?in(?:to)?|sign ?in(?:to)?|approve|confirm|tap|plug|scan|press|unlock|open|run|restart|install|reply|send|upload|pick|choose)\b/i;
 const PURPOSE = /^(.{16,}?),?\s+(so (?:that )?|to make sure |in order to )(.{8,}?)[.\s]*$/i;
-const DUE_KINDS = new Set(["deadline", "urgent", "reminder"]);
 
 export function stepParts(text: string): { step: string; purpose: string } | null {
   const said = text.trim();
@@ -137,83 +54,3 @@ export function isStepAsk(task: Pick<BotTaskRow, "displayState" | "needs" | "lin
   return task.displayState === "needs" && !!stepParts(task.needs?.question || task.line);
 }
 
-const words = (text: string) => new Set(normalizedNeedsText(text).split(/[^a-z0-9:]+/).filter(word => word.length >= 4));
-
-function dueClock(due: string, now: number): string {
-  const at = /(?:Z|[+-]\d{2}:\d{2})$/.test(due) ? Date.parse(due) : Date.parse(due.length === 10 ? `${due}T00:00` : due.slice(0, 16));
-  if (!Number.isFinite(at) || at < now - 3_600_000) return "";
-  const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
-  return at - now < 20 * 3_600_000 ? clock : `${new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(at))} ${clock}`;
-}
-
-export function withSteps(data: BotTasksData, records: readonly NeedsItem[]): BotTasksData {
-  let changed = false;
-  const bots = data.bots.map(bot => {
-    let mine = false;
-    const tasks = bot.tasks.map(task => {
-      if (task.displayState !== "needs" || !task.needs) return task;
-      const parts = stepParts(task.needs.question || task.line);
-      if (!parts) return task;
-      const own = words(parts.step);
-      const due = records.filter(item => item.bot === bot.key && DUE_KINDS.has(item.kind) && (item.state === "open" || item.state === "reminded") && item.due)
-        .map(item => ({ item, shared: [...words(item.text)].filter(word => own.has(word)).length }))
-        .filter(match => match.shared >= 4 && match.shared * 2 >= own.size)
-        .sort((a, b) => b.shared - a.shared)[0];
-      const by = due ? dueClock(due.item.due!, data.observedAt) : "";
-      const said = [by ? `Before ${by}` : "", parts.purpose].filter(Boolean).join(", ");
-      const consequence = task.needs.consequence || (said ? `${capitalFirst(said)}.` : "");
-      mine = true;
-      return { ...task, line: parts.step, needs: { ...task.needs, question: parts.step, ...(consequence ? { consequence } : {}) } };
-    });
-    if (!mine) return bot;
-    changed = true;
-    return { ...bot, tasks };
-  });
-  return changed ? { ...data, bots } : data;
-}
-
-export function withQuestions(data: BotTasksData, records: readonly NeedsItem[] | null, laterAt: (key: string, since?: number) => number | null): { data: BotTasksData; dropped: DroppedQuestion[] } {
-  const dropped: DroppedQuestion[] = [];
-  data = withSteps(data, records ?? []);
-  if (!records?.length) return { data, dropped };
-  const all = data.bots.flatMap(bot => bot.tasks);
-  let changed = false;
-  const bots = data.bots.map(bot => {
-    const mine = records.filter(item => item.bot === bot.key && item.kind === "decision" && (item.state === "open" || item.state === "reminded"));
-    if (!mine.length) return bot;
-    const rows: BotTaskRow[] = [];
-    const twins = new Map<string, NeedsItem>();
-    for (const item of mine) {
-      if (item.cleared) { dropped.push({ id: item.id, bot: bot.key, why: item.cleared.why, text: item.text }); continue; }
-      if (item.answered && item.followedUp) { dropped.push({ id: item.id, bot: bot.key, why: "you answered and the bot followed up", text: item.text }); continue; }
-      const linkedId = /^task-overdue:([^:]+)/.exec(item.key ?? "")?.[1];
-      const linked = linkedId ? all.find(task => task.id === linkedId) : undefined;
-      if (linked && (isClosed(linked.displayState) || linked.displayState !== "needs" && linked.waitFor !== "you")) { dropped.push({ id: item.id, bot: bot.key, why: "its task moved on", text: item.text }); continue; }
-      const twin = bot.tasks.find(task => task.displayState === "needs" && (item.taskId !== undefined && task.id === item.taskId || item.askSeq != null && task.needs?.messageSeq === item.askSeq && task.needs.threadId === item.source.threadId));
-      if (twin) { if (!twins.has(twin.id)) twins.set(twin.id, item); dropped.push({ id: item.id, bot: bot.key, why: "the same ask as its task", text: item.text }); continue; }
-      if (linked?.displayState === "needs" || bot.tasks.some(task => task.displayState === "needs" && sameAsk(task.needs?.question ?? task.line, item.text))) { dropped.push({ id: item.id, bot: bot.key, why: "already asked by its task", text: item.text }); continue; }
-      const askedAt = Date.parse(item.createdAt);
-      const threadId = item.source.threadId ?? bot.coordinatorThreadId;
-      const topicTask = item.taskId ? all.find(task => task.id === item.taskId) : linked;
-      const question = recordQuestion(item.asked ?? item.text, linked ? stageTitle(linked.title, linked.outcome) : "", item.options ?? []);
-      const cardTitle = item.asked && item.text.length <= 48 && !/\?\s*$/.test(item.text) ? capitalFirst(item.text) : "";
-      const recommended = recommendedOption(item.options ?? [], item.text, item.advice ?? item.recommend ?? "");
-      const parkedAt = laterAt(`task:${item.id}`, askedAt);
-      const seq = item.askSeq ?? undefined;
-      const answered = item.answered ?? null;
-      const later = answered ? { reason: "answered" as const, at: answered.at, threadId, messageSeq: answered.seq } : parkedAt !== null ? { reason: "not-now" as const, at: parkedAt } : null;
-      rows.push({
-        id: item.id, bot: bot.key, title: topicTask ? stageTitle(topicTask.title, topicTask.outcome) : cardTitle || question, displayState: later ? "waiting" : "needs", line: question, waitFor: "you",
-        ageMs: Math.max(0, data.observedAt - askedAt), conversationThreadId: null,
-        needs: { threadId, interactionId: "", question, askedAt, ...(seq !== undefined ? { messageSeq: seq } : {}), ...(item.options?.length ? { options: item.options } : {}), ...(item.consequence ? { consequence: item.consequence } : {}), ...(recommended ? { recommended } : {}) },
-        ...(later ? { later } : {}),
-        tags: seq === undefined ? [QUESTION_TAG, IN_PANEL_TAG] : [QUESTION_TAG], origin: "verified", observedAt: data.observedAt,
-      });
-    }
-    if (!rows.length && !twins.size) return bot;
-    changed = true;
-    const tasks = twins.size ? bot.tasks.map(task => { const item = twins.get(task.id); return item && task.needs ? { ...task, needs: twinNeeds(task.needs, item) } : task; }) : bot.tasks;
-    return { ...bot, tasks: [...rows, ...tasks] };
-  });
-  return { data: changed ? { ...data, bots } : data, dropped };
-}

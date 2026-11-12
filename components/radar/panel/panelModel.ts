@@ -2,7 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, needsYou, sortDesks, type Attempt, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { elapsed } from "../elapsed";
 import { isQuestionRow, isStepAsk, needsTopic, questionTopic } from "../questions";
-import { isOldAsk, stageText, stageTitle } from "../stage";
+import { stageText, stageTitle } from "../stage";
 import { shortAgo } from "../time";
 import type { WorkerSnapshot } from "../useDispatchWorkers";
 import { capitalFirst, cardOrder, plainNote, plainQueue, plainWorkerTitle, taskHeadline } from "../workText";
@@ -112,7 +112,6 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   });
   distinctTitles(items);
   const asks = items.filter(item => item.status.group === "needs");
-  const fresh = asks.filter(item => !isOldAsk(item.task));
   const askTitles = new Set(asks.map(item => stageTitle(item.task.title).toLowerCase()));
   const shadowed = (item: TaskItem) => item.task.displayState === "waiting" && item.status.group !== "later" && askTitles.has(stageTitle(item.task.title).toLowerCase());
   const visibleDesks = bot.desks.filter(desk => desk.status !== "done" && desk.status !== "info" || desk.quietSince === null || now - desk.quietSince < DAY_MS);
@@ -121,7 +120,7 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   const group = (name: Group): WorkItem[] => [...items.filter(item => item.status.group === name && !shadowed(item)), ...desks.filter(item => item.status.group === name)];
   const done = group("done").sort((a, b) => b.at - a.at);
   return {
-    asks: [...fresh, ...asks.filter(item => isOldAsk(item.task))],
+    asks,
     deskAsks: desks.filter(item => item.status.group === "needs"),
     stuck: group("stuck"),
     working: [...group("working"), ...unlinked],
@@ -135,14 +134,14 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
     doneEarlier: done.filter(item => !isSameLocalDay(item.at, now)),
     workers: snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null,
     chatting: snapshot.chat.has(bot.key),
-    stepsOnly: fresh.length > 0 && fresh.every(item => isStepAsk(item.task)) && !desks.some(item => item.status.group === "needs"),
+    stepsOnly: asks.length > 0 && asks.every(item => isStepAsk(item.task)) && !desks.some(item => item.status.group === "needs"),
   };
 }
 
 export interface Tally { group: Group; count: number; label: string }
 
 export function panelTally(model: PanelModel): Tally[] {
-  const freshAsks = model.asks.filter(item => !isOldAsk(item.task)).length + model.deskAsks.length;
+  const freshAsks = model.asks.length + model.deskAsks.length;
   const parts: Tally[] = [
     { group: "needs", count: freshAsks, label: model.stepsOnly ? (freshAsks === 1 ? "step for you" : "steps for you") : freshAsks === 1 ? "needs you" : "need you" },
     { group: "stuck", count: model.stuck.length, label: "stuck" },

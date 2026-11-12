@@ -5,7 +5,7 @@ import type { needsItemSchema } from "@/lib/needs";
 import type { rosterSchema } from "@/components/radar/bots";
 
 export type BotTasksInput = z.input<typeof botTasksSchema>;
-export type NeedsInput = z.input<typeof needsItemSchema>;
+export type NeedsInput = z.input<typeof needsItemSchema> & { options?: string[]; asked?: string; consequence?: string; advice?: string; askSeq?: number };
 export type TaskDetailInput = z.input<typeof taskDetailSchema>;
 export type RosterInput = z.input<typeof rosterSchema>;
 

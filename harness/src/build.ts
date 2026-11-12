@@ -5,7 +5,7 @@ import { NOW, DAY, HOUR, MINUTE, ago, clock, shortDay, span, stamp } from "./clo
 import type { BotTasksInput, NeedsInput, TaskDetailInput, ThreadRow, World } from "./world";
 
 export type TaskInput = z.input<typeof taskSchema> & { movedAgoMs?: number };
-export type DeskInput = z.input<typeof deskSchema>;
+export type DeskInput = z.input<typeof deskSchema> & { later?: number };
 
 export const BOTS = [
   { key: "personal", name: "Personal Bot" },
@@ -131,6 +131,34 @@ export function desk(bot: BotKey, kind: DeskInput["desk"], who: string, subject:
     ...(extra.wakeAt !== undefined ? { wake: { at: extra.wakeAt, state: "pending" } } : {}), ...(extra.later !== undefined ? { later: extra.later } : {}) };
 }
 
+type QuestionInput = Record<string, unknown> & { id: string; state: "open" | "later" };
+
+function questionsOf(bots: BotTasksInput["bots"], needs: readonly NeedsInput[], parked: ReadonlyMap<string, number>): QuestionInput[] {
+  const out: QuestionInput[] = [];
+  const state = (key: string, later?: number) => { const at = later ?? parked.get(key); return at !== undefined ? { state: "later" as const, laterAt: at } : { state: "open" as const }; };
+  for (const bot of bots) {
+    for (const raw of bot.tasks ?? []) {
+      const task = raw as TaskInput;
+      const later = task.later?.reason === "not-now" ? task.later.at : undefined;
+      if (task.displayState !== "needs" && later === undefined) continue;
+      const id = `q_${task.id}`;
+      if (task.needs) (task.needs as { questionId?: string }).questionId = id;
+      out.push({ id, bot: bot.key, source: "ask", threadId: task.needs?.threadId ?? bot.coordinatorThreadId, askedAt: task.needs?.askedAt ?? NOW - (task.ageMs ?? 0), question: task.needs?.question ?? task.line ?? task.title ?? "",
+        taskId: task.id, ...(task.needs?.messageSeq !== undefined ? { messageSeq: task.needs.messageSeq } : {}), ...(task.needs?.options ? { options: task.needs.options } : {}), ...state(`task:${task.id}`, later) });
+    }
+    for (const d of (bot.desks ?? []) as DeskInput[]) {
+      if (d.status !== "draft" && d.status !== "blocked") continue;
+      out.push({ id: `q_${d.id}`, bot: bot.key, source: "desk", threadId: d.threadId ?? bot.coordinatorThreadId, askedAt: d.updatedAt, question: d.title, deskId: d.id, ...state(`desk:${d.id}`, d.later) });
+    }
+  }
+  for (const n of needs.filter(n => n.kind === "decision" && (n.state === "open" || n.state === "reminded"))) {
+    const seq = n.askSeq !== undefined ? String(n.askSeq) : /^message:(\d+)$/.exec(n.source.messageId ?? "")?.[1];
+    out.push({ id: `q_${n.id}`, bot: n.bot, source: "need", threadId: n.source.threadId ?? coordinator(n.bot as BotKey), askedAt: Date.parse(n.createdAt), question: n.text, needId: n.id,
+      ...(seq ? { messageSeq: Number(seq) } : {}), ...(n.recommend ? { recommend: n.recommend } : {}), ...(n.options ? { options: n.options } : {}), ...state(`task:${n.id}`) });
+  }
+  return out;
+}
+
 export interface Worker { title: string; state: "running" | "idle" | "error"; started: number; ended?: number; model?: string; effort?: string }
 
 export interface BotContent { tasks?: TaskInput[]; desks?: DeskInput[]; unlinked?: { title: string; started: number }[]; chatting?: boolean; lastReply?: number; startedByYou?: { title: string; active: number }[] }
@@ -185,7 +213,7 @@ export function buildWorld(sketch: Sketch): World {
   for (const [taskId, checks] of Object.entries(sketch.checks ?? {})) taskDetails[taskId] = { ...(taskDetails[taskId] ?? { taskId, workers: [] }), checks };
   return {
     now: NOW,
-    tasks: { bots, needs: [], notFiled: [], observedAt: NOW, notNow: sketch.notNow ?? [] },
+    tasks: { bots, questions: questionsOf(bots, sketch.needs ?? [], new Map((sketch.notNow ?? []).map(n => [n.key, n.at]))), notFiled: [], observedAt: NOW },
     needs: sketch.needs ?? [],
     roster: { bots: BOTS.map(({ key, name }) => ({ key, name, current: coordinator(key), projectId: `proj_${key}`, projects: [], hostId: "host_harness", providerId: "claude-code", model: "claude-opus-5-5", rollover: null })) },
     sidebarThreads,

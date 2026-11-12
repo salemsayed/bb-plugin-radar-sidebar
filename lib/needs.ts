@@ -13,15 +13,6 @@ export const needsItemSchema = z.object({
   subject: z.string().nullable().optional(),
   source: z.object({ threadId: z.string().optional(), messageId: z.string().optional(), automationId: z.string().optional() }),
   key: z.string().nullable(), createdAt: z.string(), closedAt: z.string().nullable(), reminders: z.number(),
-  askSeq: z.number().nullable().optional(),
-  answered: z.object({ seq: z.number(), at: z.number(), by: z.enum(["button", "task", "jev"]).optional() }).nullable().optional(),
-  followedUp: z.object({ seq: z.number(), at: z.number() }).nullable().optional(),
-  cleared: z.object({ at: z.number(), why: z.string() }).nullable().optional(),
-  options: z.array(z.string()).optional(),
-  taskId: z.string().optional(),
-  asked: z.string().optional(),
-  consequence: z.string().optional(),
-  advice: z.string().optional(),
 });
 export type NeedsItem = z.infer<typeof needsItemSchema>;
 export const needsListSchema = z.object({ items: z.array(needsItemSchema) });
@@ -38,7 +29,6 @@ export const needsUpdateSchema = z.object({
 export const needsRpcContract = {
   crew_needs_list: { input: z.object({}).strict(), output: z.object({ items: z.array(needsItemSchema).nullable() }) },
   crew_needs_update: { input: needsUpdateSchema, output: needsResultSchema },
-  crew_answer_check: { input: z.object({}).strict(), output: z.object({ checks: z.array(z.unknown()) }) },
   crew_remind: {
     input: z.object({ threadId: z.string().min(1).max(64), messageId: z.string().min(1).max(256), text: z.string().min(1).max(120), until: z.string() }).strict(),
     output: needsResultSchema,

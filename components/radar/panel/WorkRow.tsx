@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import type { BotTasksBot } from "@/lib/botTasks";
 import { isClosed } from "@/lib/botTasks";
-import { taskNotNowKey } from "@/lib/notNow";
 import { FitLines } from "../FitLines";
 import { Isolated } from "../Isolated";
 import { askPlace, notNowLabel } from "../NeedsSummary";
@@ -27,13 +26,13 @@ export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { i
   const spoken = `${item.title}. ${[item.status.words, item.status.note].filter(Boolean).join(", ")}`;
   if (item.kind !== "task") {
     const threadId = item.kind === "desk" ? item.desk.threadId : item.threadId;
-    const parked = item.kind === "desk" && item.desk.later !== undefined;
+    const parked = item.kind === "desk" && item.desk.question?.state === "later";
     return <li className="panel-row" data-item={item.key} data-mark={item.status.mark} data-acts={parked ? "park" : undefined}>
       <button type="button" className="panel-row-main" disabled={!threadId} aria-current={current ? "page" : undefined} aria-label={`${spoken}. Open its chat`} onClick={() => { if (threadId) onNavigate(threadId); }}>
         <StatusMark mark={item.status.mark} /><Copy item={item} />
         {threadId && !parked ? <Icon name="ChevronRight" className="panel-row-go" aria-hidden="true" /> : null}
       </button>
-      {parked ? <span className="panel-row-acts"><ParkPill parked label={notNowLabel({ botName: bot.name, title: item.title, what: item.status.words })} itemKey={item.key} hint="" onPark={onPark} /></span> : null}
+      {parked && item.kind === "desk" && item.desk.question ? <span className="panel-row-acts"><ParkPill parked label={notNowLabel({ botName: bot.name, title: item.title, what: item.status.words })} itemKey={item.desk.question.id} hint="" onPark={onPark} /></span> : null}
     </li>;
   }
   const { task, title } = item;
@@ -52,7 +51,7 @@ export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { i
       <StatusMark mark={item.status.mark} /><Copy item={item} />
     </button>
     <span className="panel-row-acts">
-    {parked ? <ParkPill parked label={notNowLabel({ botName: bot.name, title, what: question ? task.needs?.question ?? title : title, options: task.needs?.options })} itemKey={taskNotNowKey(task)} hint="" onPark={onPark} /> : null}
+    {parked ? <ParkPill parked label={notNowLabel({ botName: bot.name, title, what: question ? task.needs?.question ?? title : title, options: task.needs?.options })} itemKey={task.later?.questionId ?? ""} hint="" onPark={onPark} /> : null}
     {closed || parked ? null : <ContinuePill label={outside ? "Reply" : "Continue"} name={outside ? `Reply to ${title} in the bot's chat` : `Continue ${title}`} hint={outside ? "The bot asked this outside its chat; reply to it in its chat" : question ? "Answer in the bot's chat" : "Continue in the bot's chat"} onClick={proceed} />}
     </span>
     {open ? <div className="panel-details" id={detailsId}>

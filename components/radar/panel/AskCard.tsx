@@ -3,7 +3,7 @@ import { Icon } from "@/components/ui/icon";
 import { armAskStrip } from "@/lib/askStrip";
 import type { BotTasksBot } from "@/lib/botTasks";
 import { requestFill } from "@/lib/composerFill";
-import { bringBack, notNow, taskNotNowKey } from "@/lib/notNow";
+import { bringBack, notNow } from "@/lib/notNow";
 import { AnswerLabel, AskImpact, answerName } from "../AnswerLabel";
 import { answerHint } from "../answerHint";
 import { answerRow } from "../answerRow";
@@ -13,7 +13,7 @@ import { Isolated } from "../Isolated";
 import { askPlace, fitWhat, notNowLabel, oneForms } from "../NeedsSummary";
 import { isQuestionRow, questionInPanel } from "../questions";
 import { recommendedOption } from "../recommend";
-import { askOptions, isOldAsk } from "../stage";
+import { askOptions } from "../stage";
 import { capitalFirst, plainNote } from "../workText";
 import type { DeskItem, TaskItem } from "./panelModel";
 import { deskAsk, deskParts } from "./status";
@@ -46,8 +46,8 @@ export function ContinuePill({ label = "Continue", name, hint, primary = false, 
   return <button type="button" className="dispatch-task-continue" data-primary={primary || undefined} aria-label={name} title={hint} onClick={onClick}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{label}</span></button>;
 }
 
-function AskShell({ itemKey, old, current, question, onOpen, spoken, meta, children, foot }: { itemKey: string; old: boolean; current: boolean; question: ReactNode; onOpen: () => void; spoken: string; meta: string[]; children?: ReactNode; foot: ReactNode }) {
-  return <article className="panel-ask" data-item={itemKey} data-old={old || undefined}>
+function AskShell({ itemKey, current, question, onOpen, spoken, meta, children, foot }: { itemKey: string; current: boolean; question: ReactNode; onOpen: () => void; spoken: string; meta: string[]; children?: ReactNode; foot: ReactNode }) {
+  return <article className="panel-ask" data-item={itemKey}>
     <button type="button" className="panel-ask-question" aria-current={current ? "page" : undefined} aria-label={spoken} onClick={onOpen}>{question}</button>
     <p className="panel-ask-meta">{meta.map((part, i) => <span key={i}><Isolated text={part} />{i < meta.length - 1 ? " · " : ""}</span>)}</p>
     {children}
@@ -58,17 +58,16 @@ function AskShell({ itemKey, old, current, question, onOpen, spoken, meta, child
 export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }: { item: TaskItem; bot: BotTasksBot; context: DetailContext; current: boolean; onNavigate: Navigate; onPark: Park }) {
   const [open, setOpen] = useState(false);
   const { task, title } = item;
-  const old = isOldAsk(task);
-  const options = old ? [] : askOptions(task).slice(0, ANSWERS_SHOWN);
+  const options = askOptions(task).slice(0, ANSWERS_SHOWN);
   const labels = options.map(option => plainNote(option));
   const recommended = task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "");
-  const consequence = old ? undefined : task.needs?.consequence;
+  const consequence = task.needs?.consequence;
   const whole = item.status.words;
   const untitled = whole.toLowerCase().startsWith(`${title.toLowerCase()} \u00b7 `) ? whole.slice(title.length + 3) : whole;
   const asked = options.length ? untitled.replace(OPTIONS_TAIL, "") : untitled;
   const named = !flat(asked).startsWith(flat(title.replace(/\u2026$/, ""))) && !isQuestionRow(task);
   const askedAt = task.needs?.askedAt;
-  const when = askedAt === undefined ? "" : old ? `asked ${ago(askedAt, context.now)}, the bot has moved on since` : `asked ${ago(askedAt, context.now)}`;
+  const when = askedAt === undefined ? "" : `asked ${ago(askedAt, context.now)}`;
   const meta = [named ? title : "", named ? when : capitalFirst(when)].filter(Boolean);
   const arm = () => {
     const place = askPlace(task, bot.coordinatorThreadId);
@@ -83,14 +82,14 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
     window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: title.slice(0, 80) } }));
     onNavigate(bot.coordinatorThreadId);
   };
-  return <AskShell itemKey={item.key} old={old} current={current} onOpen={go} spoken={`${title}. ${asked}`} meta={meta}
+  return <AskShell itemKey={item.key} current={current} onOpen={go} spoken={`${title}. ${asked}`} meta={meta}
     question={<FitLines className="panel-ask-fit" forms={oneForms(asked, QUESTION_FORMS, title, options.length)} />}
     foot={<>
       <div className="panel-ask-foot">
-        {isQuestionRow(task) || old ? <span /> : <button type="button" className="panel-more" aria-expanded={open} onClick={() => setOpen(value => !value)}>Details<Icon name="ChevronDown" aria-hidden="true" /></button>}
+        {isQuestionRow(task) ? <span /> : <button type="button" className="panel-more" aria-expanded={open} onClick={() => setOpen(value => !value)}>Details<Icon name="ChevronDown" aria-hidden="true" /></button>}
         <span className="panel-ask-actions">
-          <ParkPill parked={false} label={label} itemKey={taskNotNowKey(task)} hint="Not now: move to Later until the bot asks again" onPark={onPark} />
-          <ContinuePill primary={!old} label={outside ? "Reply in chat" : "Continue"} name={outside ? `Reply to ${title} in the bot's chat` : `Continue ${title}`} hint={outside ? "The bot asked this outside its chat; reply to it in its chat" : "Answer in the bot's chat"} onClick={proceed} />
+          <ParkPill parked={false} label={label} itemKey={task.needs?.questionId ?? ""} hint="Not now: move to Later until the bot asks again" onPark={onPark} />
+          <ContinuePill primary label={outside ? "Reply in chat" : "Continue"} name={outside ? `Reply to ${title} in the bot's chat` : `Continue ${title}`} hint={outside ? "The bot asked this outside its chat; reply to it in its chat" : "Answer in the bot's chat"} onClick={proceed} />
         </span>
       </div>
       {open ? <div className="panel-details"><TaskDetails item={item} context={context} onOpen={onNavigate} /></div> : null}
@@ -120,7 +119,7 @@ export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }:
   const label = notNowLabel({ botName, title: subject, what: question });
   const names = (text: string) => !!person && text.includes(person);
   const meta = [names(question) || names(about) ? channel : [channel, person].filter(Boolean).join(" with "), `asked ${ago(desk.updatedAt, now)}`];
-  return <AskShell itemKey={item.key} old={false} current={current} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
+  return <AskShell itemKey={item.key} current={current} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
     question={<><span className="panel-ask-fit" dir="auto"><Isolated text={question} /></span>{about ? <span className="panel-ask-about" dir="auto"><Isolated text={about} /></span> : null}</>}
     foot={<div className="panel-ask-foot"><span /><span className="panel-ask-actions">
       <ParkPill parked={false} label={label} itemKey={item.key} hint="Not now: move to Later until the desk changes" onPark={onPark} />

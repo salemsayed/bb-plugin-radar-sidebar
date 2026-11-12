@@ -1,4 +1,4 @@
-import { deskTitle, deskWakeAt, isClosed, needsYou, type Attempt, type BotDesk, type BotTaskRow } from "@/lib/botTasks";
+import { deskLater, deskTitle, deskWakeAt, isClosed, needsYou, type Attempt, type BotDesk, type BotTaskRow } from "@/lib/botTasks";
 import { clearsLine } from "../BotsView";
 import { ago, elapsed } from "../elapsed";
 import { deskNeedLine, laterNoteHead } from "../stage";
@@ -75,7 +75,7 @@ export function deskStatus(desk: BotDesk, now: number): Status {
   const { channel } = deskParts(desk);
   const moved = `${channel} · ${ago(desk.updatedAt, now)}`;
   if (needsYou(desk)) return { group: "needs", mark: "ask", words: desk.status === "draft" ? "Go-ahead needed" : "Answer needed", note: moved };
-  if (desk.later !== undefined) return { group: "later", mark: "later", words: "Not now", note: "back when the desk changes" };
+  if (deskLater(desk)) return { group: "later", mark: "later", words: "Not now", note: "back when the desk changes" };
   if (desk.status === "done") return { group: "done", mark: "done", words: "Done", note: dayAndTime(desk.updatedAt, now) };
   if (desk.status === "info") return { group: "done", mark: "info", words: "For your info", note: dayAndTime(desk.updatedAt, now) };
   if (desk.status === "working") return { group: "working", mark: "working", words: "Working", note: moved };

@@ -332,7 +332,7 @@ function fitted(lead: string, title: string, tail = "", shorter: readonly string
 
 export function stageLook(bot: BotTasksBot, ctx: StageContext): StageLook {
   const open = bot.tasks.filter(task => !isClosed(task.displayState));
-  const needs = open.filter(task => task.displayState === "needs" && !isOldAsk(task));
+  const needs = open.filter(task => task.displayState === "needs");
   const desks = sortDesks(bot.desks.filter(needsYou));
   if (needs.length || desks.length) {
     const first = needs[0];
@@ -408,40 +408,8 @@ export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title"> &
   return desk.status === "draft" ? `Approve ${lowerFirst(rest)}?` : `${rest} · needs your answer`;
 }
 
-export const OLD_ASK_TAG = "radar:old-ask";
-export const OLD_ASK_MS = 12 * 3_600_000;
-const ACTED_AFTER_MS = 10 * 60_000;
-
-export function isOldAsk(task: Pick<BotTaskRow, "tags">): boolean {
-  return task.tags.includes(OLD_ASK_TAG);
-}
-
-export function askedAtOf(task: Pick<BotTaskRow, "needs" | "observedAt" | "ageMs">, observedAt: number): number {
-  return task.needs?.askedAt ?? (task.observedAt ?? observedAt) - task.ageMs;
-}
-
-export function withOldAsks(data: BotTasksData, lastReply: (threadId: string) => number | undefined): BotTasksData {
-  let changed = false;
-  const bots = data.bots.map(bot => {
-    const replied = lastReply(bot.coordinatorThreadId);
-    if (replied === undefined) return bot;
-    let mine = false;
-    const tasks = bot.tasks.map(task => {
-      if (task.displayState !== "needs" || task.later || isOldAsk(task)) return task;
-      const asked = askedAtOf(task, data.observedAt);
-      if (data.observedAt - asked < OLD_ASK_MS || replied < asked + ACTED_AFTER_MS) return task;
-      mine = true;
-      return { ...task, tags: [...task.tags, OLD_ASK_TAG] };
-    });
-    if (!mine) return bot;
-    changed = true;
-    return { ...bot, tasks };
-  });
-  return changed ? { ...data, bots } : data;
-}
-
 export function needsCount(bot: BotTasksBot): number {
-  return bot.tasks.filter(task => task.displayState === "needs" && !isOldAsk(task)).length + bot.desks.filter(needsYou).length;
+  return bot.tasks.filter(task => task.displayState === "needs").length + bot.desks.filter(needsYou).length;
 }
 
 export interface RowLook extends StageLook {

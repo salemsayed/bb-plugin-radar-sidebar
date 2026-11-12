@@ -4,14 +4,14 @@ import { experimental_ThreadActionsMenu as ThreadActionsMenu, type PluginSidebar
 import { threadActionTarget } from "./threadActions";
 import { needsYou, orderedBots, sortDesks, type BotTasksData } from "@/lib/botTasks";
 import { Icon } from "@/components/ui/icon";
-import { askOptions, deskNeedLine, isOldAsk, since, stageTitle, taskAsk } from "./stage";
+import { askOptions, deskNeedLine, since, stageTitle, taskAsk } from "./stage";
 import { questionInPanel } from "./questions";
 import { BotTaskFace, useDeskPress } from "./BotsView";
 import { clauseCut, cutAtWord } from "./workText";
 import { FitLines, fitWords } from "./FitLines";
 import { askForms, choiceForms, choicePairs, isChoice, optionCuts, questionCuts, shortChoice, splitChoice } from "./choiceFit";
 import { Isolated } from "./Isolated";
-import { bringBack, taskNotNowKey, type NotNowToast } from "@/lib/notNow";
+import { bringBack, type NotNowToast } from "@/lib/notNow";
 import { fillOutcomes, subscribeFill, type FillOutcome } from "@/lib/composerFill";
 import { capitalFirst, plainNote } from "./workText";
 import { recommendedOption, withoutMarks } from "./recommend";
@@ -26,8 +26,8 @@ const BOX_ANSWERS = 3;
 const PAIR_CHARS = 32;
 const SENT_SHOWN_MS = 5 * 60_000;
 
-export function boxAnswers(item: Pick<NeedItem, "kind" | "state" | "inPanel" | "old" | "options">): string[] {
-  if (item.kind !== "ask" || item.state || item.inPanel || item.old) return [];
+export function boxAnswers(item: Pick<NeedItem, "kind" | "state" | "inPanel" | "options">): string[] {
+  if (item.kind !== "ask" || item.state || item.inPanel) return [];
   const options = item.options ?? [];
   return options.length && options.length <= BOX_ANSWERS ? options.map(option => plainNote(option)) : [];
 }
@@ -82,7 +82,6 @@ export interface NeedItem {
   notNowKey?: string;
   title?: string;
   inPanel?: boolean;
-  old?: boolean;
   options?: string[];
   askedAt?: number;
   consequence?: string;
@@ -115,14 +114,22 @@ export function needItems(data: BotTasksData): NeedItem[] {
       const what = recommended ? withoutMarks(question) : question;
       items.push({ id: `ask:${task.id}`, botKey: bot.key, botName: bot.name, what: what || "Has a question for you", kind: "ask", title, ...(options.length ? { options } : {}),
         ...(task.needs?.consequence ? { consequence: task.needs.consequence } : {}), ...(recommended && options.includes(recommended) ? { recommended } : {}),
-        ...askTime(task), ...place, notNowKey: taskNotNowKey(task), ...(questionInPanel(task) ? { inPanel: true } : {}), ...(isOldAsk(task) ? { old: true } : {}) });
+        ...askTime(task), ...place, ...(task.needs?.questionId ? { notNowKey: task.needs.questionId } : {}), ...(questionInPanel(task) ? { inPanel: true } : {}) });
     }
     for (const desk of sortDesks(bot.desks.filter(needsYou))) {
       items.push({ id: `desk:${desk.id}`, botKey: bot.key, botName: bot.name, what: deskNeedLine(desk), kind: "desk", at: desk.updatedAt, title: deskNeedLine(desk).replace(/\s+·.*$/, ""),
-        threadId: desk.threadId ?? bot.coordinatorThreadId, notNowKey: `desk:${desk.id}` });
+        threadId: desk.threadId ?? bot.coordinatorThreadId, ...(desk.question ? { notNowKey: desk.question.id } : {}) });
     }
   }
-  return [...oldestFirst(items.filter(item => !item.old)), ...oldestFirst(items.filter(item => item.old))];
+  return oldestFirst(items);
+}
+
+export function outsideItems(data: Pick<BotTasksData, "questions">, threads: ReadonlyMap<string, PluginSidebarThread>): NeedItem[] {
+  return data.questions.filter(q => q.bot === null && q.state === "open").map(q => {
+    const thread = threads.get(q.threadId);
+    return { id: `thread:${q.id}`, botKey: "", botName: thread?.displayTitle ?? "A thread", what: q.question || "Answer needed", kind: "thread" as const, at: q.askedAt, since: "asked" as const,
+      threadId: q.threadId, ...(thread ? { thread } : {}), notNowKey: q.id };
+  });
 }
 
 export function oldestFirst<T extends { at?: number }>(items: readonly T[]): T[] {
@@ -146,7 +153,7 @@ export function askTime(task: Pick<BotTasksData["bots"][number]["tasks"][number]
 function useHeld(live: NeedItem[], hold: boolean, rebase: number, parked: (key: string) => boolean = () => false, seen = false): { items: NeedItem[]; arrivals: NeedItem[] } {
   const [frozen, setFrozen] = useState<{ items: NeedItem[]; rebase: number } | null>(null);
   const kept = new Set(frozen?.items.map(item => item.id) ?? []);
-  const arrivals = frozen ? live.filter(item => !kept.has(item.id) && !item.state && !item.old) : [];
+  const arrivals = frozen ? live.filter(item => !kept.has(item.id) && !item.state) : [];
   const keep = hold || seen && frozen !== null && frozen.rebase === rebase && arrivals.length > 0;
   if (keep && (frozen === null || frozen.rebase !== rebase)) setFrozen({ items: live, rebase });
   if (!keep && frozen !== null) setFrozen(null);
@@ -360,11 +367,10 @@ function useHashSeq(): number | null {
 
 export interface StaleNote { asOf: string; retrying: boolean; onRetry: () => void }
 
-export function NeedsSummary({ data, extra, answered, hold, watching = false, seen = false, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
+export function NeedsSummary({ data, extra, hold, watching = false, seen = false, now, activeThreadId, checking = false, cold = false, stale, undo = null, inlineUndo = false, onOpen, onMenu, onNotNow, onAnswer, parked }: {
   data: BotTasksData;
   activeThreadId: string | null;
   extra: readonly NeedItem[];
-  answered: readonly NeedItem[];
   hold: boolean;
   watching?: boolean;
   seen?: boolean;
@@ -393,13 +399,13 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
   const frozen = (hold || watching) && !checking;
   if (!frozen && skip.size) setSkip(new Set());
   const fresh = needItems(data);
-  const held = useHeld([...oldestFirst([...fresh.filter(item => !item.old), ...extra, ...answered]), ...fresh.filter(item => item.old)], frozen, rebase, parked, seen && !checking);
+  const held = useHeld(oldestFirst([...fresh, ...extra]), frozen, rebase, parked, seen && !checking);
   const arrivals = held.arrivals;
   const items = held.items.filter(item => !(skip.has(item.id) && item.notNowKey && isParked(item.notNowKey)))
     .map(item => !item.state && liveOutcome(item, outcomes, now)?.result === "sent" ? { ...item, state: "answered" as const } : item);
   const reveal = () => setRebase(value => value + 1);
   const faces = new Map(data.bots.map(bot => [bot.key, bot]));
-  const waiting = checking && cold ? 0 : items.filter(item => !item.state && !item.old).length + arrivals.length;
+  const waiting = checking && cold ? 0 : items.filter(item => !item.state).length + arrivals.length;
   const more = checking && cold ? 0 : items.length - 1 + arrivals.length;
   const open = all && items.length > 1;
   if (!open && unfolded.size) setUnfolded(new Set());
@@ -410,16 +416,13 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
   const inThread = activeThreadId ? items.filter(item => item.threadId === activeThreadId) : [];
   const currentId = (inThread.find(item => item.messageSeq !== undefined && item.messageSeq === hashSeq) ?? inThread[0])?.id;
   const hiddenNames = hiddenBots.map(item => item.botName);
-  const hiddenOld = hidden.filter(item => item.old && !item.state).length;
-  const onlyOld = hiddenOld > 0 && hiddenOld === hidden.length;
   const collapse = open && !arrivals.length;
   const allNew = arrivals.length > 0 && arrivals.length === hidden.length;
-  const moreLabel = onlyOld ? `Show ${hiddenOld} old ${hiddenOld === 1 ? "ask" : "asks"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}, the bot moved on since` : `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}${hiddenOld ? `, ${hiddenOld} of them old` : ""}`;
-  const moreText = onlyOld ? `${hiddenOld} old` : allNew ? `${more} new` : `${more} more`;
+  const moreLabel = `Show ${more} ${allNew ? "new" : "more"}${hiddenNames.length ? ` from ${hiddenNames.join(" and ")}` : ""}`;
+  const moreText = allNew ? `${more} new` : `${more} more`;
   const pillText = stale && items.length > 0 && !(open && arrivals.length) ? collapse ? "" : `+${more}` : collapse ? "Show less" : open ? `${arrivals.length} new` : moreText;
   const pillLabel = collapse ? "Show less" : open ? `Show ${arrivals.length} new from ${[...new Set(arrivals.map(item => item.botName))].join(" and ")}` : moreLabel;
-  const olderOpen = items.filter(item => item.old && !item.state).length;
-  const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : olderOpen ? "older" : "settled";
+  const state = checking && (cold || !items.length) ? "checking" : !items.length ? (arrivals.length ? "arrived" : "empty") : waiting ? "waiting" : "settled";
   useLayoutEffect(() => {
     const back = restore.current;
     if (back && items.some(item => item.id === back && !item.state && !(item.notNowKey && isParked(item.notNowKey)))) {
@@ -490,7 +493,7 @@ export function NeedsSummary({ data, extra, answered, hold, watching = false, se
     const settle = [setTimeout(decide, 350), setTimeout(decide, 900)];
     return () => { observer.disconnect(); settle.forEach(clearTimeout); };
   }, [open, shownKey, frozenLines]);
-  const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : olderOpen ? `${olderOpen} older ${olderOpen === 1 ? "question" : "questions"}` : "Nothing left for you";
+  const title = state === "empty" || state === "checking" ? "Needs you" : waiting ? "Needs you" : "Nothing left for you";
   const notNowFrom = (item: NeedItem, index: number, keyboard: boolean) => {
     if (!onNotNow) return;
     if (keyboard || inlineUndo) setSkip(prev => new Set(prev).add(item.id));
@@ -654,11 +657,11 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
   const itemRef = useRef<HTMLButtonElement>(null);
   const what = item.what;
   const age = item.state ? "" : item.at !== undefined ? since(item.at, now) : "";
-  const ageText = item.old && age ? `${age} old` : age ? age === "now" ? "just now" : `${age} ago` : "";
+  const ageText = age ? age === "now" ? "just now" : `${age} ago` : "";
   const ageForms = ageText ? [ageText] : [];
   const shortName = item.kind === "thread" ? item.botName : item.botName.replace(/\s+Bot$/, "");
   const menuLabel = item.kind === "thread" ? `Actions for ${item.botName}` : botMenuLabel(item.botName, true);
-  const asked = item.old && age ? `old ask from ${age} ago, the bot has moved on since` : age ? askedAgo(age) : "";
+  const asked = age ? askedAgo(age) : "";
   const showMenu = (li: HTMLElement) => {
     if (item.kind === "thread") li.querySelector<HTMLElement>(".stage-needs-menu")?.click(); else onMenu(item, li);
   };
@@ -692,7 +695,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
         <Icon name="MoreHorizontal" aria-hidden="true" />
       </button>} /> : null;
   const count = item.options?.length ?? 0;
-  return <li data-need={item.id} data-lined={lined || undefined} data-lines={lined ? lines : undefined} data-current={current || undefined} data-old={item.old || undefined} data-state={item.state} data-folded={folded || undefined} data-park={parkTool ? "" : undefined} data-menu={threadMenu ? "" : undefined} {...press}
+  return <li data-need={item.id} data-lined={lined || undefined} data-lines={lined ? lines : undefined} data-current={current || undefined} data-state={item.state} data-folded={folded || undefined} data-park={parkTool ? "" : undefined} data-menu={threadMenu ? "" : undefined} {...press}
     onFocus={() => setInside(true)}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInside(false); }}
     onContextMenu={event => {
@@ -703,7 +706,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
       showMenu(event.currentTarget);
     }}
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
-    <button type="button" ref={itemRef} className="stage-needs-item" data-lined={lined || undefined} data-kind={item.kind} data-state={item.state} data-old={item.old || undefined} title={`${item.botName}: ${what}`}
+    <button type="button" ref={itemRef} className="stage-needs-item" data-lined={lined || undefined} data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
       aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel && !folded && !lined ? "dialog" : undefined} aria-expanded={folded || lined ? false : undefined}

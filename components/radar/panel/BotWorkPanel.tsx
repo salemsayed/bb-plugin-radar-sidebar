@@ -8,7 +8,6 @@ import { BotMenu } from "../BotMenu";
 import { BotTaskFace } from "../BotsView";
 import { botStyle } from "../bots";
 import { ago } from "../elapsed";
-import { isOldAsk } from "../stage";
 import type { WorkerSnapshot } from "../useDispatchWorkers";
 import { useThreadClaims } from "../useThreadClaims";
 import type { OriginalOf } from "../workText";
@@ -115,7 +114,6 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
   const jump = (group: Group) => body.current?.querySelector<HTMLElement>(`[data-group="${group}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
   const isCurrent = (item: WorkItem) => !!activeThreadId && (item.kind === "task" ? item.task.conversationThreadId === activeThreadId : item.kind === "desk" ? item.desk.threadId === activeThreadId : item.threadId === activeThreadId);
   const rows = (items: readonly WorkItem[]) => <ul className="panel-rows">{items.map(item => <WorkRow key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}</ul>;
-  const oldAsks = model.asks.filter(item => isOldAsk(item.task)).length;
   const workersNote = model.workers ? `${model.workers} ${model.workers === 1 ? "worker" : "workers"} running` : undefined;
   const busy = (model.workers ?? 0) > 0 || model.chatting || model.working.length > 0;
   const anchored = anchor && !isCompactViewport;
@@ -146,7 +144,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
         <BotMenu thread={target} botName={bot.name} onShowThreads={() => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); }} onClose={onClose} />
       </nav>
       <div className="dispatch-panel-body" ref={body}>
-        {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={oldAsks ? `${model.asks.length + model.deskAsks.length - oldAsks} new · ${oldAsks} old` : model.asks.length + model.deskAsks.length}>
+        {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
             {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botName={bot.name} now={now} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}

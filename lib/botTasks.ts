@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { BotTasks, BotTasksOutput, DisplayState, TaskRow } from "./tasks-v2-types";
+import { isOwnQuestion, questionRow, questionSchema, type Question } from "./questionRecords";
 
 /**
  * The Bots view's read of orchestrator-mode `bot_tasks` (tasks v2), and the
@@ -27,8 +28,8 @@ export const taskSchema = z.object({
   wakeAt: z.number().optional(),
   retryAt: z.number().optional(),
   conversationThreadId: z.string().nullable().default(null),
-  needs: z.object({ threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional(), askedAt: z.number().optional(), messageSeq: z.number().optional(), consequence: z.string().optional(), recommended: z.string().optional() }).optional(),
-  later: z.object({ reason: z.enum(["answered", "not-now"]).catch("not-now"), at: z.number(), threadId: z.string().optional(), messageSeq: z.number().optional() }).optional(),
+  needs: z.object({ questionId: z.string().optional(), threadId: z.string(), interactionId: z.string(), question: z.string(), options: z.array(z.string()).optional(), askedAt: z.number().optional(), messageSeq: z.number().optional(), consequence: z.string().optional(), recommended: z.string().optional() }).optional(),
+  later: z.object({ reason: z.enum(["answered", "not-now"]).catch("not-now"), at: z.number(), threadId: z.string().optional(), messageSeq: z.number().optional(), questionId: z.string().optional() }).optional(),
   laterNote: z.object({ at: z.number(), text: z.string() }).optional(),
   waitOn: z.string().optional(),
   runningForMs: z.number().optional(),
@@ -56,7 +57,7 @@ export const deskSchema = z.object({
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
   waitingOn: z.string().nullable().optional(),
   wake: z.object({ at: z.number().nullable(), state: z.string() }).optional(),
-  later: z.number().optional(),
+  question: z.object({ id: z.string(), state: z.enum(["open", "later"]), laterAt: z.number().optional() }).optional(),
 });
 export type BotDesk = z.infer<typeof deskSchema>;
 
@@ -68,8 +69,12 @@ export function deskWakeAt(desk: Pick<BotDesk, "status" | "wake">): number | nul
   return desk.status !== "done" && desk.wake?.state === "pending" ? desk.wake.at : null;
 }
 
-export function needsYou(desk: Pick<BotDesk, "status" | "later">): boolean {
-  return desk.later === undefined && (desk.status === "draft" || desk.status === "blocked");
+export function needsYou(desk: Pick<BotDesk, "question">): boolean {
+  return desk.question?.state === "open";
+}
+
+export function deskLater(desk: Pick<BotDesk, "question">): boolean {
+  return desk.question?.state === "later";
 }
 
 export function sortDesks(desks: readonly BotDesk[]): BotDesk[] {
@@ -116,13 +121,34 @@ const botSchema = z.object({
   unlinked: z.array(z.object({ threadId: z.string(), title: z.string().default("") })).default([]),
 });
 
+const questionsSchema = z.array(z.unknown()).default([]).transform(rows => rows.flatMap(row => {
+  const parsed = questionSchema.safeParse(row);
+  return parsed.success ? [parsed.data] : [];
+}));
+
+type ParsedBot = z.infer<typeof botSchema>;
+
+function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[]; observedAt: number }>(data: T): T {
+  const bots = data.bots.map(bot => {
+    const desks = bot.desks.map(desk => {
+      const q = data.questions.find(q => q.bot === bot.key && q.deskId === desk.id);
+      return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}) } } : desk;
+    });
+    const rows = data.questions.filter(q => q.bot === bot.key && isOwnQuestion(q)).flatMap(q => {
+      const parsed = taskSchema.safeParse(questionRow(q, data.observedAt));
+      return parsed.success ? [parsed.data] : [];
+    });
+    return { ...bot, desks, tasks: [...rows, ...bot.tasks], unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) };
+  });
+  return { ...data, bots };
+}
+
 export const botTasksSchema = z.object({
-  bots: z.array(botSchema.transform(bot => ({ ...bot, unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) }))),
-  needs: z.array(z.object({ bot: z.string(), taskId: z.string(), threadId: z.string(), interactionId: z.string(), question: z.string(), askedAt: z.number().optional(), messageSeq: z.number().optional() })).default([]),
+  bots: z.array(botSchema),
+  questions: questionsSchema,
   notFiled: z.array(z.object({ threadId: z.string(), title: z.string().default(""), suggestedBot: z.string().optional() })).default([]),
   observedAt: z.number().default(() => Date.now()),
-  notNow: z.array(z.object({ key: z.string(), at: z.number() })).optional(),
-});
+}).transform(withQuestionRecords);
 
 export type BotTasksData = z.infer<typeof botTasksSchema>;
 export type BotTasksBot = BotTasksData["bots"][number];
@@ -130,7 +156,7 @@ export type BotTaskRow = BotTasksBot["tasks"][number];
 
 // The parsed shapes are the shared contract types, with defaults filled in.
 type Assignable<A, B> = A extends B ? true : false;
-const contractCheck: [Assignable<BotTaskRow, Omit<TaskRow, "observedAt"> & { observedAt?: number }>, Assignable<BotTasksData["needs"], BotTasksOutput["needs"]>] = [true, true];
+const contractCheck: [Assignable<BotTaskRow, Omit<TaskRow, "observedAt"> & { observedAt?: number }>, Assignable<keyof BotTasksOutput, keyof BotTasksData | "bots">] = [true, true];
 void contractCheck;
 export type { BotTasks };
 
@@ -257,50 +283,13 @@ export interface NeedRow {
   options: string[];
 }
 
-/**
- * Every decision across bots: the server's interaction-level items first, then
- * any task in the needs state the server listed without one, so a plain
- * Needs-you task never disappears for lack of an interaction.
- */
+/** Every task that needs Salem, in bot order: each carries its own open question from core. */
 export function needRows(data: BotTasksData): NeedRow[] {
-  const bots = new Map(data.bots.map(bot => [bot.key, bot]));
-  const tasks = new Map(data.bots.flatMap(bot => bot.tasks.map(task => [task.id, task] as const)));
-  const rows: NeedRow[] = data.needs.map(item => ({
-    key: `${item.taskId}:${item.interactionId}`,
-    bot: bots.get(item.bot) ?? null,
-    botKey: item.bot,
-    taskId: item.taskId,
-    threadId: item.threadId,
-    question: item.question,
-    taskTitle: tasks.get(item.taskId)?.title ?? "",
-    options: optionsFor(tasks.get(item.taskId), item.interactionId),
-  }));
-  const listed = new Set(data.needs.map(item => item.taskId));
-  for (const bot of data.bots) {
-    for (const task of bot.tasks) {
-      if (task.displayState !== "needs" || listed.has(task.id)) continue;
-      rows.push({
-        key: `${task.id}:${task.needs?.interactionId ?? "task"}`,
-        bot,
-        botKey: bot.key,
-        taskId: task.id,
-        threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId,
-        question: task.needs?.question || task.line || task.title,
-        taskTitle: task.title,
-        options: answerOptions(task.needs?.options),
-      });
-    }
-  }
-  const order = (key: string) => bots.get(key)?.order ?? Number.MAX_SAFE_INTEGER;
-  return rows.map((row, index) => ({ row, index }))
-    .sort((a, b) => order(a.row.botKey) - order(b.row.botKey) || a.index - b.index)
-    .map(({ row }) => row);
-}
-
-/** A task's suggested answers belong to its own pending interaction only, never to another ask on the same task. */
-function optionsFor(task: BotTaskRow | undefined, interactionId: string): string[] {
-  if (!task?.needs || task.needs.interactionId !== interactionId) return [];
-  return answerOptions(task.needs.options);
+  return [...data.bots].sort((a, b) => a.order - b.order).flatMap(bot => bot.tasks.filter(task => task.displayState === "needs").map(task => ({
+    key: `${task.id}:${task.needs?.questionId ?? "task"}`, bot, botKey: bot.key, taskId: task.id,
+    threadId: task.needs?.threadId ?? task.conversationThreadId ?? bot.coordinatorThreadId,
+    question: task.needs?.question || task.line || task.title, taskTitle: task.title, options: answerOptions(task.needs?.options),
+  })));
 }
 
 /** Answers as buttons: trimmed, blanks and repeats dropped, at most three, the same on every path an ask arrives by. */

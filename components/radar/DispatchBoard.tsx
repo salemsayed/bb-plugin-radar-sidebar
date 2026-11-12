@@ -5,28 +5,26 @@ import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { flushSync } from "react-dom";
-import { deskTitle, needsYou, orderedBots, shortModel, type BotDesk, type BotTasksData, type BotTasksBot } from "@/lib/botTasks";
+import { needsYou, orderedBots, shortModel, type BotTasksData, type BotTasksBot } from "@/lib/botTasks";
 import { asOf, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
-import { plainNote, type OriginalOf } from "./workText";
+import { type OriginalOf } from "./workText";
 import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
 import { useBotWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
-import { NeedsSummary, askPlace, boxAnswers, botMenuLabel, needItems, notNowLabel, type NeedItem } from "./NeedsSummary";
+import { NeedsSummary, askPlace, boxAnswers, botMenuLabel, needItems, notNowLabel, outsideItems, type NeedItem } from "./NeedsSummary";
 import { useGrowSlot, useTouchHold, useWatching } from "./useGrowSlot";
 import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { StageFace } from "./StageFace";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
-import { needsCount, rowLook, withOldAsks, type RowLook } from "./stage";
-import { withQuestions } from "./questions";
+import { needsCount, rowLook, type RowLook } from "./stage";
 import { fitWords } from "./FitLines";
 import { requestFill } from "@/lib/composerFill";
 import { armAskStrip, clearAskStrip, currentAskStrip } from "@/lib/askStrip";
 import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
 import { applyNotNow, notNow, useNotNow } from "@/lib/notNow";
 import { NotNowToastView } from "./NotNowToast";
-import { useNeedsYou } from "@/lib/needsClient";
 
 export function dispatchModel(model: string) {
   const family = /(?:^|[-/])(sol|astra|terra|opus|fable|sonnet|haiku)(?:[-/]|$)/i.exec(model)?.[1];
@@ -214,45 +212,19 @@ function ownerOf(threadId: string, data: BotTasksData, snapshot: WorkerSnapshot,
 }
 
 
-function deskAnswered(desk: BotDesk, coordinatorThreadId: string, threads: ReadonlyMap<string, PluginSidebarThread>): boolean {
-  if (!needsYou(desk) || !desk.threadId || desk.threadId === coordinatorThreadId) return false;
-  const thread = threads.get(desk.threadId);
-  if (!thread || thread.updatedAt <= desk.updatedAt) return false;
-  return thread.status === "starting" || thread.status === "active" || thread.queuedWork === "waiting";
-}
-
-function useAnswered(data: BotTasksData) {
-  const { threads } = experimental_useSidebarThreads();
-  return useMemo(() => {
-    const byId = new Map(threads.map(thread => [thread.id, thread]));
-    const answered: NeedItem[] = [];
-    const bots = data.bots.map(bot => {
-      const desks = bot.desks.map(desk => {
-        if (!deskAnswered(desk, bot.coordinatorThreadId, byId)) return desk;
-        answered.push({ id: `desk:${desk.id}`, botKey: bot.key, botName: bot.name, what: `Answered: ${plainNote(deskTitle(desk))}`, kind: "desk", at: desk.updatedAt, threadId: desk.threadId ?? bot.coordinatorThreadId, state: "answered" });
-        return { ...desk, status: "working" as const };
-      });
-      return desks.some((desk, i) => desk !== bot.desks[i]) ? { ...bot, desks } : bot;
-    });
-    return { data: answered.length ? { ...data, bots } : data, answered, byId };
-  }, [data, threads]);
-}
-
 export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewport, now, onOpen, onShowThreads, unreadChats }: {
   data: BotTasksData; state: BotTasksState; activeThreadId: string | null; isCompactViewport: boolean; now: number; onOpen: (id: string, messageSeq?: number) => void; onShowThreads: () => void; deskMenu?: DeskMenu; unreadChats?: ReadonlySet<string>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const bell = useNeedsYou(true);
-  const bothFresh = state.status !== "loading" && bell.status !== "loading";
-  const held = useRef<{ raw: BotTasksData; items: typeof bell.items } | null | undefined>(undefined);
-  if (held.current === undefined) held.current = state.cached ? { raw, items: bell.items } : null;
-  if (bothFresh) held.current = null;
-  const shownRaw = held.current?.raw ?? raw;
-  const { data: seen, answered, byId } = useAnswered(shownRaw);
-  const later = useNotNow(shownRaw.notNow);
-  const questioned = withQuestions(seen, held.current ? held.current.items : bell.items, later.laterAt).data;
-  const data = withOldAsks(applyNotNow(questioned, later), threadId => byId.get(threadId)?.latestAttentionAt ?? undefined);
+  const fresh = state.status !== "loading";
+  const held = useRef<BotTasksData | null | undefined>(undefined);
+  if (held.current === undefined) held.current = state.cached ? raw : null;
+  if (fresh) held.current = null;
+  const later = useNotNow();
+  const data = applyNotNow(held.current ?? raw, later);
+  const { threads } = experimental_useSidebarThreads();
+  const byId = useMemo(() => new Map(threads.map(thread => [thread.id, thread])), [threads]);
   const visible = useVisibleSurface(root);
   const snapshot = useBotWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
@@ -315,8 +287,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     return () => clearTimeout(timer);
   }, [opening, activeThreadId]);
   const open = (id: string, messageSeq?: number) => { if (id !== activeThreadId) setOpening(id); onOpen(id, messageSeq); };
-  const threadNeeds = (claims.ready ? claims.loose : []).filter(thread => (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") && later.laterAt(`thread:${thread.id}`, thread.latestAttentionAt ?? 0) === null)
-    .map(thread => ({ id: `thread:${thread.id}`, botKey: "", botName: thread.displayTitle, what: "Answer needed", kind: "thread" as const, at: thread.latestAttentionAt, threadId: thread.id, thread, notNowKey: `thread:${thread.id}` }));
+  const threadNeeds = outsideItems(data, byId);
   const bot = data.bots.find(b => b.key === sheet);
   const showPanel = (key: string, desks: boolean) => (point: PanelAnchor) => {
     opener.current = document.activeElement as HTMLElement;
@@ -328,7 +299,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const currentKey = orderedBots(data).find(b => b.coordinatorThreadId === activeThreadId)?.key ?? null;
   const pageKey = useBotPage(!activeThreadId);
   const hereKey = currentKey ?? (activeThreadId ? ownerOf(activeThreadId, data, snapshot, byId) : pageKey && data.bots.some(b => b.key === pageKey) ? pageKey : null);
-  const needMarked = !!activeThreadId && (data.bots.some(b => b.tasks.some(t => t.displayState === "needs" && askPlace(t, b.coordinatorThreadId).threadId === activeThreadId) || b.desks.some(d => needsYou(d) && (d.threadId ?? b.coordinatorThreadId) === activeThreadId)) || threadNeeds.some(item => item.threadId === activeThreadId) || answered.some(item => item.threadId === activeThreadId));
+  const needMarked = !!activeThreadId && (data.bots.some(b => b.tasks.some(t => t.displayState === "needs" && askPlace(t, b.coordinatorThreadId).threadId === activeThreadId) || b.desks.some(d => needsYou(d) && (d.threadId ?? b.coordinatorThreadId) === activeThreadId)) || threadNeeds.some(item => item.threadId === activeThreadId));
   const unreachable = state.status === "error" || state.cached && state.status === "loading" && slow;
   const retry = () => { setRetrying(true); void refreshBotTasks().finally(() => setRetrying(false)); };
   const staleNote = { asOf: asOf(data.observedAt, now), retrying, onRetry: retry };
@@ -338,17 +309,15 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const scope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   const loose = threadsSummary(claims.ready ? claims.loose : []);
   const collapsedThreads = { text: loose.text, tone: loose.needs ? "needs" as const : loose.failed ? "failed" as const : loose.loud ? "unread" as const : null, count: claims.ready ? claims.loose.length : null };
-  const askChecking = bell.status === "loading" && bell.items === null && !unreachable;
   const openAsks = needItems(data).filter(item => item.kind === "ask").map(item => item.id).join("\n");
   useEffect(() => {
     const strip = currentAskStrip();
-    if (strip && bothFresh && !openAsks.split("\n").includes(strip.key)) clearAskStrip(strip.key);
-  }, [openAsks, bothFresh]);
+    if (strip && fresh && !openAsks.split("\n").includes(strip.key)) clearAskStrip(strip.key);
+  }, [openAsks, fresh]);
   const rows = orderedBots(data).map(b => {
     const unread = !!unreadChats?.has(b.coordinatorThreadId) && activeThreadId !== b.coordinatorThreadId;
     const workers = snapshot.byBot[b.key] ?? [];
-    const base = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
-    const look = askChecking && base.pose !== "asking" ? { ...base, line: "Checking…", alts: undefined, whole: undefined, ask: undefined, extra: "", tone: "quiet" as const, kind: "calm" as const, badge: null, quiet: true } : base;
+    const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
     const current = opening ? opening === b.coordinatorThreadId : activeThreadId === b.coordinatorThreadId;
     return { bot: b, unread, look, current, here: !opening && hereKey === b.key, needs: needsCount(b) };
   });
@@ -358,14 +327,14 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot" ref={slot}><div ref={slotInner}>
-      <NeedsSummary data={data} extra={threadNeeds} answered={answered} hold={pointerIn || keysIn || touchIn} watching={watching} seen={visible} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
+      <NeedsSummary data={data} extra={threadNeeds} hold={pointerIn || keysIn || touchIn} watching={watching} seen={visible} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
         onAnswer={(item, label) => { armItem(item); requestFill(item.threadId, label, boxAnswers(item), true, item.id); open(item.threadId, item.messageSeq); }}
-        checking={!bothFresh && !unreachable} cold={!held.current}
+        checking={!fresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
         inlineUndo={inlineUndo} undo={inlineUndo ? later.toast : null}
         onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
         onNotNow={item => { if (item.notNowKey) void notNow(item.notNowKey, notNowLabel(item)); }}
-        parked={key => later.pending(key) !== null || later.laterAt(key) !== null} />
+        parked={id => !!later.pending(id)?.on || data.questions.some(q => q.id === id && q.state === "later")} />
       </div>
     </div>
     <div className="stage-bots" role="list" aria-label="Bots" ref={list} onFocus={roving.onFocus} onKeyDown={event => {

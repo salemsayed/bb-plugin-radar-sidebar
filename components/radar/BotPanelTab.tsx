@@ -6,9 +6,7 @@ import { useEffect, useMemo, useState, useRef, type CSSProperties, type ReactNod
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { useBotTasks } from "./useBotTasks";
-import { useNeedsYou } from "@/lib/needsClient";
 import { applyNotNow, useNotNow } from "@/lib/notNow";
-import { withQuestions } from "./questions";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./elapsed";
 import { workerNames } from "./workText";
@@ -39,9 +37,8 @@ function useNow(): number {
 
 export function BotPanelTab({ threadId }: { threadId: string }) {
   const { data: raw } = useBotTasks(true);
-  const bell = useNeedsYou(true);
-  const later = useNotNow(raw?.notNow);
-  const data = raw ? applyNotNow(withQuestions(raw, bell.items, later.laterAt).data, later) : raw;
+  const later = useNotNow();
+  const data = raw ? applyNotNow(raw, later) : raw;
   const bot = data?.bots.find(b => b.coordinatorThreadId === threadId);
   if (!data || !bot) return <p className="bot-panel-empty">This chat is not a bot's.</p>;
   return <BotPanel key={bot.key} bot={bot} here={threadId} />;
@@ -116,7 +113,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const now = useNow();
   const claims = useThreadClaims();
   const navigate = useBbNavigate();
-  const one = useMemo(() => ({ bots: [bot], needs: [], notFiled: [], observedAt: 0 }), [bot]);
+  const one = useMemo(() => ({ bots: [bot], questions: [], notFiled: [], observedAt: 0 }), [bot]);
   const root = useRef<HTMLDivElement>(null);
   const visible = useVisibleSurface(root);
   const snapshot = useBotWorkers(one, visible);
