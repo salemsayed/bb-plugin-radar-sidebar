@@ -8,7 +8,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 25396: "the \"working\" status is wrong for some i guess")
 
-- Desks show the new core status `waiting` as "Waiting", or "Waiting on <name>" when the desk named who it waits on, with a blue ring instead of the filled working dot. A desk with a pending wake adds its time ("wakes tomorrow 09:00"). Desks sort need-you, working, waiting, info, deferred, done, and the header counts "N working · N waiting". The English guess that read "waiting on his reply" from a working desk's title is gone; the status alone decides.
+- Desks show the new core status `waiting` as "Waiting", or "Waiting on <name>" when the desk named who it waits on, with a blue ring instead of the filled working dot. A desk with a pending wake shows its time under the title ("Wakes tomorrow 09:00"), and the state on the right wraps within 45% of the row so a long name never squeezes the title. Desks sort need-you, working, waiting, info, deferred, done, and the header counts "N working · N waiting". The English guess that read "waiting on his reply" from a working desk's title is gone; the status alone decides.
 
 ### Removed (2026-11-07, Salem: "I want to stop the ChatGPT bridge, stop, remove, delete it all")
 

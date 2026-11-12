@@ -12,12 +12,15 @@ import { askedAgo } from "./NeedsSummary";
 const DAY_MS = 86_400_000;
 const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", waiting: "Waiting", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
 
-function deskState(desk: BotDesk, now: number): string {
-  const word = desk.status === "waiting" && desk.waitingOn ? `Waiting on ${desk.waitingOn}` : DESK_WORDS[desk.status];
-  const wakeAt = deskWakeAt(desk);
-  if (wakeAt === null) return word;
-  const when = clearsLine(wakeAt, now);
-  return `${word} · ${when.startsWith("overdue") ? `wake ${when}` : `wakes ${when}`}`;
+function deskState(desk: BotDesk): string {
+  return desk.status === "waiting" && desk.waitingOn ? `Waiting on ${desk.waitingOn}` : DESK_WORDS[desk.status];
+}
+
+function wakeLine(desk: BotDesk, now: number): string | null {
+  const at = deskWakeAt(desk);
+  if (at === null) return null;
+  const when = clearsLine(at, now);
+  return when.startsWith("overdue") ? `Wake ${when}` : `Wakes ${when}`;
 }
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
@@ -36,12 +39,13 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   const row = (desk: BotDesk) => {
     const asking = needsYou(desk);
     const title = asking ? deskNeedLine(desk) : plainNote(deskTitle(desk)).replace(CHANNEL_TAG, "");
+    const wake = asking ? null : wakeLine(desk, now);
     return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={needsYou(desk) || undefined}
       disabled={!desk.threadId} onClick={() => desk.threadId && onOpen(desk.threadId)}>
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />
-      <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : null}</span>
+      <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : wake ? <small>{wake}</small> : null}</span>
       {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
-        : <small><span className="radar-desk-state">{deskState(desk, now)}</span> · {elapsed(desk.updatedAt, now)}</small>}
+        : <small><span className="radar-desk-state">{deskState(desk)}</span> · {elapsed(desk.updatedAt, now)}</small>}
     </button>;
   };
   if (!visible.length) return null;
