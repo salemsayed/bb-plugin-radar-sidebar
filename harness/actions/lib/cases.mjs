@@ -660,10 +660,7 @@ export const CASES = [
       await navigatedTo(driver, bot.coordinator);
       const box = driver.page.locator('[contenteditable="true"]').last();
       await poll(async () => (await box.innerText()).includes("Technician"), 8_000);
-      await box.click();
-      await driver.page.keyboard.press("End");
-      const said = " https://docs.example.com/master-technicians.csv published, read it from there";
-      if (driver.phone) await driver.page.keyboard.insertText(said); else await driver.page.keyboard.type(said);
+      await driver.appendToComposer(" https://docs.example.com/master-technicians.csv published, read it from there");
       const after = iso.lastSeq(bot.coordinator);
       await driver.submit();
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("master-technicians")), 20_000);
@@ -714,9 +711,7 @@ export const CASES = [
       await navigatedTo(driver, bot.coordinator);
       const box = driver.page.locator('[contenteditable="true"]').last();
       await poll(async () => (await box.innerText()).includes("Sohag"), 8_000);
-      await box.click();
-      await driver.page.keyboard.press("End");
-      await driver.page.keyboard.type(" Hall B please");
+      await driver.appendToComposer(" Hall B please");
       const after = iso.lastSeq(bot.coordinator);
       await driver.submit();
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("Hall B please")), 20_000);

@@ -181,6 +181,18 @@ export class Driver {
     await this.submit();
   }
 
+  async appendToComposer(text) {
+    const box = this.page.locator('[contenteditable="true"]').last();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await box.focus();
+      await box.evaluate(node => { const range = document.createRange(); range.selectNodeContents(node); range.collapse(false); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); });
+      await this.page.keyboard.insertText(text);
+      await sleep(300);
+      if ((await box.innerText()).includes(text.trim().slice(0, 24))) return true;
+    }
+    return false;
+  }
+
   async submit() {
     if (!this.phone) { await this.page.keyboard.press("Enter"); return; }
     await this.press(this.page.getByRole("button", { name: /^Submit/ }).last());
