@@ -23,6 +23,7 @@ import type { DetailContext } from "./taskDetail";
 const QUESTION_FORMS = [140, 120, 100, 84, 70, 56];
 const LABEL_CUT = 110;
 const ANSWERS_SHOWN = 4;
+const OPTIONS_TAIL = /\s+\u00b7\s+Options:\s.+$/i;
 
 export type Navigate = (threadId: string, messageSeq?: number) => void;
 export type Park = (from: HTMLElement, act: () => Promise<void>) => void;
@@ -63,7 +64,8 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
   const recommended = task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "");
   const consequence = old ? undefined : task.needs?.consequence;
   const whole = item.status.words;
-  const asked = whole.toLowerCase().startsWith(`${title.toLowerCase()} · `) ? whole.slice(title.length + 3) : whole;
+  const untitled = whole.toLowerCase().startsWith(`${title.toLowerCase()} \u00b7 `) ? whole.slice(title.length + 3) : whole;
+  const asked = options.length ? untitled.replace(OPTIONS_TAIL, "") : untitled;
   const named = !flat(asked).startsWith(flat(title.replace(/\u2026$/, ""))) && !isQuestionRow(task);
   const askedAt = task.needs?.askedAt;
   const when = askedAt === undefined ? "" : old ? `asked ${ago(askedAt, context.now)}, the bot has moved on since` : `asked ${ago(askedAt, context.now)}`;

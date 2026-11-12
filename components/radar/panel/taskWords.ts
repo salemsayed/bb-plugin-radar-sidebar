@@ -41,7 +41,9 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, wa
   if (state === "working" || running.length && !isClosed(state)) {
     const first = [...running].sort((a, b) => (a.startedAt ?? now) - (b.startedAt ?? now))[0];
     if (!first) return "Working";
-    const span = first.startedAt != null ? ` for ${elapsed(first.startedAt, now)}` : "";
+    const age = first.startedAt != null ? elapsed(first.startedAt, now) : "";
+    if (age === "now") return running.length > 1 ? `${running.length} workers \u00b7 just started` : "Just started";
+    const span = age ? ` for ${age}` : "";
     return running.length > 1 ? `${running.length} workers · working${span}` : `Working${span}`;
   }
   if (isClosed(state)) {
@@ -79,7 +81,7 @@ export function cardStatus(task: BotTaskRow, running: Attempt[], now: number, wa
   return `Waiting on ${task.waitFor === "you" ? "you" : "the bot"} · ${NO_CHECK}`;
 }
 export function attemptStatus(attempt: Attempt, now: number): string {
-  if (attempt.state === "running") return attempt.startedAt != null ? `working for ${elapsed(attempt.startedAt, now)}` : "working";
+  if (attempt.state === "running") return attempt.startedAt == null ? "working" : elapsed(attempt.startedAt, now) === "now" ? "just started" : `working for ${elapsed(attempt.startedAt, now)}`;
   if (attempt.state === "unknown") return "";
   return attempt.endedAt != null && elapsed(attempt.endedAt, now) !== "now" ? `${attempt.state} ${elapsed(attempt.endedAt, now)}` : attempt.state;
 }

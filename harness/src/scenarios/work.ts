@@ -24,6 +24,8 @@ export const work: Scenario[] = [
               "Worker inventories every store touchpoint against today's settings, fixes reversible leftovers, reports once", { runningFor: 16 * MINUTE, progress: { done: "The store theme and products are clean of old-setup leftovers.", now: "Checking the review app's emails for old branding." } }),
             tasks.working({ id: "t-feed", bot: "store", title: "Meta catalog feed", outcome: "The Meta catalog shows every in-stock product with the right price", asked: { text: "half the products are missing from the fb shop", at: ago(3 * HOUR) } },
               "Worker rebuilds the feed and waits for Meta to re-read it", { runningFor: 2 * HOUR + 40 * MINUTE, alert: "quiet" }),
+            tasks.working({ id: "t-fresh", bot: "store", title: "Paymob access", outcome: "The store can read Paymob settlements", asked: { text: "can you get into paymob", at: ago(MINUTE) } },
+              "Worker signs in to Paymob and reads the settlements page", { runningFor: 20_000 }),
             tasks.working({ id: "t-two", bot: "store", title: "Black Friday landing page", outcome: "The Black Friday page is live with the three cart deals", asked: { text: "bf page needs to be up by friday", at: ago(70 * MINUTE) } },
               "Two workers: one builds the page, one writes the Arabic copy", { runningFor: 55 * MINUTE }),
             tasks.retrying({ bot: "store", title: "Klaviyo export", outcome: "The subscriber list is exported before the plan ends", asked: { text: "export the list before we cancel", at: ago(40 * MINUTE) } }),
@@ -33,6 +35,7 @@ export const work: Scenario[] = [
       },
       workers: {
         "t-reviews": [{ title: "Real customer reviews: design", state: "running", started: 5 * MINUTE }],
+        "t-fresh": [{ title: "Paymob access", state: "running", started: 20_000 }],
         "t-sweep": [{ title: "Old setup sweep", state: "running", started: 16 * MINUTE }],
         "t-feed": [{ title: "Meta catalog feed", state: "running", started: 160 * MINUTE }, { title: "Meta catalog feed: first try", state: "error", started: 175 * MINUTE, ended: 165 * MINUTE }],
         "t-two": [{ title: "Black Friday landing page: build", state: "running", started: 55 * MINUTE }, { title: "Black Friday landing page: Arabic copy", state: "running", started: 30 * MINUTE }],

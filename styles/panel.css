@@ -34,6 +34,7 @@
 .panel-ask { padding: 2px 14px 4px; border: 1px solid color-mix(in oklab, var(--panel-ask) 42%, transparent); border-radius: 16px; background: color-mix(in oklab, var(--panel-ask) 12%, var(--popover, var(--background))); }
 .panel-ask[data-old] { border-color: var(--border); background: var(--popover, var(--background)); }
 .dispatch-panel button.panel-ask-question { display: block; width: 100%; min-height: 0; padding: 12px 0 0; }
+.dispatch-panel button.panel-ask-question:focus-visible { outline-offset: 3px; border-radius: 6px; }
 .panel-ask-fit { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: break-word; font-size: 15px; font-weight: 600; line-height: 1.35; }
 .panel-ask[data-old] .panel-ask-fit { font-weight: 550; }
 .panel-ask-about { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: break-word; margin-top: 4px; font-size: 13.5px; line-height: 1.4; }
