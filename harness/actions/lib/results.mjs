@@ -35,7 +35,7 @@ export class Results {
     return this.rows.filter(row => !row.pass).length;
   }
 
-  write(log) {
+  write(log = []) {
     const passed = this.rows.filter(row => row.pass).length;
     const lines = [
       "# Radar panel actions: results",

@@ -65,6 +65,7 @@ for (const view of values.views.split(",")) {
     }
   } finally {
     await driver.close();
+    results.write(logLines);
   }
 }
 results.write(logLines);

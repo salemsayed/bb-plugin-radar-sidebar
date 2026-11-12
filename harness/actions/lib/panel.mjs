@@ -49,11 +49,12 @@ export class Driver {
   }
 
   async rightPanelClosed() {
-    const hide = this.page.locator('button[aria-label^="Hide right panel"]:visible').first();
-    if (!await hide.isVisible().catch(() => false)) return;
-    const pressed = await (this.phone ? hide.tap({ timeout: 3_000 }) : hide.click({ timeout: 3_000 })).then(() => true, () => false);
-    if (!pressed) await this.page.keyboard.press("Control+j");
-    await sleep(500);
+    const open = () => this.page.locator('button[aria-label="Show thread info panel"]:visible').count().then(n => n > 0);
+    for (let attempt = 0; attempt < 3 && await open(); attempt++) {
+      const hide = this.page.locator('button[aria-label^="Hide right panel"]:visible').last();
+      await (this.phone ? hide.tap({ force: true, timeout: 3_000 }) : hide.click({ force: true, timeout: 3_000 })).catch(() => undefined);
+      await sleep(600);
+    }
   }
 
   async home() {
