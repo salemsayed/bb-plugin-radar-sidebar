@@ -52,9 +52,39 @@ async function groupIs(driver, bot, key, group, label, reload = false) {
   return check(`${label}: ${key} shows in ${group ?? "nothing"}`, (item?.group ?? null) === group, item ? `${item.group}: ${item.text}` : "not in the panel");
 }
 
+async function outOfNeeds(driver, bot, key, label) {
+  const item = await poll(async () => { const found = await panelGroup(driver, bot, key); return found && found.group !== "needs" && found.group !== "later" ? found : null; }, 12_000, 1_500) ?? await driver.where(key);
+  return check(`${label}: ${key} left Needs you`, !!item && item.group !== "needs" && item.group !== "later", item ? `${item.group}: ${item.text}` : "not in the panel");
+}
+
 const deskKey = (iso, bot, threadId) => `desk:${iso.bot(bot.key).desks.find(desk => desk.threadId === threadId)?.id}`;
 
-const notNowKeys = iso => (iso.botTasks().notNow ?? []).map(entry => entry.key);
+function notNowKeys(iso) {
+  const out = iso.botTasks();
+  if (!out.questions) return (out.notNow ?? []).map(entry => entry.key);
+  return out.questions.filter(q => q.state === "later").flatMap(q => [q.taskId && !q.interactionId ? `task:${q.taskId}` : null, q.interactionId ? `form:${q.interactionId}` : null,
+    q.deskId ? `desk:${q.deskId}` : null, q.needId ? `task:${q.needId}` : null, `question:${q.id}`].filter(Boolean));
+}
+
+function savedQuestion(iso, bot, seq) {
+  const records = iso.records();
+  if (!records) {
+    const item = iso.needs().find(i => i.bot === bot.key && i.source.messageId === `message:${seq}`);
+    return item ? { id: item.id, state: item.state, closed: !["open", "reminded"].includes(item.state), itemKey: `task:${item.id}`, bindId: `question:${item.id}` } : null;
+  }
+  const r = records.filter(q => q.thread_id === bot.coordinator && q.ask_seq === seq).at(-1);
+  return r ? { id: r.id, state: `${r.state}${r.closed_by ? ` by ${r.closed_by}` : ""}`, closed: r.state === "closed", itemKey: `task:${r.need_id ?? r.task_id ?? r.id}`, bindId: `question:${r.need_id ?? r.id}` } : null;
+}
+
+function openQuestions(iso, bot) {
+  const out = iso.botTasks();
+  if (!out.questions) return null;
+  return out.questions.filter(q => q.bot === bot.key && q.state === "open");
+}
+
+function recordOf(iso, test) {
+  return (iso.records() ?? []).filter(test).at(-1) ?? null;
+}
 
 async function press(driver, locator) {
   await locator.waitFor({ state: "visible", timeout: 10_000 });
@@ -72,6 +102,8 @@ async function answer(context, { key, text, itemId, threadId, msg }) {
 }
 
 function answerScan(iso, bot, id) {
+  const records = iso.run(["saelmbot", "task-v2", "questions", "--id", id, "--json"], { allowFail: true });
+  if (records.ok) return `core's question records for the task: ${JSON.stringify(JSON.parse(records.out).questions.map(q => ({ id: q.id, source: q.source, state: q.state, closedBy: q.closedBy, closedRef: q.closedRef })))}`;
   const wait = JSON.parse(iso.run(["saelmbot", "task-v2", "salem-wait", "--id", id, "--json"]).out);
   const verified = iso.coreQuery("SELECT e.seq, s.verified FROM intake_events e JOIN intake_submissions s ON s.id=e.submission_id WHERE e.thread_id=? ORDER BY e.seq", bot.coordinator).filter(r => r.seq > (wait.answerCheck?.askSeq ?? 0));
   return `core's answer check saw turns ${JSON.stringify(wait.answerCheck?.turns ?? [])} after ask #${wait.answerCheck?.askSeq}; intake marks ${JSON.stringify(verified)} as Salem's`;
@@ -243,12 +275,12 @@ export const CASES = [
     scenario: "questions", id: "answer-card", action: "A question card with no task: press \"Elsewedy\"", expect: "Salem's answer lands bound to the question; the question leaves Needs you",
     async run(context) {
       const { iso, bot, world, driver } = context;
-      const need = await poll(() => iso.needs().find(item => item.bot === bot.key && item.source.messageId === `message:${world.supplierAsk}`), 20_000);
-      if (!need) return [check("core saved the card as a question", false, iso.needs().filter(i => i.bot === bot.key))];
+      const need = await poll(() => savedQuestion(iso, bot, world.supplierAsk), 20_000);
+      if (!need) return [check("core saved the card as a question", false, "no saved question for the card")];
       world.supplierNeed = need.id;
-      const steps = await answer(context, { key: `task:${need.id}`, text: "Elsewedy", itemId: `question:${need.id}`, msg: world.supplierAsk });
-      const closed = await poll(() => { const item = iso.needs().find(i => i.id === need.id); return item && !["open", "reminded"].includes(item.state) ? item : null; }, 30_000);
-      return [...steps, check("core closes the question", closed, closed ? closed.state : iso.needs().find(i => i.id === need.id)?.state), await groupIs(driver, bot, `task:${need.id}`, null, "panel after"), await groupIs(driver, bot, `task:${need.id}`, null, "after reload", true)];
+      const steps = await answer(context, { key: need.itemKey, text: "Elsewedy", itemId: need.bindId, msg: world.supplierAsk });
+      const closed = await poll(() => { const now = savedQuestion(iso, bot, world.supplierAsk); return now?.closed ? now : null; }, 30_000);
+      return [...steps, check("core closes the question", closed, closed ? closed.state : savedQuestion(iso, bot, world.supplierAsk)?.state), await groupIs(driver, bot, need.itemKey, null, "panel after"), await groupIs(driver, bot, need.itemKey, null, "after reload", true)];
     },
   },
   {
@@ -279,20 +311,21 @@ export const CASES = [
     },
   },
   {
-    scenario: "old", id: "old-ask", action: "An ask from 13 hours ago that the bot moved on from", expect: "a quieter card under the fresh one, not counted in the header; Continue opens the chat with its task chip",
+    scenario: "old", id: "old-ask", action: "An ask from 13 hours ago; Salem has written in that chat since (a new request), and the bot then asked a fresh question", expect: "the old ask is closed by his later message (one rule for every question: any reply of his in that chat after it) and sits in Waiting as answered; the fresh ask is the only question, counted once; Continue on the old one opens the chat with its task chip",
     async run({ iso, bot, world, driver }) {
       await driver.openPanel(bot);
       const state = await driver.state();
       const old = state.items.find(item => item.key === `task:${world.contract}`);
       const fresh = state.items.find(item => item.key === `task:${world.fresh}`);
       const needs = state.tally.find(part => part.group === "needs")?.text ?? "";
-      const head = state.sections.find(section => section.group === "needs")?.head ?? "";
+      const row = bot.row(world.contract);
       const after = iso.lastSeq(bot.coordinator);
       await press(driver, driver.item(`task:${world.contract}`).locator(".dispatch-task-continue"));
       const nav = await navigatedTo(driver, bot.coordinator);
       const composer = await poll(async () => { const c = await driver.composer(); return c?.text.includes("Supplier contract") ? c : null; }, 8_000) ?? await driver.composer();
-      return [check("old card is marked old", old?.old && old.group === "needs", old ?? "missing"), check("fresh card first", state.items.findIndex(i => i === fresh) < state.items.findIndex(i => i === old), state.items.map(i => i.key)),
-        check("header counts only the fresh ask", /^1\b/.test(needs), needs), check("section says 1 new · 1 old", /1 new · 1 old/.test(head), head), ...nav, check("composer holds the task chip", composer?.text.includes("Supplier contract"), composer ?? "none"), check("nothing sent", salemSince(iso, bot.coordinator, after).length === 0, "")];
+      return [check("the 13-hour-old ask is out of Needs you", old && old.group !== "needs", old ?? "missing"), check("core: answered by his later message", row?.later?.reason === "answered", row ? `${row.displayState} · ${short(row.line)}` : "gone"),
+        check("the fresh ask is in Needs you", fresh?.group === "needs", fresh ?? "missing"), check("header counts 1", /^1\b/.test(needs), needs), ...nav,
+        check("composer holds the task chip", composer?.text.includes("Supplier contract"), composer ?? "none"), check("nothing sent", salemSince(iso, bot.coordinator, after).length === 0, "")];
     },
   },
   {
@@ -490,7 +523,8 @@ export const CASES = [
       const state = await driver.state();
       const core = iso.bot(bot.key);
       const count = group => Number(/^\d+/.exec(state.tally.find(part => part.group === group)?.text ?? "0")?.[0] ?? 0);
-      const needs = core.tasks.filter(t => t.displayState === "needs").length + core.desks.filter(d => d.status === "draft" || d.status === "blocked").length;
+      const open = openQuestions(iso, bot);
+      const needs = open ? open.length : core.tasks.filter(t => t.displayState === "needs").length + core.desks.filter(d => d.status === "draft" || d.status === "blocked").length;
       const checks = [check("needs count", count("needs") === needs, `${count("needs")} shown, core ${needs}`), check("working count", count("working") >= 3, state.tally.map(t => t.text))];
       for (const part of await driver.panel().locator(".panel-tally-part").all()) {
         const group = await part.getAttribute("data-group");
@@ -633,17 +667,168 @@ export const CASES = [
       await driver.page.keyboard.press("Enter");
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("master-technicians")), 20_000);
       await iso.idle(bot.coordinator);
-      const need = await poll(() => iso.needs().find(i => i.bot === bot.key && i.source.messageId === `message:${world.planAsk}`), 10_000);
-      const closed = await poll(() => { const item = iso.needs().find(i => i.id === need?.id); return item && !["open", "reminded"].includes(item.state) ? item : null; }, 30_000);
+      const need = await poll(() => savedQuestion(iso, bot, world.planAsk), 10_000);
+      const closed = await poll(() => { const now = savedQuestion(iso, bot, world.planAsk); return now?.closed ? now : null; }, 30_000);
       bot.waitOnSalem(world.plan, "acceptance: the dashboard plan has his answers and the published Master list.");
       await sleep(4000);
       const row = bot.row(world.plan);
       await driver.home();
       const item = await panelGroup(driver, bot, `task:${world.plan}`);
       return [check("his reply landed bound to the task", sent && boundTo(sent, `task:${world.plan}`), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
-        check("the card's saved question is closed", closed, closed ? `${closed.id} ${closed.state}` : need ? `${need.id} ${iso.needs().find(i => i.id === need.id)?.state}` : "no saved question"),
+        check("the card's saved question is closed", closed, closed ? `${closed.id} ${closed.state}` : need ? `${need.id} ${savedQuestion(iso, bot, world.planAsk)?.state}` : "no saved question"),
         check("core does not ask it again", row?.displayState !== "needs" || !(row.needs?.options ?? []).includes("Helper tab"), row ? `${row.displayState} · ${short(row.needs?.question ?? row.line)} · options ${JSON.stringify(row.needs?.options ?? [])}` : "none"),
         check("panel does not show the answered card's buttons", !(item?.group === "needs" && item.answers.some(a => /Helper tab/.test(a))), item ?? "not shown")];
     },
   },
+  {
+    scenario: "reply", id: "unbound", action: "Salem types a plain reply in the bot's chat (no task chip): \"ok, go ahead with both, I will check the courier later\"", expect: "every question asked in that chat before it closes (the task's card, the task's wait, the card with no task): any reply from him in that chat, no answer-guessing; they stay out after a reload",
+    async run({ iso, bot, world, driver }) {
+      const keys = [`task:${world.card}`, `task:${world.wait}`];
+      const loose = await poll(() => savedQuestion(iso, bot, world.loose), 15_000);
+      await driver.openPanel(bot);
+      const before = await driver.state();
+      const shown = [...keys, loose?.itemKey].map(key => before?.items.find(item => item.key === key)?.group ?? "missing");
+      await driver.closePanel();
+      const after = iso.lastSeq(bot.coordinator);
+      await driver.typeInChat(bot.project, bot.coordinator, "ok, go ahead with both, I will check the courier later");
+      const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("go ahead with both")), 20_000);
+      const rows = await poll(() => { const a = bot.row(world.card), b = bot.row(world.wait); return a && b && a.displayState !== "needs" && b.displayState !== "needs" ? [a, b] : null; }, 30_000) ?? [bot.row(world.card), bot.row(world.wait)];
+      const card = await poll(() => { const q = savedQuestion(iso, bot, world.loose); return q?.closed ? q : null; }, 20_000) ?? savedQuestion(iso, bot, world.loose);
+      await driver.home();
+      return [check("all three were in Needs you before", shown.every(group => group === "needs"), shown),
+        check("his reply landed as Salem's", sent?.from === "salem", sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+        check("both task questions closed in core", rows.every(r => r && r.displayState !== "needs"), rows.map(r => r ? `${r.displayState} · ${short(r.line)}` : "gone")),
+        check("the card with no task closed in core", card?.closed, card ? card.state : "none"),
+        ...[await groupIs(driver, bot, keys[0], "waiting", "panel after"), await groupIs(driver, bot, keys[1], "waiting", "panel after"), await groupIs(driver, bot, loose?.itemKey ?? "task:?", null, "panel after")],
+        await groupIs(driver, bot, keys[0], "waiting", "after reload", true)];
+    },
+  },
+  {
+    scenario: "bound", id: "bound-reply", action: "Continue on \"Sohag hall\", type \"Hall B please\" after its task chip and send, while \"Banner prints\" also waits on him in the same chat", expect: "only the Sohag hall question closes (his reply names that task); Banner prints stays in Needs you",
+    async run({ iso, bot, world, driver }) {
+      await driver.openPanel(bot);
+      await press(driver, driver.item(`task:${world.first}`).locator(".dispatch-task-continue"));
+      await navigatedTo(driver, bot.coordinator);
+      const box = driver.page.locator('[contenteditable="true"]').last();
+      await poll(async () => (await box.innerText()).includes("Sohag"), 8_000);
+      await box.click();
+      await driver.page.keyboard.press("End");
+      await driver.page.keyboard.type(" Hall B please");
+      const after = iso.lastSeq(bot.coordinator);
+      await driver.page.keyboard.press("Enter");
+      const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("Hall B please")), 20_000);
+      const first = await coreRow(bot, world.first, r => r.displayState !== "needs");
+      await sleep(3000);
+      const second = bot.row(world.second);
+      await driver.home();
+      return [check("his reply landed bound to Sohag hall", sent && boundTo(sent, `task:${world.first}`), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+        check("Sohag hall leaves Needs you in core", first?.displayState !== "needs", first ? `${first.displayState} · ${short(first.line)}` : "gone"),
+        check("Banner prints still needs him in core", second?.displayState === "needs", second ? `${second.displayState} · ${short(second.line)}` : "gone"),
+        await groupIs(driver, bot, `task:${world.first}`, "waiting", "panel after"), await groupIs(driver, bot, `task:${world.second}`, "needs", "panel after")];
+    },
+  },
+  {
+    scenario: "relay", id: "not-his", action: "Another thread sends \"yes renew\" into the bot's chat (not Salem)", expect: "the question stays open: only Salem's own verified reply closes it",
+    async run({ iso, bot, world, driver }) {
+      const seq = await bot.salem("yes renew", await iso.relay());
+      await sleep(4000);
+      const row = bot.row(world.ask);
+      const message = iso.messages(bot.coordinator, seq - 1).find(m => m.seq === seq);
+      return [check("the message landed in the chat", !!message, message ? `#${message.seq} ${message.from} ${short(message.text)}` : "none"),
+        check("core keeps the question open", row?.displayState === "needs", row ? `${row.displayState} · ${short(row.line)}` : "gone"),
+        await groupIs(driver, bot, `task:${world.ask}`, "needs", "panel")];
+    },
+  },
+  {
+    scenario: "decision", id: "decision-line", action: "The bot's reply carries a \"Decision needed:\" line (no card, no task)", expect: "it shows once as a question in Needs you; pressing its first answer sends it to the chat as Salem's, bound to that question, and the question closes",
+    async run(context) {
+      const { iso, bot, world, driver } = context;
+      const saved = await poll(() => savedQuestion(iso, bot, world.line) ?? (() => { const item = iso.needs().find(i => i.bot === bot.key && i.kind === "decision" && /office internet/.test(i.text)); return item ? { id: item.id, closed: !["open", "reminded"].includes(item.state), state: item.state, itemKey: `task:${item.id}`, bindId: `question:${item.id}` } : null; })(), 30_000);
+      if (!saved) return [check("core saved the decision line as a question", false, "none")];
+      await driver.openPanel(bot);
+      const item = await driver.where(saved.itemKey);
+      const label = item?.answers?.[0] ?? "";
+      const steps = label ? await answer(context, { key: saved.itemKey, text: label, itemId: saved.bindId }) : [check("answer buttons", false, item ?? "missing")];
+      const closed = await poll(() => { const q = savedQuestion(iso, bot, world.line); if (q) return q.closed ? q : null; const n = iso.needs().find(i => i.id === saved.id); return n && !["open", "reminded"].includes(n.state) ? n : null; }, 30_000);
+      return [check("one question in Needs you for the line", item?.group === "needs", item ?? "missing"), ...steps, check("core closes it", closed, closed ? closed.state : "open"), await groupIs(driver, bot, saved.itemKey, null, "after reload", true)];
+    },
+  },
+  {
+    scenario: "outside", id: "thread-question", action: "A thread in a project no bot owns asks a native question; then it is answered", expect: "the sidebar's Needs you lists it (from core's list); once the question is answered it leaves",
+    async run({ iso, world, driver }) {
+      await driver.home();
+      await driver.stripOpen();
+      const strip = await poll(async () => { const items = await driver.strip(); return items.some(item => item.kind === "thread") ? items : null; }, 30_000, 1_500) ?? await driver.strip();
+      const listed = strip.find(item => item.kind === "thread");
+      const pending = iso.pending(world.outside.threadId)[0];
+      const reply = pending ? iso.answer(world.outside.threadId, pending) : null;
+      await sleep(2500);
+      const answered = iso.pending(world.outside.threadId).length === 0;
+      await driver.home();
+      await driver.stripOpen();
+      const gone = await poll(async () => { const items = await driver.strip(); return items.some(item => item.kind === "thread") ? null : items; }, 30_000, 1_500);
+      return [check("Needs you lists the outside thread's question", !!listed, listed ?? strip),
+        check("the native question was answered", answered, pending ? `${pending.id} ${reply?.ok ? "answered" : reply?.err ?? ""}` : "no pending interaction"),
+        check("it leaves Needs you", !!gone, gone ?? await driver.strip())];
+    },
+  },
+  {
+    scenario: "ended", id: "task-resumed", action: "The bot resumes \"Invoice footer\" (no longer waiting on Salem)", expect: "its question ends and it leaves Needs you",
+    async run({ iso, bot, world, driver }) {
+      await driver.openPanel(bot);
+      const before = await driver.where(`task:${world.resumed}`);
+      bot.resume(world.resumed);
+      const row = await coreRow(bot, world.resumed, r => r.displayState !== "needs");
+      const record = recordOf(iso, q => q.task_id === world.resumed);
+      return [check("it was in Needs you", before?.group === "needs", before ?? "missing"), check("core: no longer a question", row?.displayState !== "needs", row ? `${row.displayState} · ${short(row.line)}` : "gone"),
+        check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core"), await outOfNeeds(driver, bot, `task:${world.resumed}`, "panel after")];
+    },
+  },
+  {
+    scenario: "ended", id: "task-finished", action: "The bot finishes \"Stock report\"", expect: "its question ends; the task moves to Done",
+    async run({ iso, bot, world, driver }) {
+      await bot.finish(world.finished, "Stock report sent to Sherif.");
+      const row = await coreRow(bot, world.finished, r => r.displayState === "done");
+      const record = recordOf(iso, q => q.task_id === world.finished);
+      return [check("core: done", row?.displayState === "done", row ? `${row.displayState} · ${short(row.line)}` : "gone"), check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core"),
+        await groupIs(driver, bot, `task:${world.finished}`, "done", "panel after")];
+    },
+  },
+  {
+    scenario: "ended", id: "need-done", action: "The bot marks its saved ask \"Approve the January rent transfer?\" done", expect: "the question ends and leaves Needs you",
+    async run({ iso, bot, world, driver }) {
+      await driver.openPanel(bot);
+      const before = await driver.where(`task:${world.need}`);
+      bot.needDone(world.need);
+      await sleep(2000);
+      const record = recordOf(iso, q => q.need_id === world.need);
+      return [check("it was in Needs you", before?.group === "needs", before ?? "missing"), check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core"),
+        await groupIs(driver, bot, `task:${world.need}`, null, "panel after")];
+    },
+  },
+  {
+    scenario: "ended", id: "desk-working", action: "The desk \"Samir Adel · Quote for 10 drums\" moves from draft to working", expect: "its question ends and it leaves Needs you for Working",
+    async run({ iso, bot, world, driver }) {
+      const key = deskKey(iso, bot, world.desk.threadId);
+      await driver.openPanel(bot);
+      const before = await driver.where(key);
+      bot.deskStatus(world.desk.threadId, "working");
+      const after = await groupIs(driver, bot, key, "working", "panel after");
+      const record = recordOf(iso, q => q.desk_id === key.slice(5));
+      return [check("it was in Needs you", before?.group === "needs", before ?? "missing"), after, check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core")];
+    },
+  },
+  {
+    scenario: "ended", id: "form-answered", action: "The worker's native question on \"Bank statement\" is answered", expect: "its question ends and the task leaves Needs you",
+    async run({ iso, bot, world, driver }) {
+      const shown = await coreRow(bot, world.form, r => r.displayState === "needs" && !!r.needs?.interactionId);
+      const pending = iso.pending(world.formWorker)[0];
+      const reply = pending ? iso.answer(world.formWorker, pending) : null;
+      const row = await coreRow(bot, world.form, r => r.displayState !== "needs");
+      const record = recordOf(iso, q => q.interaction_id === pending?.id);
+      return [check("it was a question in core", shown?.needs?.interactionId, shown ? `${shown.displayState} · ${short(shown.needs?.question)}` : "none"), check("answered", pending && iso.pending(world.formWorker).length === 0, pending ? `${pending.id} ${reply?.ok ? "answered" : reply?.err ?? ""}` : "none"),
+        check("core: no longer a question", row?.displayState !== "needs", row ? `${row.displayState} · ${short(row.line)}` : "gone"), check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core")];
+    },
+  },
 ];
+

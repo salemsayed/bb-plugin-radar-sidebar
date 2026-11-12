@@ -63,18 +63,19 @@ export class Bot {
     return JSON.parse(this.as(command).out);
   }
 
-  async salem(text) {
+  async salem(text, from) {
     const before = this.iso.lastSeq(this.coordinator, "client/turn/requested");
-    this.iso.run(["thread", "tell", this.coordinator, "--mode", "auto", text]);
+    this.iso.run(["thread", "tell", this.coordinator, "--mode", "auto", text], from ? { thread: from } : {});
     const seq = await this.iso.until(`Salem's message in ${this.name}`, () => { const now = this.iso.lastSeq(this.coordinator, "client/turn/requested"); return now > before ? now : 0; });
     await this.iso.idle(this.coordinator);
     return seq;
   }
 
-  async say(markdown) {
+  async say(markdown, { about } = {}) {
     const file = join(this.files, `${this.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.md`);
     writeFileSync(file, markdown);
-    await this.salem(`say_file:${file}`);
+    if (about) await this.salem(`${chip(about)} say_file:${file}`);
+    else await this.salem(`say_file:${file}`, await this.iso.relay());
     const seq = this.iso.query("SELECT MAX(sequence) AS seq FROM events WHERE thread_id=? AND type='item/completed' AND json_extract(data,'$.item.type')='agentMessage' AND json_extract(data,'$.item.text')=?", this.coordinator, markdown)[0].seq;
     if (!seq) throw new Error(`${this.name} did not say the prepared reply`);
     return seq;
@@ -148,6 +149,23 @@ export class Bot {
     if (recommend) args.push("--recommend", recommend);
     if (message) args.push("--message", `message:${message}`);
     return JSON.parse(this.iso.run(args, { thread: this.coordinator }).out);
+  }
+
+  needDone(id) {
+    return this.as(["needs", "done", id, "--json"]);
+  }
+
+  async outsideQuestion(title) {
+    const workspace = join(this.iso.config.S, "workspaces", `${this.key}-outside`);
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(join(workspace, "README.md"), `# ${title}\nA project no bot owns.\n`);
+    execFileSync("bash", ["-c", `cd "${workspace}" && git init -q && git add -A && git -c user.email=harness@test -c user.name=harness commit -qm init`]);
+    const project = this.iso.json(["project", "create", "--name", `${title} project`, "--root", workspace]);
+    const projectId = project.id ?? project.project.id;
+    const thread = this.iso.json(["thread", "spawn", "--project", projectId, "--environment", workspace, ...PROVIDER, "--title", title, "--prompt", "ask_user which path"]);
+    const threadId = thread.id ?? thread.thread.id;
+    await this.iso.until(`${title} to ask`, () => this.iso.pending(threadId).length > 0, 60_000);
+    return { threadId, projectId };
   }
 
   tasks() {

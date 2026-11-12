@@ -157,6 +157,29 @@ export class Driver {
     return box.evaluate(node => ({ text: node.innerText.replace(/\s+/g, " ").trim(), chips: [...node.querySelectorAll("[data-mention], .mention, [data-type='mention'], [data-mention-kind]")].map(chip => chip.textContent.trim()) }));
   }
 
+  async strip() {
+    await this.sidebar();
+    return this.page.locator(".stage-needs").first().evaluate(node => [...node.querySelectorAll("li[data-need]")].map(li => ({
+      id: li.dataset.need, state: li.dataset.state ?? null, kind: li.querySelector(".stage-needs-item")?.dataset.kind ?? null,
+      text: li.innerText.replace(/\s+/g, " ").trim().slice(0, 200), buttons: [...li.querySelectorAll("button")].map(b => b.getAttribute("aria-label") || b.innerText.trim()).filter(Boolean),
+    }))).catch(() => []);
+  }
+
+  async stripOpen() {
+    const more = this.page.locator(".stage-needs .stage-needs-more-pill, .stage-needs .stage-needs-arrival").first();
+    if (await more.isVisible().catch(() => false)) { await this.press(more); await sleep(600); }
+  }
+
+  async typeInChat(projectId, threadId, text) {
+    await this.page.goto(`${this.iso.url}/projects/${projectId}/threads/${threadId}`, { waitUntil: "domcontentloaded" });
+    await this.settle();
+    const box = this.page.locator('[contenteditable="true"]').last();
+    await box.waitFor({ state: "visible", timeout: 20_000 });
+    await box.click();
+    await this.page.keyboard.type(text);
+    await this.page.keyboard.press("Enter");
+  }
+
   async reload() {
     await this.page.reload({ waitUntil: "domcontentloaded" });
     await this.settle();

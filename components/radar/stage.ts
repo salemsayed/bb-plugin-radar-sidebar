@@ -5,7 +5,6 @@ import type { StagePose } from "./StageFace";
 import { wholeTitle } from "./displayText";
 import { isQuestionRow, isStepAsk } from "./questions";
 import { withoutMarks } from "./recommend";
-import { plainAnswers } from "@/lib/plainAnswers";
 
 export function taskAsk(task: Pick<BotTaskRow, "needs" | "line" | "title" | "outcome" | "tags">): string {
   if (task.needs?.question.includes("\n")) return task.needs.question;
@@ -124,18 +123,10 @@ export function askFirst(text: string, title = ""): string {
   return rest ? `${lead} · ${rest}` : lead;
 }
 
-const DO_IT = /^(?:please\s+)?(?:type|enter|paste|sign in|log in|log into|plug(?: in)?|unplug|scan|tap|press|insert|charge|reconnect|turn (?:on|off)|unlock)\b/i;
 
-export function instructionAsk(question: string): boolean {
-  const text = stageText(question, true).trim();
-  return !/\?/.test(text) && DO_IT.test(text);
-}
 
 export function askOptions(task: Pick<BotTaskRow, "needs">): string[] {
-  if (task.needs?.question.includes("\n")) return task.needs.options ?? [];
-  if (!task.needs || instructionAsk(task.needs.question)) return [];
-  const given = answerOptions(task.needs.options);
-  return given.length || task.needs.interactionId ? given : plainAnswers(stageText(task.needs.question, true));
+  return answerOptions(task.needs?.options);
 }
 
 const IMPERATIVE = /^(?:type|enter|paste|sign in|log in|unplug|scan|tap|press|insert|unlock|approve|confirm|close|keep|choose|pick|decide|reply|answer|merge|ship|send|pay|sign|review|check|test|accept|reject|switch|cancel|renew|buy|book|upgrade|tell|give|share|add|set|run|open|go ahead|let me know|read|look|try|restart|retry|update|fix|install|remove|delete|move|publish|deploy|release|start|stop|rename|plug|unplug|scan|call|order|grab)\b(?!\s+(?:is|was|are|were|has|have|had|will|would|can|could|cannot|can't|should|did|does|do|got|gets|went|looks|passed|failed|stays|works|landed|shipped|deployed|ran|runs|needs|needed)\b)/i;

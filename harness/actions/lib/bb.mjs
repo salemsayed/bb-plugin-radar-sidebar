@@ -86,6 +86,42 @@ export class Iso {
         : { seq: row.seq, at: row.at, from: "bot", text: row.data.item.text ?? "", mentions: [] });
   }
 
+  async relay() {
+    if (this.relayThread) return this.relayThread;
+    const root = join(this.config.S, "workspaces", "harness-relay");
+    execFileSync("bash", ["-c", `mkdir -p "${root}" && cd "${root}" && [ -d .git ] || (git init -q && echo relay > README.md && git add -A && git -c user.email=harness@test -c user.name=harness commit -qm init)`]);
+    const project = this.json(["project", "create", "--name", "Harness relay", "--root", root]);
+    const thread = this.json(["thread", "spawn", "--project", project.id ?? project.project.id, "--environment", root, "--provider", "scripted-echo", "--model", "claude-sonnet-5-5", "--title", "Harness relay", "--prompt", "relay ready"]);
+    this.relayThread = thread.id ?? thread.thread.id;
+    await this.idle(this.relayThread);
+    return this.relayThread;
+  }
+
+  pending(threadId) {
+    const { ok, out } = this.run(["thread", "interactions", "list", threadId, "--json"], { allowFail: true });
+    if (!ok) return [];
+    const list = JSON.parse(out);
+    return (Array.isArray(list) ? list : list.interactions ?? list.items ?? []).filter(i => i.status === "pending");
+  }
+
+  answer(threadId, interaction) {
+    const question = interaction.payload?.questions?.[0];
+    const value = question?.options?.[0]?.value ?? "staging";
+    return this.run(["thread", "interactions", "answer", interaction.id, threadId, "--choice", `${question?.id ?? "question-1"}=${value}`], { allowFail: true });
+  }
+
+  questions() {
+    return this.botTasks().questions ?? null;
+  }
+
+  records() {
+    const db = this.coreDb();
+    try {
+      if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='needs_you_questions'").get()) return null;
+      return db.prepare("SELECT * FROM needs_you_questions ORDER BY created_at").all().map(r => ({ ...r, body: JSON.parse(r.body) }));
+    } finally { db.close(); }
+  }
+
   thread(threadId) {
     return this.json(["thread", "show", threadId]).thread;
   }

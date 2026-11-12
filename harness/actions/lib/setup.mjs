@@ -46,7 +46,7 @@ export class Setup {
     this.log(this.script("stop.sh"));
   }
 
-  async start(offsetMs = 0, attempt = 1) {
+  async start(offsetMs = 0, attempt = 1, expectIdle = false) {
     this.log(this.script("start.sh", { PANEL_CLOCK_OFFSET_MS: String(offsetMs) }));
     const version = this.iso.run(["--version"]).out;
     if (version !== this.iso.config.BB_VERSION) throw new Error(`isolated bb reports ${version}, expected ${this.iso.config.BB_VERSION}`);
@@ -55,11 +55,12 @@ export class Setup {
       if (attempt >= 3) throw new Error(`isolated bb did not load its plugins after ${attempt} starts; see ${join(this.root, "logs/bb-app.log")}`);
       this.log(`plugins did not load; starting again (attempt ${attempt + 1})`);
       this.stop();
-      return this.start(offsetMs, attempt + 1);
+      return this.start(offsetMs, attempt + 1, expectIdle);
     }
     const threads = this.iso.json(["thread", "list"]);
     const running = (Array.isArray(threads) ? threads : threads.threads ?? []).filter(thread => thread.status === "active").length;
     this.log(`isolated bb ${version} at ${this.iso.url}, clock offset ${offsetMs} ms, ${running} running threads`);
+    if (expectIdle && running !== 0) throw new Error(`a fresh isolated bb reports ${running} running threads; refusing to go on`);
     await sleep(2000);
   }
 
@@ -88,7 +89,7 @@ export class Setup {
   async fresh(offsetMs) {
     this.stop();
     this.wipe();
-    await this.start(offsetMs);
+    await this.start(offsetMs, 1, true);
     this.install(this.copy(this.builds.genui.dir, "genui"));
     for (const name of STAND_INS) {
       const dir = this.copy(join(here, "stand-ins", name), name);
