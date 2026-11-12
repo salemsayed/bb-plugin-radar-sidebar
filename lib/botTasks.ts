@@ -283,7 +283,6 @@ export interface NeedRow {
   options: string[];
 }
 
-/** Every task that needs Salem, in bot order: each carries its own open question from core. */
 export function needRows(data: BotTasksData): NeedRow[] {
   return [...data.bots].sort((a, b) => a.order - b.order).flatMap(bot => bot.tasks.filter(task => task.displayState === "needs").map(task => ({
     key: `${task.id}:${task.needs?.questionId ?? "task"}`, bot, botKey: bot.key, taskId: task.id,
