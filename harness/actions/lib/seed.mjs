@@ -99,6 +99,12 @@ export class Bot {
     this.change(id, { action: "wait", owner: "salem", reason });
   }
 
+  async askThenWait(id, question) {
+    const seq = await this.say(`${chip(id)}\n${question}`, { about: id });
+    this.waitOnSalem(id, question);
+    return seq;
+  }
+
   waitOutside(id, reason, wakeAt) {
     this.change(id, { action: "wait", owner: "external", reason, ...(wakeAt ? { wakeAt: new Date(wakeAt).toISOString() } : {}) });
   }
@@ -149,6 +155,10 @@ export class Bot {
     if (recommend) args.push("--recommend", recommend);
     if (message) args.push("--message", `message:${message}`);
     return JSON.parse(this.iso.run(args, { thread: this.coordinator }).out);
+  }
+
+  scheduleFor(threadId, when, text) {
+    return this.iso.run(["thread", "tell", threadId, "--mode", "queue", "--send-at", when, text]);
   }
 
   needDone(id) {

@@ -43,8 +43,8 @@ export const SCENARIOS = [
     async now(bot, w) {
       w.deploy = await bot.task({ ask: "Fix the price rounding bug", title: "Price fix deploy" });
       w.tap = await bot.task({ ask: "Check the Tanta stock count", title: "Tanta stock count" });
-      bot.waitOnSalem(w.deploy, "Deploy the price fix to production?");
-      bot.waitOnSalem(w.tap, "Recount the Tanta shelves this week?");
+      await bot.askThenWait(w.deploy, "Deploy the price fix to production?");
+      await bot.askThenWait(w.tap, "Recount the Tanta shelves this week?");
     },
   },
   {
@@ -58,12 +58,12 @@ export const SCENARIOS = [
     key: "old", name: "Old Ask Bot",
     async "thirteen hours ago"(bot, w) {
       w.contract = await bot.task({ ask: "Renew the supplier contract", title: "Supplier contract" });
-      bot.waitOnSalem(w.contract, "Sign the supplier contract renewal?");
+      await bot.askThenWait(w.contract, "Sign the supplier contract renewal?");
     },
     async now(bot, w) {
       await bot.say("Working on the other things meanwhile.");
       w.fresh = await bot.task({ ask: "Order more packing tape", title: "Packing tape" });
-      bot.waitOnSalem(w.fresh, "Order 40 rolls of packing tape?");
+      await bot.askThenWait(w.fresh, "Order 40 rolls of packing tape?");
     },
   },
   {
@@ -148,7 +148,7 @@ export const SCENARIOS = [
       w.deskAsk = await bot.desk({ key: "chat:yara-9", title: "Chat · Yara Fathy · Discount for 12 drums" });
       bot.deskStatus(w.deskAsk.threadId, "draft");
       for (const title of ["Shelf photos", "Stock alert", "Invoice batch", "Promo email", "Courier pickup", "Price tags"]) { const id = await bot.task({ ask: `Handle the ${title.toLowerCase()}`, title }); await bot.finish(id, `${title} done.`); }
-      asks.forEach(([, reason], i) => bot.waitOnSalem(w.asks[i], reason));
+      for (const [i, [, reason]] of asks.entries()) await bot.askThenWait(w.asks[i], reason);
     },
   },
   {
@@ -197,7 +197,7 @@ export const SCENARIOS = [
       w.loose = await bot.say(`The courier quotes are in.\n\n${buttons("Which courier for Aswan?", ["Bosta", "Aramex"])}`);
       w.cardAsk = await bot.say(`${chip(w.card)}\nThe LED panel prices are ready.\n\n${buttons("Which LED panel margin?", ["10 percent", "14 percent"])}`, { about: w.card });
       bot.waitOnSalem(w.card, "Which margin for the LED panels?");
-      bot.waitOnSalem(w.wait, "Send the Mansoura delivery today?");
+      await bot.askThenWait(w.wait, "Send the Mansoura delivery today?");
       w.saved = bot.need("Book the Aswan courier for Thursday?").item.id;
     },
   },
@@ -208,14 +208,15 @@ export const SCENARIOS = [
       w.second = await bot.task({ ask: "Order the banner prints", title: "Banner prints" });
       w.firstAsk = await bot.say(`${chip(w.first)}\nTwo halls are free on the 20th.\n\n${buttons("Which hall for Sohag?", ["Hall A", "Hall B"])}`);
       bot.waitOnSalem(w.first, "Which hall for Sohag?");
-      bot.waitOnSalem(w.second, "Print 20 banners for Sohag?");
+      await bot.askThenWait(w.second, "Print 20 banners for Sohag?");
     },
   },
   {
     key: "relay", name: "Relay Bot",
     async now(bot, w) {
       w.ask = await bot.task({ ask: "Renew the domain", title: "Domain renewal" });
-      bot.waitOnSalem(w.ask, "Renew the bareeq domain for two years?");
+      w.signoff = await bot.task({ ask: "Fix the footer typo", title: "Footer typo" });
+      await bot.askThenWait(w.ask, "Renew the bareeq domain for two years?");
     },
   },
   {
@@ -231,13 +232,27 @@ export const SCENARIOS = [
     },
   },
   {
+    key: "parked", name: "Parked Bot",
+    async now(bot, w) {
+      w.done = await bot.task({ ask: "Cap the reps at 5 offers a day", title: "Rep daily cap" });
+      w.open = await bot.task({ ask: "Check the rep cap tomorrow morning", title: "Rep cap check" });
+      w.doneWorker = await bot.worker(w.done, { title: "Rep daily cap worker", prompt: "Capped the reps at 5 offers a day" });
+      w.openWorker = await bot.worker(w.open, { title: "Rep cap check worker", prompt: "Looked at today's offers" });
+      await bot.iso.idle(w.doneWorker);
+      await bot.iso.idle(w.openWorker);
+      bot.scheduleFor(w.doneWorker, "1d", "Fallback wake: check the cap held overnight");
+      bot.scheduleFor(w.openWorker, "1d", "Fallback wake: recount tomorrow's offers");
+      await bot.finish(w.done, "The rep cap is live: 5 offers a day.");
+    },
+  },
+  {
     key: "ended", name: "Ending Bot",
     async now(bot, w) {
       w.resumed = await bot.task({ ask: "Fix the invoice footer", title: "Invoice footer" });
       w.finished = await bot.task({ ask: "Send the stock report", title: "Stock report" });
       w.form = await bot.task({ ask: "Download the bank statement", title: "Bank statement" });
-      bot.waitOnSalem(w.resumed, "Use the new invoice footer?");
-      bot.waitOnSalem(w.finished, "Send the stock report to Sherif?");
+      await bot.askThenWait(w.resumed, "Use the new invoice footer?");
+      await bot.askThenWait(w.finished, "Send the stock report to Sherif?");
       w.need = bot.need("Approve the January rent transfer?").item.id;
       w.desk = await bot.desk({ key: "chat:samir-11", title: "Chat · Samir Adel · Quote for 10 drums" });
       bot.deskStatus(w.desk.threadId, "draft");

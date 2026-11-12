@@ -15,7 +15,7 @@ export interface BotTasks {
   tasksV2: boolean; summary: { needs: number; working: number; queued: number; offline: number; waiting: number; done: number; notStarted: number };
   tasks: TaskRow[]; unlinked: { threadId: string; title: string }[];
 }
-export type QuestionSource = "form" | "thread" | "wait" | "ask" | "card" | "decision" | "need" | "desk";
+export type QuestionSource = "form" | "thread" | "ask" | "card" | "decision" | "need" | "desk";
 export interface QuestionView { id: string; bot: string | null; source: QuestionSource; state: "open" | "later"; threadId: string; askedAt: number; question: string; taskId?: string; deskId?: string; needId?: string; interactionId?: string; messageSeq?: number; laterAt?: number; options?: string[]; recommend?: string }
 export interface BotTasksOutput { bots: BotTasks[]; questions: QuestionView[]; notFiled: { threadId: string; title: string; suggestedBot?: string }[]; observedAt: number }
 /** refused: the bot this part is for has tasks v2 off; it is never sent from Tell the bots (send it in that bot's chat). */
