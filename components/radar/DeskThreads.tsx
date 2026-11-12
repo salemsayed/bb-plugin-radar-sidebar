@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
-import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { deskTitle, deskWakeAt, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { clearsLine } from "./BotsView";
 import { elapsed } from "./DispatchBoard";
 import { deskNeedLine } from "./stage";
 import { Isolated } from "./Isolated";
@@ -9,20 +10,21 @@ const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)\s+·\s+(?=\S)/
 import { askedAgo } from "./NeedsSummary";
 
 const DAY_MS = 86_400_000;
-const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
+const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", waiting: "Waiting", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
 
-const AWAITING = /\b(?:awaiting|waiting (?:on|for))\s+(?:(?:his|her|their|the)\s+|[\p{L}'\u2019.-]+['\u2019]s\s+)?(?:reply|answer|response|confirmation|go-ahead)\b/iu;
-function deskState(desk: BotDesk, title: string): string {
-  if (desk.status !== "working" || !AWAITING.test(title)) return DESK_WORDS[desk.status];
-  const who = /^([\p{Lu}][\p{L}'\u2019-]+)(?:\s+[\p{Lu}][\p{L}'\u2019-]+){0,2}\s+\u00b7\s/u.exec(title)?.[1];
-  return who ? `Waiting on ${who}` : "Waiting on a reply";
+function deskState(desk: BotDesk, now: number): string {
+  const word = desk.status === "waiting" && desk.waitingOn ? `Waiting on ${desk.waitingOn}` : DESK_WORDS[desk.status];
+  const wakeAt = deskWakeAt(desk);
+  if (wakeAt === null) return word;
+  const when = clearsLine(wakeAt, now);
+  return `${word} · ${when.startsWith("overdue") ? `wake ${when}` : `wakes ${when}`}`;
 }
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
   const need = desks.filter(needsYou).length;
-  const awaiting = desks.filter(desk => desk.status === "working" && AWAITING.test(plainNote(deskTitle(desk)))).length;
-  const working = desks.filter(desk => desk.status === "working").length - awaiting;
-  const parts = [need ? `${need} need you` : "", working ? `${working} working` : "", awaiting ? `${awaiting} waiting on a reply` : ""].filter(Boolean);
+  const working = desks.filter(desk => desk.status === "working").length;
+  const waiting = desks.filter(desk => desk.status === "waiting").length;
+  const parts = [need ? `${need} need you` : "", working ? `${working} working` : "", waiting ? `${waiting} waiting` : ""].filter(Boolean);
   return parts.length ? parts.join(" · ") : desks.length ? `${desks.length} open` : "";
 }
 
@@ -39,7 +41,7 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />
       <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : null}</span>
       {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
-        : <small><span className="radar-desk-state">{deskState(desk, title)}</span> · {elapsed(desk.updatedAt, now)}</small>}
+        : <small><span className="radar-desk-state">{deskState(desk, now)}</span> · {elapsed(desk.updatedAt, now)}</small>}
     </button>;
   };
   if (!visible.length) return null;

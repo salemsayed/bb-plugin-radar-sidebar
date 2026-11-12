@@ -38,16 +38,21 @@ const taskSchema = z.object({
 export const deskSchema = z.object({
   id: z.string(), desk: z.enum(["chat", "bricks", "whatsapp", "campaign", "redemption", "feedback"]),
   label: z.string(), key: z.string(), threadId: z.string().nullable(), title: z.string(),
-  status: z.enum(["draft", "blocked", "working", "info", "done", "deferred"]),
+  status: z.enum(["draft", "blocked", "working", "waiting", "info", "done", "deferred"]),
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
+  waitingOn: z.string().nullable().optional(),
+  wake: z.object({ at: z.number().nullable(), state: z.string() }).optional(),
   later: z.number().optional(),
 });
 export type BotDesk = z.infer<typeof deskSchema>;
 
-export const DESK_MARKS: Record<BotDesk["status"], string> = { draft: "🟢", blocked: "🟠", working: "⏳", info: "⚪", done: "✅", deferred: "⏸" };
-const DESK_RANK: Record<BotDesk["status"], number> = { draft: 0, blocked: 0, working: 1, info: 2, deferred: 3, done: 4 };
+const DESK_RANK: Record<BotDesk["status"], number> = { draft: 0, blocked: 0, working: 1, waiting: 2, info: 3, deferred: 4, done: 5 };
 const LEADING_MARKS = /^(?:(?:🟢|🟠|🟡|🔴|⏳|⚪|✅|⏸|⚠)\uFE0F?\s*)+/u;
 const THREAD_REF = /(?:\s+(?:on|in|at|from|see))?\s*@thread:\S+/g;
+
+export function deskWakeAt(desk: Pick<BotDesk, "status" | "wake">): number | null {
+  return desk.status !== "done" && desk.wake?.state === "pending" ? desk.wake.at : null;
+}
 
 export function needsYou(desk: Pick<BotDesk, "status" | "later">): boolean {
   return desk.later === undefined && (desk.status === "draft" || desk.status === "blocked");
