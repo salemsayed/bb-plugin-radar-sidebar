@@ -222,6 +222,36 @@ export const CASES = [
     },
   },
   {
+    scenario: "form", id: "submit", action: "Salem fills the three-field form in the bot's chat (Mobile, support@, opening hours) and sends what the card stages in his message", expect: "the card's own form reply closes its question (no chip, no judge): the task leaves Needs you as answered",
+    async run({ iso, bot, world, driver }) {
+      const page = driver.page;
+      await page.goto(`${iso.url}/projects/${bot.project}/threads/${bot.coordinator}`, { waitUntil: "domcontentloaded" });
+      await driver.settle();
+      const box = page.locator('[contenteditable="true"]').last();
+      await box.waitFor({ state: "visible", timeout: 20_000 });
+      await box.click();
+      await page.keyboard.press("ControlOrMeta+A");
+      await page.keyboard.press("Backspace");
+      await driver.press(page.getByText("Mobile", { exact: true }).last());
+      await driver.press(page.getByText("support@", { exact: true }).last());
+      const hours = page.getByRole("textbox", { name: /Opening hours/ }).last();
+      if (await hours.isVisible().catch(() => false)) { await hours.click(); await page.keyboard.type("9 to 5"); }
+      const staged = await poll(async () => { const c = await driver.composer(); return /Which phone number\? Mobile/.test(c?.text ?? "") ? c : null; }, 10_000) ?? await driver.composer();
+      const after = iso.lastSeq(bot.coordinator);
+      await box.click();
+      await driver.submit();
+      const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => /Which phone number\? Mobile/.test(m.text)), 20_000);
+      const record = await poll(() => recordOf(iso, q => q.task_id === world.contact && q.state === "closed"), 20_000);
+      const row = await coreRow(bot, world.contact, r => r.displayState !== "needs");
+      await driver.home();
+      return [check("the card staged its form reply in his message", /Which phone number\? Mobile/.test(staged?.text ?? ""), staged?.text ?? "no composer"),
+        check("his form reply landed as Salem's", sent?.from === "salem", sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+        check("core closed the card's question by its form reply", record?.closed_by === "form", record ? `${record.state} by ${record.closed_by}` : "still open"),
+        check("core: the task is answered, waiting for the bot", row?.displayState === "waiting" && row.later?.reason === "answered", row ? `${row.displayState} · ${short(row.line)}` : "gone"),
+        await groupIs(driver, bot, `task:${world.contact}`, "waiting", "panel after")];
+    },
+  },
+  {
     scenario: "later", id: "not-now", action: "Not now on \"Deploy the price fix to production?\"", expect: "core saves Not now; the card moves to Later with Bring back, also after reload",
     async run({ driver, bot, world, iso }) {
       const key = `task:${world.deploy}`;
