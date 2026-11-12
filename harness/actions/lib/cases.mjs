@@ -664,7 +664,7 @@ export const CASES = [
       await driver.page.keyboard.press("End");
       await driver.page.keyboard.type(" https://docs.example.com/master-technicians.csv published, read it from there");
       const after = iso.lastSeq(bot.coordinator);
-      await driver.page.keyboard.press("Enter");
+      await driver.submit();
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("master-technicians")), 20_000);
       await iso.idle(bot.coordinator);
       const need = await poll(() => savedQuestion(iso, bot, world.planAsk), 10_000);
@@ -715,7 +715,7 @@ export const CASES = [
       await driver.page.keyboard.press("End");
       await driver.page.keyboard.type(" Hall B please");
       const after = iso.lastSeq(bot.coordinator);
-      await driver.page.keyboard.press("Enter");
+      await driver.submit();
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("Hall B please")), 20_000);
       const first = await coreRow(bot, world.first, r => r.displayState !== "needs");
       await sleep(3000);

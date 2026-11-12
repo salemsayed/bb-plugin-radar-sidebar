@@ -166,6 +166,7 @@ export class Driver {
   }
 
   async stripOpen() {
+    await this.sidebar();
     const more = this.page.locator(".stage-needs .stage-needs-more-pill, .stage-needs .stage-needs-arrival").first();
     if (await more.isVisible().catch(() => false)) { await this.press(more); await sleep(600); }
   }
@@ -177,7 +178,12 @@ export class Driver {
     await box.waitFor({ state: "visible", timeout: 20_000 });
     await box.click();
     await this.page.keyboard.type(text);
-    await this.page.keyboard.press("Enter");
+    await this.submit();
+  }
+
+  async submit() {
+    if (!this.phone) { await this.page.keyboard.press("Enter"); return; }
+    await this.press(this.page.getByRole("button", { name: /^Submit/ }).last());
   }
 
   async reload() {
