@@ -229,9 +229,13 @@ export const CASES = [
       await driver.settle();
       const box = page.locator('[contenteditable="true"]').last();
       await box.waitFor({ state: "visible", timeout: 20_000 });
-      await box.click();
-      await page.keyboard.press("ControlOrMeta+A");
-      await page.keyboard.press("Backspace");
+      for (let attempt = 0; attempt < 4 && (await driver.composer())?.text; attempt++) {
+        await box.focus();
+        await page.keyboard.press("ControlOrMeta+A");
+        await page.keyboard.press("Backspace");
+        await sleep(300);
+      }
+      const cleared = await driver.composer();
       await driver.press(page.getByText("Mobile", { exact: true }).last());
       await driver.press(page.getByText("support@", { exact: true }).last());
       const hours = page.getByRole("textbox", { name: /Opening hours/ }).last();
@@ -244,7 +248,7 @@ export const CASES = [
       const record = await poll(() => recordOf(iso, q => q.task_id === world.contact && q.state === "closed"), 20_000);
       const row = await coreRow(bot, world.contact, r => r.displayState !== "needs");
       await driver.home();
-      return [check("the card staged its form reply in his message", /Which phone number\? Mobile/.test(staged?.text ?? ""), staged?.text ?? "no composer"),
+      return [check("his composer starts empty (no task chip left from Continue)", !cleared?.text, cleared?.text ?? "empty"), check("the card staged its form reply in his message", /Which phone number\? Mobile/.test(staged?.text ?? ""), staged?.text ?? "no composer"),
         check("his form reply landed as Salem's", sent?.from === "salem", sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
         check("core closed the card's question by its form reply", record?.closed_by === "form", record ? `${record.state} by ${record.closed_by}` : "still open"),
         check("core: the task is answered, waiting for the bot", row?.displayState === "waiting" && row.later?.reason === "answered", row ? `${row.displayState} · ${short(row.line)}` : "gone"),
