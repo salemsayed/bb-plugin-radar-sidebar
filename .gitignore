@@ -30,3 +30,4 @@ Thumbs.db
 # Scenario harness output
 harness/dist/
 harness/shots/
+harness/actions/results/

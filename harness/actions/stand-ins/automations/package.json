@@ -1,0 +1,22 @@
+{
+  "name": "bb-plugin-saelmbot-automations",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bb": ">=0.0",
+    "bbPluginSdk": ">=0.4.3"
+  },
+  "bb": {
+    "name": "Desk route stand-in (test harness)",
+    "description": "Stands in for saelmbot-automations' desk route in a test bb only: every desk opens on the scripted echo provider, and a desk prompt containing no_capacity is refused so core defers it. Radar panel actions harness.",
+    "branding": {
+      "icon": "Route"
+    },
+    "server": "./server.ts"
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.6.132",
+    "zod": "^4.6.7"
+  }
+}

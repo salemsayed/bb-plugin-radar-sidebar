@@ -1,0 +1,23 @@
+{
+  "name": "bb-plugin-scripted-echo-provider",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bb": ">=0.0",
+    "bbPluginSdk": ">=0.4.3"
+  },
+  "bb": {
+    "name": "Scripted echo provider (test harness)",
+    "description": "bb scripted echo bridge (tests/scripted-echo-provider) plus stream_open, card-lock reposts (a [bot-card-lock] note is answered with the named card when it contains REPOST, else Noted.) and say_file:<path>, which replies with that file's text. Test bb only: Radar panel actions harness.",
+    "branding": {
+      "icon": "Zap"
+    },
+    "server": "./server.ts",
+    "host": "./host.ts"
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.6.132",
+    "zod": "^4.6.7"
+  }
+}

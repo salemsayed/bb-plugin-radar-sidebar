@@ -1,0 +1,22 @@
+{
+  "name": "bb-plugin-auto-effort",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bb": ">=0.0",
+    "bbPluginSdk": ">=0.4.3"
+  },
+  "bb": {
+    "name": "Judge stand-in (test harness)",
+    "description": "Stands in for Auto Effort in a test bb only: jev_decide judges a bot's final result reply supported and refuses every other question as if the judge were down; experimental_classify_model answers medium. Radar panel actions harness.",
+    "server": "./server.ts",
+    "branding": {
+      "icon": "Scale"
+    }
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.6.132",
+    "zod": "^4.6.7"
+  }
+}
