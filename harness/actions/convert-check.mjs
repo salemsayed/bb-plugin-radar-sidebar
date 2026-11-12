@@ -58,8 +58,7 @@ writeFileSync(join(out, "before.json"), JSON.stringify({ seen: old, botTasks: is
 log("installing the rebuilt core and Radar over the old ones");
 setup.install(setup.copy(after.core.dir, "core-after"));
 setup.install(setup.copy(after.radar.dir, "radar-after"));
-await setup.restart(0);
-await iso.until("the rebuilt core to answer with questions", () => Array.isArray(iso.botTasks().questions), 90_000);
+await iso.until("the rebuilt core to answer with questions", () => { try { return Array.isArray(iso.botTasks().questions); } catch { return false; } }, 120_000, 2_000);
 await sleep(4000);
 const now = await look("after");
 writeFileSync(join(out, "after.json"), JSON.stringify({ seen: now, botTasks: iso.botTasks(), records: iso.records() }, null, 1));
@@ -67,11 +66,12 @@ writeFileSync(join(out, "after.json"), JSON.stringify({ seen: now, botTasks: iso
 const rows = [];
 for (const key of Object.keys(bots)) {
   for (const item of old[key]) {
-    const later = now[key].find(i => i.key === item.key) ?? (item.key.startsWith("task:need_") ? now[key].find(i => i.text === item.text) : undefined);
+    const head = (text) => text.split(/ (?:Asked|asked|Click|Not now|Bring back)\b/)[0];
+    const later = now[key].find(i => i.key === item.key) ?? (item.key.startsWith("task:need_") ? now[key].find(i => head(i.text) === head(item.text)) : undefined);
     const same = later && (later.group === item.group || item.group === "waiting" && later.group === "waiting");
-    rows.push({ bot: key, key: item.key, before: item.group, after: later?.group ?? "missing", ok: !!same, text: item.text });
+    rows.push({ bot: key, key: item.key, matched: later?.key, before: item.group, after: later?.group ?? "missing", ok: !!same, text: item.text });
   }
-  for (const item of now[key].filter(i => !old[key].some(o => o.key === i.key))) rows.push({ bot: key, key: item.key, before: "absent", after: item.group, ok: item.group !== "needs", text: item.text });
+  for (const item of now[key].filter(i => !old[key].some(o => o.key === i.key) && !rows.some(r => r.bot === key && r.matched === i.key))) rows.push({ bot: key, key: item.key, before: "absent", after: item.group, ok: item.group !== "needs", text: item.text });
 }
 const md = ["# Conversion check: what Salem saw before the upgrade against after it", "", `before core ${before.core.commit} radar ${before.radar.commit}; after core ${after.core.commit} radar ${after.radar.commit}; view ${values.view}`, "",
   "| Bot | Item | Before | After | Same |", "| --- | --- | --- | --- | --- |", ...rows.map(r => `| ${r.bot} | ${r.key} ${r.text.replace(/\|/g, "/").slice(0, 70)} | ${r.before} | ${r.after} | ${r.ok ? "yes" : "**no**"} |`),

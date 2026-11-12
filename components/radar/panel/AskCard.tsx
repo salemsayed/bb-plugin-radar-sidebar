@@ -122,7 +122,7 @@ export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }:
   return <AskShell itemKey={item.key} current={current} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
     question={<><span className="panel-ask-fit" dir="auto"><Isolated text={question} /></span>{about ? <span className="panel-ask-about" dir="auto"><Isolated text={about} /></span> : null}</>}
     foot={<div className="panel-ask-foot"><span /><span className="panel-ask-actions">
-      <ParkPill parked={false} label={label} itemKey={item.key} hint="Not now: move to Later until the desk changes" onPark={onPark} />
+      {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Not now: move to Later until the desk changes" onPark={onPark} /> : null}
       {desk.threadId ? <ContinuePill primary name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
     </span></div>} />;
 }

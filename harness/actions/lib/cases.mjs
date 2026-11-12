@@ -791,7 +791,7 @@ export const CASES = [
       const row = await coreRow(bot, world.finished, r => r.displayState === "done");
       const record = recordOf(iso, q => q.task_id === world.finished);
       return [check("core: done", row?.displayState === "done", row ? `${row.displayState} · ${short(row.line)}` : "gone"), check("core record ended", !record || record.closed_by === "ended", record ? `${record.state} by ${record.closed_by}` : "old core"),
-        await groupIs(driver, bot, `task:${world.finished}`, "done", "panel after")];
+        await groupIs(driver, bot, `task:${world.finished}`, "done", "after reload", true)];
     },
   },
   {

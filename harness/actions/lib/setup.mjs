@@ -87,6 +87,7 @@ export class Setup {
   }
 
   async fresh(offsetMs) {
+    this.iso.relayThread = null;
     this.stop();
     this.wipe();
     await this.start(offsetMs, 1, true);
