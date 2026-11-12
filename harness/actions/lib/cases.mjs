@@ -769,6 +769,27 @@ export const CASES = [
     },
   },
   {
+    scenario: "twins", id: "one-press", action: "Two release cards both offer \"Release it\": the chat video fix (asked before his last message in the chat) and the installer sign-in fix (asked after it). Salem types \"Release it\" (ERBareeq #13888, 12 Nov)", expect: "only the installer card closes; the chat video card stays in Needs you and the bot's note lists it",
+    async run({ iso, bot, world, driver }) {
+      const shown = [];
+      for (const id of [world.video, world.installer]) shown.push(await groupIs(driver, bot, `task:${id}`, "needs", "before"));
+      const video = recordOf(iso, q => q.task_id === world.video && q.state === "open");
+      const after = iso.lastSeq(bot.coordinator);
+      await driver.typeInChat(bot.project, bot.coordinator, "Release it");
+      const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.trim() === "Release it"), 20_000);
+      const installer = await coreRow(bot, world.installer, r => r.displayState !== "needs");
+      await sleep(3000);
+      const still = bot.row(world.video);
+      const note = await poll(() => iso.query("SELECT sequence AS seq, data FROM events WHERE thread_id=? AND sequence>? AND data LIKE '%[needs-you]%'", bot.coordinator, after)[0], 20_000);
+      await driver.home();
+      return [...shown, check("his message landed as Salem's", sent?.from === "salem", sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+        check("core: the installer card is answered", installer?.displayState === "waiting" && installer.later?.reason === "answered", installer ? `${installer.displayState} · ${short(installer.line)}` : "gone"),
+        check("core: the chat video card is still a question", still?.displayState === "needs", still ? `${still.displayState} · ${short(still.line)}` : "gone"),
+        check("the bot's note lists the chat video question", note && video && note.data.includes(video.id), note ? `#${note.seq} ${video ? (note.data.includes(video.id) ? `lists ${video.id}` : `does not list ${video.id}`) : "no record"}` : "no note"),
+        await groupIs(driver, bot, `task:${world.video}`, "needs", "panel after"), await groupIs(driver, bot, `task:${world.installer}`, "waiting", "panel after")];
+    },
+  },
+  {
     scenario: "bound", id: "bound-reply", action: "Continue on \"Sohag hall\", type \"Hall B please\" after its task chip and send, while \"Banner prints\" also waits on him in the same chat", expect: "only the Sohag hall question closes (his reply names that task); Banner prints stays in Needs you",
     async run({ iso, bot, world, driver }) {
       await driver.openPanel(bot);
@@ -837,6 +858,33 @@ export const CASES = [
       return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
         check("when the turn ends the wait is undone", task.state === "checking", `${task.state} ${task.wait?.owner ?? ""}`),
         check("the bot gets the quiet refusal note", note, note ? `#${note.seq} ${note.type}` : "no note"), await outOfNeeds(driver, bot, `task:${world.pdf}`, "panel")];
+    },
+  },
+  {
+    scenario: "relay", id: "wait-then-step", action: "In one turn the bot sets \"Pricelist tunnel\" waiting on Salem (he must enter his sudo password) and ends the turn with a line under the task chip that states the step without a question mark (Security #19818, 11 Nov)", expect: "the wait is kept and Needs you shows the step: the line's lead and the wait's reason",
+    async run({ bot, world, driver }) {
+      const reason = "The pricelist tunnel restart needs Salem to enter his sudo password; public access remains unavailable until then.";
+      const set = await bot.duringTurn(`${chip(world.tunnel)}\n**Pricelist access:** The site still returns Cloudflare 523. The restart requires your sudo password, and the prompt timed out without changing anything. Tell me when ready and I'll reopen the prompt, then verify the public site.`,
+        () => bot.change(world.tunnel, { action: "wait", owner: "salem", reason }, { allowFail: true }));
+      await sleep(3000);
+      const task = bot.get(world.tunnel);
+      const row = await coreRow(bot, world.tunnel, r => r.displayState === "needs");
+      return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
+        check("after the turn it still waits on Salem", task.state === "waiting" && task.wait?.owner === "salem", `${task.state} ${task.wait?.owner ?? ""}`),
+        check("core: Needs you asks the step", row?.displayState === "needs" && /^Pricelist access/.test(row.needs?.question ?? "") && (row.needs?.question ?? "").includes("sudo password"), row ? `${row.displayState} · ${short(row.needs?.question ?? row.line)}` : "gone"),
+        await groupIs(driver, bot, `task:${world.tunnel}`, "needs", "panel")];
+    },
+  },
+  {
+    scenario: "relay", id: "acceptance-with-section", action: "In one turn the bot sets \"Home banner\" waiting on Salem with reason \"acceptance: the new banner is live\" and writes its result under the task chip", expect: "his sign-off rule wins: the wait is undone when the turn ends and nothing shows in Needs you",
+    async run({ iso, bot, world, driver }) {
+      const after = iso.lastSeq(bot.coordinator);
+      const set = await bot.duringTurn(`${chip(world.banner)}\n**Home banner:** The new banner is live on the home page.`, () => bot.change(world.banner, { action: "wait", owner: "salem", reason: "acceptance: the new banner is live" }, { allowFail: true }));
+      const task = await poll(() => { const t = bot.get(world.banner); return t.state !== "waiting" ? t : null; }, 20_000) ?? bot.get(world.banner);
+      const note = await poll(() => iso.query("SELECT sequence AS seq, type FROM events WHERE thread_id=? AND sequence>? AND data LIKE '%Wait refused%'", bot.coordinator, after)[0], 20_000);
+      return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
+        check("when the turn ends the wait is undone", task.state === "checking", `${task.state} ${task.wait?.owner ?? ""}`),
+        check("the bot gets the quiet refusal note", note, note ? `#${note.seq} ${note.type}` : "no note"), await outOfNeeds(driver, bot, `task:${world.banner}`, "panel")];
     },
   },
   {

@@ -202,6 +202,17 @@ export const SCENARIOS = [
     },
   },
   {
+    key: "twins", name: "Release Bot",
+    async now(bot, w) {
+      w.video = await bot.task({ ask: "Fix the chat video bug", title: "Chat video fix" });
+      w.installer = await bot.task({ ask: "Fix the installer sign-in", title: "Installer sign-in fix" });
+      w.videoAsk = await bot.say(`${chip(w.video)}\nThe chat video fix is tested.\n\n${buttons("Release the chat video fix?", ["Release it", "Not now"])}`, { about: w.video });
+      bot.waitOnSalem(w.video, "Release the chat video fix?");
+      w.installerAsk = await bot.say(`${chip(w.installer)}\nThe installer sign-in fix is tested.\n\n${buttons("Release the installer sign-in fix?", ["Release it", "Not now"])}`, { about: w.installer });
+      bot.waitOnSalem(w.installer, "Release the installer sign-in fix?");
+    },
+  },
+  {
     key: "bound", name: "Bound Bot",
     async now(bot, w) {
       w.first = await bot.task({ ask: "Book the Sohag hall", title: "Sohag hall" });
@@ -218,6 +229,8 @@ export const SCENARIOS = [
       w.signoff = await bot.task({ ask: "Fix the footer typo", title: "Footer typo" });
       w.spools = await bot.task({ ask: "Get cable spools for the Nasr City site", title: "Cable spools" });
       w.pdf = await bot.task({ ask: "Regenerate the price list PDF", title: "Price list PDF" });
+      w.tunnel = await bot.task({ ask: "Bring the pricelist site back", title: "Pricelist tunnel" });
+      w.banner = await bot.task({ ask: "Put up the new home banner", title: "Home banner" });
       await bot.askThenWait(w.ask, "Renew the bareeq domain for two years?");
     },
   },
