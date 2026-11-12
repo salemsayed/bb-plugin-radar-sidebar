@@ -573,7 +573,8 @@ function beginTurn(args: {
   if (/\[bot-card-(?:lock|repair)\]/.test(prompt)) {
     const card = cards.get(session.threadId, /GenUI locked your card "([^"]*)"/.exec(prompt)?.[1] ?? "");
     plan.responseText = card?.includes("REPOST") ? card : "Noted.";
-  } else if (/```ui/.test(plan.responseText)) cards.set(session.threadId, plan.responseText);
+  } else if (/\[(?:bot-follow-through|needs-you)\]/.test(prompt)) plan.responseText = "Noted.";
+  else if (/```ui/.test(plan.responseText)) cards.set(session.threadId, plan.responseText);
   if (plan.failure !== null && plan.failure.beforeTurn) {
     if (args.clientRequestId !== undefined) {
       emitDeltas(session.threadId, [
