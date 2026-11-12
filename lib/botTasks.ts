@@ -37,7 +37,17 @@ export const taskSchema = z.object({
   tags: z.array(z.string()).default([]),
   origin: z.enum(["verified", "unverified", "imported"]).catch("unverified"),
   observedAt: z.number().optional(),
-});
+  movedAgoMs: z.number().nonnegative().optional(),
+}).transform(closedWhileRunning);
+
+const CLOSED_WHILE_RUNNING = /^(Done|Closed by Salem|Stopped) · its worker is still running$/;
+
+function closedWhileRunning<T extends { displayState: DisplayState; line: string; completedAt?: number; observedAt?: number; movedAgoMs?: number; ageMs: number }>(task: T): T {
+  const closed = task.displayState === "working" ? CLOSED_WHILE_RUNNING.exec(task.line)?.[1] : undefined;
+  if (!closed) return task;
+  const at = task.completedAt ?? (task.observedAt ?? Date.now()) - (task.movedAgoMs ?? task.ageMs);
+  return { ...task, displayState: closed === "Stopped" ? "stopped" : "done", completedAt: at };
+}
 
 export const deskSchema = z.object({
   id: z.string(), desk: z.enum(["chat", "bricks", "whatsapp", "campaign", "redemption", "feedback"]),
