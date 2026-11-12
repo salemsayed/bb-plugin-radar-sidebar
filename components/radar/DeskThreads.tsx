@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
-import { deskTitle, deskWakeAt, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
-import { clearsLine } from "./BotsView";
-import { elapsed } from "./DispatchBoard";
+import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { deskStatus } from "./panel/status";
+import { elapsed } from "./elapsed";
 import { deskNeedLine } from "./stage";
 import { Isolated } from "./Isolated";
 import { plainNote } from "./workText";
@@ -10,18 +10,6 @@ const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)\s+·\s+(?=\S)/
 import { askedAgo } from "./NeedsSummary";
 
 const DAY_MS = 86_400_000;
-const DESK_WORDS: Record<BotDesk["status"], string> = { draft: "Go-ahead needed", blocked: "Answer needed", working: "Working", waiting: "Waiting", info: "For your info", done: "Done", deferred: "Waiting for capacity" };
-
-function deskState(desk: BotDesk): string {
-  return desk.status === "waiting" && desk.waitingOn ? `Waiting on ${desk.waitingOn}` : DESK_WORDS[desk.status];
-}
-
-function wakeLine(desk: BotDesk, now: number): string | null {
-  const at = deskWakeAt(desk);
-  if (at === null) return null;
-  const when = clearsLine(at, now);
-  return when.startsWith("overdue") ? `Wake ${when}` : `Wakes ${when}`;
-}
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
   const need = desks.filter(needsYou).length;
@@ -39,13 +27,14 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   const row = (desk: BotDesk) => {
     const asking = needsYou(desk);
     const title = asking ? deskNeedLine(desk) : plainNote(deskTitle(desk)).replace(CHANNEL_TAG, "");
-    const wake = asking ? null : wakeLine(desk, now);
-    return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={needsYou(desk) || undefined}
+    const status = deskStatus(desk, now);
+    return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={asking || undefined}
       disabled={!desk.threadId} onClick={() => desk.threadId && onOpen(desk.threadId)}>
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />
-      <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>{desk.status === "deferred" ? <small title={desk.deferredReason ?? undefined}>Waiting for capacity{desk.deadline !== null ? ` · deadline ${new Date(desk.deadline).toLocaleString()}` : ""}</small> : wake ? <small>{wake}</small> : null}</span>
-      {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
-        : <small><span className="radar-desk-state">{deskState(desk)}</span> · {elapsed(desk.updatedAt, now)}</small>}
+      <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>
+        {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
+          : <small title={desk.deferredReason ?? undefined}><span className="radar-desk-state">{status.words}</span>{status.note ? ` \u00b7 ${status.note}` : ""}</small>}
+      </span>
     </button>;
   };
   if (!visible.length) return null;

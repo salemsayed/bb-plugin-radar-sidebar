@@ -6,6 +6,16 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 25798: "its showing a lot of data and its not doing a very good job in terms of showing the status of each, the older closed ones, what needs immediate attention")
+
+- The bot panel (the popover a bot's face opens) is rebuilt around whose move it is. Sections run Needs you, Stuck, Working, Waiting, Started by you, Later, Done, and the header counts the same groups ("2 need you, 1 stuck, 4 working"); each count jumps to its section. Tasks and desks share the sections, one set of marks and one status phrase each.
+- Only questions are cards. The question is the headline, the task or chat it belongs to sits under it once, and an ask the bot has moved on from is a quieter card without answer buttons. A desk ask no longer repeats its subject, "Send the the ..." is fixed, and a non-chat desk no longer reads "feedback with Feedback".
+- Everything else is a compact row: title, status and Continue. A working row shows what its worker is doing now (core's progress line); tapping a row opens its details (what was done so far, your ask, the goal, its workers).
+- Stuck is its own red section: an overdue check, a machine that is off, a failed check nobody acted on, a retry after an error, and a worker core flags as quiet or going in circles. A queued task says "Queued for a free worker, next try 14:05" instead of "Next check 14:05".
+- Done shows today's three newest; the rest of today and the week fold behind one button, grouped by day. Finished and for-your-info desks sit there too.
+- The Bot tab's desk list uses the same status words, and a long status no longer squeezes the title into one word per line.
+- New `harness/`: renders the real panel with fixture data in a browser and screenshots 20 scenarios on desktop and an emulated touch phone (`cd harness && npm install && npm run shoot`).
+
 ### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 25396: "the \"working\" status is wrong for some i guess")
 
 - Desks show the new core status `waiting` as "Waiting", or "Waiting on <name>" when the desk named who it waits on, with a blue ring instead of the filled working dot. A desk with a pending wake shows its time under the title ("Wakes tomorrow 09:00"), and the state on the right wraps within 45% of the row so a long name never squeezes the title. Desks sort need-you, working, waiting, info, deferred, done, and the header counts "N working · N waiting". The English guess that read "waiting on his reply" from a working desk's title is gone; the status alone decides.

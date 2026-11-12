@@ -66,7 +66,7 @@ function flatten(text: string): string {
     .replace(/\*\*|__|`/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/[,;:]?\s*\b(?:see|on|in|at|from)\s*$/i, "");
+    .replace(/(?:[,;:]\s*|\s+)(?:see|on|in|at|from)\s*$/i, "");
 }
 
 const ASK_CLAUSE = /\?|^you\b(?! (?:[a-z]+ed|chose|said|asked|picked|approved|decided|wanted|agreed|told|replied|confirmed|already|made|ran|sent|took|gave|wrote|set|put|got|began|left|let|saw|did|were|have|had)\b)|\b(?:decide|approve|confirm|choose|pick|whether|go-ahead|ok to|should (?:i|we)|can (?:i|we)|want me to|your call)\b|\b(?:awaits?|waiting (?:on|for)|needs?) your (?:go|go-ahead|ok|okay|answer|approval|call|decision|sign-off|reply)\b/i;
@@ -400,7 +400,7 @@ export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title"> &
     const subject = rest.join(" · ");
     if (desk.status === "blocked") return `${name} is waiting on your answer · ${subject}`;
     const flipped = SEND_FIRST.exec(subject);
-    const thing = flipped ? `${flipped[2]} ${flipped[1]!.toLowerCase()}` : subject;
+    const thing = (flipped ? `${flipped[2]} ${flipped[1]!.toLowerCase()}` : subject).replace(/^the\s+/i, "");
     return SENDABLE.test(thing) ? `Send the ${flipped ? thing : lowerFirst(thing)} to ${name}?` : `Send your reply to ${name}? · ${subject}`;
   }
   const rest = parts.join(" · ");

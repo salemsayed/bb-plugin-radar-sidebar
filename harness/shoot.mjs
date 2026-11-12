@@ -12,13 +12,15 @@ const VIEWS = {
 const FULL_PANEL = ".dispatch-overlay { position: absolute !important; inset: 0 auto auto 0 !important; width: 100%; height: auto !important; align-items: flex-start !important; } .dispatch-panel { max-height: none !important; height: auto !important; } .dispatch-panel-body { overflow: visible !important; flex: none !important; }";
 
 function parseArgs(argv) {
-  const args = { out: "shots", only: [], themes: ["light"], views: Object.keys(VIEWS) };
+  const args = { out: "shots", only: [], themes: ["light"], views: Object.keys(VIEWS), surface: "panel", expanded: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--out") args.out = argv[++i];
     else if (argv[i] === "--only") args.only = argv[++i].split(",");
     else if (argv[i] === "--themes") args.themes = argv[++i].split(",");
     else if (argv[i] === "--views") args.views = argv[++i].split(",");
-    else throw new Error(`Unknown option ${argv[i]}. Options: --out <dir> --only <id,id> --themes light,dark --views desktop,phone`);
+    else if (argv[i] === "--surface") args.surface = argv[++i];
+    else if (argv[i] === "--expanded") args.expanded = true;
+    else throw new Error(`Unknown option ${argv[i]}. Options: --out <dir> --only <id,id> --themes light,dark --views desktop,phone --surface panel|tab --expanded`);
   }
   return args;
 }
@@ -57,12 +59,19 @@ try {
     const context = await browser.newContext({ ...device, colorScheme: theme, locale: "en-GB", timezoneId: "Africa/Cairo", reducedMotion: "reduce" });
     for (const scenario of wanted) {
       const page = await context.newPage();
-      const name = `${scenario.id}-${view}${theme === "dark" ? "-dark" : ""}`;
+      const tab = args.surface === "tab";
+      const name = `${scenario.id}-${view}${theme === "dark" ? "-dark" : ""}${tab ? "-tab" : ""}`;
       page.on("pageerror", error => problems.push(`${name}: ${error.message}`));
       page.on("console", message => { if (message.type() === "error") problems.push(`${name}: ${message.text()}`); });
-      await page.goto(`${origin}/?s=${scenario.id}&view=${view}${theme === "dark" ? "&theme=dark" : ""}`);
+      await page.goto(`${origin}/?s=${scenario.id}&view=${view}${theme === "dark" ? "&theme=dark" : ""}${tab ? "&surface=tab" : ""}`);
       await page.waitForSelector("html[data-harness-ready]", { timeout: 15_000 });
       await page.waitForTimeout(250);
+      if (tab) {
+        await page.locator(".harness-tab").screenshot({ path: join(out, `${name}.png`) });
+        index.push({ ...scenario, view, theme, file: `${name}.png` });
+        await page.close();
+        continue;
+      }
       await page.screenshot({ path: join(out, `${name}.png`), ...(clip ? { clip } : {}) });
       const facts = await page.evaluate(() => {
         const body = document.querySelector(".dispatch-panel-body");
@@ -70,6 +79,13 @@ try {
       });
       await page.addStyleTag({ content: FULL_PANEL });
       await page.locator(".dispatch-panel").screenshot({ path: join(out, `${name}-full.png`) });
+      if (args.expanded) {
+        for (let pass = 0; pass < 2; pass++) {
+          await page.evaluate(() => document.querySelectorAll(".dispatch-panel [aria-expanded=false]:not([aria-haspopup])").forEach(toggle => toggle.click()));
+          await page.waitForTimeout(150);
+        }
+        await page.locator(".dispatch-panel").screenshot({ path: join(out, `${name}-expanded.png`) });
+      }
       await writeFile(join(out, `${name}.txt`), `${facts.text}\n`);
       index.push({ ...scenario, view, theme, file: `${name}.png`, full: `${name}-full.png`, screens: Number((facts.scrollHeight / Math.max(1, facts.clientHeight)).toFixed(2)) });
       await page.close();

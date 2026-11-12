@@ -4,9 +4,10 @@ import "../theme/bb.css";
 import "../../app.css";
 import "./harness.css";
 import { BotDeskMenuProvider } from "@/components/radar/BotDeskMenu";
+import { BotPanelTab } from "@/components/radar/BotPanelTab";
 import { BotsView } from "@/components/radar/BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
-import { BOTS, buildWorld } from "./build";
+import { BOTS, buildWorld, coordinator } from "./build";
 import { NOW, freezeClock } from "./clock";
 import { SCENARIOS, type Scenario } from "./scenarios";
 import { currentWorld, setWorld } from "./world";
@@ -21,7 +22,7 @@ function readParams() {
     scenario: SCENARIOS.find(item => item.id === params.get("s")) ?? null,
     view: (view === "phone" || view === "desktop" ? view : window.innerWidth <= PHONE_MAX_WIDTH ? "phone" : "desktop") as View,
     dark: params.get("theme") === "dark",
-    panel: params.get("panel") !== "closed",
+    tab: params.get("surface") === "tab",
   };
 }
 
@@ -41,6 +42,7 @@ function Index() {
         <a href={href(item.id, "phone", false)}>Phone</a>
         <a href={href(item.id, "desktop", true)}>Desktop dark</a>
         <a href={href(item.id, "phone", true)}>Phone dark</a>
+        <a href={`${href(item.id, "desktop", false)}&surface=tab`}>Bot tab</a>
       </nav>
     </li>)}</ol>
   </main>;
@@ -55,7 +57,8 @@ function openPanel(botKey: string): boolean {
 
 const SETTLE_MS = 900;
 
-function Stage({ scenario, view, panel }: { scenario: Scenario; view: View; panel: boolean }) {
+function Stage({ scenario, view, tab }: { scenario: Scenario; view: View; tab: boolean }) {
+  const panel = !tab;
   const data = useMemo(() => botTasksSchema.parse(currentWorld().tasks), []);
   const state = useMemo(() => ({ data, status: "ready" as const, cached: false }), [data]);
   const [log, setLog] = useState<string[]>([]);
@@ -84,6 +87,10 @@ function Stage({ scenario, view, panel }: { scenario: Scenario; view: View; pane
         onOpen={(threadId, seq) => act(`open ${threadId}${seq === undefined ? "" : ` at message ${seq}`}`)} onShowThreads={() => act("show all threads")} />
     </BotDeskMenuProvider>
   </div></div></div>;
+  if (tab) return <div className="harness-app" data-view={view} data-bb-plugin="radar-sidebar">
+    {view === "desktop" ? <aside className="harness-sidebar">{board}</aside> : null}
+    <section className="harness-tab"><BotPanelTab threadId={coordinator(scenario.sketch.focus)} /></section>
+  </div>;
   return <div className="harness-app" data-view={view} data-bb-plugin="radar-sidebar">
     {view === "desktop" ? <div className="harness-rail" aria-hidden="true" /> : null}
     <aside className="harness-sidebar">{board}</aside>
@@ -98,10 +105,10 @@ function Stage({ scenario, view, panel }: { scenario: Scenario; view: View; pane
 }
 
 function App() {
-  const { scenario, view, dark, panel } = readParams();
+  const { scenario, view, dark, tab } = readParams();
   document.documentElement.classList.toggle("dark", dark);
   if (!scenario) return <Index />;
-  return <Stage scenario={scenario} view={view} panel={panel} />;
+  return <Stage scenario={scenario} view={view} tab={tab} />;
 }
 
 freezeClock();

@@ -10,7 +10,7 @@ import { useNeedsYou } from "@/lib/needsClient";
 import { applyNotNow, useNotNow } from "@/lib/notNow";
 import { withQuestions } from "./questions";
 import { useBotWorkers } from "./useDispatchWorkers";
-import { ago } from "./DispatchBoard";
+import { ago } from "./elapsed";
 import { workerNames } from "./workText";
 import { StageFace } from "./StageFace";
 import { awaitedPerson, rowLook, stageText, stageTitle, taskAsk, waitLine } from "./stage";

@@ -14,12 +14,9 @@
   .radar-not-now-pill { height: 28px; }
   .stage-needs-later { opacity: 1; }
 }
-
-.dispatch-card-head { grid-auto-flow: column; grid-auto-columns: auto; }
 .dispatch-panel button.dispatch-later-action { align-self: start; margin-top: 4px; }
 .dispatch-panel button.dispatch-later-action:focus-visible { outline: none; }
 .dispatch-panel button.dispatch-later-action:focus-visible .radar-not-now-pill { outline: 2px solid var(--ring); outline-offset: 1px; }
-.dispatch-later .dispatch-card .dispatch-status-line { color: var(--muted-foreground); }
 
 .radar-later-toast { position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 95; display: flex; align-items: center; gap: 8px; width: max-content; max-width: min(420px, calc(100vw - 24px)); min-height: 40px; padding: 4px 4px 4px 12px; border-radius: 12px; background: var(--popover, var(--background)); color: var(--popover-foreground, var(--foreground)); box-shadow: 0 8px 28px rgb(0 0 0 / .18), 0 0 0 1px var(--border); font-size: 12.5px; }
 .radar-later-toast > [data-icon-root], .radar-later-toast > svg { flex: none; width: 15px; height: 15px; color: var(--muted-foreground); }

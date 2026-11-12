@@ -4,7 +4,7 @@ import type { deskSchema, taskSchema } from "@/lib/botTasks";
 import { NOW, DAY, HOUR, MINUTE, ago, clock, shortDay, span, stamp } from "./clock";
 import type { BotTasksInput, NeedsInput, TaskDetailInput, ThreadRow, World } from "./world";
 
-export type TaskInput = z.input<typeof taskSchema> & { progress?: { done: string; now: string; forMs: number }; alert?: { kind: "quiet" | "stuck"; forMs: number }; waitOn?: string; runningForMs?: number; movedAgoMs?: number };
+export type TaskInput = z.input<typeof taskSchema> & { movedAgoMs?: number };
 export type DeskInput = z.input<typeof deskSchema>;
 
 export const BOTS = [

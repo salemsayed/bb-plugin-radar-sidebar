@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "serve": "node build.mjs --serve",
-    "shoot": "node shoot.mjs"
+    "shoot": "node shoot.mjs",
+    "theme": "node capture-theme.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
