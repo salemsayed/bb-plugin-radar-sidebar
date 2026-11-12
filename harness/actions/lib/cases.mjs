@@ -662,7 +662,8 @@ export const CASES = [
       await poll(async () => (await box.innerText()).includes("Technician"), 8_000);
       await box.click();
       await driver.page.keyboard.press("End");
-      await driver.page.keyboard.type(" https://docs.example.com/master-technicians.csv published, read it from there");
+      const said = " https://docs.example.com/master-technicians.csv published, read it from there";
+      if (driver.phone) await driver.page.keyboard.insertText(said); else await driver.page.keyboard.type(said);
       const after = iso.lastSeq(bot.coordinator);
       await driver.submit();
       const sent = await poll(() => salemSince(iso, bot.coordinator, after).find(m => m.text.includes("master-technicians")), 20_000);
