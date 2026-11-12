@@ -6,6 +6,13 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 26507: "Rebuild as one path")
+
+- Needs you shows core's question list (`bot_tasks.questions`) exactly: one item per open question, Later for the ones parked with Not now. Radar no longer merges a saved ask into its task, rewrites step questions, marks asks as old, judges whether Salem answered, hides desks it guessed were answered, or lists outside threads from its own reading of the sidebar.
+- Answer buttons are the question's own answers from core; a question with none gets Continue or Reply in chat. Not now and Bring back take the question's id.
+- Removed: the answer and ask-place finders, the automation recovery check, `crew_answer_check`, the "Bot questions" @ mention (core's question mention covers it), and Radar's own plain-answer buttons.
+- Panel actions harness: cases for every way in (wait, task ask, card, needs add, Decision needed line, desk, native form, outside thread) and out (his reply, a reply naming one task, a message not his, Not now, newer version, task resumed or finished, saved ask done, desk moved on, form answered), and `convert-check.mjs`, which seeds on one build, upgrades to another and compares what the panel shows.
+
 ### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 25798: "its showing a lot of data and its not doing a very good job in terms of showing the status of each, the older closed ones, what needs immediate attention")
 
 - The bot panel (the popover a bot's face opens) is rebuilt around whose move it is. Sections run Needs you, Stuck, Working, Waiting, Started by you, Later, Done, and the header counts the same groups ("2 need you, 1 stuck, 4 working"); each count jumps to its section. Tasks and desks share the sections, one set of marks and one status phrase each.
