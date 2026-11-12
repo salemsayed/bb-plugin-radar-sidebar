@@ -156,7 +156,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
     if (!item || !labels.length) return undefined;
     return <div className="bot-item-answers radar-answers" role="group" aria-label={`Answers to: ${item.what}`} data-count={labels.length} ref={answerRow}>
       {labels.map(label => <button key={label} type="button" className="bot-item-answer radar-answer" aria-label={`Send ${answerName(label, isRecommended(item, label))} to ${item.botName}`} title="Sends this reply in the chat"
-        onClick={() => answer(item, label)}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
+        onClick={() => answer(item, label)}><AnswerLabel label={label} all={labels} recommended={isRecommended(item, label)} /></button>)}
     </div>;
   };
   return <div ref={root} className="bot-panel" data-kind={look.kind} style={{ "--bot-hue": hue } as CSSProperties}>

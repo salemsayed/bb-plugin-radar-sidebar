@@ -23,7 +23,7 @@ import type { DetailContext } from "./taskDetail";
 const QUESTION_FORMS = [140, 120, 100, 84, 70, 56];
 const LABEL_CUT = 110;
 const ANSWERS_SHOWN = 4;
-const OPTIONS_TAIL = /\s+\u00b7\s+Options:\s.+$/i;
+const OPTIONS_TAIL = /\s+(?:\u00b7\s+)?Options:\s.+$/is;
 
 export type Navigate = (threadId: string, messageSeq?: number) => void;
 export type Park = (from: HTMLElement, act: () => Promise<void>) => void;
@@ -105,7 +105,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
             const place = arm();
             requestFill(place.threadId, answer, labels, true);
             onNavigate(place.threadId, place.messageSeq);
-          }}><AnswerLabel label={answer} recommended={best} /></button>;
+          }}><AnswerLabel label={answer} all={labels} recommended={best} /></button>;
         })}
       </div>
     </div> : null}

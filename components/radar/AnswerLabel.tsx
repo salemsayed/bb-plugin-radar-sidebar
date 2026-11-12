@@ -2,9 +2,18 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Isolated } from "./Isolated";
 
 
-export function AnswerLabel({ label, recommended }: { label: string; recommended?: boolean }) {
-  if (!recommended) return <span className="radar-answer-text"><Isolated text={label} /></span>;
-  return <span className="radar-answer-text" data-rec=""><span className="radar-answer-label"><Isolated text={label} /></span><span className="radar-answer-rec">recommended</span></span>;
+const FIELD_LEAD = /^(.{2,120}?[?:\u061f])\s+(?=\S)/;
+
+export function answerFace(label: string, all: readonly string[]): string {
+  const lead = FIELD_LEAD.exec(label)?.[1];
+  if (!lead || all.length < 2 || !all.every(other => other.startsWith(`${lead} `) && other.length > lead.length + 1)) return label;
+  return label.slice(lead.length).trim();
+}
+
+export function AnswerLabel({ label, all = [], recommended }: { label: string; all?: readonly string[]; recommended?: boolean }) {
+  const face = answerFace(label, all);
+  if (!recommended) return <span className="radar-answer-text"><Isolated text={face} /></span>;
+  return <span className="radar-answer-text" data-rec=""><span className="radar-answer-label"><Isolated text={face} /></span><span className="radar-answer-rec">recommended</span></span>;
 }
 
 export function answerName(label: string, recommended?: boolean): string {

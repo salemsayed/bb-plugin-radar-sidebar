@@ -728,9 +728,9 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
           aria-label={offline ? `${answerName(label, isRecommended(item, label))} can't be sent while the bots can't be reached` : `Send ${answerName(label, isRecommended(item, label))} to ${item.botName}: opens the chat and sends it`}
           title={offline ? "Can't send while the bots can't be reached" : "Opens the chat and sends this reply"}
           onPointerDown={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); if (!offline) onAnswer!(label); }}><AnswerLabel label={label} recommended={isRecommended(item, label)} /></button>)}
+          onClick={event => { event.stopPropagation(); if (!offline) onAnswer!(label); }}><AnswerLabel label={label} all={answers} recommended={isRecommended(item, label)} /></button>)}
       </div> : null}
-      {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><AnswerLabel label={label} /></button>)}</div> : null}
+      {spent.length ? <div className="stage-needs-answers radar-answers" aria-hidden="true">{spent.map(label => <button key={label} type="button" className="stage-needs-answer radar-answer" data-spent="" disabled tabIndex={-1}><AnswerLabel label={label} all={spent} /></button>)}</div> : null}
       {note ? <span className="stage-needs-off" role="status">{note}</span> : null}
     </div> : null}
   </li>;

@@ -181,7 +181,7 @@ export function AskStrip() {
     {shown.length ? <div className="radar-ask-strip-options radar-answers" role="group" aria-label={`Answers to: ${entry.question}`} data-count={shown.length} ref={answerRow}>
       {shown.map(label => <button key={label} type="button" className="radar-ask-strip-option radar-answer" aria-pressed={picked === label} disabled={picked !== null && note === "Sending…"}
         aria-label={`Send ${answerName(label, rec(label))} to ${entry.botName}`} title="Sends this reply to the bot"
-        onClick={() => { void choose(label); }}><AnswerLabel label={label} recommended={rec(label)} /></button>)}
+        onClick={() => { void choose(label); }}><AnswerLabel label={label} all={shown} recommended={rec(label)} /></button>)}
     </div> : null}
     {note ? <p className="radar-ask-strip-note" role="status">{note}</p> : null}
   </section>, host)}</>;
