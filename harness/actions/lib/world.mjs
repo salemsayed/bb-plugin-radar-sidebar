@@ -216,6 +216,8 @@ export const SCENARIOS = [
     async now(bot, w) {
       w.ask = await bot.task({ ask: "Renew the domain", title: "Domain renewal" });
       w.signoff = await bot.task({ ask: "Fix the footer typo", title: "Footer typo" });
+      w.spools = await bot.task({ ask: "Get cable spools for the Nasr City site", title: "Cable spools" });
+      w.pdf = await bot.task({ ask: "Regenerate the price list PDF", title: "Price list PDF" });
       await bot.askThenWait(w.ask, "Renew the bareeq domain for two years?");
     },
   },

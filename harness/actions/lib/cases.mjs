@@ -782,6 +782,31 @@ export const CASES = [
     },
   },
   {
+    scenario: "relay", id: "wait-then-ask", action: "In one turn the bot sets \"Cable spools\" waiting on Salem, then ends the turn with its question under the task chip (the order real bots use: 64 of 197 waits last week)", expect: "the wait is held while the turn runs and kept when the reply asks; the question shows in Needs you",
+    async run({ bot, world, driver }) {
+      const set = await bot.duringTurn(`${chip(world.spools)}\nOrder 12 cable spools from Elsewedy for the Nasr City site?`, () => bot.change(world.spools, { action: "wait", owner: "salem", reason: "his go on the cable spools order" }, { allowFail: true }));
+      await sleep(3000);
+      const task = bot.get(world.spools);
+      const row = await coreRow(bot, world.spools, r => r.displayState === "needs");
+      return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
+        check("after the turn it still waits on Salem", task.state === "waiting" && task.wait?.owner === "salem", `${task.state} ${task.wait?.owner ?? ""}`),
+        check("core: the question is in Needs you", row?.displayState === "needs" && /cable spools/i.test(row.needs?.question ?? ""), row ? `${row.displayState} · ${short(row.needs?.question ?? row.line)}` : "gone"),
+        await groupIs(driver, bot, `task:${world.spools}`, "needs", "panel")];
+    },
+  },
+  {
+    scenario: "relay", id: "wait-then-nothing", action: "In one turn the bot sets \"Price list PDF\" waiting on Salem for acceptance, then ends the turn with a plain result and no question", expect: "when the turn ends core undoes the wait (the task is back to checking) and the bot gets a quiet note; nothing shows in Needs you",
+    async run({ iso, bot, world, driver }) {
+      const after = iso.lastSeq(bot.coordinator);
+      const set = await bot.duringTurn("The price list PDF is regenerated and uploaded to the shared folder.", () => bot.change(world.pdf, { action: "wait", owner: "salem", reason: "acceptance: the price list PDF is regenerated" }, { allowFail: true }));
+      const task = await poll(() => { const t = bot.get(world.pdf); return t.state !== "waiting" ? t : null; }, 20_000) ?? bot.get(world.pdf);
+      const note = await poll(() => iso.query("SELECT sequence AS seq, type FROM events WHERE thread_id=? AND sequence>? AND data LIKE '%Wait refused%'", bot.coordinator, after)[0], 20_000);
+      return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
+        check("when the turn ends the wait is undone", task.state === "checking", `${task.state} ${task.wait?.owner ?? ""}`),
+        check("the bot gets the quiet refusal note", note, note ? `#${note.seq} ${note.type}` : "no note"), await outOfNeeds(driver, bot, `task:${world.pdf}`, "panel")];
+    },
+  },
+  {
     scenario: "decision", id: "decision-line", action: "The bot's reply carries a \"Decision needed:\" line (no card, no task)", expect: "it shows once as a question in Needs you; pressing its first answer sends it to the chat as Salem's, bound to that question, and the question closes",
     async run(context) {
       const { iso, bot, world, driver } = context;

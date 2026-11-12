@@ -81,6 +81,16 @@ export class Bot {
     return seq;
   }
 
+  async duringTurn(markdown, during, holdMs = 8_000) {
+    const file = join(this.files, `${this.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.md`);
+    writeFileSync(file, markdown);
+    this.iso.run(["thread", "tell", this.coordinator, "--mode", "auto", `say_file:${file} delay:${holdMs}`], { thread: await this.iso.relay() });
+    await this.iso.until(`${this.name} to start its turn`, () => this.iso.thread(this.coordinator).status === "active", 20_000, 250);
+    const result = during();
+    await this.iso.idle(this.coordinator);
+    return result;
+  }
+
   async task({ ask, title, outcome = title, nextStep = "Work on it", criteria = [`${title} is done`] }) {
     const seq = await this.salem(ask);
     const task = this.asJson(["task", "create", "--bot", this.key, "--input", JSON.stringify({ request: { threadId: this.coordinator, seq }, title, outcome, nextStep, criteria })]);
