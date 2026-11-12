@@ -12,8 +12,6 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { crewRpcContract } from "./lib/crewAsk";
 import { createNeedsServer } from "./lib/needsServer";
 import { needsRpcContract } from "./lib/needs";
-import { z } from "zod";
-import { rosterSchema } from "./components/radar/bots";
 import { digestTimeline, workingRpcContract, type TimelineLike, type WorkingDigest } from "./lib/workingDigest";
 import {
   DEFAULT_SWIPE_LEFT,
