@@ -35,10 +35,9 @@ export interface TaskStatusInput {
   now: number;
   waitsOn?: IdleWait | null;
   botName: string;
-  failedCheck: boolean;
 }
 
-export function taskStatus({ task, running, now, waitsOn, botName, failedCheck }: TaskStatusInput): Status {
+export function taskStatus({ task, running, now, waitsOn, botName }: TaskStatusInput): Status {
   const state = task.displayState;
   const line = task.line;
   const said = split(cardStatus(task, [...running], now, waitsOn, botName));
@@ -52,7 +51,7 @@ export function taskStatus({ task, running, now, waitsOn, botName, failedCheck }
   if (live) return { group: "working", mark: "working", words: said.words, note: [said.note, task.progress?.now ?? ""].filter(Boolean).join(" · ") };
   if (/^Wake was due/.test(line) || state === "overdue") return { group: "stuck", mark: "stuck", words: "Check overdue", note: task.wakeAt !== undefined ? clearsLine(task.wakeAt, now).replace(/^overdue /, "") : "" };
   if (/^Its machine is off/.test(line) || state === "offline") return { group: "stuck", mark: "stuck", words: "Machine off", note: "resumes when it is back" };
-  if (failedCheck || /\bcheck failed\b|evidence needs review/i.test(line)) return { group: "stuck", mark: "stuck", words: "A check failed", note: "the bot has not acted on it" };
+  if (/^A check failed\b/i.test(line)) return { group: "stuck", mark: "stuck", words: "A check failed", note: "the bot has not acted on it" };
   if (/^Queued/.test(line) || state === "queued") return { group: "waiting", mark: "queued", words: QUEUED, note: task.retryAt !== undefined && task.retryAt > now ? checksLine(task.retryAt, now).replace(/^next check/, "next try") : "starting soon" };
   if (/^Filed\. Not started/.test(line) || state === "ready") return { group: "waiting", mark: "queued", words: "Not started", note: "" };
   if (task.laterNote) return { group: "waiting", mark: "waiting", words: laterNoteHead(task.laterNote.text), note: dayAndTime(task.laterNote.at, now) };

@@ -65,7 +65,7 @@ export const work: Scenario[] = [
   {
     id: "waiting-outside",
     title: "Waiting on someone or something else",
-    look: "Nothing here is Salem's move: a named person, a date, a scheduled run, and one wait with no date at all. When each one moves again must be obvious.",
+    look: "Nothing here is Salem's move: a named person, a date, a scheduled run, and one wait with no date at all. When each one moves again must be obvious. One of them has checks that are not proven yet, which is normal while waiting and must not read as stuck.",
     sketch: {
       focus: "erbareeq",
       bots: {
@@ -80,7 +80,7 @@ export const work: Scenario[] = [
               "The supplier's technician visits the warehouse to replace the print head.", undefined),
             tasks.waitingOnBot({ bot: "erbareeq", title: "When the Black Friday watch ends", outcome: "When the Black Friday watch ends (Mon 30 Nov 21:30), its schedule is removed and the final campaign results are reported" },
               "Black Friday watch runs until Mon 30 Nov 21:30 Cairo", cairo(18, "21:45"), 2 * DAY),
-            tasks.waitingOnBot({ bot: "erbareeq", title: "Klaviyo cancel check", outcome: "Klaviyo's paid plan ends on 15 Nov as scheduled and no new charge lands on the card" },
+            tasks.waitingOnBot({ id: "t-klaviyo", bot: "erbareeq", title: "Klaviyo cancel check", outcome: "Klaviyo's paid plan ends on 15 Nov as scheduled and no new charge lands on the card" },
               "Waiting for Klaviyo's renewal time on 15 November to confirm the plan ended and nothing was charged.", cairo(3, "13:45")),
             tasks.waitingOnRun({ bot: "erbareeq", title: "Nightly stock report", outcome: "Tonight's stock report counts returns once" }, "The fix is checked against tonight's 23:30 run"),
             tasks.waitingOnBot({ bot: "erbareeq", title: "Price list rounding", outcome: "Prices in the dealer list round the same way as the invoices" }, "Waiting for the next price update to compare both lists"),
@@ -88,6 +88,7 @@ export const work: Scenario[] = [
           ],
         },
       },
+      checks: { "t-klaviyo": [{ status: "pending", verdict: "insufficient" }, { status: "pass", verdict: "supported" }, { status: "pending", verdict: null }] },
     },
   },
   {

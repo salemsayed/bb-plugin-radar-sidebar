@@ -139,6 +139,7 @@ export interface Sketch {
   focus: BotKey;
   bots: Partial<Record<BotKey, BotContent>>;
   workers?: Record<string, Worker[]>;
+  checks?: Record<string, { status: string; verdict?: string | null }[]>;
   needs?: NeedsInput[];
   notNow?: { key: string; at: number }[];
 }
@@ -181,6 +182,7 @@ export function buildWorld(sketch: Sketch): World {
     taskDetails[taskId] = { taskId, workers: rows.map(({ worker, threadId }) => ({ threadId, title: worker.title, model: worker.model ?? "claude-code/claude-opus-5-5", effort: worker.effort ?? "medium", state: worker.state === "running" ? "running" : worker.state })) };
     for (const { worker, threadId } of rows) threadRows.push({ id: threadId, title: worker.title, status: worker.state === "running" ? "active" : worker.state, createdAt: ago(worker.started), updatedAt: worker.state === "running" ? NOW : ago(worker.ended ?? 0) });
   }
+  for (const [taskId, checks] of Object.entries(sketch.checks ?? {})) taskDetails[taskId] = { ...(taskDetails[taskId] ?? { taskId, workers: [] }), checks };
   return {
     now: NOW,
     tasks: { bots, needs: [], notFiled: [], observedAt: NOW, notNow: sketch.notNow ?? [] },

@@ -108,7 +108,7 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
     const running = attempts.filter(a => a.state === "running" && a.threadId !== bot.coordinatorThreadId);
     const waitsOn = running.length ? null : idleWait(task, bot, snapshot, now);
     const reason = reasonOf(task);
-    return { kind: "task", key: `task:${task.id}`, title: taskTitle(task), status: taskStatus({ task, running, now, waitsOn, botName: bot.name, failedCheck: snapshot.failedChecks.has(task.id) }), at: task.completedAt ?? now - task.ageMs, task, attempts, running, waitsOn, reason, ownsReason: reasonOwner.get(reason) === task.id };
+    return { kind: "task", key: `task:${task.id}`, title: taskTitle(task), status: taskStatus({ task, running, now, waitsOn, botName: bot.name }), at: task.completedAt ?? now - task.ageMs, task, attempts, running, waitsOn, reason, ownsReason: reasonOwner.get(reason) === task.id };
   });
   distinctTitles(items);
   const asks = items.filter(item => item.status.group === "needs");
