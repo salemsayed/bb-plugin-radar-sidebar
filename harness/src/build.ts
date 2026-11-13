@@ -5,7 +5,7 @@ import { NOW, DAY, HOUR, MINUTE, ago, clock, shortDay, span, stamp } from "./clo
 import type { BotTasksInput, NeedsInput, TaskDetailInput, ThreadRow, World } from "./world";
 
 export type TaskInput = z.input<typeof taskSchema> & { movedAgoMs?: number };
-export type DeskInput = z.input<typeof deskSchema> & { later?: number };
+export type DeskInput = z.input<typeof deskSchema> & { later?: number; draft?: string };
 
 export const BOTS = [
   { key: "personal", name: "Personal Bot" },
@@ -122,13 +122,13 @@ export const tasks = {
 
 export type DeskStatus = DeskInput["status"];
 
-export function desk(bot: BotKey, kind: DeskInput["desk"], who: string, subject: string, status: DeskStatus, extra: { updated?: number; quiet?: number | null; waitingOn?: string; wakeAt?: number; deadline?: number; deferredReason?: string; later?: number } = {}): DeskInput {
+export function desk(bot: BotKey, kind: DeskInput["desk"], who: string, subject: string, status: DeskStatus, extra: { updated?: number; quiet?: number | null; waitingOn?: string; wakeAt?: number; deadline?: number; deferredReason?: string; later?: number; draft?: string } = {}): DeskInput {
   const id = nextId("desk");
   const label = { chat: "Chat", whatsapp: "WhatsApp", bricks: "Bricks", campaign: "Campaign", redemption: "Redemption", feedback: "Feedback" }[kind];
   const updatedAt = ago(extra.updated ?? 5 * MINUTE);
   return { id, desk: kind, label, key: id, threadId: `thr_${id}`, title: [label, who, subject].filter(Boolean).join(" · "), status, updatedAt,
     quietSince: extra.quiet === null ? null : ago(extra.quiet ?? extra.updated ?? 5 * MINUTE), deadline: extra.deadline ?? null, deferredReason: extra.deferredReason ?? null, waitingOn: extra.waitingOn ?? null,
-    ...(extra.wakeAt !== undefined ? { wake: { at: extra.wakeAt, state: "pending" } } : {}), ...(extra.later !== undefined ? { later: extra.later } : {}) };
+    ...(extra.wakeAt !== undefined ? { wake: { at: extra.wakeAt, state: "pending" } } : {}), ...(extra.later !== undefined ? { later: extra.later } : {}), ...(extra.draft !== undefined ? { draft: extra.draft } : {}) };
 }
 
 type QuestionInput = Record<string, unknown> & { id: string; state: "open" | "later" };
@@ -148,7 +148,8 @@ function questionsOf(bots: BotTasksInput["bots"], needs: readonly NeedsInput[], 
     }
     for (const d of (bot.desks ?? []) as DeskInput[]) {
       if (d.status !== "draft" && d.status !== "blocked") continue;
-      out.push({ id: `q_${d.id}`, bot: bot.key, source: "desk", threadId: d.threadId ?? bot.coordinatorThreadId, askedAt: d.updatedAt, question: d.title, deskId: d.id, ...state(`desk:${d.id}`, d.later) });
+      out.push({ id: `q_${d.id}`, bot: bot.key, source: "desk", threadId: d.threadId ?? bot.coordinatorThreadId, askedAt: d.updatedAt, question: d.draft ? `${d.title}\n${d.draft}` : d.title, deskId: d.id,
+        ...(d.draft ? { options: ["Go, send it.", "Don't send it"], messageSeq: 41 } : {}), ...state(`desk:${d.id}`, d.later) });
     }
   }
   for (const n of needs.filter(n => n.kind === "decision" && (n.state === "open" || n.state === "reminded"))) {

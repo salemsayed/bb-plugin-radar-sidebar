@@ -115,7 +115,17 @@ export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }:
   const { desk } = item;
   const { channel, person, subject } = deskParts(desk);
   const { question, about } = deskAsk(desk);
-  const open = () => { if (desk.threadId) onNavigate(desk.threadId); };
+  const draft = desk.threadId ? desk.question?.draft : undefined;
+  const messageSeq = desk.question?.messageSeq;
+  const options = draft ? (desk.question?.options ?? []).slice(0, ANSWERS_SHOWN) : [];
+  const labels = options.map(option => plainNote(option));
+  const open = () => { if (desk.threadId) onNavigate(desk.threadId, draft ? messageSeq : undefined); };
+  const answer = (label: string) => {
+    if (!desk.threadId) return;
+    armAskStrip({ key: item.key, threadId: desk.threadId, ...(messageSeq !== undefined ? { messageSeq } : {}), question, title: subject, options, botName, askedAt: desk.updatedAt });
+    requestFill(desk.threadId, label, labels, true);
+    onNavigate(desk.threadId, messageSeq);
+  };
   const label = notNowLabel({ botName, title: subject, what: question });
   const names = (text: string) => !!person && text.includes(person);
   const meta = [names(question) || names(about) ? channel : [channel, person].filter(Boolean).join(" with "), `asked ${ago(desk.updatedAt, now)}`];
@@ -123,6 +133,13 @@ export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }:
     question={<><span className="panel-ask-fit" dir="auto"><Isolated text={question} /></span>{about ? <span className="panel-ask-about" dir="auto"><Isolated text={about} /></span> : null}</>}
     foot={<div className="panel-ask-foot"><span /><span className="panel-ask-actions">
       {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Not now: move to Later until the desk changes" onPark={onPark} /> : null}
-      {desk.threadId ? <ContinuePill primary name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
-    </span></div>} />;
+      {desk.threadId ? <ContinuePill primary={!labels.length} name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
+    </span></div>}>
+    {draft ? <blockquote className="panel-ask-draft" dir="auto" aria-label={person ? `The reply to ${person}` : "The reply"}><Isolated text={draft} /></blockquote> : null}
+    {labels.length ? <div className="dispatch-options">
+      <div className="radar-answers" role="group" aria-label={`Answers to ${subject}`} data-count={labels.length} ref={answerRow}>
+        {labels.map(text => <button key={text} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(text, false)} to ${botName}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => answer(text)}><AnswerLabel label={text} all={labels} recommended={false} /></button>)}
+      </div>
+    </div> : null}
+  </AskShell>;
 }

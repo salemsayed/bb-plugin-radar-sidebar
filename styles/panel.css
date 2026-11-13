@@ -38,6 +38,7 @@
 .panel-ask-fit { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: break-word; font-size: 15px; font-weight: 600; line-height: 1.35; }
 .panel-ask[data-old] .panel-ask-fit { font-weight: 550; }
 .panel-ask-about { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: break-word; margin-top: 4px; font-size: 13.5px; line-height: 1.4; }
+.panel-ask-draft { margin: 0 0 10px; padding-block: 2px; padding-inline-start: 10px; border-inline-start: 2px solid var(--border); font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9em; overflow-y: auto; text-align: start; }
 .panel-ask-meta { margin: 4px 0 8px; font-size: 12.5px; line-height: 1.4; color: var(--muted-foreground); overflow-wrap: anywhere; }
 .panel-ask[data-old] .panel-ask-meta { font-weight: 550; }
 .panel-ask .dispatch-card-impact { margin: -4px 0 8px; }

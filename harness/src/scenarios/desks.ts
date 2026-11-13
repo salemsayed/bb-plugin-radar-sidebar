@@ -13,7 +13,8 @@ export const desks: Scenario[] = [
         erbareeq: {
           lastReply: ago(9 * MINUTE),
           desks: [
-            desk("erbareeq", "chat", "محمد عمر", "reply about the 3 rejected lamps", "draft", { updated: 6 * MINUTE }),
+            desk("erbareeq", "chat", "محمد عمر", "reply about the 3 rejected lamps", "draft", { updated: 6 * MINUTE, draft: "تم يا محمد، عملت استثناء لمرتجع 224 (٥٩ قطعة)\nومرتجع 270 (٤ قطع) ✅" }),
+            desk("erbareeq", "whatsapp", "Team Light", "600-piece spot order", "draft", { updated: 9 * MINUTE }),
             desk("erbareeq", "chat", "هندسة (U-01)", "R-000230 BQ138 carton + 80 BQ1323→BQ1383", "blocked", { updated: 14 * MINUTE }),
             desk("erbareeq", "whatsapp", "Abanoub", "80W floodlight quote", "working", { updated: 2 * MINUTE }),
             desk("erbareeq", "bricks", "", "#4412 warranty date reset", "working", { updated: 11 * MINUTE }),

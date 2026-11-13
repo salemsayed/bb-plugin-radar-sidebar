@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { BotTasks, BotTasksOutput, DisplayState, TaskRow } from "./tasks-v2-types";
-import { isOwnQuestion, questionRow, questionSchema, type Question } from "./questionRecords";
+import { deskDraft, isOwnQuestion, questionRow, questionSchema, type Question } from "./questionRecords";
 
 /**
  * The Bots view's read of orchestrator-mode `bot_tasks` (tasks v2), and the
@@ -57,7 +57,8 @@ export const deskSchema = z.object({
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
   waitingOn: z.string().nullable().optional(),
   wake: z.object({ at: z.number().nullable(), state: z.string() }).optional(),
-  question: z.object({ id: z.string(), state: z.enum(["open", "later"]), laterAt: z.number().optional() }).optional(),
+  question: z.object({ id: z.string(), state: z.enum(["open", "later"]), laterAt: z.number().optional(),
+    draft: z.string().optional(), options: z.array(z.string()).optional(), messageSeq: z.number().optional() }).optional(),
 });
 export type BotDesk = z.infer<typeof deskSchema>;
 
@@ -132,7 +133,7 @@ function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[
   const bots = data.bots.map(bot => {
     const desks = bot.desks.map(desk => {
       const q = data.questions.find(q => q.bot === bot.key && q.deskId === desk.id);
-      return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}) } } : desk;
+      return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}), ...(deskDraft(q) ?? {}) } } : desk;
     });
     const rows = data.questions.filter(q => q.bot === bot.key && isOwnQuestion(q)).flatMap(q => {
       const parsed = taskSchema.safeParse(questionRow(q, data.observedAt));

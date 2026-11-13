@@ -19,6 +19,13 @@ export const isDeskQuestion = (q: Pick<Question, "deskId">) => q.deskId !== unde
 export const isOutsideQuestion = (q: Pick<Question, "bot">) => q.bot === null;
 export const isOwnQuestion = (q: Question) => !isTaskQuestion(q) && !isDeskQuestion(q) && !isOutsideQuestion(q);
 
+export function deskDraft(q: Pick<Question, "question" | "options" | "messageSeq">): { draft: string; options: string[]; messageSeq?: number } | null {
+  const options = q.options ?? [];
+  const cut = q.question.indexOf("\n");
+  const draft = cut < 0 ? "" : q.question.slice(cut + 1).trim();
+  return draft && options.length ? { draft, options, ...(q.messageSeq !== undefined ? { messageSeq: q.messageSeq } : {}) } : null;
+}
+
 export function rowId(q: Pick<Question, "id" | "needId">): string {
   return q.needId ?? q.id;
 }

@@ -6,6 +6,10 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+### Added (2026-11-13, Salem, thr_4hiytftfrq: "Go ahead with the plan.")
+
+- A desk waiting with a draft shows the draft on its card in the bot panel, with the two answers core gives it ("Go, send it." and "Don't send it"). A tap opens that desk's chat at the draft and sends the answer, the same way a task's answer buttons do; Continue stays for anything else. A desk whose draft core has not read, or that is blocked on an answer, looks as before. In the week to 13 Nov he typed a bare "go", "send it" or "approve it" 21 times in ERBareeq's desk and side threads, after opening each one to read the draft.
+
 ### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 26507: "Rebuild as one path")
 
 - Needs you shows core's question list (`bot_tasks.questions`) exactly: one item per open question, Later for the ones parked with Not now. Radar no longer merges a saved ask into its task, rewrites step questions, marks asks as old, judges whether Salem answered, hides desks it guessed were answered, or lists outside threads from its own reading of the sidebar.
