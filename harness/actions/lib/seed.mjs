@@ -152,6 +152,15 @@ export class Bot {
     return opened;
   }
 
+  async deskSays(threadId, markdown) {
+    const file = join(this.files, `${this.key}-desk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.md`);
+    writeFileSync(file, markdown);
+    this.iso.run(["thread", "tell", threadId, "--mode", "auto", `say_file:${file}`], { thread: await this.iso.relay() });
+    const seq = await this.iso.until(`the desk's reply in ${threadId}`, () => this.iso.query("SELECT MAX(sequence) AS seq FROM events WHERE thread_id=? AND type='item/completed' AND json_extract(data,'$.item.type')='agentMessage' AND json_extract(data,'$.item.text')=?", threadId, markdown)[0].seq ?? 0);
+    await this.iso.idle(threadId, 20_000);
+    return seq;
+  }
+
   deskStatus(threadId, status, extra = []) {
     return this.as(["desk", "status", status, "--thread", threadId, ...extra]);
   }

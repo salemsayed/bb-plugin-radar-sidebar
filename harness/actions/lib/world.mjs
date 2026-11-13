@@ -107,6 +107,12 @@ export const SCENARIOS = [
     async now(bot, w) {
       w.draftDesk = await bot.desk({ key: "chat:ahmed-1", title: "Chat · Ahmed Samir · Delivery date for order 5521" });
       bot.deskStatus(w.draftDesk.threadId, "draft");
+      w.sendDesk = await bot.desk({ key: "chat:laila-9", title: "Chat · Laila Hassan · Late delivery of order 6102" });
+      w.sendDraftSeq = await bot.deskSays(w.sendDesk.threadId, "Order 6102 left the warehouse this morning.\n\n**Draft reply:**\n> Laila, your order is on the van and arrives tomorrow before noon.\n\nSay go and I'll send it.");
+      bot.deskStatus(w.sendDesk.threadId, "draft");
+      w.staleDesk = await bot.desk({ key: "chat:karim-8", title: "Chat · Karim Adel · Price for 12 floodlights" });
+      w.staleDraftSeq = await bot.deskSays(w.staleDesk.threadId, "**Draft reply:**\n> Karim, 12 floodlights are EGP 4,800 in total.");
+      bot.deskStatus(w.staleDesk.threadId, "draft");
       w.blockedDesk = await bot.desk({ key: "chat:hany-2", title: "Chat · Hany Fawzy · Wholesale price for 40 drums" });
       bot.deskStatus(w.blockedDesk.threadId, "blocked");
       w.workingDesk = await bot.desk({ key: "chat:sara-3", title: "Chat · Sara Nabil · Invoice copy for October" });

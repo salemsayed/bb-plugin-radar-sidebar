@@ -51,6 +51,7 @@ export function answerRpc(plugin: string, method: string, input: unknown): unkno
     const id = (input as { taskId: string }).taskId;
     return state.taskDetails[id] ?? { taskId: id, workers: [] };
   }
+  if (method === "desk_draft") return { messageSeq: 41 };
   if (method === "needs_not_now") {
     const { key, on } = input as { key: string; on: boolean };
     return { key, at: on ? state.now : null };

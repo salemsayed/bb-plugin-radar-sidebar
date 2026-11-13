@@ -147,7 +147,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
-            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botName={bot.name} now={now} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
+            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botKey={bot.key} botName={bot.name} now={now} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
           </div>
         </Section> : null}
         {model.stuck.length ? <Section group="stuck" title={GROUP_TITLE.stuck} aside={model.stuck.length}>{rows(model.stuck)}</Section> : null}

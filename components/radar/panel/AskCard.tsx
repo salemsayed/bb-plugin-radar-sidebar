@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useSdk } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { armAskStrip } from "@/lib/askStrip";
 import type { BotTasksBot } from "@/lib/botTasks";
 import { requestFill } from "@/lib/composerFill";
+import { draftIsCurrent } from "@/lib/deskDraft";
 import { bringBack, notNow } from "@/lib/notNow";
 import { AnswerLabel, AskImpact, answerName } from "../AnswerLabel";
 import { answerHint } from "../answerHint";
@@ -111,17 +113,25 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
   </AskShell>;
 }
 
-export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }: { item: DeskItem; botName: string; now: number; current: boolean; onNavigate: Navigate; onPark: Park }) {
+export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, onPark }: { item: DeskItem; botKey: string; botName: string; now: number; current: boolean; onNavigate: Navigate; onPark: Park }) {
+  const sdk = useSdk();
   const { desk } = item;
+  const [changed, setChanged] = useState(false);
+  const [checking, setChecking] = useState(false);
   const { channel, person, subject } = deskParts(desk);
   const { question, about } = deskAsk(desk);
-  const draft = desk.threadId ? desk.question?.draft : undefined;
   const messageSeq = desk.question?.messageSeq;
+  useEffect(() => { setChanged(false); }, [messageSeq]);
+  const draft = desk.threadId && !changed ? desk.question?.draft : undefined;
   const options = draft ? (desk.question?.options ?? []).slice(0, ANSWERS_SHOWN) : [];
   const labels = options.map(option => plainNote(option));
   const open = () => { if (desk.threadId) onNavigate(desk.threadId, draft ? messageSeq : undefined); };
-  const answer = (label: string) => {
-    if (!desk.threadId) return;
+  const answer = async (label: string) => {
+    if (!desk.threadId || checking) return;
+    setChecking(true);
+    const still = await draftIsCurrent(sdk, botKey, desk.id, messageSeq).catch(() => false);
+    setChecking(false);
+    if (!still) { setChanged(true); return; }
     armAskStrip({ key: item.key, threadId: desk.threadId, ...(messageSeq !== undefined ? { messageSeq } : {}), question, title: subject, options, botName, askedAt: desk.updatedAt });
     requestFill(desk.threadId, label, labels, true);
     onNavigate(desk.threadId, messageSeq);
@@ -135,10 +145,11 @@ export function DeskAskCard({ item, botName, now, current, onNavigate, onPark }:
       {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Not now: move to Later until the desk changes" onPark={onPark} /> : null}
       {desk.threadId ? <ContinuePill primary={!labels.length} name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
     </span></div>}>
+    {changed ? <p className="panel-ask-changed" role="status">This draft changed after it was shown, so nothing was sent. Open the chat to read the latest one.</p> : null}
     {draft ? <blockquote className="panel-ask-draft" dir="auto" aria-label={person ? `The reply to ${person}` : "The reply"}><Isolated text={draft} /></blockquote> : null}
     {labels.length ? <div className="dispatch-options">
       <div className="radar-answers" role="group" aria-label={`Answers to ${subject}`} data-count={labels.length} ref={answerRow}>
-        {labels.map(text => <button key={text} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(text, false)} to ${botName}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => answer(text)}><AnswerLabel label={text} all={labels} recommended={false} /></button>)}
+        {labels.map(text => <button key={text} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(text, false)} to ${botName}: opens the chat and sends it`} title="Opens the chat and sends this reply" disabled={checking} onClick={() => { void answer(text); }}><AnswerLabel label={text} all={labels} recommended={false} /></button>)}
       </div>
     </div> : null}
   </AskShell>;

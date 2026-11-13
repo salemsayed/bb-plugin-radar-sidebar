@@ -460,6 +460,46 @@ export const CASES = [
     },
   },
   {
+    scenario: "desks", id: "desk-send", action: "Go, send it. on a desk's draft", expect: "the card shows the draft and its two answers; the tap opens the desk's chat and Go, send it. lands there as Salem's",
+    async run({ iso, bot, world, driver }) {
+      await driver.openPanel(bot);
+      const item = driver.item(deskKey(iso, bot, world.sendDesk.threadId));
+      await item.locator(".panel-ask-draft").waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+      const draft = short(await item.locator(".panel-ask-draft").innerText().catch(() => ""));
+      const answers = (await item.locator(".radar-answer").allInnerTexts()).map(short);
+      const after = iso.lastSeq(world.sendDesk.threadId);
+      await press(driver, item.locator(".radar-answer", { hasText: "Go, send it." }).first());
+      const landed = await poll(() => salemSince(iso, world.sendDesk.threadId, after).find(message => message.text.includes("Go, send it.")), 25_000);
+      return [check("card shows the quoted draft only", draft === "Laila, your order is on the van and arrives tomorrow before noon.", draft),
+        check("two answers", answers.length === 2 && /^Go, send it\./.test(answers[0]) && /^Don't send it/.test(answers[1]), answers),
+        ...await navigatedTo(driver, world.sendDesk.threadId),
+        check("Go, send it. lands in the desk's chat as Salem's", !!landed, landed ? `#${landed.seq} ${landed.from}: ${short(landed.text)}` : `none after #${after}`)];
+    },
+  },
+  {
+    scenario: "desks", id: "desk-stale", action: "Go, send it. on a card whose draft was replaced after it was drawn", expect: "nothing is sent; the card says the draft changed",
+    async run({ iso, bot, world, driver }) {
+      await driver.openPanel(bot);
+      const item = driver.item(deskKey(iso, bot, world.staleDesk.threadId));
+      await item.locator(".panel-ask-draft").waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+      await driver.page.route(url => /bot_tasks|bots_version/.test(url.href), route => route.abort());
+      const newSeq = await bot.deskSays(world.staleDesk.threadId, "**Draft reply:**\n> Karim, 12 floodlights are EGP 5,400 in total with delivery.");
+      const shown = short(await item.locator(".panel-ask-draft").innerText().catch(() => ""));
+      const after = iso.lastSeq(world.staleDesk.threadId);
+      const button = item.locator(".radar-answer", { hasText: "Go, send it." }).first();
+      const offered = await button.isVisible().catch(() => false);
+      if (offered) await driver.press(button);
+      const note = await poll(() => item.locator(".panel-ask-changed").isVisible().catch(() => false), 10_000);
+      await sleep(4_000);
+      const sent = salemSince(iso, world.staleDesk.threadId, after);
+      await driver.page.unroute(url => /bot_tasks|bots_version/.test(url.href)).catch(() => {});
+      return [check("the card still showed the old draft when it was pressed", offered && /4,800/.test(shown), `${shown} (old #${world.staleDraftSeq}, new #${newSeq})`),
+        check("the card says the draft changed", !!note, note ? short(await item.locator(".panel-ask-changed").innerText()) : "no note"),
+        check("nothing was sent to the desk", sent.length === 0, sent.map(message => `#${message.seq} ${short(message.text)}`)),
+        check("the page stayed on the panel", driver.location().thread !== world.staleDesk.threadId, driver.location().path)];
+    },
+  },
+  {
     scenario: "desks", id: "desk-question", action: "Tap the blocked desk's question", expect: "opens the desk's chat",
     async run({ iso, bot, world, driver }) {
       await driver.openPanel(bot);
