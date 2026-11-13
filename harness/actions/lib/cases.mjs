@@ -482,7 +482,8 @@ export const CASES = [
       await driver.openPanel(bot);
       const item = driver.item(deskKey(iso, bot, world.staleDesk.threadId));
       await item.locator(".panel-ask-draft").waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
-      await driver.page.route(url => /bot_tasks|bots_version/.test(url.href), route => route.abort());
+      const refresh = url => /bot_tasks|bots_version/.test(url.href);
+      await driver.page.route(refresh, route => route.abort());
       const newSeq = await bot.deskSays(world.staleDesk.threadId, "**Draft reply:**\n> Karim, 12 floodlights are EGP 5,400 in total with delivery.");
       const shown = short(await item.locator(".panel-ask-draft").innerText().catch(() => ""));
       const after = iso.lastSeq(world.staleDesk.threadId);
@@ -492,7 +493,7 @@ export const CASES = [
       const note = await poll(() => item.locator(".panel-ask-changed").isVisible().catch(() => false), 10_000);
       await sleep(4_000);
       const sent = salemSince(iso, world.staleDesk.threadId, after);
-      await driver.page.unroute(url => /bot_tasks|bots_version/.test(url.href)).catch(() => {});
+      await driver.page.unroute(refresh);
       return [check("the card still showed the old draft when it was pressed", offered && /4,800/.test(shown), `${shown} (old #${world.staleDraftSeq}, new #${newSeq})`),
         check("the card says the draft changed", !!note, note ? short(await item.locator(".panel-ask-changed").innerText()) : "no note"),
         check("nothing was sent to the desk", sent.length === 0, sent.map(message => `#${message.seq} ${short(message.text)}`)),

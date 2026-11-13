@@ -8,7 +8,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ### Added (2026-11-13, Salem, thr_4hiytftfrq: "Go ahead with the plan.")
 
-- A desk waiting with a draft shows the draft on its card in the bot panel, with the two answers core gives it ("Go, send it." and "Don't send it"). A tap opens that desk's chat at the draft and sends the answer, the same way a task's answer buttons do; Continue stays for anything else. A desk whose draft core has not read, or that is blocked on an answer, looks as before. In the week to 13 Nov he typed a bare "go", "send it" or "approve it" 21 times in ERBareeq's desk and side threads, after opening each one to read the draft.
+- A desk waiting with a draft shows the draft on its card in the bot panel, with the two answers core gives it ("Go, send it." and "Don't send it"). A tap opens that desk's chat at the draft and sends the answer, the same way a task's answer buttons do; Before it sends, the card asks core whether the draft it shows is still the desk's current one; when the desk has written a newer draft or is working again, nothing is sent and the card says the draft changed. Continue stays for anything else. A desk whose draft core has not read, or that is blocked on an answer, looks as before. In the week to 13 Nov he typed a bare "go", "send it" or "approve it" 21 times in ERBareeq's desk and side threads, after opening each one to read the draft.
 
 ### Changed (2026-11-12, Salem, thr_vngm9d2igd seq 26507: "Rebuild as one path")
 
