@@ -725,6 +725,35 @@ export const CASES = [
     },
   },
   {
+    scenario: "crowded", id: "fresh-session-busy", action: "Start a fresh session while the bot is in the middle of a turn", expect: "the request waits (no handover starts while the turn runs) and the handover starts once the turn ends",
+    async run({ iso, bot, driver }) {
+      const roster = () => iso.rpc("orchestrator-mode", "bot_roster", null).bots.find(row => row.key === bot.key);
+      const status = () => iso.query("select status from threads where id = ?", bot.coordinator)[0]?.status;
+      const before = roster();
+      iso.run(["thread", "tell", bot.coordinator, "--mode", "auto", "delay:30000 Counting the shelves"]);
+      const active = await poll(() => status() === "active", 15_000);
+      await driver.home();
+      await driver.openPanel(bot);
+      await press(driver, driver.panel().locator(".dispatch-panel-actions").getByRole("button", { name: /More/ }).first());
+      await sleep(700);
+      const entry = driver.page.locator('[role="menuitem"]', { hasText: /fresh session/i }).first();
+      const shown = short(await entry.innerText().catch(() => ""));
+      await driver.press(entry);
+      const asked = await poll(() => roster()?.freshPending, 10_000);
+      await sleep(6_000);
+      const during = roster();
+      const stillActive = status() === "active";
+      const started = row => row && (row.rollover || row.current !== before.current);
+      const after = await poll(() => { const row = roster(); return started(row) ? row : null; }, 90_000, 2_000) ?? roster();
+      return [
+        check("the bot is mid-turn when the entry is pressed", active && stillActive, { active, stillActive }),
+        check("the entry was offered", shown.startsWith("Start a fresh session"), shown),
+        check("the request waits while the turn runs", asked && during?.freshPending && !during.rollover && during.current === before.current, { freshPending: during?.freshPending, rollover: during?.rollover }),
+        check("the handover starts once the turn ends", started(after), { freshPending: after?.freshPending, rollover: after?.rollover, current: after?.current, was: before.current }),
+      ];
+    },
+  },
+  {
     scenario: "quiet", id: "fresh-session", action: "More menu, then Start a fresh session", expect: "the entry names the model the bot is on; the tap records the request in core, and the entry cannot be pressed again while it waits",
     async run({ iso, bot, driver }) {
       const roster = () => iso.rpc("orchestrator-mode", "bot_roster", null).bots.find(row => row.key === bot.key);
