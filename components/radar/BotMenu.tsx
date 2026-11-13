@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { menuPlacement, type MenuPlacement } from "./menuPlacement";
 import { experimental_Icon as HostIcon, experimental_useThreadActions as useThreadActions, type PluginThreadActionEntry, type PluginThreadActionTarget } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 
@@ -20,6 +21,13 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
   const listId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<MenuPlacement | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { setPlacement(null); return; }
+    const box = trigger.current?.getBoundingClientRect();
+    if (box && list.current) setPlacement(menuPlacement({ top: box.top, bottom: box.bottom, viewport: window.innerHeight, height: list.current.scrollHeight }));
+  }, [open, entries.length, choicesFor]);
   useEffect(() => {
     if (!open) return;
     root.current?.querySelector<HTMLElement>("[role=menuitem], [role=menuitemradio]")?.focus();
@@ -40,7 +48,7 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
       onClick={() => { setOpen(value => !value); setChoicesFor(null); }}>
       <Icon name="MoreHorizontal" aria-hidden="true" />More
     </button>
-    {open ? <div id={listId} className="bot-menu-list" role="menu" aria-label={`More for ${botName}`}
+    {open ? <div id={listId} ref={list} className="bot-menu-list" role="menu" aria-label={`More for ${botName}`} data-up={placement?.up || undefined} style={placement ? { maxHeight: placement.maxHeight } : undefined}
       onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
         if (event.key === "ArrowDown") { event.preventDefault(); move(1); }

@@ -320,6 +320,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .bot-menu { position: relative; display: flex; flex: 1 1 auto; }
 .bot-menu > .dispatch-more { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 22px; font-size: 14px; font-weight: 550; }
 .bot-menu-list { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; width: 240px; max-height: 360px; overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--popover, var(--background)); box-shadow: 0 10px 30px rgb(0 0 0 / .18); }
+.bot-menu-list[data-up] { top: auto; bottom: calc(100% + 6px); }
 .dispatch-panel .bot-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 6px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 450; }
 .dispatch-panel .bot-menu-item:hover, .dispatch-panel .bot-menu-item:focus-visible { background: var(--state-hover, var(--muted)); outline: none; }
 .bot-menu-label { flex: 1; display: flex; flex-direction: column; }

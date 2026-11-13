@@ -724,6 +724,41 @@ export const CASES = [
     },
   },
   {
+    scenario: "quiet", id: "fresh-session", action: "More menu, then Start a fresh session", expect: "the entry names the model the bot is on; the tap records the request in core, and the entry cannot be pressed again while it waits",
+    async run({ iso, bot, driver }) {
+      const roster = () => iso.rpc("orchestrator-mode", "bot_roster", null).bots.find(row => row.key === bot.key);
+      const entry = async () => {
+        await driver.home();
+        await driver.openPanel(bot);
+        await press(driver, driver.panel().locator(".dispatch-panel-actions").getByRole("button", { name: /More/ }).first());
+        await sleep(700);
+        return driver.page.locator('[role="menuitem"]', { hasText: /fresh session/i }).first();
+      };
+      const before = roster();
+      const first = await entry();
+      const shown = short(await first.innerText().catch(() => ""));
+      if (!shown) {
+        const items = await driver.page.locator('[role="menuitem"]').allInnerTexts();
+        await driver.page.keyboard.press("Escape");
+        return [check("the menu has the entry", false, items.map(short))];
+      }
+      await driver.shot("quiet-fresh-session-menu");
+      await driver.press(first);
+      const moved = row => row && (row.freshPending || row.rollover || row.current !== before.current);
+      const after = await poll(() => { const row = roster(); return moved(row) ? row : null; }, 20_000) ?? roster();
+      const again = await entry();
+      const later = short(await again.innerText().catch(() => ""));
+      const spent = await again.isDisabled().catch(() => false);
+      await driver.shot("quiet-fresh-session-spent");
+      await driver.page.keyboard.press("Escape");
+      return [
+        check("the entry names the model", /^Start a fresh session\s*On \S/.test(shown), `${shown} (registered model ${before.model})`),
+        check("core recorded the request", moved(after), { freshPending: after?.freshPending, rollover: after?.rollover, current: after?.current, was: before.current }),
+        check("the entry is spent, or the new session is already the bot's chat", spent || after?.current !== before.current, `${later}${spent ? " (disabled)" : ""}`),
+      ];
+    },
+  },
+  {
     scenario: "stale", id: "answered-in-chat", owner: "Needs you pipeline",
     action: "Salem's live case (ERBareeq Master Technician list): he answers the card in chat with the task chip and a link, then the bot tries to wait on him again for acceptance",
     expect: "his chip reply closes the card's question; the bot's \"acceptance:\" wait that follows is refused (no sign-off waits); nothing about the answered question stays in Needs you",
