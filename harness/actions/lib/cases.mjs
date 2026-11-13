@@ -438,13 +438,14 @@ export const CASES = [
   {
     scenario: "desks", id: "groups", action: "Look at desks in every status", expect: "draft and blocked in Needs you, working, waiting on a person with its wake, a wake that came due while bb was off is delivered, deferred queued, info and done in Done",
     async run({ bot, world, driver }) {
+      const wakes = () => driver.iso.messages(world.lateDesk.threadId).filter(m => m.from !== "bot" && /wake|Mona|photos/i.test(m.text));
+      const woken = await poll(() => { const found = wakes(); return found.length ? found : null; }, 150_000, 3_000) ?? [];
       await driver.openPanel(bot);
       const state = await driver.state();
       const deskIds = Object.fromEntries((driver.iso.bot(bot.key)?.desks ?? []).map(desk => [desk.threadId ?? desk.key, desk]));
       const at = threadId => { const desk = deskIds[threadId]; return desk ? state.items.find(item => item.key === `desk:${desk.id}`) : undefined; };
       const deferred = (driver.iso.bot(bot.key)?.desks ?? []).find(desk => /Nour/.test(desk.title));
       const want = [[world.draftDesk, "needs"], [world.blockedDesk, "needs"], [world.workingDesk, "working"], [world.waitingDesk, "waiting"], [world.lateDesk, "waiting"], [world.infoDesk, "done"], [world.doneDesk, "done"]];
-      const woken = driver.iso.messages(world.lateDesk.threadId).filter(m => m.from !== "bot" && /wake|Mona|photos/i.test(m.text));
       const deferredItem = deferred ? state.items.find(item => item.key === `desk:${deferred.id}`) : undefined;
       return [...want.map(([desk, group]) => check(`${desk.threadId} in ${group}`, at(desk.threadId)?.group === group, at(desk.threadId) ? `${at(desk.threadId).group}: ${at(desk.threadId).text}` : `missing (core status ${deskIds[desk.threadId]?.status})`)),
         check("desk whose wake came due while bb was off got its wake when bb started", woken.length > 0, woken.map(m => `#${m.seq} ${short(m.text)}`)),

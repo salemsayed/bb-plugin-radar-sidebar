@@ -6,6 +6,7 @@ All notable changes to Radar Sidebar are documented here. The format follows
 
 ## Unreleased
 
+- Actions harness: `desks/groups` waits for the overdue desk wake before it reads the panel. Run on its own (`--only desks`) the case reached the panel within seconds of the test bb starting, before core's once-a-minute wake sweep had delivered the wake that came due while bb was off, so the desk still showed "Check overdue" and the case failed on every build; in a full run enough time had passed and it passed. `work/groups` still fails on the installed builds too (core shows a worker whose turn failed as a finished result), which the case records for its owner.
 - The bot panel's More menu opens upward when there is no room below it, and an entry that cannot be pressed looks it (Salem, thr_4hiytftfrq, 13 Nov 2026: "Go ahead with the plan."). On a phone, a bot with a short panel (nothing open) showed only the first two entries of More; the rest ran off the bottom of the screen, which would have hidden core's new "Start a fresh session" entry. The menu now measures the room above and below its button (`menuPlacement.ts`), opens on the side that fits and scrolls inside what is left; the panel lets an upward menu show past its own edge. Disabled entries are dimmed. The actions harness gains `quiet/fresh-session`: it opens More, reads the entry and the model under it, presses it and checks that core recorded the request and that the entry is then spent.
 ### Added (2026-11-13, Salem, thr_4hiytftfrq: "Go ahead with the plan.")
 
