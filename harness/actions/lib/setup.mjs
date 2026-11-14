@@ -47,7 +47,15 @@ export class Setup {
   }
 
   async start(offsetMs = 0, attempt = 1, expectIdle = false) {
-    this.log(this.script("start.sh", { PANEL_CLOCK_OFFSET_MS: String(offsetMs) }));
+    try {
+      this.log(this.script("start.sh", { PANEL_CLOCK_OFFSET_MS: String(offsetMs) }));
+    } catch (error) {
+      if (error.status !== 3 || attempt >= 3) throw error;
+      this.log(`${String(error.stdout).trim()}; starting again (attempt ${attempt + 1})`);
+      this.stop();
+      await sleep(3000);
+      return this.start(offsetMs, attempt + 1, expectIdle);
+    }
     const version = this.iso.run(["--version"]).out;
     if (version !== this.iso.config.BB_VERSION) throw new Error(`isolated bb reports ${version}, expected ${this.iso.config.BB_VERSION}`);
     const ready = await this.iso.until("plugins to load", () => !this.installed || /orchestrator-mode@[^\n]*running/.test(this.iso.run(["plugin", "list"], { allowFail: true }).out), 90_000).catch(() => false);
