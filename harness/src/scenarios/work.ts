@@ -143,7 +143,7 @@ export const work: Scenario[] = [
   {
     id: "closed-history",
     title: "A week of closed tasks",
-    look: "Two things open, forty closed over the week: done, closed by Salem, cancelled, stopped, closed after a quiet day, done but not confirmed. The history must fold away and still be reachable.",
+    look: "Two things open, forty closed over the week: done, closed by Salem, cancelled, stopped, done but not confirmed. The history must fold away and still be reachable.",
     sketch: {
       focus: "lab",
       bots: {
@@ -161,7 +161,7 @@ export const work: Scenario[] = [
             tasks.done({ bot: "lab", title: "AGENTS.md consolidation audit" }, cairo(-1, "17:05")),
             tasks.cancelled({ bot: "lab", title: "Bakery landing page test" }, cairo(-1, "15:20")),
             tasks.stopped({ bot: "lab", title: "Scroll memory replay" }, cairo(-1, "12:00"), 2),
-            tasks.quietClose({ bot: "lab", title: "Homeserver reboot check" }, cairo(-2, "10:00")),
+            tasks.done({ bot: "lab", title: "Homeserver reboot check" }, cairo(-2, "10:00")),
             ...Array.from({ length: 31 }, (_, i) => tasks.done({ bot: "lab", title: ["Auto Effort judge retry", "Brrr dedupe window", "Radar swipe actions", "Browse tab cleanup", "Account pool failover", "Handbook nightly sync", "Bots page zoom lock", "Keep Going idle rule", "Feedback desk routing", "html-plan mockups"][i % 10]! + (i >= 10 ? ` ${Math.floor(i / 10) + 1}` : "") }, cairo(-2 - Math.floor(i / 6), `${String(9 + (i % 6) * 2).padStart(2, "0")}:15`))),
           ],
         },

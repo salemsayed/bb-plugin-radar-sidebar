@@ -106,9 +106,6 @@ export const tasks = {
   closedByYou(common: Common, completedAt: number): TaskInput {
     return tasks.done(common, completedAt, `Closed by Salem ${shortDay(completedAt)}`);
   },
-  quietClose(common: Common, completedAt: number): TaskInput {
-    return tasks.done(common, completedAt, `Closed after a quiet day ${shortDay(completedAt)}`);
-  },
   unconfirmed(common: Common, completedAt: number): TaskInput {
     return tasks.done({ ...common, tags: ["Owner review"] }, completedAt, "Recorded done · owner review needed");
   },
