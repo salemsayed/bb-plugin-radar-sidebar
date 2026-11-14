@@ -57,7 +57,7 @@
   "scripts": {
     "build": "bb plugin build",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts harness/actions/lib/*.test.mjs"
   },
   "license": "MIT",
   "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB\u2019s native navigation."

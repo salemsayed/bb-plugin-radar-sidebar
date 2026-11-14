@@ -5,5 +5,6 @@ L=$HOME/.bb-machines/salem.getbb.app/app-versions/$BB_VERSION/node_modules/bb-ap
 NODE_BIN=${PANEL_NODE_BIN:-$(dirname "$(command -v node)")}
 SERVER_PORT=${PANEL_SERVER_PORT:-49566}
 DAEMON_PORT=${PANEL_DAEMON_PORT:-49568}
+LOCK_PORT=${PANEL_LOCK_PORT:-$((SERVER_PORT - 1))}
 ISO_URL=http://127.0.0.1:$SERVER_PORT
 isobb() { env -i HOME=$HOME PATH=$NODE_BIN:/usr/bin:/bin TMPDIR=$S/tmp BB_DATA_DIR=$S/data BB_SERVER_URL=$ISO_URL BB_HOST_DAEMON_PORT=$DAEMON_PORT ${ISO_THREAD:+BB_THREAD_ID=$ISO_THREAD} $NODE_BIN/node $L/host-daemon/dist/bb "$@"; }

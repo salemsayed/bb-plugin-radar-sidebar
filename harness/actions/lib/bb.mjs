@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { here } from "./paths.mjs";
 
-const KEYS = ["S", "L", "NODE_BIN", "ISO_URL", "DAEMON_PORT", "SERVER_PORT", "BB_VERSION"];
+const KEYS = ["S", "L", "NODE_BIN", "ISO_URL", "DAEMON_PORT", "SERVER_PORT", "LOCK_PORT", "BB_VERSION"];
 
 export function isoConfig() {
   const out = execFileSync("bash", ["-c", `source ${join(here, "env.sh")}; printf '%s\\n' ${KEYS.map(k => `"$${k}"`).join(" ")}`], { encoding: "utf8" }).trim().split("\n");

@@ -9,6 +9,7 @@ import { CASES } from "./lib/cases.mjs";
 import { Driver } from "./lib/panel.mjs";
 import { Results } from "./lib/results.mjs";
 import { here } from "./lib/paths.mjs";
+import { holdRunLock } from "./lib/lock.mjs";
 
 const { values } = parseArgs({ options: {
   radar: { type: "string" }, core: { type: "string" }, out: { type: "string" },
@@ -23,6 +24,7 @@ const logLines = [];
 const log = line => { const stamped = `${new Date().toISOString().slice(11, 19)} ${line}`; logLines.push(stamped); console.log(stamped); };
 
 const iso = new Iso();
+await holdRunLock({ port: Number(iso.config.LOCK_PORT), file: join(iso.config.S, "run-lock"), holder: `pid ${process.pid} started ${new Date().toISOString().slice(11, 19)}, out ${out}`, log });
 const builds = resolveBuilds({ radar: values.radar, core: values.core });
 log(`Radar ${builds.radar.commit ?? "?"} from ${builds.radar.dir}`);
 log(`core ${builds.core.commit ?? "?"} from ${builds.core.dir}`);
