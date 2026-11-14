@@ -50,12 +50,14 @@
     "react-dom": "^19.3.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.4.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "vaul": "^1.1.2"
   },
   "scripts": {
     "build": "bb plugin build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "license": "MIT",
   "description": "Activity-grouped threads, nested families, clear attention states, bot shortcuts and a Needs-you lane alongside BB\u2019s native navigation."
