@@ -27,7 +27,8 @@ export class Results {
     try { shot = await context.driver.shot(`${item.scenario}-${item.id}`); } catch { shot = null; }
     const row = { view: context.view, scenario: item.scenario, id: item.id, action: item.action, expect: item.expect, owner, pass, error, evidence, shot, ms: Date.now() - started };
     this.rows.push(row);
-    context.log(`${pass ? "PASS" : "FAIL"} ${context.view} ${item.scenario}/${item.id}${error ? ` (${error.slice(0, 200)})` : ""}`);
+    const failedChecks = evidence.filter(e => e.value.startsWith("FAIL: ")).map(e => `${e.label}: ${e.value.slice(6)}`).join("; ");
+    context.log(`${pass ? "PASS" : "FAIL"} ${context.view} ${item.scenario}/${item.id}${error ? ` (${error.slice(0, 200)})` : ""}${failedChecks ? `: ${failedChecks.slice(0, 300)}` : ""}`);
     return row;
   }
 
