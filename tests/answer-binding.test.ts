@@ -11,10 +11,10 @@ test('Radar answer carries the task mention and exact selected text',()=>{
 });
 
 test('a queued answer retains its original task when another question opens',()=>{
- armAskStrip({key:'ask:first',threadId:'coordinator',title:'First',question:'Deploy?',options:['Hold'],botName:'Bot'});
+ armAskStrip({key:'ask:ptask_first',threadId:'coordinator',title:'First',question:'Deploy?',options:['Hold'],botName:'Bot'});
  requestFill('coordinator','Hold',[],true);
- armAskStrip({key:'ask:second',threadId:'coordinator',title:'Second',question:'Deploy?',options:['Hold'],botName:'Bot'});
+ armAskStrip({key:'ask:ptask_second',threadId:'coordinator',title:'Second',question:'Deploy?',options:['Hold'],botName:'Bot'});
  const draft=pendingFill()!.draft;
  assert.equal(draft.text,'@First Hold');
- assert.equal((draft.mentions![0] as {id:string}).id,'first');clearAskStrip();
+ assert.equal((draft.mentions![0] as {id:string}).id,'ptask_first');clearAskStrip();
 });

@@ -374,7 +374,7 @@ export const CASES = [
     },
   },
   {
-    scenario: "work", id: "groups", owner: "core status (a failed worker turn)", action: "Look at every kind of open work", expect: "working, waiting outside, not started, overdue check, failed check, retrying and an unfiled worker each in their section",
+    scenario: "work", id: "groups", action: "Look at every kind of open work", expect: "working, waiting outside, not started, overdue check, failed check, a failed worker and an unfiled worker each in their section",
     async run({ bot, world, driver }) {
       await driver.openPanel(bot);
       const state = await driver.state();
@@ -955,15 +955,15 @@ export const CASES = [
     },
   },
   {
-    scenario: "relay", id: "wait-then-nothing", action: "In one turn the bot sets \"Price list PDF\" waiting on Salem for acceptance, then ends the turn with a plain result and no question", expect: "when the turn ends core undoes the wait (the task is back to checking) and the bot gets a quiet note; nothing shows in Needs you",
-    async run({ iso, bot, world, driver }) {
-      const after = iso.lastSeq(bot.coordinator);
+    scenario: "relay", id: "wait-then-nothing", action: "In one turn the bot tries to set \"Price list PDF\" waiting on Salem for acceptance, then ends the turn with a plain result and no question", expect: "core refuses the wait at once, because this bot closes a job on its result, and tells the bot to finish; the task never waits and nothing shows in Needs you",
+    async run({ bot, world, driver }) {
       const set = await bot.duringTurn("The price list PDF is regenerated and uploaded to the shared folder.", () => bot.change(world.pdf, { action: "wait", owner: "salem", reason: "acceptance: the price list PDF is regenerated" }, { allowFail: true }));
-      const task = await poll(() => { const t = bot.get(world.pdf); return t.state !== "waiting" ? t : null; }, 20_000) ?? bot.get(world.pdf);
-      const note = await poll(() => iso.query("SELECT sequence AS seq, type FROM events WHERE thread_id=? AND sequence>? AND data LIKE '%Wait refused%'", bot.coordinator, after)[0], 20_000);
-      return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
-        check("when the turn ends the wait is undone", task.state === "checking", `${task.state} ${task.wait?.owner ?? ""}`),
-        check("the bot gets the quiet refusal note", note, note ? `#${note.seq} ${note.type}` : "no note"), await outOfNeeds(driver, bot, `task:${world.pdf}`, "panel")];
+      const task = bot.get(world.pdf);
+      const row = bot.row(world.pdf);
+      return [check("the wait is refused while the turn runs", !set.ok, set.ok ? `accepted: ${short(set.out)}` : short(set.err)),
+        check("the refusal says the job closes on its result and to finish it", /delivered result/.test(set.err ?? "") && /finish/.test(set.err ?? ""), short(set.err ?? "")),
+        check("the task never waits on Salem", !(task.state === "waiting" && task.wait?.owner === "salem"), `${task.state} ${task.wait?.owner ?? ""}`),
+        check("core: not a question", row?.displayState !== "needs", row ? `${row.displayState} · ${short(row.line)}` : "gone"), await outOfNeeds(driver, bot, `task:${world.pdf}`, "panel")];
     },
   },
   {
@@ -982,10 +982,10 @@ export const CASES = [
     },
   },
   {
-    scenario: "relay", id: "acceptance-with-section", action: "In one turn the bot sets \"Home banner\" waiting on Salem with reason \"acceptance: the new banner is live\" and writes its result under the task chip", expect: "his sign-off rule wins: the wait is undone when the turn ends and nothing shows in Needs you",
+    scenario: "relay", id: "acceptance-with-section", action: "In one turn the bot sets \"Home banner\" waiting on Salem with reason \"acceptance: the new banner is live, tested on his phone\" (more than a bare close, so it is not refused at once) and writes its result under the task chip", expect: "his sign-off rule wins: the wait is undone when the turn ends and nothing shows in Needs you",
     async run({ iso, bot, world, driver }) {
       const after = iso.lastSeq(bot.coordinator);
-      const set = await bot.duringTurn(`${chip(world.banner)}\n**Home banner:** The new banner is live on the home page.`, () => bot.change(world.banner, { action: "wait", owner: "salem", reason: "acceptance: the new banner is live" }, { allowFail: true }));
+      const set = await bot.duringTurn(`${chip(world.banner)}\n**Home banner:** The new banner is live on the home page.`, () => bot.change(world.banner, { action: "wait", owner: "salem", reason: "acceptance: the new banner is live, tested on his phone" }, { allowFail: true }));
       const task = await poll(() => { const t = bot.get(world.banner); return t.state !== "waiting" ? t : null; }, 20_000) ?? bot.get(world.banner);
       const note = await poll(() => iso.query("SELECT sequence AS seq, type FROM events WHERE thread_id=? AND sequence>? AND data LIKE '%Wait refused%'", bot.coordinator, after)[0], 20_000);
       return [check("the wait is accepted while the turn runs", set.ok, set.ok ? "accepted" : short(set.err)),
