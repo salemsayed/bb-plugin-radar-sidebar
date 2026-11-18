@@ -1,3 +1,4 @@
+import { useBotRoster } from "./useBotRoster";
 import type { PluginThreadActionRegistration } from "@get-bb/plugin-sdk/app";
 import { BOT_TAB } from "./BotPanelTab";
 import { isClosed } from "@/lib/botTasks";
@@ -9,7 +10,10 @@ export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof use
   icon: "Bot",
   group: "open",
   placement: "header",
-  useData: () => useBotTasks(true).data,
+  useData: ({ threadIds }) => {
+    const bots = useBotRoster(true).filter(bot => threadIds.includes(bot.current));
+    return useBotTasks(bots.length > 0, bots.length === 1 ? bots[0]!.key : undefined).data;
+  },
   item: ({ thread, data, experimental_panel }) => {
     const bot = data?.bots.find(bot => bot.coordinatorThreadId === thread.id);
     if (!bot) return null;

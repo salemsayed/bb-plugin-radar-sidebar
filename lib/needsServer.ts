@@ -35,7 +35,13 @@ export function askJudgements(questions: readonly Question[], bots: readonly Ros
 export function createNeedsServer(bb: BbPluginApi) {
   const list = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_list", input: { states: [...ACTIVE] }, outputSchema: needsListSchema });
   const roster = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_roster", input: null, outputSchema: rosterSchema });
-  const questions = () => bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: questionsOutput });
+  const questions = async () => {
+    try { return await bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_questions", input: {}, outputSchema: questionsOutput }); }
+    catch (error) {
+      if (!/unknown.*method|has no rpc method|method.*not found/i.test(String(error))) throw error;
+      return bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: questionsOutput });
+    }
+  };
   const update = (input: z.infer<typeof needsRpcContract.crew_needs_update.input>) =>
     bb.sdk.plugins.callRpc({ pluginId: NEEDS_PLUGIN, method: "needs_update", input: needsRpcContract.crew_needs_update.input.parse(input), outputSchema: needsResultSchema });
   return {

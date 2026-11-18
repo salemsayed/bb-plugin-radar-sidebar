@@ -1,0 +1,176 @@
+{
+  "core": "5c71d70",
+  "radar": "b33ce84",
+  "rows": [
+    {
+      "view": "desktop",
+      "mode": "idle",
+      "index": 0,
+      "typing": 310,
+      "receipt": 248,
+      "result": 115
+    },
+    {
+      "view": "desktop",
+      "mode": "busy",
+      "index": 0,
+      "typing": 340,
+      "receipt": 258,
+      "result": 134
+    },
+    {
+      "view": "desktop",
+      "mode": "reconnected",
+      "index": 0,
+      "typing": 260,
+      "receipt": 257,
+      "result": 120
+    },
+    {
+      "view": "desktop",
+      "mode": "idle",
+      "index": 1,
+      "typing": 337,
+      "receipt": 175,
+      "result": 120
+    },
+    {
+      "view": "desktop",
+      "mode": "busy",
+      "index": 1,
+      "typing": 379,
+      "receipt": 230,
+      "result": 102
+    },
+    {
+      "view": "desktop",
+      "mode": "reconnected",
+      "index": 1,
+      "typing": 289,
+      "receipt": 166,
+      "result": 94
+    },
+    {
+      "view": "desktop",
+      "mode": "idle",
+      "index": 2,
+      "typing": 280,
+      "receipt": 174,
+      "result": 122
+    },
+    {
+      "view": "desktop",
+      "mode": "busy",
+      "index": 2,
+      "typing": 302,
+      "receipt": 211,
+      "result": 105
+    },
+    {
+      "view": "desktop",
+      "mode": "reconnected",
+      "index": 2,
+      "typing": 280,
+      "receipt": 260,
+      "result": 118
+    },
+    {
+      "view": "phone",
+      "mode": "idle",
+      "index": 0,
+      "typing": 273,
+      "receipt": 1141,
+      "result": 132
+    },
+    {
+      "view": "phone",
+      "mode": "busy",
+      "index": 0,
+      "typing": 270,
+      "receipt": 1219,
+      "result": 136
+    },
+    {
+      "view": "phone",
+      "mode": "reconnected",
+      "index": 0,
+      "typing": 308,
+      "receipt": 256,
+      "result": 158
+    },
+    {
+      "view": "phone",
+      "mode": "idle",
+      "index": 1,
+      "typing": 276,
+      "receipt": 1103,
+      "result": 128
+    },
+    {
+      "view": "phone",
+      "mode": "busy",
+      "index": 1,
+      "typing": 264,
+      "receipt": 664,
+      "result": 138
+    },
+    {
+      "view": "phone",
+      "mode": "reconnected",
+      "index": 1,
+      "typing": 259,
+      "receipt": 1105,
+      "result": 160
+    },
+    {
+      "view": "phone",
+      "mode": "idle",
+      "index": 2,
+      "typing": 281,
+      "receipt": 279,
+      "result": 130
+    },
+    {
+      "view": "phone",
+      "mode": "busy",
+      "index": 2,
+      "typing": 274,
+      "receipt": 1163,
+      "result": 134
+    },
+    {
+      "view": "phone",
+      "mode": "reconnected",
+      "index": 2,
+      "typing": 239,
+      "receipt": 1057,
+      "result": 202
+    }
+  ],
+  "stats": {
+    "desktop-typing": {
+      "median": 302,
+      "p90": 379
+    },
+    "desktop-receipt": {
+      "median": 230,
+      "p90": 260
+    },
+    "desktop-result": {
+      "median": 118,
+      "p90": 134
+    },
+    "phone-typing": {
+      "median": 273,
+      "p90": 308
+    },
+    "phone-receipt": {
+      "median": 1103,
+      "p90": 1219
+    },
+    "phone-result": {
+      "median": 136,
+      "p90": 202
+    }
+  }
+}

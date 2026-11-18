@@ -26,18 +26,18 @@ export interface BotTasksState {
   cached: boolean;
 }
 
-function readCache(): BotTasksData | null {
+function readCache(key: string): BotTasksData | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? botTasksSchema.parse(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 }
-function writeCache(data: BotTasksData | null): void {
+function writeCache(key: string, data: BotTasksData | null): void {
   try {
-    if (data) localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    else localStorage.removeItem(CACHE_KEY);
+    if (data) localStorage.setItem(key, JSON.stringify(data));
+    else localStorage.removeItem(key);
   } catch {
     // Private browsing or full storage: the next load just fetches again.
   }
@@ -53,15 +53,26 @@ function tasksKey(data: BotTasksData): string {
   });
 }
 let latestSdk: ReturnType<typeof useSdk> | null = null;
-const tasks = createSharedRead<BotTasksData>({
-  load: () => latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: {}, outputSchema: botTasksSchema }),
-  readCache,
-  writeCache,
-  absent: isPluginAbsentError,
-  refreshMs: BOT_TASKS_REFRESH_MS,
-  events: ["focus", NEEDS_CHANGED],
-  key: tasksKey,
-});
+function tasksRead(bot?: string) {
+  const cacheKey = bot ? `${CACHE_KEY}.${bot}` : CACHE_KEY;
+  return createSharedRead<BotTasksData>({
+    load: () => latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: bot ? { bot } : {}, outputSchema: botTasksSchema }),
+    readCache: () => readCache(cacheKey),
+    writeCache: data => writeCache(cacheKey, data),
+    absent: isPluginAbsentError,
+    refreshMs: BOT_TASKS_REFRESH_MS,
+    events: ["focus", NEEDS_CHANGED],
+    key: tasksKey,
+  });
+}
+const fleet = tasksRead();
+const scoped = new Map<string, ReturnType<typeof tasksRead>>();
+function readFor(bot?: string) {
+  if (!bot) return fleet;
+  let read = scoped.get(bot);
+  if (!read) { read = tasksRead(bot); scoped.set(bot, read); }
+  return read;
+}
 const IDLE: BotTasksState = { data: null, status: "loading", cached: false };
 const idleState = () => IDLE;
 const idleSubscribe = () => () => {};
@@ -72,12 +83,13 @@ const idleSubscribe = () => () => {};
  * own changes; a slow poll is the fallback. A missing RPC is reported as
  * "missing" so the view can say so instead of showing an empty list.
  */
-export function useBotTasks(enabled: boolean): BotTasksState {
+export function useBotTasks(enabled: boolean, bot?: string): BotTasksState {
+  const tasks = readFor(bot);
   latestSdk = useSdk();
   useBotsPush(enabled, needsChanged);
   return useSyncExternalStore(enabled ? tasks.subscribe : idleSubscribe, enabled ? tasks.get : idleState);
 }
 
 export function refreshBotTasks(): Promise<void> {
-  return tasks.refresh();
+  return fleet.refresh();
 }

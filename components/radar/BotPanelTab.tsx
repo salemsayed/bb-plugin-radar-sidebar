@@ -1,3 +1,4 @@
+import { useBotRoster } from "./useBotRoster";
 import { DeskThreads } from "./DeskThreads";
 import { Icon } from "@/components/ui/icon";
 import { useThreadClaims } from "./useThreadClaims";
@@ -22,8 +23,7 @@ import { botStyle, shortBotName } from "./bots";
 export const BOT_TAB = { id: "bot", context: { kind: "thread" as const }, availability: "fixed" as const };
 
 export function useIsBotThread({ threadId }: { threadId: string }): boolean {
-  const { data } = useBotTasks(true);
-  return !!data?.bots.some(bot => bot.coordinatorThreadId === threadId);
+  return useBotRoster(true).some(bot => bot.current === threadId);
 }
 
 function useNow(): number {
@@ -36,11 +36,13 @@ function useNow(): number {
 }
 
 export function BotPanelTab({ threadId }: { threadId: string }) {
-  const { data: raw } = useBotTasks(true);
+  const key = useBotRoster(true).find(bot => bot.current === threadId)?.key;
+  const { data: raw, status } = useBotTasks(!!key, key);
   const later = useNotNow();
   const data = raw ? applyNotNow(raw, later) : raw;
   const bot = data?.bots.find(b => b.coordinatorThreadId === threadId);
-  if (!data || !bot) return <p className="bot-panel-empty">This chat is not a bot's.</p>;
+  if (key && !data) return <p className="bot-panel-empty">{status === "loading" ? "Loading bot work…" : "Bot work is unavailable."}</p>;
+  if (!bot) return <p className="bot-panel-empty">This chat is not a bot's.</p>;
   return <BotPanel key={bot.key} bot={bot} here={threadId} />;
 }
 

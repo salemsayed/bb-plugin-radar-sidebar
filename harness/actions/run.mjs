@@ -11,9 +11,11 @@ import { Results } from "./lib/results.mjs";
 import { here } from "./lib/paths.mjs";
 import { holdRunLock } from "./lib/lock.mjs";
 
+import { speedGate } from "./lib/speed.mjs";
+
 const { values } = parseArgs({ options: {
   radar: { type: "string" }, core: { type: "string" }, out: { type: "string" },
-  only: { type: "string" }, views: { type: "string", default: "desktop,phone" }, case: { type: "string" }, "seed-only": { type: "boolean", default: false }, reuse: { type: "boolean", default: false },
+  only: { type: "string" }, views: { type: "string", default: "desktop,phone" }, case: { type: "string" }, "seed-only": { type: "boolean", default: false }, "speed-gate": { type: "boolean", default: false }, reuse: { type: "boolean", default: false },
 } });
 
 const out = resolve(values.out ?? join(here, "results"));
@@ -72,4 +74,5 @@ for (const view of values.views.split(",")) {
 }
 results.write(logLines);
 log(`results: ${join(out, "results.md")}`);
+if (values["speed-gate"] && !results.failed()) await speedGate({ iso, setup, builds, out, log });
 process.exitCode = results.failed() ? 1 : 0;

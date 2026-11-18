@@ -64,15 +64,16 @@ const idleSubscribe = () => () => {};
  */
 export function useBotRoster(enabled: boolean, refreshKey = ""): RosterBot[] {
   rosterSdk = useSdk();
-  const desks = useBotTasks(enabled).data;
   useBotsPush(enabled, needsChanged);
   const shown = useSyncExternalStore(enabled ? roster.subscribe : idleSubscribe, enabled ? roster.get : idleState);
   const bots = shown.data ?? NO_BOTS;
+  const legacy = bots.some(bot => bot.deskThreadIds === undefined);
+  const desks = useBotTasks(enabled && legacy).data;
   const lastKey = useRef(refreshKey);
   useEffect(() => {
     if (!enabled || lastKey.current === refreshKey) return;
     lastKey.current = refreshKey;
     void roster.refresh();
   }, [enabled, refreshKey]);
-  return useMemo(() => bots.map(bot => ({ ...bot, deskThreadIds: desks?.bots.find(row => row.key === bot.key)?.desks.map(desk => desk.threadId).filter((id): id is string => !!id) ?? [] })), [bots, desks]);
+  return useMemo(() => !legacy || !desks ? bots : bots.map(bot => ({ ...bot, deskThreadIds: desks?.bots.find(row => row.key === bot.key)?.desks.map(desk => desk.threadId).filter((id): id is string => !!id) ?? [] })), [bots, desks, legacy]);
 }

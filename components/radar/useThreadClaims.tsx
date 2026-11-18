@@ -3,7 +3,6 @@ import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-b
 import { useBotRoster } from "./useBotRoster";
 import { botScopeIds } from "./botScope";
 import type { RosterBot } from "./bots";
-import { useBotTasks } from "./useBotTasks";
 
 export function looseThreads(threads: readonly PluginSidebarThread[], bots: readonly RosterBot[]): PluginSidebarThread[] {
   const owned = new Set(bots.flatMap(bot => [...botScopeIds(threads, bot), ...(bot.deskThreadIds ?? [])]));
@@ -34,7 +33,7 @@ export function looseThreads(threads: readonly PluginSidebarThread[], bots: read
 export function useThreadClaims() {
   const { threads, projects, status } = experimental_useSidebarThreads();
   const bots = useBotRoster(true);
-  const desksLoaded = useBotTasks(true).data != null;
+  const desksLoaded = bots.every(bot => bot.deskThreadIds !== undefined);
   return useMemo(() => {
     const loose = looseThreads(threads, bots);
     const byBot: Record<string, PluginSidebarThread[]> = {};
