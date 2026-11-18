@@ -172,5 +172,14 @@
       "median": 136,
       "p90": 202
     }
+  },
+  "transcript": {
+    "radar": "b45087f",
+    "core": "1fc399c",
+    "messages": 70,
+    "medianMs": {
+      "desktop": 313.5,
+      "phone": 376
+    }
   }
 }

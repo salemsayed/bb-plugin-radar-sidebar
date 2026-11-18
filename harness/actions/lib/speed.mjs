@@ -79,6 +79,35 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   return { view: driver.view, mode, index, typing, receipt, result, sendTapMs };
 }
 
+async function measureSavedReply(driver, bot, text) {
+  await driver.home();
+  await driver.sidebar(bot.key);
+  const row = driver.page.locator(`.stage-chat[data-rove="${bot.key}"]`);
+  await row.evaluate((button, { threadId, text }) => {
+    button.addEventListener("pointerdown", () => {
+      const start = performance.now();
+      const check = () => {
+        if (location.pathname.endsWith("/" + threadId)) {
+          for (const paragraph of document.querySelectorAll("[data-markdown-preview] p")) {
+            if (paragraph.textContent.trim() !== text) continue;
+            const box = paragraph.getBoundingClientRect();
+            const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            if (hit && paragraph.contains(hit)) {
+              window.savedReplyMs = performance.now() - start;
+              return;
+            }
+          }
+        }
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }, { once: true, capture: true });
+  }, { threadId: bot.coordinator, text });
+  await driver.press(row);
+  const result = await driver.page.waitForFunction(() => window.savedReplyMs ?? false, null, { timeout: 12000 });
+  return Math.round(await result.jsonValue());
+}
+
 function summarize(rows) {
   const stats = {};
   for (const view of VIEWS) for (const metric of METRICS) {
@@ -117,6 +146,24 @@ export async function speedGate({ iso, setup, builds, out, log }) {
     for (const [key, sample] of Object.entries(stats)) for (const percentile of ["median", "p90"]) {
       const limit = baseline.stats[key][percentile] * 1.5 + 250;
       assert.ok(sample[percentile] <= limit, `${key} ${percentile}: ${sample[percentile]} ms exceeds ${limit} ms`);
+    }
+    const messages = iso.messages(bot.coordinator);
+    const reply = messages.filter(message => message.from === "bot").at(-1);
+    assert.match(reply?.text ?? "", /^Response to: Speed receipt/);
+    const transcript = { messages: messages.length, seq: reply.seq, views: {} };
+    for (const view of VIEWS) {
+      const driver = await Driver.open(iso, view, out, log);
+      const samples = [];
+      try {
+        for (let run = 0; run < 5; run++) samples.push(await measureSavedReply(driver, bot, reply.text));
+      } finally { await driver.close(); }
+      const sorted = [...samples].sort((a, b) => a - b);
+      const median = sorted[2];
+      transcript.views[view] = { samples, median };
+      writeFileSync(join(out, "transcript.json"), JSON.stringify(transcript, null, 2));
+      log(view + " saved reply visible in " + median + " ms (median)");
+      const limit = baseline.transcript.medianMs[view] * 1.5 + 250;
+      assert.ok(median <= limit, `${view} saved reply median: ${median} ms exceeds ${limit} ms`);
     }
     const answers = {};
     const scenario = SCENARIOS.find(item => item.key === "buttons");
