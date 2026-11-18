@@ -1073,6 +1073,7 @@ export function GroupMenu({
           kind: "item" as const,
           id: `show-bot:${bot.key}`,
           label: `Show ${bot.name}`,
+          icon: "Eye",
         })),
         ...(anchor.botKey || visible.hiddenBots.length > 0 ? [{ kind: "separator" as const }] : []),
         {

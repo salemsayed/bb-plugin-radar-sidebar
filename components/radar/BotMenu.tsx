@@ -9,9 +9,10 @@ export function botMenuEntries(entries: readonly PluginThreadActionEntry[]): Plu
   return entries.filter(entry => !HIDDEN.has(entry.key) && entry.group !== "lifecycle" && entry.action.variant !== "destructive");
 }
 
-export function BotMenu({ thread, botName, onShowThreads, onClose }: {
+export function BotMenu({ thread, botName, sheet = false, onShowThreads, onClose }: {
   thread: PluginThreadActionTarget;
   botName: string;
+  sheet?: boolean;
   onShowThreads: () => void;
   onClose: () => void;
 }) {
@@ -24,10 +25,10 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
   const list = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<MenuPlacement | null>(null);
   useLayoutEffect(() => {
-    if (!open) { setPlacement(null); return; }
+    if (!open || sheet) { setPlacement(null); return; }
     const box = trigger.current?.getBoundingClientRect();
     if (box && list.current) setPlacement(menuPlacement({ top: box.top, bottom: box.bottom, viewport: window.innerHeight, height: list.current.scrollHeight }));
-  }, [open, entries.length, choicesFor]);
+  }, [open, sheet, entries.length, choicesFor]);
   useEffect(() => {
     if (!open) return;
     root.current?.querySelector<HTMLElement>("[role=menuitem], [role=menuitemradio]")?.focus();
@@ -48,13 +49,15 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
       onClick={() => { setOpen(value => !value); setChoicesFor(null); }}>
       <Icon name="MoreHorizontal" aria-hidden="true" />More
     </button>
-    {open ? <div id={listId} ref={list} className="bot-menu-list" role="menu" aria-label={`More for ${botName}`} data-up={placement?.up || undefined} style={placement ? { maxHeight: placement.maxHeight } : undefined}
+    {open && sheet ? <div className="bot-menu-scrim" aria-hidden="true" onClick={close} /> : null}
+    {open ? <div id={listId} ref={list} className="bot-menu-list" role="menu" aria-label={`More for ${botName}`} data-sheet={sheet || undefined} data-up={placement?.up || undefined} style={placement ? { maxHeight: placement.maxHeight } : undefined}
       onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
         if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
         if (event.key === "ArrowUp") { event.preventDefault(); move(-1); }
         if (event.key === "Tab") setOpen(false);
       }}>
+      {sheet ? <p className="bot-menu-title" aria-hidden="true">{botName}</p> : null}
       {entries.map(entry => {
         const separator = group !== "" && entry.group !== group;
         group = entry.group;
@@ -84,8 +87,8 @@ export function BotMenu({ thread, botName, onShowThreads, onClose }: {
       })}
       {entries.length ? <div className="bot-menu-separator" role="separator" /> : null}
       <button type="button" role="menuitem" className="bot-menu-item" onClick={() => { setOpen(false); onShowThreads(); onClose(); }}>
-        <Icon name="MessageSquare" aria-hidden="true" className="bot-menu-icon" />
-        <span className="bot-menu-label">All threads</span>
+        <Icon name="ListView" aria-hidden="true" className="bot-menu-icon" />
+        <span className="bot-menu-label">Show all threads<small>Lists threads in the sidebar</small></span>
       </button>
     </div> : null}
   </div>;
