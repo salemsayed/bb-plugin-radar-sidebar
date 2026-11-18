@@ -13,7 +13,7 @@ import { ago } from "../elapsed";
 import { FitLines } from "../FitLines";
 import { Isolated } from "../Isolated";
 import { askPlace, fitWhat, notNowLabel, oneForms } from "../NeedsSummary";
-import { isQuestionRow, questionInPanel } from "../questions";
+import { isQuestionRow } from "../questions";
 import { recommendedOption } from "../recommend";
 import { askOptions } from "../stage";
 import { capitalFirst, plainNote } from "../workText";
@@ -77,10 +77,15 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
     return place;
   };
   const go = () => { const place = arm(); onNavigate(place.threadId, place.messageSeq); };
-  const outside = isQuestionRow(task) && questionInPanel(task);
+  const reply = !!task.needs?.questionId || isQuestionRow(task);
   const label = notNowLabel({ botName: bot.name, title, what: fitWhat(whole, LABEL_CUT), options: task.needs?.options });
   const proceed = () => {
-    if (isQuestionRow(task)) { go(); return; }
+    if (reply) {
+      const place = arm();
+      requestFill(place.threadId, "");
+      onNavigate(place.threadId, place.messageSeq);
+      return;
+    }
     window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: title.slice(0, 80) } }));
     onNavigate(bot.coordinatorThreadId);
   };
@@ -91,7 +96,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
         {isQuestionRow(task) ? <span /> : <button type="button" className="panel-more" aria-expanded={open} onClick={() => setOpen(value => !value)}>Details<Icon name="ChevronDown" aria-hidden="true" /></button>}
         <span className="panel-ask-actions">
           <ParkPill parked={false} label={label} itemKey={task.needs?.questionId ?? ""} hint="Not now: move to Later until the bot asks again" onPark={onPark} />
-          <ContinuePill primary label={outside ? "Reply in chat" : "Continue"} name={outside ? `Reply to ${title} in the bot's chat` : `Continue ${title}`} hint={outside ? "The bot asked this outside its chat; reply to it in its chat" : "Answer in the bot's chat"} onClick={proceed} />
+          <ContinuePill primary label={reply ? "Reply in chat" : "Continue"} name={reply ? `Reply to ${title} in chat` : `Continue ${title}`} hint={reply ? "Write a reply to this question" : "Continue in the bot's chat"} onClick={proceed} />
         </span>
       </div>
       {open ? <div className="panel-details"><TaskDetails item={item} context={context} onOpen={onNavigate} /></div> : null}

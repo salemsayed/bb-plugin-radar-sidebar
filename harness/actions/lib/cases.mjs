@@ -812,7 +812,7 @@ export const CASES = [
       const row = bot.row(world.plan);
       await driver.home();
       const item = await panelGroup(driver, bot, `task:${world.plan}`);
-      return [check("his reply landed bound to the task", sent && boundTo(sent, `task:${world.plan}`), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+      return [check("his reply landed bound to the saved question", sent && need && boundTo(sent, need.bindId), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
         check("the card's saved question is closed", closed, closed ? `${closed.id} ${closed.state}` : need ? `${need.id} ${savedQuestion(iso, bot, world.planAsk)?.state}` : "no saved question"),
         check("the bot's sign-off wait is refused", !refused.ok && /sign-off/.test(refused.err + refused.out), refused.ok ? `accepted: ${short(refused.out)}` : short(refused.err)),
         check("core does not ask it again", row?.displayState !== "needs" || !(row.needs?.options ?? []).includes("Helper tab"), row ? `${row.displayState} · ${short(row.needs?.question ?? row.line)} · options ${JSON.stringify(row.needs?.options ?? [])}` : "none"),
@@ -898,7 +898,7 @@ export const CASES = [
     },
   },
   {
-    scenario: "bound", id: "bound-reply", action: "Continue on \"Sohag hall\", type \"Hall B please\" after its task chip and send, while \"Banner prints\" also waits on him in the same chat", expect: "only the Sohag hall question closes (his reply names that task); Banner prints stays in Needs you",
+    scenario: "bound", id: "bound-reply", action: "Reply in chat on \"Sohag hall\", type \"Hall B please\" after the question chip and send, while \"Banner prints\" also waits on him in the same chat", expect: "only the Sohag hall question closes (his reply names that question); Banner prints stays in Needs you",
     async run({ iso, bot, world, driver }) {
       await driver.openPanel(bot);
       await press(driver, driver.item(`task:${world.first}`).locator(".dispatch-task-continue"));
@@ -913,7 +913,7 @@ export const CASES = [
       await sleep(3000);
       const second = bot.row(world.second);
       await driver.home();
-      return [check("his reply landed bound to Sohag hall", sent && boundTo(sent, `task:${world.first}`), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
+      return [check("his reply landed bound to the Sohag hall question", sent && boundTo(sent, savedQuestion(iso, bot, world.firstAsk)?.bindId), sent ? `#${sent.seq} ${short(sent.text)}` : "none"),
         check("Sohag hall leaves Needs you in core", first?.displayState !== "needs", first ? `${first.displayState} · ${short(first.line)}` : "gone"),
         check("Banner prints still needs him in core", second?.displayState === "needs", second ? `${second.displayState} · ${short(second.line)}` : "gone"),
         await groupIs(driver, bot, `task:${world.first}`, "waiting", "panel after"), await groupIs(driver, bot, `task:${world.second}`, "needs", "panel after")];
