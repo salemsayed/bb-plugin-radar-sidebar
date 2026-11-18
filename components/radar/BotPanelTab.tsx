@@ -143,7 +143,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
   const hue = botStyle(bot.key, bot.name).hue;
   const askItems = new Map(needItems(one).map(item => [item.id, item]));
   const answer = (item: NeedItem, label: string) => {
-    armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
+    armAskStrip({ key: item.id, questionId: item.notNowKey, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
     requestFill(item.threadId, label, boxAnswers(item), true, item.id);
     if (item.threadId !== here) go(item.threadId);
   };

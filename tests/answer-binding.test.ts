@@ -18,3 +18,12 @@ test('a queued answer retains its original task when another question opens',()=
  assert.equal(draft.text,'@First Hold');
  assert.equal((draft.mentions![0] as {id:string}).id,'ptask_first');clearAskStrip();
 });
+
+test('the selected question and option survive a task answer button click', () => {
+  armAskStrip({ key: 'ask:ptask_a', questionId: 'q_current', threadId: 'coord', title: 'Review', question: 'Ready?', options: ['Yes'], botName: 'Bot' });
+  requestFill('coord', 'Yes', [], true);
+  const draft = pendingFill()!.draft;
+  assert.equal(draft.text, '@Review Yes');
+  assert.deepEqual(draft.mentions?.[0], { from: 0, to: 7, label: 'Review', kind: 'plugin', pluginId: 'orchestrator-mode', provider: 'question', id: 'q_current' });
+  clearAskStrip();
+});

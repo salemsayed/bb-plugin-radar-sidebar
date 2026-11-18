@@ -304,7 +304,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const retry = () => { setRetrying(true); void refreshBotTasks().finally(() => setRetrying(false)); };
   const staleNote = { asOf: asOf(data.observedAt, now), retrying, onRetry: retry };
   const inlineUndo = !sheet;
-  const armItem = (item: NeedItem) => armAskStrip({ key: item.id, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
+  const armItem = (item: NeedItem) => armAskStrip({ key: item.id, questionId: item.notNowKey, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
   const roving = useRoving(list, { item: ".stage-chat", row: ".stage-row", side: ".stage-more", preferred: hereKey });
   const scope = root.current?.closest("[data-bb-plugin]")?.getAttribute("data-bb-plugin") ?? undefined;
   const loose = threadsSummary(claims.ready ? claims.loose : []);

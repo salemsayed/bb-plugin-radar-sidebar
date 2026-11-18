@@ -73,7 +73,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
   const meta = [named ? title : "", named ? when : capitalFirst(when)].filter(Boolean);
   const arm = () => {
     const place = askPlace(task, bot.coordinatorThreadId);
-    armAskStrip({ key: `ask:${task.id}`, threadId: place.threadId, messageSeq: place.messageSeq, question: task.needs?.question ?? whole, title, options: askOptions(task), botName: bot.name, askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) });
+    armAskStrip({ key: `ask:${task.id}`, questionId: task.needs?.questionId, threadId: place.threadId, messageSeq: place.messageSeq, question: task.needs?.question ?? whole, title, options: askOptions(task), botName: bot.name, askedAt, ...(consequence ? { consequence } : {}), ...(recommended ? { recommended } : {}) });
     return place;
   };
   const go = () => { const place = arm(); onNavigate(place.threadId, place.messageSeq); };
@@ -132,7 +132,7 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
     const still = await draftIsCurrent(sdk, botKey, desk.id, messageSeq).catch(() => false);
     setChecking(false);
     if (!still) { setChanged(true); return; }
-    armAskStrip({ key: item.key, threadId: desk.threadId, ...(messageSeq !== undefined ? { messageSeq } : {}), question, title: subject, options, botName, askedAt: desk.updatedAt });
+    armAskStrip({ key: item.key, questionId: desk.question?.id, threadId: desk.threadId, ...(messageSeq !== undefined ? { messageSeq } : {}), question, title: subject, options, botName, askedAt: desk.updatedAt });
     requestFill(desk.threadId, label, labels, true);
     onNavigate(desk.threadId, messageSeq);
   };

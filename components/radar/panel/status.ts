@@ -42,7 +42,7 @@ export function taskStatus({ task, running, now, waitsOn, botName }: TaskStatusI
   const line = task.line;
   const said = split(cardStatus(task, [...running], now, waitsOn, botName));
   if (isClosed(state)) return { group: "done", mark: /^(?:Cancelled|Stopped)\b/.test(said.words) ? "ended" : "done", ...said };
-  if (task.later?.reason === "not-now") return { group: "later", mark: "later", words: "Not now", note: `since ${dayAndTime(task.later.at, now)}` };
+  if (task.later?.reason === "not-now") return { group: "later", mark: "later", words: task.wakeAt ? "Snoozed" : "Not now", note: task.wakeAt ? `until ${dayAndTime(task.wakeAt, now)}` : `since ${dayAndTime(task.later.at, now)}` };
   if (state === "needs") return { group: "needs", mark: "ask", words: [said.words, said.note].filter(Boolean).join(" · "), note: "" };
   if (task.later) return { group: "waiting", mark: "waiting", ...said };
   const live = state === "working" || running.length > 0;

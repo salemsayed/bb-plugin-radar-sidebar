@@ -1,5 +1,6 @@
 export interface AskStripEntry {
   key: string;
+  questionId?: string;
   threadId: string;
   messageSeq?: number;
   question: string;

@@ -7,7 +7,7 @@ export const IN_PANEL_TAG = "radar:question-in-panel";
 export const questionSchema = z.object({
   id: z.string(), bot: z.string().nullable(), source: z.string(), state: z.enum(["open", "later"]), threadId: z.string(), askedAt: z.number(), question: z.string(),
   taskId: z.string().optional(), deskId: z.string().optional(), needId: z.string().optional(), interactionId: z.string().optional(), messageSeq: z.number().optional(),
-  laterAt: z.number().optional(), options: z.array(z.string()).optional(), recommend: z.string().optional(),
+  wakeAt: z.number().optional(), laterAt: z.number().optional(), options: z.array(z.string()).optional(), recommend: z.string().optional(),
 });
 export type Question = z.infer<typeof questionSchema>;
 
@@ -34,6 +34,7 @@ export function questionRow(q: Question, observedAt: number) {
   const options = q.options ?? [];
   return {
     id: rowId(q), bot: q.bot ?? "", title: q.question, displayState: q.state === "later" ? "waiting" as const : "needs" as const, line: q.question, waitFor: "you",
+    ...(q.state === "later" && q.wakeAt !== undefined ? { wakeAt: q.wakeAt } : {}),
     ageMs: Math.max(0, observedAt - q.askedAt), conversationThreadId: null,
     needs: { questionId: q.id, threadId: q.threadId, interactionId: q.interactionId ?? "", question: q.question, askedAt: q.askedAt,
       ...(q.messageSeq !== undefined ? { messageSeq: q.messageSeq } : {}), ...(options.length ? { options } : {}),

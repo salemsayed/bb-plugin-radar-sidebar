@@ -63,7 +63,9 @@ export function answerBinding(key: string): { provider: "task" | "question"; id:
 }
 
 export function answerDraft(text: string, threadId: string, ask: AskStripEntry | null = currentAskStrip()): ComposerDraftReplacement {
-  const bound = ask?.threadId === threadId ? answerBinding(ask.key) : null;
+  const bound = ask?.threadId === threadId
+    ? ask.questionId?.startsWith("q_") && !ask.key.startsWith("ask:need_") ? { provider: "question", id: ask.questionId } : answerBinding(ask.key)
+    : null;
   if (!bound || !ask) return { text, mentions: [] };
   const named = (ask.title || (bound.provider === "task" ? "Task" : "Question")).trim();
   const label = named.length > CHIP_LABEL ? `${named.slice(0, CHIP_LABEL - 1).trimEnd()}\u2026` : named;
