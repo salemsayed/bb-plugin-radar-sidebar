@@ -108,3 +108,4 @@
 .panel-quiet { margin: 20px 15px 4px; font-size: 13.5px; line-height: 1.5; color: var(--muted-foreground); }
 
 @media (pointer: coarse) { .dispatch-panel button.panel-link { min-height: 44px; } .dispatch-panel button.panel-worker { min-height: 44px; } }
+.panel-stale { flex: none; margin: -4px 14px 12px; }

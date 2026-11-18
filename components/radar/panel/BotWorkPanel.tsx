@@ -13,6 +13,8 @@ import { useThreadClaims } from "../useThreadClaims";
 import type { OriginalOf } from "../workText";
 import { DeskAskCard, TaskAskCard, type Navigate, type Park } from "./AskCard";
 import { DoneSection } from "./DoneSection";
+import type { StaleNote } from "../NeedsSummary";
+import { StaleLine } from "../StaleLine";
 import { panelModel, panelTally, type WorkItem } from "./panelModel";
 import { GROUP_TITLE, type Group } from "./status";
 import { StatusMark } from "./StatusMark";
@@ -56,8 +58,8 @@ function Section({ group, title, aside, children }: { group: Group | "yours"; ti
   </section>;
 }
 
-export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
-  bot: BotTasksBot; anchor?: PanelAnchor; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
+  bot: BotTasksBot; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: Navigate; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -138,6 +140,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
       </header>
       {tally.length ? <p className="panel-tally">{tally.map(part => <button key={part.group} type="button" className="panel-tally-part" data-group={part.group} title={`Jump to ${GROUP_TITLE[part.group]}`} onClick={() => jump(part.group)}><StatusMark mark={TALLY_MARK[part.group]} /><b>{part.count}</b> {part.label}</button>)}</p>
         : <p className="panel-tally panel-tally-quiet">{model.chatting ? "Replying in chat" : "Nothing open"}</p>}
+      {stale ? <StaleLine stale={stale} className="panel-stale" /> : null}
       <nav className="dispatch-panel-actions" aria-label={`${bot.name} actions`}>
         {activeThreadId === bot.coordinatorThreadId ? null : <button className="dispatch-chat-pill" onClick={() => onNavigate(bot.coordinatorThreadId)}><Icon name="MessageSquare" aria-hidden="true" />Chat</button>}
         <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>

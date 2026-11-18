@@ -90,6 +90,6 @@ export function useBotTasks(enabled: boolean, bot?: string): BotTasksState {
   return useSyncExternalStore(enabled ? tasks.subscribe : idleSubscribe, enabled ? tasks.get : idleState);
 }
 
-export function refreshBotTasks(): Promise<void> {
-  return fleet.refresh();
+export function refreshBotTasks(bot?: string): Promise<void> {
+  return readFor(bot).refresh();
 }

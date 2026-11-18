@@ -6,14 +6,16 @@ import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useMemo, useState, useRef, type CSSProperties, type ReactNode } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
-import { useBotTasks } from "./useBotTasks";
+import { refreshBotTasks, useBotTasks } from "./useBotTasks";
+import { StaleLine } from "./StaleLine";
+import { asOf } from "./BotsView";
 import { applyNotNow, useNotNow } from "@/lib/notNow";
 import { useBotWorkers } from "./useDispatchWorkers";
 import { ago } from "./elapsed";
 import { workerNames } from "./workText";
 import { StageFace } from "./StageFace";
 import { awaitedPerson, rowLook, stageText, stageTitle, taskAsk, waitLine } from "./stage";
-import { boxAnswers, isRecommended, needItems, oneForm, type NeedItem } from "./NeedsSummary";
+import { boxAnswers, isRecommended, needItems, oneForm, type NeedItem, type StaleNote } from "./NeedsSummary";
 import { AnswerLabel, answerName } from "./AnswerLabel";
 import { answerRow } from "./answerRow";
 import { requestFill } from "@/lib/composerFill";
@@ -39,11 +41,14 @@ export function BotPanelTab({ threadId }: { threadId: string }) {
   const key = useBotRoster(true).find(bot => bot.current === threadId)?.key;
   const { data: raw, status } = useBotTasks(!!key, key);
   const later = useNotNow();
+  const now = useNow();
+  const [retrying, setRetrying] = useState(false);
   const data = raw ? applyNotNow(raw, later) : raw;
   const bot = data?.bots.find(b => b.coordinatorThreadId === threadId);
   if (key && !data) return <p className="bot-panel-empty">{status === "loading" ? "Loading bot work…" : "Bot work is unavailable."}</p>;
   if (!bot) return <p className="bot-panel-empty">This chat is not a bot's.</p>;
-  return <BotPanel key={bot.key} bot={bot} here={threadId} />;
+  const stale = status === "error" && data ? { asOf: asOf(data.observedAt, now), retrying, onRetry: () => { setRetrying(true); void refreshBotTasks(key).finally(() => setRetrying(false)); } } : null;
+  return <BotPanel key={bot.key} bot={bot} here={threadId} stale={stale} />;
 }
 
 function statusWords(look: ReturnType<typeof rowLook>): string {
@@ -111,7 +116,7 @@ function Row({ title, meta, detail, impact, target, here, done, live, ask, after
   </div>;
 }
 
-function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
+function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale: StaleNote | null }) {
   const now = useNow();
   const claims = useThreadClaims();
   const navigate = useBbNavigate();
@@ -167,6 +172,7 @@ function BotPanel({ bot, here }: { bot: BotTasksBot; here: string }) {
       </div>
     </header>
     <div className="bot-panel-body">
+      {stale ? <StaleLine stale={stale} className="bot-panel-stale" /> : null}
       {asks.length ? <section aria-label="Needs you">
         <h3>Needs you</h3>
         <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={t.needs?.askedAt !== undefined ? `${stageTitle(t.title)} \u00b7 asked ${ago(t.needs.askedAt, now)}` : stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} after={answersFor(t)} />)}</div>
