@@ -133,7 +133,7 @@ function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[
   const bots = data.bots.map(bot => {
     const desks = bot.desks.map(desk => {
       const q = data.questions.find(q => q.bot === bot.key && q.deskId === desk.id);
-      return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}), ...(deskDraft(q) ?? {}) } } : desk;
+      return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.messageSeq !== undefined ? { messageSeq: q.messageSeq } : {}), ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}), ...(deskDraft(q) ?? {}) } } : desk;
     });
     const rows = data.questions.filter(q => q.bot === bot.key && isOwnQuestion(q)).flatMap(q => {
       const parsed = taskSchema.safeParse(questionRow(q, data.observedAt));

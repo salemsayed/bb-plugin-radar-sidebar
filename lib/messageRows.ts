@@ -61,8 +61,8 @@ export function messageRows(threadId?: string, root: ParentNode = document) {
   return Array.from(root.querySelectorAll<HTMLElement>(ROWS)).filter(el => isMessage(read(el), threadId));
 }
 
-export function messageRowsWithSeq(seq: number) {
-  return Array.from(document.querySelectorAll<HTMLElement>(ROWS)).filter(el => read(el).seq === seq);
+export function messageRowsWithSeq(seq: number, threadId?: string) {
+  return Array.from(document.querySelectorAll<HTMLElement>(ROWS)).filter(el => { const info = read(el); return info.seq === seq && isMessage(info, threadId); });
 }
 
 export function closestMessageRow(node: Element, threadId?: string) {

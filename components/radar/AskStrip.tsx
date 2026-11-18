@@ -25,7 +25,7 @@ function flat(text: string): string {
 
 function chatOffers(entry: AskStripEntry): boolean {
   if (entry.messageSeq === undefined || !entry.options.length) return false;
-  const shown = askCardAnswers(entry.messageSeq);
+  const shown = askCardAnswers(entry.messageSeq, entry.threadId);
   if (!shown?.length) return false;
   const wanted = entry.options.map(option => flat(option).slice(0, 14));
   return shown.some(text => wanted.some(head => head && flat(text).startsWith(head)));
@@ -90,7 +90,7 @@ export function AskStrip() {
       const offers = chatOffers(entry);
       if (offers !== lastOffer) { lastOffer = offers; offerSince = Date.now(); }
       setOffered(offers);
-      const landed = entry.messageSeq === undefined || askMessageShown(entry.messageSeq);
+      const landed = entry.messageSeq === undefined || askMessageShown(entry.messageSeq, entry.threadId);
       if (!shown && (Date.now() - armed > SHOW_BY_MS || landed && Date.now() - offerSince >= SETTLE_MS)) shown = true;
       setReady(shown);
       setNow(clockNow());

@@ -43,7 +43,7 @@ function Fact({ label, text }: { label: string; text: string }) {
   return <p className="panel-fact" dir="auto"><span>{label}</span><Isolated text={text} /></p>;
 }
 
-export function TaskDetails({ item, context, onOpen }: { item: TaskItem; context: DetailContext; onOpen: (threadId: string) => void }) {
+export function TaskDetails({ item, context, onOpen }: { item: TaskItem; context: DetailContext; onOpen: (threadId: string, messageSeq?: number) => void }) {
   const detail = taskDetail(item, context);
   const { task, attempts } = item;
   const elsewhere = !isClosed(task.displayState) && task.conversationThreadId && !attempts.some(attempt => attempt.threadId === task.conversationThreadId) ? task.conversationThreadId : null;
@@ -58,7 +58,7 @@ export function TaskDetails({ item, context, onOpen }: { item: TaskItem; context
     {detail.goal ? <Fact label="Goal" text={detail.goal} /> : null}
     {attempts.length ? <WorkerList attempts={attempts} now={context.now} onOpen={onOpen} /> : null}
     <div className="panel-links">
-      {task.ask ? <button type="button" className="panel-link" onClick={() => onOpen(task.ask!.ref.threadId)}>{detail.ask?.excerpt ? "Read the whole message in chat" : "Open where you asked"}</button> : null}
+      {task.ask ? <button type="button" className="panel-link" onClick={() => onOpen(task.ask!.ref.threadId, task.ask!.ref.seq)}>{detail.ask?.excerpt ? "Read the whole message in chat" : "Open where you asked"}</button> : null}
       {elsewhere ? <button type="button" className="panel-link" onClick={() => onOpen(elsewhere)}>Open its thread</button> : null}
     </div>
   </>;

@@ -12,9 +12,9 @@ const MESSAGE_TOOLS = /^(?:Copy message|Remind me|Reply in side chat|Message act
 
 let running: { cancel: () => void } | null = null;
 
-function message(seq: number): HTMLElement | null {
+function message(seq: number, threadId: string): HTMLElement | null {
   const wide = innerWidth >= 500;
-  return messageRowsWithSeq(seq).find(node => {
+  return messageRowsWithSeq(seq, threadId).find(node => {
     const box = node.getBoundingClientRect();
     return box.height > 0 && (!wide || !node.closest(".radar-list-shell, [data-testid=\"nav-rail-sidebar-body\"]"));
   }) ?? null;
@@ -100,17 +100,17 @@ export function stripAnchor(): { parent: HTMLElement; before: HTMLElement } | nu
   return before ? { parent: column, before } : null;
 }
 
-export function askMessageShown(seq: number): boolean {
-  return message(seq) !== null;
+export function askMessageShown(seq: number, threadId: string): boolean {
+  return message(seq, threadId) !== null;
 }
 
-export function askCardAnswers(seq: number): string[] | null {
-  const node = message(seq);
+export function askCardAnswers(seq: number, threadId: string): string[] | null {
+  const node = message(seq, threadId);
   if (!node) return null;
   return Array.from(node.querySelectorAll<HTMLElement>("button")).filter(button => button.getBoundingClientRect().height > 0).map(label).filter(text => text && !CARD_FOOT.test(text) && !MESSAGE_TOOLS.test(text));
 }
 
-export function settleAskInView(seq: number): void {
+export function settleAskInView(seq: number, threadId: string): void {
   running?.cancel();
   const started = Date.now();
   let lastTop: number | null = null;
@@ -125,8 +125,8 @@ export function settleAskInView(seq: number): void {
   window.addEventListener("keydown", stop, { once: true });
   const tick = () => {
     if (cancelled) return;
-    if (Date.now() - started > WAIT_MS || !new RegExp(`(?:^#|&)msg=${seq}(?:&|$)`).test(location.hash) && moves > 0) { stop(); return; }
-    const node = message(seq);
+    if (!location.pathname.replace(/\/$/, "").endsWith(`/threads/${threadId}`) || Date.now() - started > WAIT_MS || !new RegExp(`(?:^#|&)msg=${seq}(?:&|$)`).test(location.hash)) { stop(); return; }
+    const node = message(seq, threadId);
     const viewport = node?.closest<HTMLElement>(VIEWPORT) ?? null;
     if (!node || !viewport) { timer = window.setTimeout(tick, STEP_MS); return; }
     const top = Math.round(node.getBoundingClientRect().top);

@@ -28,7 +28,7 @@ export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { i
     const threadId = item.kind === "desk" ? item.desk.threadId : item.threadId;
     const parked = item.kind === "desk" && item.desk.question?.state === "later";
     return <li className="panel-row" data-item={item.key} data-mark={item.status.mark} data-acts={parked ? "park" : undefined}>
-      <button type="button" className="panel-row-main" disabled={!threadId} aria-current={current ? "page" : undefined} aria-label={`${spoken}. Open its chat`} onClick={() => { if (threadId) onNavigate(threadId); }}>
+      <button type="button" className="panel-row-main" disabled={!threadId} aria-current={current ? "page" : undefined} aria-label={`${spoken}. Open its chat`} onClick={() => { if (threadId) onNavigate(threadId, item.kind === "desk" ? item.desk.question?.messageSeq : undefined); }}>
         <StatusMark mark={item.status.mark} /><Copy item={item} />
         {threadId && !parked ? <Icon name="ChevronRight" className="panel-row-go" aria-hidden="true" /> : null}
       </button>
@@ -40,7 +40,8 @@ export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { i
   const question = isQuestionRow(task);
   const outside = question && questionInPanel(task);
   const proceed = () => {
-    if (question) { const place = askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
+    if (task.later?.threadId) { onNavigate(task.later.threadId, task.later.messageSeq); return; }
+    if (question || task.needs) { const place = askPlace(task, bot.coordinatorThreadId); onNavigate(place.threadId, place.messageSeq); return; }
     window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: title.slice(0, 80) } }));
     onNavigate(bot.coordinatorThreadId);
   };
@@ -57,7 +58,7 @@ export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { i
     {open ? <div className="panel-details" id={detailsId}>
       <TaskDetails item={item} context={context} onOpen={onNavigate} />
       {closed ? <div className="panel-links"><button type="button" className="panel-link" onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>Open the chat where this was done</button></div> : null}
-      {parked ? <div className="panel-links"><button type="button" className="panel-link" onClick={proceed}>Continue in chat</button></div> : null}
+      {parked ? <div className="panel-links"><button type="button" className="panel-link" onClick={proceed}>{task.later?.messageSeq !== undefined || task.needs?.messageSeq !== undefined ? "Open question in chat" : "Continue in chat"}</button></div> : null}
     </div> : null}
   </li>;
 }

@@ -4,6 +4,7 @@ import { Icon } from "@/components/ui/icon";
 import { useThreadClaims } from "./useThreadClaims";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
 import { useEffect, useMemo, useState, useRef, type CSSProperties, type ReactNode } from "react";
+import { showMessage } from "@/lib/messageLink";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { isClosed, isSameLocalDay, type Attempt, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { refreshBotTasks, useBotTasks } from "./useBotTasks";
@@ -90,12 +91,12 @@ function busyWords(task: BotTaskRow, botName: string): string {
   return stageText(task.line) || "Stuck";
 }
 
-function Row({ title, meta, detail, impact, target, here, done, live, ask, after, onOpen, onContinue }: {
-  title: string; meta: string; detail?: string; impact?: string; target: string | null; here: string; done?: boolean; live?: boolean; ask?: boolean; after?: ReactNode;
-  onOpen: (id: string) => void; onContinue?: () => void;
+function Row({ title, meta, detail, impact, target, messageSeq, here, done, live, ask, after, onOpen, onContinue }: {
+  title: string; meta: string; detail?: string; impact?: string; target: string | null; messageSeq?: number; here: string; done?: boolean; live?: boolean; ask?: boolean; after?: ReactNode;
+  onOpen: (id: string, messageSeq?: number) => void; onContinue?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const opens = !!target && target !== here;
+  const opens = !!target && (target !== here || messageSeq !== undefined);
   const more = !opens && (!!detail || !!onContinue);
   const cls = ["bot-item", done ? "bot-item-done" : "", ask ? "bot-item-ask" : "", opens ? "bot-item-opens" : ""].filter(Boolean).join(" ");
   const body = <>
@@ -107,7 +108,7 @@ function Row({ title, meta, detail, impact, target, here, done, live, ask, after
   if (!opens && !more) return after ? <div className="bot-item-wrap" role="listitem" data-ask={ask || undefined}><div className={cls}>{body}</div>{after}</div> : <div className={cls} role="listitem">{body}</div>;
   return <div className="bot-item-wrap" role="listitem" data-open={open || undefined} data-ask={ask && after ? "" : undefined}>
     <button type="button" className={cls} aria-label={`${title}.${impact ? ` ${impact}` : ""} ${meta}.${opens ? " Open its chat" : open ? " Hide details" : " Show details"}`} aria-expanded={opens ? undefined : open}
-      onClick={() => opens ? onOpen(target!) : setOpen(value => !value)}>{body}</button>
+      onClick={() => opens ? onOpen(target!, messageSeq) : setOpen(value => !value)}>{body}</button>
     {after}
     {open ? <div className="bot-item-more">
       {detail ? <p dir="auto">{detail}</p> : null}
@@ -140,7 +141,10 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
   const awaited = [...new Set(waiting.map(awaitedPerson))];
   const headerWords = statusWords(look) === "Waiting" && awaited.length === 1 && awaited[0] && waiting.every(t => t.waitFor === "someone else") ? `Waiting on ${awaited[0]}` : statusWords(look);
   const earlier = closed.filter(t => !isSameLocalDay(t.completedAt!, now) && now - t.completedAt! < 7 * 86_400_000).slice(0, Math.max(3, 6 - done.length));
-  const go = (id: string) => navigate.toThread(id);
+  const go = (id: string, messageSeq?: number) => {
+    if (id !== here) navigate.toThread(id);
+    if (messageSeq !== undefined) showMessage(id, messageSeq);
+  };
   const shortName = shortBotName(bot.name);
   const cont = (task: BotTaskRow) => () => window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: stageTitle(task.title).slice(0, 80) } }));
   const lineOf = (task: BotTaskRow) => {
@@ -152,7 +156,7 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
   const answer = (item: NeedItem, label: string) => {
     armAskStrip({ key: item.id, questionId: item.notNowKey, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
     requestFill(item.threadId, label, boxAnswers(item), true, item.id);
-    if (item.threadId !== here) go(item.threadId);
+    go(item.threadId, item.messageSeq);
   };
   const answersFor = (task: BotTaskRow) => {
     const item = askItems.get(`ask:${task.id}`);
@@ -175,7 +179,7 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
       {stale ? <StaleLine stale={stale} className="bot-panel-stale" /> : null}
       {asks.length ? <section aria-label="Needs you">
         <h3>Needs you</h3>
-        <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={t.needs?.askedAt !== undefined ? `${stageTitle(t.title)} \u00b7 asked ${ago(t.needs.askedAt, now)}` : stageTitle(t.title)} impact={t.needs?.consequence ?? ""} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} after={answersFor(t)} />)}</div>
+        <div role="list">{asks.map(t => <Row key={t.id} ask title={oneForm(taskAsk(t), stageTitle(t.title), t.needs?.options?.length ?? 0)} meta={t.needs?.askedAt !== undefined ? `${stageTitle(t.title)} \u00b7 asked ${ago(t.needs.askedAt, now)}` : stageTitle(t.title)} impact={t.needs?.consequence ?? ""} messageSeq={t.needs?.messageSeq} target={t.needs?.threadId ?? t.conversationThreadId ?? null} here={here} onOpen={go} after={answersFor(t)} />)}</div>
       </section> : null}
       <section aria-label="Now">
         <h3>Now</h3>

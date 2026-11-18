@@ -41,7 +41,7 @@ function Pill({ label, hint, name, onClick }: { label: string; hint: string; nam
 export function ParkPill({ parked, label, itemKey, hint, onPark }: { parked: boolean; label: string; itemKey: string; hint: string; onPark: Park }) {
   return parked
     ? <Pill label="Bring back" hint="Put it back in Needs you" name={`Bring back: ${label}`} onClick={from => onPark(from, () => bringBack(itemKey, label))} />
-    : <Pill label="Not now" hint={hint} name={`Not now: ${label}`} onClick={from => onPark(from, () => notNow(itemKey, label))} />;
+    : <Pill label="Later" hint={hint} name={`Move to Later: ${label}`} onClick={from => onPark(from, () => notNow(itemKey, label))} />;
 }
 
 export function ContinuePill({ label = "Continue", name, hint, primary = false, onClick }: { label?: string; name: string; hint: string; primary?: boolean; onClick: () => void }) {
@@ -95,7 +95,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
       <div className="panel-ask-foot">
         {isQuestionRow(task) ? <span /> : <button type="button" className="panel-more" aria-expanded={open} onClick={() => setOpen(value => !value)}>Details<Icon name="ChevronDown" aria-hidden="true" /></button>}
         <span className="panel-ask-actions">
-          <ParkPill parked={false} label={label} itemKey={task.needs?.questionId ?? ""} hint="Not now: move to Later until the bot asks again" onPark={onPark} />
+          <ParkPill parked={false} label={label} itemKey={task.needs?.questionId ?? ""} hint="Move this question to Later" onPark={onPark} />
           <ContinuePill primary label={reply ? "Reply in chat" : "Continue"} name={reply ? `Reply to ${title} in chat` : `Continue ${title}`} hint={reply ? "Write a reply to this question" : "Continue in the bot's chat"} onClick={proceed} />
         </span>
       </div>
@@ -135,7 +135,7 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
   const showFull = !long || expanded === draftKey;
   const options = draft ? (desk.question?.options ?? []).slice(0, ANSWERS_SHOWN) : [];
   const labels = options.map(option => plainNote(option));
-  const open = () => { if (desk.threadId) onNavigate(desk.threadId, draft ? messageSeq : undefined); };
+  const open = () => { if (desk.threadId) onNavigate(desk.threadId, changed ? undefined : messageSeq); };
   const answer = async (label: string) => {
     if (!desk.threadId || checking || !showFull) return;
     setChecking(true);
@@ -154,7 +154,7 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
   return <AskShell itemKey={item.key} current={current} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
     question={<><span className="panel-ask-fit" dir="auto"><Isolated text={question} /></span>{about ? <span className="panel-ask-about" dir="auto"><Isolated text={about} /></span> : null}</>}
     foot={<div className="panel-ask-foot"><span /><span className="panel-ask-actions">
-      {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Not now: move to Later until the desk changes" onPark={onPark} /> : null}
+      {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Move this desk to Later until it changes" onPark={onPark} /> : null}
       {desk.threadId ? <ContinuePill primary={!labels.length} name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
     </span></div>}>
     {readError ? <p role="status">Couldn’t verify this draft. Try again.</p> : null}

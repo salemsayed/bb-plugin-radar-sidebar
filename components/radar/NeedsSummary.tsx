@@ -140,9 +140,8 @@ export function oldestFirst<T extends { at?: number }>(items: readonly T[]): T[]
 export function askPlace(task: Pick<BotTasksData["bots"][number]["tasks"][number], "needs" | "conversationThreadId">, coordinatorThreadId: string): { threadId: string; messageSeq?: number } {
   const needs = task.needs;
   if (!needs) return { threadId: task.conversationThreadId ?? coordinatorThreadId };
-  if (needs.interactionId) return { threadId: needs.threadId };
   if (needs.messageSeq !== undefined) return { threadId: needs.threadId, messageSeq: needs.messageSeq };
-  return { threadId: coordinatorThreadId };
+  return { threadId: needs.threadId };
 }
 
 export function askTime(task: Pick<BotTasksData["bots"][number]["tasks"][number], "needs" | "observedAt" | "ageMs">): { at?: number; since?: "asked" | "open" } {
@@ -679,7 +678,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
     : ageForms.length ? <AgeFit className="stage-needs-age" forms={ageForms} /> : null;
   const hint = lined ? boxAnswers(item).length ? "Show its answers here" : "Show it here" : folded ? "Show its answers" : item.inPanel ? "Show the question" : answers.length ? "Open the chat" : item.options?.length ? "Open: its answers show above the message box" : "Open";
   const parkTool = canPark ? <button type="button" className="stage-needs-later radar-not-now" tabIndex={inside ? 0 : -1} aria-disabled={offline || undefined}
-      aria-label={offline ? `Not now is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Not now: ${notNowLabel(item)}`} title={offline ? "Not now is unavailable while the bots can't be reached" : "Not now: move to Later until the bot asks again"}
+      aria-label={offline ? `Later is unavailable while the bots can't be reached: ${notNowLabel(item)}` : `Move to Later: ${notNowLabel(item)}`} title={offline ? "Later is unavailable while the bots can't be reached" : "Move this question to Later"}
       onPointerDown={event => event.stopPropagation()}
       onClick={event => {
         event.stopPropagation();
@@ -687,8 +686,8 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
         const keyboard = event.detail === 0;
         if (!keyboard) itemRef.current?.focus({ preventScroll: true });
         onNotNow(keyboard);
-      }}><span className="radar-not-now-pill">Not now</span></button>
-    : keepPark ? <span className="stage-needs-later radar-not-now" data-spent="" aria-hidden="true"><span className="radar-not-now-pill">Not now</span></span> : null;
+      }}><span className="radar-not-now-pill">Later</span></button>
+    : keepPark ? <span className="stage-needs-later radar-not-now" data-spent="" aria-hidden="true"><span className="radar-not-now-pill">Later</span></span> : null;
   const threadMenu = item.kind === "thread" && item.thread ? <ThreadActionsMenu thread={threadActionTarget(item.thread)} side="bottom" align="end" sideOffset={4}
       trigger={props => <button {...props} type="button" className="stage-needs-menu" tabIndex={inside ? 0 : -1} aria-label={menuLabel} title="Actions"
         onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
@@ -708,7 +707,7 @@ function NeedRow({ item, bot, now, current, offline, outcome, lined = false, lin
     onKeyDown={event => sideKeys(event, () => showMenu(event.currentTarget))}>
     <button type="button" ref={itemRef} className="stage-needs-item" data-lined={lined || undefined} data-kind={item.kind} data-state={item.state} title={`${item.botName}: ${what}`}
       aria-current={current ? "page" : undefined}
-      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow for Not now" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
+      aria-label={`${item.botName}: ${what.replace(/[.\s]+$/, "")}${item.consequence && !item.state ? `. ${item.consequence.replace(/[.\s]+$/, "")}` : ""}${item.state === "gone" ? ", done" : item.state === "later" ? ", moved to Later" : sentAs ? `, you sent ${sentAs}` : ""}${asked ? `, ${asked}` : ""}. ${hint}${answers.length ? `. Answers: ${answers.join(" or ")}` : ""}${canPark ? ". Right arrow to move to Later" : ""}`} aria-keyshortcuts={canPark ? "ArrowRight" : undefined}
       aria-haspopup={item.inPanel && !folded && !lined ? "dialog" : undefined} aria-expanded={folded || lined ? false : undefined}
       onClick={event => { if (folded || lined) onUnfold?.(); else if (item.inPanel) onMenu(item, event.currentTarget.closest("li") ?? event.currentTarget); else onOpen(item.threadId, item.messageSeq, item); }}>
       {bot ? <BotTaskFace bot={bot} size={16} /> : <Icon name="MessageSquare" aria-hidden="true" className="stage-needs-thread-icon" />}

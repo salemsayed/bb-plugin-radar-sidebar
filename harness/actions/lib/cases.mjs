@@ -24,7 +24,7 @@ function boundTo(message, itemId) {
 }
 
 async function navigatedTo(driver, threadId, msg) {
-  const at = await poll(() => { const here = driver.location(); return here.thread === threadId ? here : null; }, 15_000);
+  const at = await poll(() => { const here = driver.location(); return here.thread === threadId && (msg === undefined || here.msg === msg) ? here : null; }, 15_000);
   const here = at ?? driver.location();
   return [check(`opens ${threadId}${msg ? ` at message ${msg}` : ""}`, here.thread === threadId && (msg === undefined || here.msg === msg), here.path)];
 }
@@ -172,10 +172,21 @@ export const CASES = [
     },
   },
   {
-    scenario: "buttons", id: "repost", action: "After the answer, the bot posts the same card again", expect: "the question is back in Needs you with its buttons, without a reload",
+    scenario: "buttons", id: "repost", action: "After the answer, the bot posts the same card again", expect: "core consumes the repost and preserves the answer, including after a reload",
+    async run({ driver, bot, world, iso }) {
+      await driver.openPanel(bot);
+      const seq = await bot.say(world.drumsCard);
+      const occurrence = await poll(() => iso.coreQuery("SELECT q.id,q.state FROM needs_you_occurrences o JOIN needs_you_questions q ON q.id=o.question_id WHERE o.thread_id=? AND o.seq=?", bot.coordinator, seq)[0]);
+      const original = iso.coreQuery("SELECT id FROM needs_you_questions WHERE thread_id=? AND ask_seq=? AND task_id=?", bot.coordinator, world.drumsAsk, world.drums)[0];
+      await driver.reload();
+      return [check("same answered question", !!original && occurrence?.id === original.id && occurrence.state === "closed", occurrence), await outOfNeeds(driver, bot, `task:${world.drums}`, "after reload")];
+    },
+  },
+  {
+    scenario: "buttons", id: "revised", action: "Post the same choices with a changed price", expect: "the revised proposal opens a fresh decision",
     async run({ driver, bot, world }) {
       await driver.openPanel(bot);
-      world.drumsAsk = await bot.say(world.drumsCard);
+      world.drumsAsk = await bot.say(world.drumsCard.replace("prices are ready", "prices rose by 10 percent"));
       const row = await coreRow(bot, world.drums, r => r.displayState === "needs");
       const item = await poll(async () => { const found = await driver.where(`task:${world.drums}`); return found?.group === "needs" ? found : null; }, 20_000, 1_000) ?? await driver.where(`task:${world.drums}`);
       return [check("core shows it as a question again", row?.displayState === "needs", row ? `${row.displayState} · seq ${row.needs?.messageSeq}` : "gone"), check("panel shows it in Needs you", item?.group === "needs" && item.answers.length === 3, item ?? "missing")];
