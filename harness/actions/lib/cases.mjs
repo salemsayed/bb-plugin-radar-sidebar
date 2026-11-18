@@ -123,6 +123,18 @@ async function answeredLeavesNeeds(context, { id, key }) {
 
 export const CASES = [
   {
+    scenario: "buttons", id: "first-tap", views: ["phone"], action: "Tap Details immediately after opening the work panel", expect: "the opening click cannot activate Details, and the first touch inside the sheet opens it",
+    async run({ driver, bot, world }) {
+      await driver.openPanel(bot, { settle: false });
+      const details = driver.item(`task:${world.drums}`).locator(".panel-more");
+      const inherited = await details.evaluate(button => button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 })));
+      const stayedClosed = await details.getAttribute("aria-expanded") === "false";
+      await driver.press(details);
+      const opened = await details.getAttribute("aria-expanded") === "true";
+      return [check("opening click suppressed", !inherited && stayedClosed, { inherited, stayedClosed }), check("first intentional touch opens details", opened, opened)];
+    },
+  },
+  {
     scenario: "buttons", id: "details", action: "Details open, then close, on a question card", expect: "details show under the card, then hide",
     async run({ driver, bot, world }) {
       await driver.openPanel(bot);

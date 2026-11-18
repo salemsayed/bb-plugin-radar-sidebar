@@ -94,7 +94,7 @@ export class Driver {
     return this.page.locator(`.stage-chat[data-rove="${key}"]`).locator("xpath=..");
   }
 
-  async openPanel(bot) {
+  async openPanel(bot, { settle = true } = {}) {
     if (await this.panel().isVisible().catch(() => false)) await this.closePanel();
     await this.rightPanelClosed();
     await this.sidebar(bot.key);
@@ -103,7 +103,7 @@ export class Driver {
     if (this.phone) await this.press(row.locator(".stage-more"));
     else { await row.hover(); await row.locator(".stage-more").click(); }
     await this.panel().waitFor({ state: "visible", timeout: 10_000 });
-    await sleep(this.phone ? 700 : 300);
+    if (settle) await sleep(this.phone ? 700 : 300);
     return this.panel();
   }
 
