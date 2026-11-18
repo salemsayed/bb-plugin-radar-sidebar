@@ -94,11 +94,13 @@ async function press(driver, locator) {
 async function answer(context, { key, text, itemId, threadId, msg }) {
   const { iso, bot, driver } = context;
   await driver.openPanel(bot);
+  const binding = itemId ?? savedQuestion(iso, bot, msg)?.bindId;
+  if (!binding) throw new Error(`No saved question at ${bot.coordinator}#${msg}`);
   const item = driver.item(key);
   const shown = await item.locator(".radar-answer").allInnerTexts();
   const after = iso.lastSeq(bot.coordinator);
   await press(driver, item.locator(".radar-answer", { hasText: text.replace(/^.*[?:\u061f]\s+/, "") }).first());
-  return [check("answer buttons", shown.length > 0, shown.map(short)), ...await navigatedTo(driver, threadId ?? bot.coordinator, msg), ...await sentAnswer(context, after, text, itemId)];
+  return [check("answer buttons", shown.length > 0, shown.map(short)), ...await navigatedTo(driver, threadId ?? bot.coordinator, msg), ...await sentAnswer(context, after, text, binding)];
 }
 
 function answerScan(iso, bot, id) {
@@ -163,10 +165,10 @@ export const CASES = [
     },
   },
   {
-    scenario: "buttons", id: "answer", action: "Press the answer \"15 percent\"", expect: "chat opens at the card, Salem's answer lands bound to the task, core marks it answered, the card leaves Needs you (and stays out after reload)",
+    scenario: "buttons", id: "answer", action: "Press the answer \"15 percent\"", expect: "chat opens at the card, Salem's answer lands bound to the saved question, core marks it answered, the card leaves Needs you (and stays out after reload)",
     async run(context) {
       const { world } = context;
-      return [...await answer(context, { key: `task:${world.drums}`, text: "Which margin? 15 percent", itemId: `task:${world.drums}`, msg: world.drumsAsk }), ...await answeredLeavesNeeds(context, { id: world.drums, key: `task:${world.drums}` })];
+      return [...await answer(context, { key: `task:${world.drums}`, text: "Which margin? 15 percent", msg: world.drumsAsk }), ...await answeredLeavesNeeds(context, { id: world.drums, key: `task:${world.drums}` })];
     },
   },
   {
@@ -192,10 +194,10 @@ export const CASES = [
     },
   },
   {
-    scenario: "choice", id: "answer", action: "Press the button answer \"Van 2\"", expect: "chat opens at the card, \"Van 2\" lands bound to the task, the card leaves Needs you",
+    scenario: "choice", id: "answer", action: "Press the button answer \"Van 2\"", expect: "chat opens at the card, \"Van 2\" lands bound to the saved question, the card leaves Needs you",
     async run(context) {
       const { world } = context;
-      return [...await answer(context, { key: `task:${world.van}`, text: "Van 2", itemId: `task:${world.van}`, msg: world.vanAsk }), ...await answeredLeavesNeeds(context, { id: world.van, key: `task:${world.van}` })];
+      return [...await answer(context, { key: `task:${world.van}`, text: "Van 2", msg: world.vanAsk }), ...await answeredLeavesNeeds(context, { id: world.van, key: `task:${world.van}` })];
     },
   },
   {
@@ -698,10 +700,10 @@ export const CASES = [
     },
   },
   {
-    scenario: "arabic", id: "answer", action: "Arabic question: press \"١٥٪\"", expect: "\"١٥٪\" lands bound to the task; the card leaves Needs you",
+    scenario: "arabic", id: "answer", action: "Arabic question: press \"١٥٪\"", expect: "\"١٥٪\" lands bound to the saved question; the card leaves Needs you",
     async run(context) {
       const { world } = context;
-      return [...await answer(context, { key: `task:${world.margin}`, text: "١٥٪", itemId: `task:${world.margin}`, msg: world.marginAsk }), ...await answeredLeavesNeeds(context, { id: world.margin, key: `task:${world.margin}` })];
+      return [...await answer(context, { key: `task:${world.margin}`, text: "١٥٪", msg: world.marginAsk }), ...await answeredLeavesNeeds(context, { id: world.margin, key: `task:${world.margin}` })];
     },
   },
   {
