@@ -2,9 +2,9 @@ import { useBotRoster } from "./useBotRoster";
 import type { PluginThreadActionRegistration } from "@get-bb/plugin-sdk/app";
 import { BOT_TAB } from "./BotPanelTab";
 import { isClosed } from "@/lib/botTasks";
-import { useBotTasks } from "./useBotTasks";
+import { useBotSidebar } from "./useBotTasks";
 
-export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof useBotTasks>["data"]> = {
+export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof useBotSidebar>["data"]> = {
   id: "bot-work",
   title: "Bot work",
   icon: "Bot",
@@ -12,7 +12,7 @@ export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof use
   placement: "header",
   useData: ({ threadIds }) => {
     const bots = useBotRoster(true).filter(bot => threadIds.includes(bot.current));
-    return useBotTasks(bots.length > 0, bots.length === 1 ? bots[0]!.key : undefined).data;
+    return useBotSidebar(bots.length > 0).data;
   },
   item: ({ thread, data, experimental_panel }) => {
     const bot = data?.bots.find(bot => bot.coordinatorThreadId === thread.id);

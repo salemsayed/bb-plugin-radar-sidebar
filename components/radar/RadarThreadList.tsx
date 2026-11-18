@@ -65,7 +65,7 @@ import { RadarBulkBar } from "./RadarBulkBar";
 import { problem } from "./listFeedback";
 import { BotsView } from "./BotsView";
 import { BotDeskMenu, BotDeskMenuProvider } from "./BotDeskMenu";
-import { useBotTasks } from "./useBotTasks";
+import { useBotSidebar } from "./useBotTasks";
 import { needRows } from "@/lib/botTasks";
 import { CLOCK_STEP_MS, clockNow } from "./stage";
 
@@ -82,7 +82,7 @@ export function RadarThreadList(props: PluginThreadListProps) {
 function RadarSwitchedList(props: PluginThreadListProps) {
   const { activeThreadId, isCompactViewport, onNavigate: hostOnNavigate } = props;
   const [mode, setMode] = useState<"bots" | "threads">("bots");
-  const tasks = useBotTasks(true);
+  const tasks = useBotSidebar(mode === "bots");
   const sidebar = experimental_useSidebarThreads();
   const unreadChats = useMemo(() => new Set(sidebar.threads.filter(thread => thread.isUnread).map(thread => thread.id)), [sidebar.threads]);
   const actions = useRadarThreadActions();

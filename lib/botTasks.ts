@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { BotTasks, BotTasksOutput, DisplayState, TaskRow } from "./tasks-v2-types";
-import { deskDraft, isOwnQuestion, questionRow, questionSchema, type Question } from "./questionRecords";
+import { QUESTION_TAG, deskDraft, isOwnQuestion, questionRow, questionSchema, type Question } from "./questionRecords";
 
 /**
  * The Bots view's read of orchestrator-mode `bot_tasks` (tasks v2), and the
@@ -111,8 +111,9 @@ const botSchema = z.object({
   color: z.string().optional(),
   faceUrl: z.string().optional(),
   coordinatorThreadId: z.string(),
+  sidebarThreadIds: z.array(z.string()).optional(),
   tasksV2: z.boolean().default(false),
-  summary: z.object({ needs: count, working: count, queued: count, offline: count, waiting: count, done: count, notStarted: count }).partial().default({}),
+  summary: z.object({ needs: count, working: count, queued: count, offline: count, waiting: count, done: count, notStarted: count }).partial().prefault({}),
   // One malformed row must not blank a whole bot: bad rows are dropped one by one.
   tasks: z.array(z.unknown()).default([]).transform(rows => rows.flatMap(row => {
     const parsed = taskSchema.safeParse(row);
@@ -139,7 +140,7 @@ function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[
       const parsed = taskSchema.safeParse(questionRow(q, data.observedAt));
       return parsed.success ? [parsed.data] : [];
     });
-    return { ...bot, desks, tasks: [...rows, ...bot.tasks], unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) };
+    return { ...bot, desks, tasks: [...rows, ...bot.tasks.filter(task => !task.tags.includes(QUESTION_TAG))], unlinked: bot.unlinked.filter(worker => !bot.desks.some(desk => desk.threadId === worker.threadId)) };
   });
   return { ...data, bots };
 }

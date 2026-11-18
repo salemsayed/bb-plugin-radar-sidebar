@@ -53,10 +53,16 @@ function tasksKey(data: BotTasksData): string {
   });
 }
 let latestSdk: ReturnType<typeof useSdk> | null = null;
-function tasksRead(bot?: string) {
-  const cacheKey = bot ? `${CACHE_KEY}.${bot}` : CACHE_KEY;
+function tasksRead(bot?: string, sidebar = false) {
+  const cacheKey = sidebar ? "radar.botSidebar.v1" : bot ? `${CACHE_KEY}.${bot}` : CACHE_KEY;
   return createSharedRead<BotTasksData>({
-    load: () => latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: bot ? { bot } : {}, outputSchema: botTasksSchema }),
+    load: async () => {
+      if (sidebar) {
+        try { return await latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_sidebar", input: {}, outputSchema: botTasksSchema }); }
+        catch (error) { if (!/unknown.*method|has no rpc method|method.*not found/i.test(String(error))) throw error; }
+      }
+      return latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: bot ? { bot } : {}, outputSchema: botTasksSchema });
+    },
     readCache: () => readCache(cacheKey),
     writeCache: data => writeCache(cacheKey, data),
     absent: isPluginAbsentError,
@@ -66,6 +72,7 @@ function tasksRead(bot?: string) {
   });
 }
 const fleet = tasksRead();
+const sidebar = tasksRead(undefined, true);
 const scoped = new Map<string, ReturnType<typeof tasksRead>>();
 function readFor(bot?: string) {
   if (!bot) return fleet;
@@ -84,7 +91,16 @@ const idleSubscribe = () => () => {};
  * "missing" so the view can say so instead of showing an empty list.
  */
 export function useBotTasks(enabled: boolean, bot?: string): BotTasksState {
-  const tasks = readFor(bot);
+  return useTasksRead(enabled, readFor(bot));
+}
+
+export function useBotSidebar(enabled: boolean): BotTasksState {
+  return useTasksRead(enabled, sidebar);
+}
+
+export const refreshBotSidebar = () => sidebar.refresh();
+
+function useTasksRead(enabled: boolean, tasks: typeof fleet): BotTasksState {
   latestSdk = useSdk();
   useBotsPush(enabled, needsChanged);
   return useSyncExternalStore(enabled ? tasks.subscribe : idleSubscribe, enabled ? tasks.get : idleState);

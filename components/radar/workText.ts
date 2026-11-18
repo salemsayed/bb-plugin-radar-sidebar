@@ -599,6 +599,11 @@ export function formAnswers(text: string): { subject: string; answers: string; n
   return { subject: form[1]!.trim(), answers: answers.join("; "), ...(last ? { note: last[2]!.trim() } : {}) };
 }
 
+export function hasRelayedQuote(excerpt: string): boolean {
+  const bare = excerpt.replace(ASKER, "");
+  return RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare) || RELAYED_ASKED.test(bare) && /^["\u201c'\u2018]/.test(bare.replace(RELAYED_ASKED, ""));
+}
+
 export function askParts(ask: { excerpt: string; full?: string; label: string; at?: number; ref?: { threadId: string } }, now: number, askerOf?: (threadId: string) => string | undefined, own?: string, originalOf?: OriginalOf): AskParts {
   const form = !/^Bot request/.test(ask.label) ? formAnswers((ask.full ?? ask.excerpt).replace(ASKER, "")) : null;
   if (form?.note) {
@@ -617,7 +622,7 @@ export function askParts(ask: { excerpt: string; full?: string; label: string; a
   const asker = named && named !== own ? named : named ? "Its own chat" : found?.[1] ? "Another chat" : undefined;
   const bare = ask.excerpt.replace(ASKER, "");
   const paraphrase = RELAYED_ASKED.test(bare) && !/^["\u201c'\u2018]/.test(bare.replace(RELAYED_ASKED, ""));
-  const relayed = !paraphrase && (RELAYED_WORDS.test(bare) || RELAYED_ASIDE.test(bare) || RELAYED_ASKED.test(bare));
+  const relayed = hasRelayedQuote(ask.excerpt);
   const mine = relayed || label !== "Bot request";
   const rawFull = (ask.full ?? ask.excerpt).replace(ASKER, "");
   const told = askKind(bare);

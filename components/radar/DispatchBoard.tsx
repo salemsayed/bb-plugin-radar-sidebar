@@ -8,7 +8,7 @@ import { flushSync } from "react-dom";
 import { needsYou, orderedBots, shortModel, type BotTasksData, type BotTasksBot } from "@/lib/botTasks";
 import { asOf, useDeskPress, type DeskMenu } from "./BotsView";
 import { botStyle } from "./bots";
-import { type OriginalOf } from "./workText";
+import { hasRelayedQuote, type OriginalOf } from "./workText";
 import { keepHyphens, sentenceEnd } from "./displayText";
 import { Icon } from "@/components/ui/icon";
 import { useBotWorkers, type WorkerSnapshot } from "./useDispatchWorkers";
@@ -17,12 +17,13 @@ import { useGrowSlot, useTouchHold, useWatching } from "./useGrowSlot";
 import { CollapsedBots } from "./CollapsedBots";
 import { useRoving } from "./useRoving";
 import { StageFace } from "./StageFace";
+import { useRequestOriginals } from "./useRequestOriginals";
 import { useRailHomeCurrent } from "./useRailHomeCurrent";
 import { needsCount, rowLook, type RowLook } from "./stage";
 import { fitWords } from "./FitLines";
 import { requestFill } from "@/lib/composerFill";
 import { armAskStrip, clearAskStrip, currentAskStrip } from "@/lib/askStrip";
-import { refreshBotTasks, type BotTasksState } from "./useBotTasks";
+import { refreshBotSidebar, refreshBotTasks, useBotTasks, type BotTasksState } from "./useBotTasks";
 import { applyNotNow, notNow, useNotNow } from "@/lib/notNow";
 import { NotNowToastView } from "./NotNowToast";
 
@@ -205,7 +206,7 @@ function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<
 }
 
 function ownerOf(threadId: string, data: BotTasksData, snapshot: WorkerSnapshot, threads: ReadonlyMap<string, PluginSidebarThread>): string | null {
-  const direct = (id: string) => data.bots.find(b => b.coordinatorThreadId === id || b.desks.some(desk => desk.threadId === id)
+  const direct = (id: string) => data.bots.find(b => b.coordinatorThreadId === id || b.sidebarThreadIds?.includes(id) || b.desks.some(desk => desk.threadId === id)
     || b.tasks.some(task => task.conversationThreadId === id || task.needs?.threadId === id || (snapshot.byTask[task.id] ?? []).some(a => a.threadId === id))
     || (snapshot.byBot[b.key] ?? []).some(a => a.threadId === id))?.key;
   let id: string | null | undefined = threadId;
@@ -274,8 +275,16 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   useEffect(() => { if (!later.toast) setPointerIn(value => value && !!root.current?.matches(":hover")); }, [later.toast]);
   const opener = useRef<HTMLElement | null>(null);
   const claims = useThreadClaims();
+  const summaryBot = data.bots.find(b => b.key === sheet);
+  const scoped = useBotTasks(!!summaryBot?.sidebarThreadIds, sheet ?? undefined);
+  const detail = scoped.data && sheet ? applyNotNow(scoped.data, later).bots.find(b => b.key === sheet) : undefined;
+  const bot = detail ?? summaryBot;
+  const awaitingDetail = !!summaryBot?.sidebarThreadIds && !detail;
+  const needsOriginals = !!detail?.tasks.some(task => task.ask && hasRelayedQuote(task.ask.excerpt));
+  const originals = useRequestOriginals(needsOriginals);
+  const sourceBots = scoped.data?.bots ?? data.bots;
   const originalOf = useMemo<OriginalOf>(() => {
-    const yours = data.bots.flatMap(b => b.tasks).flatMap(t => t.ask && /^You asked/.test(t.ask.label) ? [{ threadId: t.ask.ref.threadId, seq: t.ask.ref.seq, text: t.ask.full ?? t.ask.excerpt }] : []);
+    const yours = originals ?? sourceBots.flatMap(b => b.tasks).flatMap(t => t.ask && /^You asked/.test(t.ask.label) ? [{ threadId: t.ask.ref.threadId, seq: t.ask.ref.seq, text: t.ask.full ?? t.ask.excerpt }] : []);
     return (threadId, seq, words) => {
       const same = yours.find(o => o.threadId === threadId && o.seq === seq);
       if (same) return same.text;
@@ -283,7 +292,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
       for (const o of yours) { const at = o.text.indexOf(words); if (at >= 0) return o.text.slice(at); }
       return undefined;
     };
-  }, [data.bots]);
+  }, [originals, sourceBots]);
   useRailHomeCurrent(!!activeThreadId);
   const close = () => { setSheet(null); opener.current?.focus(); };
   useEffect(() => { if (sheet && !data.bots.some(b => b.key === sheet)) setSheet(null); }, [data.bots, sheet]);
@@ -306,7 +315,6 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onOpen(id, messageSeq);
   };
   const threadNeeds = outsideItems(data, byId);
-  const bot = data.bots.find(b => b.key === sheet);
   const showPanel = (key: string, desks: boolean) => (point: PanelAnchor) => {
     opener.current = document.activeElement as HTMLElement;
     setKeyboardOpen(!!opener.current?.matches?.(":focus-visible"));
@@ -319,8 +327,17 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const hereKey = currentKey ?? (activeThreadId ? ownerOf(activeThreadId, data, snapshot, byId) : pageKey && data.bots.some(b => b.key === pageKey) ? pageKey : null);
   const needMarked = !!activeThreadId && (data.bots.some(b => b.tasks.some(t => t.displayState === "needs" && askPlace(t, b.coordinatorThreadId).threadId === activeThreadId) || b.desks.some(d => needsYou(d) && (d.threadId ?? b.coordinatorThreadId) === activeThreadId)) || threadNeeds.some(item => item.threadId === activeThreadId));
   const unreachable = state.status === "error" || state.cached && state.status === "loading" && slow;
-  const retry = () => { setRetrying(true); void refreshBotTasks().finally(() => setRetrying(false)); };
+  const retry = () => { setRetrying(true); void refreshBotSidebar().finally(() => setRetrying(false)); };
   const staleNote = { asOf: asOf(data.observedAt, now), retrying, onRetry: retry };
+  const retryDetail = () => {
+    if (!sheet) return;
+    setRetrying(true);
+    void refreshBotTasks(sheet).finally(() => setRetrying(false));
+  };
+  const detailStatus = awaitingDetail ? scoped.status === "loading" ? "loading" : "error" : undefined;
+  const panelStale = scoped.data && scoped.status === "error"
+    ? { asOf: asOf(scoped.data.observedAt, now), retrying, onRetry: retryDetail }
+    : unreachable ? staleNote : null;
   const inlineUndo = !sheet;
   const armItem = (item: NeedItem) => armAskStrip({ key: item.id, questionId: item.notNowKey, threadId: item.threadId, messageSeq: item.messageSeq, question: item.what, title: item.title, options: item.options ?? [], botName: item.botName, askedAt: item.at, ...(item.consequence ? { consequence: item.consequence } : {}), ...(item.recommended ? { recommended: item.recommended } : {}) });
   const roving = useRoving(list, { item: ".stage-chat", row: ".stage-row", side: ".stage-more", preferred: hereKey });
@@ -371,7 +388,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, here, needs }) => ({
       key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, here, threadId: b.coordinatorThreadId,
     }))} />
-    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} stale={unreachable ? staleNote : null} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }} onClose={close} /> : null}

@@ -58,8 +58,8 @@ function Section({ group, title, aside, children }: { group: Group | "yours"; ti
   </section>;
 }
 
-export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
-  bot: BotTasksBot; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
+  bot: BotTasksBot; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: Navigate; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -70,10 +70,11 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
   const openingUntil = useRef(isCompactViewport ? performance.now() + SETTLE_MS : 0);
   const parkUntil = useRef(0);
   useEffect(() => {
+    if (document.activeElement !== panel.current && panel.current?.contains(document.activeElement)) return;
     const firstAsk = focusNeeds && keyboard ? panel.current?.querySelector<HTMLElement>(".panel-ask-question") : null;
     if (firstAsk) (firstAsk as HTMLElement & { focus(options: FocusOptions & { focusVisible?: boolean }): void }).focus({ preventScroll: true, focusVisible: true });
     else panel.current?.focus({ preventScroll: true });
-  }, [focusNeeds, keyboard]);
+  }, [focusNeeds, keyboard, detailStatus]);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -146,7 +147,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
         <div><h2>{bot.name}</h2></div>
         <button className="dispatch-close" aria-label={`Close ${bot.name}`} onClick={onClose}><Icon name="X" aria-hidden="true" /></button>
       </header>
-      {tally.length ? <p className="panel-tally">{tally.map(part => <button key={part.group} type="button" className="panel-tally-part" data-group={part.group} title={`Jump to ${GROUP_TITLE[part.group]}`} onClick={() => jump(part.group)}><StatusMark mark={TALLY_MARK[part.group]} /><b>{part.count}</b> {part.label}</button>)}</p>
+      {detailStatus ? <p className="panel-tally" role="status">{detailStatus === "loading" ? "Loading work…" : <>Work is unavailable. <button onClick={retryDetail}>Try again</button></>}</p> : tally.length ? <p className="panel-tally">{tally.map(part => <button key={part.group} type="button" className="panel-tally-part" data-group={part.group} title={`Jump to ${GROUP_TITLE[part.group]}`} onClick={() => jump(part.group)}><StatusMark mark={TALLY_MARK[part.group]} /><b>{part.count}</b> {part.label}</button>)}</p>
         : <p className="panel-tally panel-tally-quiet">{model.chatting ? "Replying in chat" : "Nothing open"}</p>}
       {stale ? <StaleLine stale={stale} className="panel-stale" /> : null}
       <nav className="dispatch-panel-actions" aria-label={`${bot.name} actions`}>
@@ -154,7 +155,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
         <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>
         <BotMenu thread={target} botName={bot.name} onShowThreads={() => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); }} onClose={onClose} />
       </nav>
-      <div className="dispatch-panel-body" ref={body}>
+      {!detailStatus && <div className="dispatch-panel-body" ref={body}>
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
@@ -168,7 +169,7 @@ export function BotWorkPanel({ bot, anchor, focusNeeds = false, keyboard = false
         {model.later.length ? <Section group="later" title={GROUP_TITLE.later} aside={model.later.length}>{rows(model.later)}</Section> : null}
         {openCount ? null : <p className="panel-quiet">{quietLine}</p>}
         <DoneSection today={model.doneToday} earlier={model.doneEarlier} now={now} renderRows={rows} />
-      </div>
+      </div>}
     </div>
   </div>, document.body);
 }
