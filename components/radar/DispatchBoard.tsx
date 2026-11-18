@@ -2,7 +2,7 @@ import { BotWorkPanel, type PanelAnchor } from "./panel/BotWorkPanel";
 import { useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { experimental_useSidebarThreads, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { flushSync } from "react-dom";
 import { needsYou, orderedBots, shortModel, type BotTasksData, type BotTasksBot } from "@/lib/botTasks";
@@ -148,7 +148,7 @@ export function shorterForms(line: string): string[] {
   return forms.sort((a, b) => b.text.length - a.text.length || Number(b.first) - Number(a.first)).map(form => form.text);
 }
 
-function FitLine({ look }: { look: RowLook }) {
+const FitLine = memo(function FitLine({ look }: { look: RowLook }) {
   const ref = useRef<HTMLSpanElement>(null);
   const options = useMemo(() => [look.line, ...(look.alts ?? [])], [look.line, look.alts]);
   const [pick, setPick] = useState(0);
@@ -172,18 +172,25 @@ function FitLine({ look }: { look: RowLook }) {
       setPick(at >= 0 ? at : 0);
       setCut(at >= 0 ? null : fitWords(narrowest, fits));
     };
-    measure();
-    const observer = new ResizeObserver(measure);
+    let measuredWidth: number | undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width === measuredWidth) return;
+      measuredWidth = entry.contentRect.width;
+      measure();
+    });
     observer.observe(box);
-    let live = true;
-    void document.fonts?.ready.then(() => { if (live) measure(); });
+
     document.fonts?.addEventListener("loadingdone", measure);
-    return () => { live = false; observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
+    return () => { observer.disconnect(); document.fonts?.removeEventListener("loadingdone", measure); };
   }, [options, look.tone, look.exact, look.bare]);
   const said = look.whole ?? look.line;
   const shown = cut ?? options[pick] ?? look.line;
   return <span className="stage-line" ref={ref} title={shown !== said ? said : undefined}><bdi>{keepHyphens(shown)}</bdi></span>;
-}
+}, ({ look: previous }, { look: next }) =>
+  previous.line === next.line && previous.whole === next.whole && previous.tone === next.tone
+  && previous.exact === next.exact && previous.bare === next.bare
+  && (previous.alts === next.alts || previous.alts?.length === next.alts?.length
+    && previous.alts?.every((line, index) => line === next.alts?.[index]) === true));
 
 function botOfThread(threadId: string, data: BotTasksData, threads: ReadonlyMap<string, PluginSidebarThread>): string | undefined {
   const byCoordinator = new Map(data.bots.map(b => [b.coordinatorThreadId, b.name]));
@@ -286,7 +293,18 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     const timer = setTimeout(() => setOpening(null), OPENING_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [opening, activeThreadId]);
-  const open = (id: string, messageSeq?: number) => { if (id !== activeThreadId) setOpening(id); onOpen(id, messageSeq); };
+  const pendingOpen = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useLayoutEffect(() => () => clearTimeout(pendingOpen.current), [activeThreadId]);
+  const open = (id: string, messageSeq?: number) => {
+    clearTimeout(pendingOpen.current);
+    if (isCompactViewport) {
+      if (id !== activeThreadId) setOpening(id);
+    } else {
+      setOpening(null);
+      if (id !== activeThreadId) pendingOpen.current = setTimeout(() => setOpening(id), 120);
+    }
+    onOpen(id, messageSeq);
+  };
   const threadNeeds = outsideItems(data, byId);
   const bot = data.bots.find(b => b.key === sheet);
   const showPanel = (key: string, desks: boolean) => (point: PanelAnchor) => {
