@@ -47,7 +47,15 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
     node.childElementCount === 0 && node.textContent.trim() === text && !node.closest("[contenteditable], textarea, script, style") && node.getBoundingClientRect().height > 0
   ), marker, { timeout: 15000 });
   const receipt = Math.round(performance.now() - start);
-  if (mode === "busy") assert.equal(iso.thread(bot.coordinator).status, "active", "Queue receipt appeared after the active turn ended");
+  if (mode === "busy") {
+    assert.equal(iso.thread(bot.coordinator).status, "active", "Queue receipt appeared after the active turn ended");
+    const queue = page.getByText("Queue", { exact: true }).last();
+    assert.ok(await queue.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit && node.contains(hit);
+    }), "The queue indicator is obscured");
+  }
   if (mode === "busy" && index === 0) await page.screenshot({ path: join(driver.dir, driver.view + "-queue.png") });
   const delivered = () => iso.messages(bot.coordinator).filter(message => message.from === "salem" && message.text === marker);
   await iso.until("message delivered", () => delivered().length, 30000);
@@ -114,7 +122,7 @@ export async function speedGate({ iso, setup, builds, out, log }) {
     const scenario = SCENARIOS.find(item => item.key === "buttons");
     const answer = CASES.find(item => item.scenario === "buttons" && item.id === "answer");
     for (const view of VIEWS) {
-      const owner = await Bot.register(iso, { key: "answer-" + view, name: "Answer " + view });
+      const owner = await Bot.register(iso, { key: "answer-" + view, name: "Answer " + view + " Bot" });
       const world = {};
       await scenario.now(owner, world);
       const driver = await Driver.open(iso, view, out, log);
