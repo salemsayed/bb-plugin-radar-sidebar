@@ -123,19 +123,26 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
   const { desk } = item;
   const [changed, setChanged] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [readError, setReadError] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const { channel, person, subject } = deskParts(desk);
   const { question, about } = deskAsk(desk);
   const messageSeq = desk.question?.messageSeq;
   useEffect(() => { setChanged(false); }, [messageSeq]);
   const draft = desk.threadId && !changed ? desk.question?.draft : undefined;
+  const draftKey = JSON.stringify([desk.threadId, messageSeq]);
+  const long = !!draft && draft.length > 1200;
+  const showFull = !long || expanded === draftKey;
   const options = draft ? (desk.question?.options ?? []).slice(0, ANSWERS_SHOWN) : [];
   const labels = options.map(option => plainNote(option));
   const open = () => { if (desk.threadId) onNavigate(desk.threadId, draft ? messageSeq : undefined); };
   const answer = async (label: string) => {
-    if (!desk.threadId || checking) return;
+    if (!desk.threadId || checking || !showFull) return;
     setChecking(true);
-    const still = await draftIsCurrent(sdk, botKey, desk.id, messageSeq).catch(() => false);
+    setReadError(false);
+    const still = await draftIsCurrent(sdk, botKey, desk.id, messageSeq).catch(() => null);
     setChecking(false);
+    if (still === null) { setReadError(true); return; }
     if (!still) { setChanged(true); return; }
     armAskStrip({ key: item.key, questionId: desk.question?.id, threadId: desk.threadId, ...(messageSeq !== undefined ? { messageSeq } : {}), question, title: subject, options, botName, askedAt: desk.updatedAt });
     requestFill(desk.threadId, label, labels, true);
@@ -150,9 +157,11 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
       {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Not now: move to Later until the desk changes" onPark={onPark} /> : null}
       {desk.threadId ? <ContinuePill primary={!labels.length} name={`Continue ${subject}`} hint="Continue in this chat" onClick={open} /> : null}
     </span></div>}>
+    {readError ? <p role="status">Couldn’t verify this draft. Try again.</p> : null}
     {changed ? <p className="panel-ask-changed" role="status">This draft changed after it was shown, so nothing was sent. Open the chat to read the latest one.</p> : null}
-    {draft ? <blockquote className="panel-ask-draft" dir="auto" aria-label={person ? `The reply to ${person}` : "The reply"}><Isolated text={draft} /></blockquote> : null}
-    {labels.length ? <div className="dispatch-options">
+    {draft ? <blockquote className="panel-ask-draft" dir="auto" aria-label={person ? `The reply to ${person}` : "The reply"}><Isolated text={showFull ? draft : draft.slice(0, 260).trimEnd() + "…"} /></blockquote> : null}
+    {long && !showFull ? <button type="button" className="dispatch-option" onClick={() => setExpanded(draftKey)}>Read full draft</button> : null}
+    {labels.length && showFull ? <div className="dispatch-options">
       <div className="radar-answers" role="group" aria-label={`Answers to ${subject}`} data-count={labels.length} ref={answerRow}>
         {labels.map(text => <button key={text} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(text, false)} to ${botName}: opens the chat and sends it`} title="Opens the chat and sends this reply" disabled={checking} onClick={() => { void answer(text); }}><AnswerLabel label={text} all={labels} recommended={false} /></button>)}
       </div>
