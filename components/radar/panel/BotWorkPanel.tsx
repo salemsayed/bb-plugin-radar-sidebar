@@ -58,8 +58,8 @@ function Section({ group, title, aside, children }: { group: Group | "yours"; ti
   </section>;
 }
 
-export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
-  bot: BotTasksBot; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, fromItem = null, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
+  bot: BotTasksBot; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; fromItem?: string | null; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: Navigate; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -71,10 +71,12 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
   const parkUntil = useRef(0);
   useEffect(() => {
     if (document.activeElement !== panel.current && panel.current?.contains(document.activeElement)) return;
-    const firstAsk = focusNeeds && keyboard ? panel.current?.querySelector<HTMLElement>(".panel-ask-question") : null;
+    const from = fromItem ? panel.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(fromItem)}"]`) : null;
+    from?.scrollIntoView({ block: "nearest" });
+    const firstAsk = focusNeeds && keyboard ? (from ?? panel.current)?.querySelector<HTMLElement>(".panel-ask-question") : null;
     if (firstAsk) (firstAsk as HTMLElement & { focus(options: FocusOptions & { focusVisible?: boolean }): void }).focus({ preventScroll: true, focusVisible: true });
     else panel.current?.focus({ preventScroll: true });
-  }, [focusNeeds, keyboard, detailStatus]);
+  }, [focusNeeds, fromItem, keyboard, detailStatus]);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -158,8 +160,8 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
       {!detailStatus && <div className="dispatch-panel-body" ref={body}>
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
-            {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
-            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botKey={bot.key} botName={bot.name} now={now} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}
+            {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}
+            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botKey={bot.key} botName={bot.name} now={now} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}
           </div>
         </Section> : null}
         {model.stuck.length ? <Section group="stuck" title={GROUP_TITLE.stuck} aside={model.stuck.length}>{rows(model.stuck)}</Section> : null}

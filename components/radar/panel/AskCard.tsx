@@ -48,8 +48,8 @@ export function ContinuePill({ label = "Continue", name, hint, primary = false, 
   return <button type="button" className="dispatch-task-continue" data-primary={primary || undefined} aria-label={name} title={hint} onClick={onClick}><span className="dispatch-continue-pill"><Icon name="MessageSquare" aria-hidden="true" />{label}</span></button>;
 }
 
-function AskShell({ itemKey, current, question, onOpen, spoken, meta, children, foot }: { itemKey: string; current: boolean; question: ReactNode; onOpen: () => void; spoken: string; meta: string[]; children?: ReactNode; foot: ReactNode }) {
-  return <article className="panel-ask" data-item={itemKey}>
+function AskShell({ itemKey, current, from = false, question, onOpen, spoken, meta, children, foot }: { itemKey: string; current: boolean; from?: boolean; question: ReactNode; onOpen: () => void; spoken: string; meta: string[]; children?: ReactNode; foot: ReactNode }) {
+  return <article className="panel-ask" data-item={itemKey} data-from={from || undefined}>
     <button type="button" className="panel-ask-question" aria-current={current ? "page" : undefined} aria-label={spoken} onClick={onOpen}>{question}</button>
     <p className="panel-ask-meta">{meta.map((part, i) => <span key={i}><Isolated text={part} />{i < meta.length - 1 ? " · " : ""}</span>)}</p>
     {children}
@@ -57,7 +57,7 @@ function AskShell({ itemKey, current, question, onOpen, spoken, meta, children, 
   </article>;
 }
 
-export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }: { item: TaskItem; bot: BotTasksBot; context: DetailContext; current: boolean; onNavigate: Navigate; onPark: Park }) {
+export function TaskAskCard({ item, bot, context, current, from = false, onNavigate, onPark }: { item: TaskItem; bot: BotTasksBot; context: DetailContext; current: boolean; from?: boolean; onNavigate: Navigate; onPark: Park }) {
   const [open, setOpen] = useState(false);
   const { task, title } = item;
   const options = askOptions(task).slice(0, ANSWERS_SHOWN);
@@ -89,7 +89,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
     window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: title.slice(0, 80) } }));
     onNavigate(bot.coordinatorThreadId);
   };
-  return <AskShell itemKey={item.key} current={current} onOpen={go} spoken={`${title}. ${asked}`} meta={meta}
+  return <AskShell itemKey={item.key} current={current} from={from} onOpen={go} spoken={`${title}. ${asked}`} meta={meta}
     question={<FitLines className="panel-ask-fit" forms={oneForms(asked, QUESTION_FORMS, title, options.length)} />}
     foot={<>
       <div className="panel-ask-foot">
@@ -118,7 +118,7 @@ export function TaskAskCard({ item, bot, context, current, onNavigate, onPark }:
   </AskShell>;
 }
 
-export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, onPark }: { item: DeskItem; botKey: string; botName: string; now: number; current: boolean; onNavigate: Navigate; onPark: Park }) {
+export function DeskAskCard({ item, botKey, botName, now, current, from = false, onNavigate, onPark }: { item: DeskItem; botKey: string; botName: string; now: number; current: boolean; from?: boolean; onNavigate: Navigate; onPark: Park }) {
   const sdk = useSdk();
   const { desk } = item;
   const [changed, setChanged] = useState(false);
@@ -151,7 +151,7 @@ export function DeskAskCard({ item, botKey, botName, now, current, onNavigate, o
   const label = notNowLabel({ botName, title: subject, what: question });
   const names = (text: string) => !!person && text.includes(person);
   const meta = [names(question) || names(about) ? channel : [channel, person].filter(Boolean).join(" with "), `asked ${ago(desk.updatedAt, now)}`];
-  return <AskShell itemKey={item.key} current={current} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
+  return <AskShell itemKey={item.key} current={current} from={from} onOpen={open} spoken={`${subject}. ${question}`} meta={meta}
     question={<><span className="panel-ask-fit" dir="auto"><Isolated text={question} /></span>{about ? <span className="panel-ask-about" dir="auto"><Isolated text={about} /></span> : null}</>}
     foot={<div className="panel-ask-foot"><span /><span className="panel-ask-actions">
       {desk.question ? <ParkPill parked={false} label={label} itemKey={desk.question.id} hint="Move this desk to Later until it changes" onPark={onPark} /> : null}

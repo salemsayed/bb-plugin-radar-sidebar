@@ -33,6 +33,7 @@
 .panel-asks { display: flex; flex-direction: column; gap: 8px; }
 .panel-ask { padding: 2px 14px 4px; border: 1px solid color-mix(in oklab, var(--panel-ask) 42%, transparent); border-radius: 16px; background: color-mix(in oklab, var(--panel-ask) 12%, var(--popover, var(--background))); }
 .panel-ask[data-old] { border-color: var(--border); background: var(--popover, var(--background)); }
+.panel-ask[data-from] { border-color: color-mix(in oklab, var(--panel-ask) 80%, var(--foreground)); box-shadow: 0 0 0 1px color-mix(in oklab, var(--panel-ask) 80%, var(--foreground)); scroll-margin: 12px; }
 .dispatch-panel button.panel-ask-question { display: block; width: 100%; min-height: 0; padding: 12px 0 0; }
 .dispatch-panel button.panel-ask-question:focus-visible { outline-offset: 3px; border-radius: 6px; }
 .panel-ask-fit { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: break-word; font-size: 15px; font-weight: 600; line-height: 1.35; }

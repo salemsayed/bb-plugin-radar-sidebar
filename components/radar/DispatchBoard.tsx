@@ -1,4 +1,5 @@
 import { BotWorkPanel, type PanelAnchor } from "./panel/BotWorkPanel";
+import { panelItemKey } from "./panel/fromItem";
 import { useThreadClaims } from "./useThreadClaims";
 import { ThreadsSection, threadsSummary } from "./ThreadsSection";
 import { useVisibleSurface } from "@/lib/useVisibleSurface";
@@ -236,6 +237,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const visible = useVisibleSurface(root);
   const snapshot = useBotWorkers(data, visible);
   const [sheet, setSheet] = useState<string | null>(null);
+  const [fromItem, setFromItem] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<PanelAnchor | undefined>(undefined);
   const [focusDesks, setFocusDesks] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -315,11 +317,12 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onOpen(id, messageSeq);
   };
   const threadNeeds = outsideItems(data, byId);
-  const showPanel = (key: string, desks: boolean) => (point: PanelAnchor) => {
+  const showPanel = (key: string, desks: boolean, from: string | null = null) => (point: PanelAnchor) => {
     opener.current = document.activeElement as HTMLElement;
     setKeyboardOpen(!!opener.current?.matches?.(":focus-visible"));
     setAnchor(point);
     setFocusDesks(desks);
+    setFromItem(from);
     setSheet(key);
   };
   const currentKey = orderedBots(data).find(b => b.coordinatorThreadId === activeThreadId)?.key ?? null;
@@ -367,7 +370,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
         checking={!fresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
         inlineUndo={inlineUndo} undo={inlineUndo ? later.toast : null}
-        onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true)(panelAnchor(at)); }}
+        onMenu={(item, at) => { if (item.botKey) showPanel(item.botKey, true, panelItemKey(item.id))(panelAnchor(at)); }}
         onNotNow={item => { if (item.notNowKey) void notNow(item.notNowKey, notNowLabel(item)); }}
         parked={id => !!later.pending(id)?.on || data.questions.some(q => q.id === id && q.state === "later")} />
       </div>
@@ -388,7 +391,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, here, needs }) => ({
       key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, here, threadId: b.coordinatorThreadId,
     }))} />
-    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} fromItem={fromItem} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }} onClose={close} /> : null}
