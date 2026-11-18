@@ -179,6 +179,6 @@ export async function speedGate({ iso, setup, builds, out, log }) {
         log(view + " answered question remained closed after reload");
       } finally { await driver.close(); }
     }
-    writeFileSync(join(out, "speed.json"), JSON.stringify({ core: builds.core.commit, radar: builds.radar.commit, rows, stats, answers }, null, 2));
+    writeFileSync(join(out, "speed.json"), JSON.stringify({ core: builds.core.commit, radar: builds.radar.commit, rows, stats, answers, transcript }, null, 2));
   } finally { setup.stop(); }
 }
