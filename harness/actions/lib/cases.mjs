@@ -275,7 +275,14 @@ export const CASES = [
       await press(driver, driver.item(key).locator(".radar-not-now"));
       const saved = await poll(() => notNowKeys(iso).includes(key), 15_000);
       const later = await driver.where(key);
-      return [check("core not-now row", saved, notNowKeys(iso)), check("panel moves it to Later", later?.group === "later" && later.buttons.some(b => /^Bring back/.test(b)), later ?? "missing"), await groupIs(driver, bot, key, "later", "after reload", true)];
+      const reloaded = await groupIs(driver, bot, key, "later", "after reload", true);
+      const source = iso.coreQuery("SELECT thread_id,ask_seq FROM needs_you_questions WHERE task_id=? AND state='later'", world.deploy)[0];
+      const after = iso.lastSeq(bot.coordinator);
+      await press(driver, driver.item(key).locator(".panel-row-main"));
+      await press(driver, driver.item(key).getByRole("button", { name: "Open question in chat" }));
+      const nav = source?.ask_seq ? await navigatedTo(driver, source.thread_id, source.ask_seq) : [check("stored question has a source", false, source)];
+      return [check("core not-now row", saved, notNowKeys(iso)), check("panel moves it to Later", later?.group === "later" && later.buttons.some(b => /^Bring back/.test(b)), later ?? "missing"), reloaded, ...nav,
+        check("reading leaves the question parked", notNowKeys(iso).includes(key), key), check("reading sends nothing", salemSince(iso, bot.coordinator, after).length === 0, after)];
     },
   },
   {
