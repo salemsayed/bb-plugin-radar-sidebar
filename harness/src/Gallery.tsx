@@ -26,8 +26,19 @@ function Live() {
   })}</div>;
 }
 
+function Avatars() {
+  return <section>
+    <h2>Rail avatars</h2>
+    <table className="gallery-grid">
+      <thead><tr><th />{AVATAR_STATES.map(state => <th key={state}>{state}</th>)}</tr></thead>
+      <tbody>{CREW.slice(0, 4).map(bot => <tr key={bot.key}><th>{bot.name.replace(/ Bot$/, "")}</th>{AVATAR_STATES.map(state => <td key={state}><BotAvatar botKey={bot.key} name={bot.name} state={state} /></td>)}</tr>)}</tbody>
+    </table>
+  </section>;
+}
+
 export function Gallery({ part }: { part: string }) {
   if (part === "live") return <main className="gallery" data-bb-plugin="radar-sidebar"><Live /></main>;
+  if (part === "avatars") return <main className="gallery" data-bb-plugin="radar-sidebar"><Avatars /></main>;
   return <main className="gallery" data-bb-plugin="radar-sidebar">
     <section>
       <h2>The crew</h2>
@@ -50,12 +61,6 @@ export function Gallery({ part }: { part: string }) {
         </tr>)}</tbody>
       </table>
     </section>
-    <section>
-      <h2>Rail avatars</h2>
-      <table className="gallery-grid">
-        <thead><tr><th />{AVATAR_STATES.map(state => <th key={state}>{state}</th>)}</tr></thead>
-        <tbody>{CREW.slice(0, 4).map(bot => <tr key={bot.key}><th>{bot.name.replace(/ Bot$/, "")}</th>{AVATAR_STATES.map(state => <td key={state}><BotAvatar botKey={bot.key} name={bot.name} state={state} /></td>)}</tr>)}</tbody>
-      </table>
-    </section>
+    <Avatars />
   </main>;
 }
