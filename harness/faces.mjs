@@ -16,6 +16,8 @@ const FILM_FPS = 12;
 const STILLS = [
   { name: "sidebar-desktop", query: "s=busy-crew&view=desktop&panel=closed", device: DESKTOP, clip: { x: 0, y: 0, width: 340, height: 900 } },
   { name: "panel-desktop", query: "s=busy-crew&view=desktop", device: DESKTOP, clip: { x: 0, y: 0, width: 800, height: 900 } },
+  { name: "tab-desktop", query: "s=busy-crew&view=desktop&surface=tab", device: DESKTOP, clip: { x: 0, y: 0, width: 720, height: 900 } },
+  { name: "tab-phone", query: "s=busy-crew&view=phone&surface=tab", device: PHONE },
   { name: "sidebar-phone", query: "s=busy-crew&view=phone&panel=closed", device: PHONE },
   { name: "panel-phone", query: "s=busy-crew&view=phone", device: PHONE },
   { name: "gallery-desktop", query: "gallery=all", device: DESKTOP, fullPage: true, ready: ".gallery" },
