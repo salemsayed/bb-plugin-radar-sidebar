@@ -41,13 +41,44 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   start = performance.now();
   const send = page.locator(mode === "busy" ? '[data-scroll-footer] button:is([title^="Queue"], [aria-label^="Queue"]):visible' : '[data-scroll-footer] button:is([title^="Submit"], [aria-label^="Submit"]):visible').last();
   if (mode === "busy") await send.waitFor({ state: "visible", timeout: 3500 });
-  await driver.press(send);
+  await page.evaluate(text => {
+    const stamp = () => Math.round(performance.timeOrigin + performance.now());
+    const sample = { armedAt: stamp() };
+    window.sendSample = sample;
+    function frame() {
+      const nodes = document.evaluate('//*[text()="' + text + '"]', document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (let index = 0; index < nodes.snapshotLength; index++) {
+        const node = nodes.snapshotItem(index);
+        const box = node.getBoundingClientRect();
+        if (node.closest('[contenteditable], textarea, script, style') || !box.height || box.top >= innerHeight || box.bottom <= 0) continue;
+        const x = Math.max(0, Math.min(innerWidth - 1, box.left + box.width / 2));
+        const y = (Math.max(0, box.top) + Math.min(innerHeight, box.bottom)) / 2;
+        if (node.contains(document.elementFromPoint(x, y))) {
+          sample.visibleAt = stamp();
+          return;
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    document.addEventListener("pointerdown", () => {
+      sample.downAt = stamp();
+      requestAnimationFrame(frame);
+    }, { once: true, capture: true });
+    document.addEventListener("click", () => { sample.clickAt = stamp(); }, { once: true, capture: true });
+  }, marker);
+  if (driver.phone) await send.tap();
+  else await send.click();
   const sendTapMs = Math.round(performance.now() - start);
   await page.waitForFunction(text => Array.from(document.querySelectorAll("body *")).some(node =>
     node.childElementCount === 0 && node.textContent.trim() === text && !node.closest("[contenteditable], textarea, script, style") && node.getBoundingClientRect().height > 0
   ), marker, { timeout: 15000 });
   const receipt = Math.round(performance.now() - start);
+  await page.waitForFunction(() => window.sendSample?.visibleAt, null, { timeout: 10000 });
+  const sendSample = await page.evaluate(() => window.sendSample);
   if (mode === "busy") {
+    const queued = iso.query("SELECT created_at FROM queued_thread_messages WHERE thread_id=? AND instr(content,?)>0", bot.coordinator, marker);
+    assert.equal(queued.length, 1);
+    sendSample.acceptedAt = queued[0].created_at;
     assert.equal(iso.thread(bot.coordinator).status, "active", "Queue receipt appeared after the active turn ended");
     const queue = page.getByText("Queue", { exact: true }).last();
     assert.ok(await queue.evaluate(node => {
@@ -59,6 +90,8 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   if (mode === "busy" && index === 0) await page.screenshot({ path: join(driver.dir, driver.view + "-queue.png") });
   const delivered = () => iso.messages(bot.coordinator).filter(message => message.from === "salem" && message.text === marker);
   await iso.until("message delivered", () => delivered().length, 30000);
+  sendSample.acceptedAt ??= delivered()[0].at;
+  assert.ok(sendSample.downAt && sendSample.visibleAt >= sendSample.downAt && sendSample.acceptedAt >= sendSample.downAt);
   await iso.idle(bot.coordinator);
 
   await page.goto(`${iso.url}/projects/${bot.project}/threads/${bot.coordinator}#msg=${chipSeq}`, { waitUntil: "domcontentloaded" });
@@ -76,7 +109,7 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   await driver.reload();
   await iso.idle(bot.coordinator);
   assert.equal(delivered().length, 1);
-  return { view: driver.view, mode, index, typing, receipt, result, sendTapMs };
+  return { view: driver.view, mode, index, typing, receipt, result, sendTapMs, sendSample };
 }
 
 async function measureSavedReply(driver, bot, text) {

@@ -281,7 +281,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
   const scoped = useBotTasks(!!summaryBot?.sidebarThreadIds, sheet ?? undefined);
   const detail = scoped.data && sheet ? applyNotNow(scoped.data, later).bots.find(b => b.key === sheet) : undefined;
   const bot = detail ?? summaryBot;
-  const awaitingDetail = !!summaryBot?.sidebarThreadIds && !detail;
+  const awaitingDetail = !!summaryBot?.sidebarThreadIds && (!detail || scoped.cached || scoped.status === "error");
   const needsOriginals = !!detail?.tasks.some(task => task.ask && hasRelayedQuote(task.ask.excerpt));
   const originals = useRequestOriginals(needsOriginals);
   const sourceBots = scoped.data?.bots ?? data.bots;

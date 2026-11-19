@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSdk } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { armAskStrip } from "@/lib/askStrip";
-import type { BotTasksBot } from "@/lib/botTasks";
+import { botTasksSchema, type BotTasksBot } from "@/lib/botTasks";
 import { requestFill } from "@/lib/composerFill";
 import { draftIsCurrent } from "@/lib/deskDraft";
 import { bringBack, notNow } from "@/lib/notNow";
@@ -60,6 +60,13 @@ function AskShell({ itemKey, current, from = false, question, onOpen, spoken, me
 export function TaskAskCard({ item, bot, context, current, from = false, onNavigate, onPark }: { item: TaskItem; bot: BotTasksBot; context: DetailContext; current: boolean; from?: boolean; onNavigate: Navigate; onPark: Park }) {
   const [open, setOpen] = useState(false);
   const { task, title } = item;
+  const sdk = useSdk();
+  const check = useRef<symbol | null>(null);
+  const [answerState, setAnswerState] = useState<"ready" | "checking" | "changed" | "failed">("ready");
+  useEffect(() => {
+    setAnswerState("ready");
+    return () => { check.current = null; };
+  }, [bot.key, task.id, task.needs?.questionId, task.needs?.question, task.needs?.messageSeq]);
   const options = askOptions(task).slice(0, ANSWERS_SHOWN);
   const labels = options.map(option => plainNote(option));
   const recommended = task.needs?.recommended ?? recommendedOption(options, task.needs?.question ?? "");
@@ -79,6 +86,31 @@ export function TaskAskCard({ item, bot, context, current, from = false, onNavig
   const go = () => { const place = arm(); onNavigate(place.threadId, place.messageSeq); };
   const reply = !!task.needs?.questionId || isQuestionRow(task);
   const label = notNowLabel({ botName: bot.name, title, what: fitWhat(whole, LABEL_CUT), options: task.needs?.options });
+  async function answer(label: string) {
+    if (check.current || !task.needs) return;
+    const token = Symbol();
+    check.current = token;
+    setAnswerState("checking");
+    try {
+      const data = await sdk.plugins.callRpc({ pluginId: "orchestrator-mode", method: "bot_tasks", input: { bot: bot.key }, outputSchema: botTasksSchema });
+      if (check.current !== token) return;
+      const latest = data.bots.find(row => row.key === bot.key)?.tasks.find(row => row.id === task.id);
+      const shown = task.needs;
+      const now = latest?.needs;
+      if (latest?.displayState !== "needs" || !now || now.questionId !== shown.questionId || now.question !== shown.question ||
+          now.threadId !== shown.threadId || now.messageSeq !== shown.messageSeq || !askOptions(latest).some(option => plainNote(option) === label)) {
+        setAnswerState("changed");
+        return;
+      }
+      const place = arm();
+      requestFill(place.threadId, label, labels, true);
+      onNavigate(place.threadId, place.messageSeq);
+    } catch {
+      if (check.current === token) setAnswerState("failed");
+    } finally {
+      if (check.current === token) check.current = null;
+    }
+  }
   const proceed = () => {
     if (reply) {
       const place = arm();
@@ -102,16 +134,14 @@ export function TaskAskCard({ item, bot, context, current, from = false, onNavig
       {open ? <div className="panel-details"><TaskDetails item={item} context={context} onOpen={onNavigate} /></div> : null}
     </>}>
     {consequence ? <AskImpact className="dispatch-card-impact" text={consequence} /> : null}
-    {labels.length ? <div className="dispatch-options">
+    {answerState === "changed" ? <p role="status">This question changed. Open the chat for the latest update.</p> : null}
+    {answerState === "failed" ? <p role="status">Couldn’t verify this question. Try again.</p> : null}
+    {labels.length && answerState !== "changed" ? <div className="dispatch-options">
       {labels.length > 1 ? <span className="dispatch-options-label" aria-hidden="true">{answerHint()}</span> : null}
       <div className="radar-answers" role="group" aria-label={`Answers to ${title}`} data-count={labels.length} ref={answerRow}>
-        {labels.map(answer => {
-          const best = !!recommended && plainNote(recommended) === answer;
-          return <button key={answer} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(answer, best)} to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" onClick={() => {
-            const place = arm();
-            requestFill(place.threadId, answer, labels, true);
-            onNavigate(place.threadId, place.messageSeq);
-          }}><AnswerLabel label={answer} all={labels} recommended={best} /></button>;
+        {labels.map(label => {
+          const best = !!recommended && plainNote(recommended) === label;
+          return <button key={label} type="button" className="dispatch-option radar-answer" aria-label={`Send ${answerName(label, best)} to ${bot.name}: opens the chat and sends it`} title="Opens the chat and sends this reply" disabled={answerState === "checking"} onClick={() => { void answer(label); }}><AnswerLabel label={label} all={labels} recommended={best} /></button>;
         })}
       </div>
     </div> : null}

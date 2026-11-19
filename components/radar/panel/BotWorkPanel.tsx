@@ -73,7 +73,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
     if (document.activeElement !== panel.current && panel.current?.contains(document.activeElement)) return;
     const from = fromItem ? panel.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(fromItem)}"]`) : null;
     from?.scrollIntoView({ block: "nearest" });
-    const firstAsk = focusNeeds && keyboard ? (from ?? panel.current)?.querySelector<HTMLElement>(".panel-ask-question") : null;
+    const firstAsk = !detailStatus && focusNeeds && keyboard ? (from ?? panel.current)?.querySelector<HTMLElement>(".panel-ask-question") : null;
     if (firstAsk) (firstAsk as HTMLElement & { focus(options: FocusOptions & { focusVisible?: boolean }): void }).focus({ preventScroll: true, focusVisible: true });
     else panel.current?.focus({ preventScroll: true });
   }, [focusNeeds, fromItem, keyboard, detailStatus]);
@@ -157,7 +157,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
         <a className="dispatch-automations" href={automationsHref(bot.key)} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onClose(); }}><Icon name="Clock" aria-hidden="true" />Automations</a>
         <BotMenu thread={target} botName={bot.name} sheet={isCompactViewport} onShowThreads={() => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); }} onClose={onClose} />
       </nav>
-      {!detailStatus && <div className="dispatch-panel-body" ref={body}>
+      {detailStatus !== "error" && <div className="dispatch-panel-body" ref={body} inert={detailStatus === "loading"} aria-busy={detailStatus === "loading"}>
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}
@@ -169,8 +169,8 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
         {model.waiting.length ? <Section group="waiting" title={GROUP_TITLE.waiting} aside={model.waiting.length}>{rows(model.waiting)}</Section> : null}
         {model.yours.length ? <Section group="yours" title="Started by you" aside={model.yours.length}>{rows(model.yours)}</Section> : null}
         {model.later.length ? <Section group="later" title={GROUP_TITLE.later} aside={model.later.length}>{rows(model.later)}</Section> : null}
-        {openCount ? null : <p className="panel-quiet">{quietLine}</p>}
-        <DoneSection today={model.doneToday} earlier={model.doneEarlier} now={now} renderRows={rows} />
+        {openCount || detailStatus ? null : <p className="panel-quiet">{quietLine}</p>}
+        {!detailStatus && <DoneSection today={model.doneToday} earlier={model.doneEarlier} now={now} renderRows={rows} />}
       </div>}
     </div>
   </div>, document.body);
