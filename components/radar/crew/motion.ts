@@ -2,7 +2,6 @@ import { useEffect, useRef, type RefObject } from "react";
 
 const CREW_BEAT_MS = 320;
 const CREW_MAX_LIVE = 3;
-const TURN_BEATS = 16;
 const PHASES = 4;
 
 type CrewElement = HTMLElement | SVGElement;
@@ -47,8 +46,6 @@ const members = new Map<CrewElement, Member>();
 let observer: IntersectionObserver | null = null;
 let reduced: MediaQueryList | null = null;
 let enabled = true;
-let turn = 0;
-let turnTimer: ReturnType<typeof setTimeout> | null = null;
 let electing = false;
 
 function motionAllowed(): boolean {
@@ -88,13 +85,7 @@ function stopLoop(member: Member): void {
 
 function chosen(candidates: Member[]): Member[] {
   if (candidates.length <= CREW_MAX_LIVE) return candidates;
-  const widest = Math.max(...candidates.map(member => member.width));
-  const narrowest = Math.min(...candidates.map(member => member.width));
-  const front = widest > narrowest ? candidates.filter(member => member.width === widest).sort(inDocumentOrder).slice(0, CREW_MAX_LIVE) : [];
-  const rest = candidates.filter(member => !front.includes(member)).sort(inDocumentOrder);
-  const open = CREW_MAX_LIVE - front.length;
-  const first = rest.length ? turn % rest.length : 0;
-  return [...front, ...Array.from({ length: Math.min(open, rest.length) }, (_, index) => rest[(first + index) % rest.length]!)];
+  return [...candidates].sort((a, b) => b.width - a.width || inDocumentOrder(a, b)).slice(0, CREW_MAX_LIVE);
 }
 
 function elect(): void {
@@ -107,13 +98,6 @@ function elect(): void {
   next.forEach((member, index) => {
     if (!member.playing.length && !member.entering) startLoop(member, index % PHASES);
   });
-  const waiting = candidates.length > CREW_MAX_LIVE;
-  if (waiting && turnTimer === null) {
-    turnTimer = setTimeout(() => { turnTimer = null; turn += 1; elect(); }, TURN_BEATS * CREW_BEAT_MS);
-  } else if (!waiting && turnTimer !== null) {
-    clearTimeout(turnTimer);
-    turnTimer = null;
-  }
 }
 
 function requestElection(): void {

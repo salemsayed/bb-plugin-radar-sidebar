@@ -21,6 +21,7 @@ const PROBES = [
   { id: "reduced-motion", what: "Desktop sidebar with prefers-reduced-motion: reduce", query: "s=busy-crew&view=desktop&panel=closed", device: DESKTOP, reducedMotion: "reduce" },
 ];
 
+const LAYER_WAIT_MS = 6000;
 const TRACE_CATEGORIES = ["devtools.timeline", "disabled-by-default-devtools.timeline", "disabled-by-default-devtools.timeline.frame", "cc", "benchmark", "blink.animations", "toplevel"];
 const SCRIPTING = new Set(["FunctionCall", "EvaluateScript", "v8.compile", "v8.run", "TimerFire", "FireAnimationFrame", "EventDispatch", "RunMicrotasks", "MajorGC", "MinorGC", "V8.GC_MC_BACKGROUND_MARKING", "FireIdleCallback", "v8.callFunction", "IntersectionObserverController::computeIntersections"]);
 const STYLE = new Set(["UpdateLayoutTree", "RecalculateStyles", "Document::updateStyle", "Animation"]);
@@ -148,7 +149,8 @@ async function layerFacts(session) {
   const onChange = event => { if (event.layers) layers = event.layers; };
   session.on("LayerTree.layerTreeDidChange", onChange);
   await session.send("LayerTree.enable");
-  await wait(600);
+  for (let waited = 0; !layers.length && waited < LAYER_WAIT_MS; waited += 100) await wait(100);
+  await wait(300);
   const drawn = layers.filter(layer => layer.drawsContent);
   const reasons = {};
   for (const layer of drawn) {
