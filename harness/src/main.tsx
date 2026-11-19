@@ -8,6 +8,7 @@ import { BotPanelTab } from "@/components/radar/BotPanelTab";
 import { BotsView } from "@/components/radar/BotsView";
 import { botTasksSchema } from "@/lib/botTasks";
 import { BOTS, buildWorld, coordinator } from "./build";
+import { Gallery } from "./Gallery";
 import { NOW, freezeClock } from "./clock";
 import { SCENARIOS, type Scenario } from "./scenarios";
 import { currentWorld, setWorld } from "./world";
@@ -23,6 +24,8 @@ function readParams() {
     view: (view === "phone" || view === "desktop" ? view : window.innerWidth <= PHONE_MAX_WIDTH ? "phone" : "desktop") as View,
     dark: params.get("theme") === "dark",
     tab: params.get("surface") === "tab",
+    panel: params.get("panel") !== "closed",
+    gallery: params.get("gallery"),
   };
 }
 
@@ -57,8 +60,7 @@ function openPanel(botKey: string): boolean {
 
 const SETTLE_MS = 900;
 
-function Stage({ scenario, view, tab }: { scenario: Scenario; view: View; tab: boolean }) {
-  const panel = !tab;
+function Stage({ scenario, view, tab, panel }: { scenario: Scenario; view: View; tab: boolean; panel: boolean }) {
   const data = useMemo(() => botTasksSchema.parse(currentWorld().tasks), []);
   const state = useMemo(() => ({ data, status: "ready" as const, cached: false }), [data]);
   const [log, setLog] = useState<string[]>([]);
@@ -105,10 +107,11 @@ function Stage({ scenario, view, tab }: { scenario: Scenario; view: View; tab: b
 }
 
 function App() {
-  const { scenario, view, dark, tab } = readParams();
+  const { scenario, view, dark, tab, panel, gallery } = readParams();
   document.documentElement.classList.toggle("dark", dark);
+  if (gallery) return <Gallery part={gallery} />;
   if (!scenario) return <Index />;
-  return <Stage scenario={scenario} view={view} tab={tab} />;
+  return <Stage scenario={scenario} view={view} tab={tab} panel={panel && !tab} />;
 }
 
 freezeClock();

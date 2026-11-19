@@ -1,10 +1,9 @@
-import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { launch } from "./browser.mjs";
-import { buildHarness, dist } from "./build.mjs";
+import { buildHarness } from "./build.mjs";
+import { serve } from "./serve.mjs";
 
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".map": "application/json" };
 const VIEWS = {
   desktop: { viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2, clip: { x: 0, y: 0, width: 760, height: 860 } },
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
@@ -23,20 +22,6 @@ function parseArgs(argv) {
     else throw new Error(`Unknown option ${argv[i]}. Options: --out <dir> --only <id,id> --themes light,dark --views desktop,phone --surface panel|tab --expanded`);
   }
   return args;
-}
-
-function serve() {
-  const server = createServer(async (request, response) => {
-    const path = new URL(request.url, "http://harness").pathname;
-    const file = join(dist, path === "/" ? "index.html" : path);
-    try {
-      const body = await readFile(file);
-      response.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
-    } catch {
-      response.writeHead(404).end();
-    }
-  });
-  return new Promise(done => server.listen(0, "127.0.0.1", () => done(server)));
 }
 
 const args = parseArgs(process.argv.slice(2));

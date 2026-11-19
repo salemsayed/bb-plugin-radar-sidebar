@@ -8,6 +8,7 @@ export type TaskInput = z.input<typeof taskSchema> & { movedAgoMs?: number };
 export type DeskInput = z.input<typeof deskSchema> & { later?: number; draft?: string };
 
 export const BOTS = [
+  { key: "chief", name: "Chief of Staff Bot" },
   { key: "personal", name: "Personal Bot" },
   { key: "home", name: "Home Bot" },
   { key: "bricks", name: "Bricks Bot" },
@@ -15,6 +16,7 @@ export const BOTS = [
   { key: "erbareeq", name: "ERBareeq Bot" },
   { key: "store", name: "Store Bot" },
   { key: "lab", name: "Lab Bot" },
+  { key: "redflag", name: "Red Flag Bot" },
   { key: "security", name: "Security Bot" },
 ] as const;
 export type BotKey = typeof BOTS[number]["key"];

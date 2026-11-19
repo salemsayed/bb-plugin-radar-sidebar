@@ -8,7 +8,9 @@
     "serve": "node build.mjs --serve",
     "shoot": "node shoot.mjs",
     "theme": "node capture-theme.mjs",
-    "actions": "node actions/run.mjs"
+    "actions": "node actions/run.mjs",
+    "perf": "node perf.mjs",
+    "faces": "node faces.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
