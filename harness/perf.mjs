@@ -12,6 +12,7 @@ const SHORT_PHONE = { ...PHONE, viewport: { width: 390, height: 150 } };
 const SCENES = [
   { id: "sidebar-desktop", what: "Sidebar with all ten bots, panel closed, 1440 px desktop", query: "s=busy-crew&view=desktop&panel=closed", device: DESKTOP },
   { id: "panel-desktop", what: "Same sidebar with a working bot's panel open, 1440 px desktop", query: "s=busy-crew&view=desktop", device: DESKTOP },
+  { id: "tab-desktop", what: "Same sidebar beside a working bot's Bot tab with its large face, 1440 px desktop", query: "s=busy-crew&view=desktop&surface=tab", device: DESKTOP },
   { id: "sidebar-phone", what: "Sidebar with all ten bots, panel closed, 390 px touch phone", query: "s=busy-crew&view=phone&panel=closed", device: PHONE },
 ];
 const PROBES = [
@@ -194,8 +195,13 @@ async function measure(browser, browserSession, origin, scene, seconds, withName
   };
   const traced = summarizeTrace(await trace(session, seconds), seconds);
   if (!withNames) delete traced.names;
+  const runningAfterHiddenEvent = scene.prepare === "hide" ? await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    return new Promise(done => setTimeout(() => done(document.getAnimations().filter(animation => animation.playState === "running").length), 200));
+  }) : undefined;
   await context.close();
-  return { visibility, animations, layers, quiet, traced, problems };
+  return { visibility, animations, layers, quiet, traced, problems, runningAfterHiddenEvent };
 }
 
 function fold(runs) {
@@ -204,6 +210,7 @@ function fold(runs) {
   const layers = runs[0].layers;
   return {
     visibility: runs[0].visibility,
+    ...(runs[0].runningAfterHiddenEvent === undefined ? {} : { animationsRunningAfterHiddenEvent: runs[0].runningAfterHiddenEvent }),
     animationsRunning: running.length,
     animationsRunningEndless: running.filter(animation => animation.endless).length,
     animationsRunningInsideSvg: running.filter(animation => animation.insideSvg).length,
