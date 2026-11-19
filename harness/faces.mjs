@@ -69,7 +69,7 @@ async function film(page, shot, file) {
     while (cursor + 1 < taken.length && taken[cursor + 1].at <= at) cursor++;
     await writeFile(join(frames, `${String(index).padStart(5, "0")}.png`), taken[cursor].data);
   }
-  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(FILM_FPS), "-i", join(frames, "%05d.png"), "-vf", `fps=${FILM_FPS},scale=720:-1:flags=lanczos`, "-loop", "0", "-c:v", "libwebp", "-quality", "82", "-compression_level", "6", file]);
+  await run("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(FILM_FPS), "-i", join(frames, "%05d.png"), "-vf", `fps=${FILM_FPS},scale=min(720\\,iw):-2:flags=lanczos`, "-loop", "0", "-c:v", "libwebp", "-quality", "82", "-compression_level", "6", file]);
   await rm(frames, { recursive: true, force: true });
   return taken.length;
 }
