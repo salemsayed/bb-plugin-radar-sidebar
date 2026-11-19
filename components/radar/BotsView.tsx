@@ -30,7 +30,7 @@ export function BotTaskFace({ bot, size = 20, state }: { bot: Pick<BotTasksBot, 
   if (bot.faceUrl && !broken) {
     return <img className="radar-tasks-face" src={bot.faceUrl} alt="" width={size} height={size} loading="lazy" onError={() => setBroken(true)} />;
   }
-  return <span className="radar-tasks-face" style={{ width: size, height: size }}><BotFace botKey={bot.key} name={bot.name} state={state} size={size} /></span>;
+  return <span className="radar-tasks-face radar-tasks-face-mascot" style={{ width: size, height: size }}><BotFace botKey={bot.key} name={bot.name} state={state} size={size} /></span>;
 }
 
 /** The expression a bot's hero face wears for its mood: the crew's own face language, not a new one. */

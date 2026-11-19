@@ -11,7 +11,7 @@ function lookFor(state: BotState | undefined): CrewLook {
   return "idle";
 }
 
-export function BotFace({ botKey, name, state, size = 24 }: { botKey: string; name: string; state?: BotState; size?: number | string }) {
+export function BotFace({ botKey, state, size = 24 }: { botKey: string; name: string; state?: BotState; size?: number | string }) {
   const shape = crewShape(botKey);
   const look = lookFor(state);
   const detail: CrewDetail = typeof size === "number" && size < GLYPH_BELOW_PX ? "glyph" : "face";

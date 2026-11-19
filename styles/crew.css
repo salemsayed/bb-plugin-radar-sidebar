@@ -3,7 +3,7 @@
    because React listens for animationiteration. */
 .crew {
   position: relative;
-  display: inline-block;
+  display: block;
   flex: none;
   width: var(--crew-size);
   height: calc(var(--crew-size) * 46 / 48);

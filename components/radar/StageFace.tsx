@@ -22,7 +22,7 @@ const ROW_OWNED_TABS: ReadonlySet<CrewTab> = new Set(["question", "letter"]);
 const FIGURE_FROM_PX = 40;
 const VIEW_BOX = `0 0 ${CREW_BOX.width} ${CREW_BOX.height}`;
 
-export function StageFace({ botKey, name, pose, size = 88, bare = false }: { botKey: string; name: string; pose: StagePose; size?: number; bare?: boolean }) {
+export function StageFace({ botKey, pose, size = 88, bare = false }: { botKey: string; name: string; pose: StagePose; size?: number; bare?: boolean }) {
   const root = useRef<HTMLSpanElement>(null);
   const shape = crewShape(botKey);
   const parts = POSES[pose];

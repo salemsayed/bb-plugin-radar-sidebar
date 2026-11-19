@@ -307,7 +307,7 @@ export function crewShoulder(shape: CrewShape): string {
   return `${(x / CREW_BOX.width * 100).toFixed(1)}% ${(y / CREW_BOX.height * 100).toFixed(1)}%`;
 }
 
-export function crewTab(tab: CrewTab): ReactNode {
+function crewTab(tab: CrewTab): ReactNode {
   switch (tab) {
     case "question": {
       const bubble = "M35.2 1.8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-3.6l-2.9 2.7v-2.7h-1.5a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z";

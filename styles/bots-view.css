@@ -1,6 +1,7 @@
 .radar-list-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--foreground); font-size: 13px; }
 .radar-list-shell > .radar-list { flex: 1; height: auto; min-height: 0; }
 .radar-tasks-face { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; object-fit: cover; }
+.radar-tasks-face-mascot { border-radius: 0; overflow: visible; }
 .radar-tasks-face .bot-mascot { display: block; }
 .radar-tasks-face svg { display: block; }
 .radar-tasks-face-letter { color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }

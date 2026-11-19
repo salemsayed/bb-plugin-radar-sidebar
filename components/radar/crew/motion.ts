@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-export const CREW_BEAT_MS = 320;
-export const CREW_MAX_LIVE = 3;
+const CREW_BEAT_MS = 320;
+const CREW_MAX_LIVE = 3;
 const TURN_BEATS = 16;
 const PHASES = 4;
 
