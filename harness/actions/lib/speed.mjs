@@ -76,7 +76,10 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   await page.waitForFunction(() => window.sendSample?.visibleAt, null, { timeout: 10000 });
   const sendSample = await page.evaluate(() => window.sendSample);
   if (mode === "busy") {
-    const queued = iso.query("SELECT created_at FROM queued_thread_messages WHERE thread_id=? AND instr(content,?)>0", bot.coordinator, marker);
+    const queued = await iso.until("durable queue receipt", () => {
+      const rows = iso.query("SELECT created_at FROM queued_thread_messages WHERE thread_id=? AND instr(content,?)>0", bot.coordinator, marker);
+      return rows.length ? rows : null;
+    }, 4000, 30);
     assert.equal(queued.length, 1);
     sendSample.acceptedAt = queued[0].created_at;
     assert.equal(iso.thread(bot.coordinator).status, "active", "Queue receipt appeared after the active turn ended");
