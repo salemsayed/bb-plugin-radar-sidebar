@@ -6,6 +6,7 @@
 // turn down anything they find noisy without editing code, whether each bot is
 // waiting on Salem (from its saved Needs You items), and the Working peek's
 // per-thread digests.
+import { registerAnswerAdmission } from "./lib/answerAdmission";
 import { registerScroll } from "./lib/scrollServer";
 import { registerPresence } from "./lib/presenceServer";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
@@ -143,6 +144,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   await registerPresence(bb);
   registerScroll(bb);
+  registerAnswerAdmission(bb);
   const needs = createNeedsServer(bb);
   bb.rpc.register(needsRpcContract, needs.handlers);
   // Several sidebars peeking at once share one timeline read per thread.

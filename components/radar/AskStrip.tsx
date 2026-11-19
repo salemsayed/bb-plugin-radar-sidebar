@@ -1,3 +1,4 @@
+import { answerSubmission } from "@/lib/answerSubmission";
 import { answerRow } from "./answerRow";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
@@ -162,7 +163,13 @@ export function AskStrip() {
     try {
       composer.replace(answerDraft(label, entry.threadId, entry));
       await new Promise(resolve => requestAnimationFrame(resolve));
-      await composer.submit();
+      const submission = answerSubmission(entry, entry.threadId);
+      if (!submission || composer.draft.text !== answerDraft(label, entry.threadId, entry).text) {
+        setPicked(null);
+        setNote("Check the reply in the message box before sending.");
+        return;
+      }
+      await composer.submit(submission);
     } catch (error) {
       setPicked(null);
       setNote(error instanceof Error && error.message ? error.message : "Not sent");

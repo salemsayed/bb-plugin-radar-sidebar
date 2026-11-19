@@ -1,8 +1,9 @@
+import { answerSubmission } from "./answerSubmission";
 import type { ComposerDraftReplacement } from "@get-bb/plugin-sdk/app";
 import { currentAskStrip, type AskStripEntry } from "./askStrip";
 const KEEP_MS = 15_000;
 
-export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean; draft: ComposerDraftReplacement; key?: string };
+export type FillRequest = { threadId: string; text: string; at: number; swap: readonly string[]; send: boolean; draft: ComposerDraftReplacement; key?: string; submission?: ReturnType<typeof answerSubmission> };
 export type FillOutcome = { key: string; text: string; result: "sending" | "sent" | "draft" | "failed"; at: number };
 
 let pending: FillRequest | null = null;
@@ -14,7 +15,7 @@ function changed() {
 }
 
 export function requestFill(threadId: string, text: string, swap: readonly string[] = [], send = false, key?: string): void {
-  pending = { threadId, text, draft: answerDraft(text, threadId), at: Date.now(), swap, send, ...(key ? { key } : {}) };
+  pending = { threadId, text, draft: answerDraft(text, threadId), at: Date.now(), swap, send, submission: send ? answerSubmission(currentAskStrip(), threadId) : undefined, ...(key ? { key } : {}) };
   if (key && send) outcomes = new Map(outcomes).set(key, { key, text, result: "sending", at: Date.now() });
   changed();
 }

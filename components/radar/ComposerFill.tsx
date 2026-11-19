@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useComposers } from "@get-bb/plugin-sdk/app";
 import { clearFill, pendingFill, reportFill, subscribeFill } from "@/lib/composerFill";
@@ -36,7 +37,15 @@ export function ComposerFill() {
         reportFill(request, "draft");
         return;
       }
-      composer.submit().then(() => reportFill(request, "sent"), () => reportFill(request, "failed"));
+      if (!request.submission) {
+        reportFill(request, "draft");
+        toast.info("Check this reply in the message box and send it yourself.");
+        return;
+      }
+      composer.submit(request.submission).then(() => reportFill(request, "sent"), error => {
+        reportFill(request, "failed");
+        toast.error(error instanceof Error ? error.message : "Check the chat to confirm whether your answer was sent.");
+      });
     };
     const frame = requestAnimationFrame(submit);
     return () => { cancelAnimationFrame(frame); clearTimeout(retry); };
