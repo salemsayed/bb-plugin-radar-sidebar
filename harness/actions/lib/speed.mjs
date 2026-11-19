@@ -24,6 +24,24 @@ async function prepareState(driver, bot, mode) {
   }
 }
 
+async function tapVisibleSend(page, selector) {
+  const point = await page.waitForFunction(selector => {
+    for (const button of document.querySelectorAll(selector)) {
+      if (button.disabled || button.getAttribute("aria-disabled") === "true") continue;
+      const box = button.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      const x = box.left + box.width / 2, y = box.top + box.height / 2;
+      if (button.contains(document.elementFromPoint(x, y))) {
+        window.sendSample.readyAt = Math.round(performance.timeOrigin + performance.now());
+        return { x, y };
+      }
+    }
+    return false;
+  }, selector, { timeout: 3500, polling: "raf" });
+  const { x, y } = await point.jsonValue();
+  await page.touchscreen.tap(x, y);
+}
+
 async function measure(driver, bot, taskId, chipSeq, mode, index) {
   const { page, iso } = driver;
   await driver.home();
@@ -39,7 +57,8 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   const typing = Math.round(performance.now() - start);
 
   start = performance.now();
-  const send = page.locator(mode === "busy" ? '[data-scroll-footer] button:is([title^="Queue"], [aria-label^="Queue"]):visible' : '[data-scroll-footer] button:is([title^="Submit"], [aria-label^="Submit"]):visible').last();
+  const selector = mode === "busy" ? '[data-scroll-footer] button:is([title^="Queue"], [aria-label^="Queue"])' : '[data-scroll-footer] button:is([title^="Submit"], [aria-label^="Submit"])';
+  const send = page.locator(selector + ':visible').last();
   if (mode === "busy") await send.waitFor({ state: "visible", timeout: 3500 });
   await page.evaluate(({text, busy}) => {
     const stamp = () => Math.round(performance.timeOrigin + performance.now());
@@ -70,7 +89,7 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
     }, { once: true, capture: true });
     document.addEventListener("click", () => { sample.clickAt = stamp(); }, { once: true, capture: true });
   }, {text: marker, busy: mode === "busy"});
-  if (driver.phone) await send.tap();
+  if (driver.phone) await tapVisibleSend(page, selector);
   else await send.click();
   const sendTapMs = Math.round(performance.now() - start);
   await page.waitForFunction(text => Array.from(document.querySelectorAll("body *")).some(node =>
