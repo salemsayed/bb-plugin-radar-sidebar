@@ -24,24 +24,6 @@ async function prepareState(driver, bot, mode) {
   }
 }
 
-async function tapVisibleSend(page, selector) {
-  const point = await page.waitForFunction(selector => {
-    for (const button of document.querySelectorAll(selector)) {
-      if (button.disabled || button.getAttribute("aria-disabled") === "true") continue;
-      const box = button.getBoundingClientRect();
-      if (!box.width || !box.height) continue;
-      const x = box.left + box.width / 2, y = box.top + box.height / 2;
-      if (button.contains(document.elementFromPoint(x, y))) {
-        window.sendSample.readyAt = Math.round(performance.timeOrigin + performance.now());
-        return { x, y };
-      }
-    }
-    return false;
-  }, selector, { timeout: 3500, polling: "raf" });
-  const { x, y } = await point.jsonValue();
-  await page.touchscreen.tap(x, y);
-}
-
 async function measure(driver, bot, taskId, chipSeq, mode, index) {
   const { page, iso } = driver;
   await driver.home();
@@ -60,7 +42,7 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   const selector = mode === "busy" ? '[data-scroll-footer] button:is([title^="Queue"], [aria-label^="Queue"])' : '[data-scroll-footer] button:is([title^="Submit"], [aria-label^="Submit"])';
   const send = page.locator(selector + ':visible').last();
   if (mode === "busy") await send.waitFor({ state: "visible", timeout: 3500 });
-  await page.evaluate(({text, busy}) => {
+  await page.evaluate(({text, busy, selector}) => {
     const stamp = () => Math.round(performance.timeOrigin + performance.now());
     const sample = { armedAt: stamp() };
     window.sendSample = sample;
@@ -83,15 +65,23 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
       }
       requestAnimationFrame(frame);
     }
-    document.addEventListener("pointerdown", () => {
+    document.addEventListener("pointerdown", event => {
+      const button = event.target.closest("button");
+      sample.target = button?.getAttribute("aria-label") || button?.title || event.target.tagName;
+      sample.onSend = !!button?.matches(selector);
       sample.downAt = stamp();
       requestAnimationFrame(frame);
     }, { once: true, capture: true });
     document.addEventListener("click", () => { sample.clickAt = stamp(); }, { once: true, capture: true });
-  }, {text: marker, busy: mode === "busy"});
-  if (driver.phone) await tapVisibleSend(page, selector);
+  }, {text: marker, busy: mode === "busy", selector});
+  if (driver.phone) await send.tap();
   else await send.click();
   const sendTapMs = Math.round(performance.now() - start);
+  if (driver.phone) {
+    const sample = await page.evaluate(() => window.sendSample);
+    assert.equal(sample.onSend, true, `Phone tap reached ${sample.target ?? "no control"} in ${mode}`);
+    assert.equal(await page.getByText("Permission mode", { exact: true }).last().isVisible(), false, "Permission mode opened after Send");
+  }
   await page.waitForFunction(text => Array.from(document.querySelectorAll("body *")).some(node =>
     node.childElementCount === 0 && node.textContent.trim() === text && !node.closest("[contenteditable], textarea, script, style") && node.getBoundingClientRect().height > 0
   ), marker, { timeout: 15000 });
