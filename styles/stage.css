@@ -172,14 +172,17 @@
   .stage-chat { height: auto; min-height: 64px; gap: 6px; padding-inline-end: var(--stage-aside); }
   .stage-chat .stage-copy { align-self: stretch; justify-content: flex-start; padding-block: 10px 8px; }
   .stage-chat .stage-figure { width: 42px; }
-  .stage-chat .stage-figure .stage-face { width: 40px; height: 38px; }
+  .stage-chat .stage-figure .stage-face { width: 40px; }
   .stage-more { opacity: 1; align-self: center; width: 44px; height: 44px; margin: 0; box-shadow: none; background: transparent; }
   .stage-head { padding-inline-end: 0; }
   .stage-row .stage-line { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; line-height: 16px; overflow-wrap: anywhere; }
   .stage-copy { gap: 1px; }
 }
 .stage-figure { position: relative; flex: none; display: grid; place-items: center; width: 50px; }
-.stage-figure .stage-face { width: 48px; height: 46px; }
+.stage-figure .stage-face { width: 48px; height: var(--stage-face-h, 46px); }
+.stage-chat { --stage-copy-top: 9px; --stage-face-h: 46px; --stage-text-mid: calc(var(--stage-copy-top) + 18px); }
+.stage-chat .stage-figure { align-self: flex-start; }
+.stage-chat .stage-figure .stage-face { translate: 0 calc(var(--stage-text-mid) - var(--crew-eye, 0.5) * var(--stage-face-h)); }
 .stage-face { display: block; overflow: visible; }
 .stage-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .stage-head { display: flex; align-items: baseline; gap: 6px; min-height: 18px; }
@@ -197,10 +200,10 @@
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.stage-chat .stage-copy { align-self: stretch; justify-content: flex-start; padding-top: 9px; }
+.stage-chat .stage-copy { align-self: stretch; justify-content: flex-start; padding-top: var(--stage-copy-top); }
 @media (pointer: coarse) {
   .stage-row .stage-line { -webkit-line-clamp: 3; line-clamp: 3; }
-  .stage-chat .stage-copy { padding-top: 10px; }
+  .stage-chat { --stage-copy-top: 10px; --stage-face-h: 38px; --stage-text-mid: calc(var(--stage-copy-top) + 17.5px); }
 }
 .stage-row[data-tone="ask"] .stage-line::before {
   content: "";

@@ -302,6 +302,10 @@ export function crewHands(shape: CrewShape, hands: CrewHands, paper: CrewPaper):
   return <>{arm(shape, -1, 9, paper)}{arm(shape, 1, 9, paper)}</>;
 }
 
+export function crewEyeLine(shape: CrewShape): number {
+  return SHAPES[shape].face[1] / CREW_BOX.height;
+}
+
 export function crewShoulder(shape: CrewShape): string {
   const [x, y] = shoulder(shape, 1);
   return `${(x / CREW_BOX.width * 100).toFixed(1)}% ${(y / CREW_BOX.height * 100).toFixed(1)}%`;
