@@ -1,6 +1,3 @@
-/* Radar Sidebar: the crew's cut-paper mascots. Their stop-motion is played by crew/motion.ts
-   through the Web Animations API: CSS animations would wake the main thread on every loop,
-   because React listens for animationiteration. */
 .crew {
   position: relative;
   display: block;
