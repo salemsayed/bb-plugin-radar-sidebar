@@ -49,7 +49,7 @@
 .radar-bot-state-ring-working circle { stroke-dasharray: 70 200; stroke-linecap: round; }
 .radar-bot-state-ring-rollover circle { stroke-dasharray: 26 32; stroke-linecap: round; stroke: color-mix(in srgb, var(--primary) 70%, var(--foreground)); }
 .radar-bot-state-ring-unavailable circle { stroke: var(--muted-foreground); stroke-dasharray: 3 4; opacity: .6; }
-.radar-bot-avatar-unavailable .radar-bot-face { filter: grayscale(1); opacity: .45; }
+.radar-bot-avatar-unavailable .radar-bot-face { opacity: .7; }
 /* Badges sit in the avatar's corner, clear of the eyes; a cut-out ring separates them from the face. */
 .radar-bot-attention-badge { position: absolute; z-index: 2; top: -3px; right: -3px; width: max(13px, 40%); height: max(13px, 40%); display: grid; place-items: center; border-radius: 50%; font-size: 10px; font-weight: 800; line-height: 1; color: white; box-shadow: 0 0 0 2px var(--badge-cut); }
 .radar-bot-badge-error { background: var(--destructive, #c03a3a); }
@@ -57,12 +57,6 @@
 .radar-bot-badge-warning { background: #f6b21b; color: #2a1a00; }
 .radar-bot-unread-dot { position: absolute; z-index: 2; top: -1px; right: -1px; width: max(8px, 24%); height: max(8px, 24%); border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--badge-cut); }
 .radar-bot-state-spin { position: absolute; inset: 0; }
-@keyframes radar-bot-ring-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: no-preference) {
-  .radar-bot-state-spin-working.radar-bot-state-motion { animation: radar-bot-ring-rotate 1.4s linear infinite; will-change: transform; }
-  .radar-bot-state-spin-rollover.radar-bot-state-motion { animation: radar-bot-ring-rotate 4s linear infinite; will-change: transform; }
-}
-[data-radar-motion="off"] .radar-bot-state-spin { animation: none !important; }
 .radar-bot-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
 .radar-bot-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .radar-bot-name { font-size: 13px; font-weight: 650; white-space: nowrap; color: var(--foreground); }
@@ -90,17 +84,8 @@
   background: linear-gradient(135deg, color-mix(in srgb, var(--destructive) 14%, transparent), transparent 60%), var(--sidebar, var(--background));
 }
 .radar-bot-card.radar-bot-working .radar-bot-ring-track { stroke: color-mix(in srgb, var(--bot-color) 45%, transparent); }
-@keyframes radar-bot-breathe {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning, #d97706) 0%, transparent); }
-  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning, #d97706) 22%, transparent); }
-}
-@keyframes radar-bot-orbit { to { transform: rotate(270deg); } }
-@keyframes radar-bot-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1px); } 75% { transform: translateX(1px); } }
 @media (prefers-reduced-motion: no-preference) {
-  .radar-bot-motion.radar-bot-decision, .radar-bot-motion.radar-bot-needs-you { animation: radar-bot-breathe 2.6s ease-in-out infinite; }
-  .radar-bot-motion.radar-bot-working .radar-bot-ring { animation: radar-bot-orbit 1.6s linear infinite; }
   .radar-bot-motion.radar-bot-working .radar-bot-ring-fill { stroke-dasharray: 22 85; stroke-dashoffset: 0; }
-  .radar-bot-motion.radar-bot-failed .radar-bot-face { animation: radar-bot-shake 900ms ease-in-out 2; }
 }
 .radar-bot-toggle {
   display: flex; align-items: center; gap: 4px; padding: 0 4px; border: 0; border-radius: 6px;

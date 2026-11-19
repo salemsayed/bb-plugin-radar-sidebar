@@ -2,6 +2,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { WAITING_THRESHOLD, type CrewJudgement } from "@/lib/crewAsk";
 import { openNeeds, type NeedsItem } from "@/lib/needs";
+import { crewHue, crewShape, type CrewShape } from "./crew/art";
 import { effectiveIndicator, isRunningThread } from "./time";
 
 /** What the bb-salem-bots plugin publishes for sidebars: identity only, no thread content. */
@@ -171,29 +172,15 @@ export function shortBotName(name: string): string {
   return name.replace(/\s+Bot$/i, "");
 }
 
-export type BotMascot = "personal" | "home" | "bricks" | "work" | "erbareeq" | "store" | "lab" | "security" | "generic";
-const KNOWN_STYLE: Record<string, { emoji: string; hue: number; mascot: BotMascot }> = {
-  personal: { emoji: "🧭", hue: 212, mascot: "personal" },
-  home: { emoji: "🏠", hue: 146, mascot: "home" },
-  bricks: { emoji: "🧱", hue: 24, mascot: "bricks" },
-  work: { emoji: "💼", hue: 268, mascot: "work" },
-  erbareeq: { emoji: "⚡", hue: 44, mascot: "erbareeq" },
-  store: { emoji: "🛒", hue: 95, mascot: "store" },
-  security: { emoji: "🛡️", hue: 185, mascot: "security" },
-  lab: { emoji: "🧪", hue: 335, mascot: "lab" },
+export type BotMascot = CrewShape;
+const EMOJI: Record<Exclude<CrewShape, "generic">, string> = {
+  personal: "🧭", home: "🏠", bricks: "🧱", work: "💼", erbareeq: "⚡", store: "🛒", security: "🛡️", lab: "🧪", chief: "📋", redflag: "🚩",
 };
-const TAKEN_HUES = Object.values(KNOWN_STYLE).map(style => style.hue);
-const hueGap = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
-export function derivedHue(key: string): number {
-  let hash = 0;
-  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  let hue = Math.abs(hash) % 360;
-  for (let step = 0; step < 12 && TAKEN_HUES.some(taken => hueGap(taken, hue) < 20); step += 1) hue = (hue + 29) % 360;
-  return hue;
-}
+export const derivedHue = crewHue;
 export interface BotStyle { emoji: string; hue: number; mascot: BotMascot }
 export function botStyle(key: string, _name?: string): BotStyle {
-  return KNOWN_STYLE[key] ?? { emoji: "🤖", hue: derivedHue(key), mascot: "generic" };
+  const mascot = crewShape(key);
+  return { emoji: mascot === "generic" ? "🤖" : EMOJI[mascot], hue: crewHue(key), mascot };
 }
 
 /** One line for the crew header: what, across all bots, is waiting on Salem or still moving. */

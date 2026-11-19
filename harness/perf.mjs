@@ -72,7 +72,8 @@ function inventory() {
     const box = target?.getBoundingClientRect();
     const timing = animation.effect?.getTiming() ?? {};
     return {
-      name: animation.animationName ?? `transition:${animation.transitionProperty}`,
+      name: animation.animationName ?? (animation.transitionProperty ? `transition:${animation.transitionProperty}` : animation.id || "script"),
+      api: animation.animationName ? "css" : animation.transitionProperty ? "transition" : "web-animations",
       state: animation.playState,
       target: target ? describe(target) : "",
       pseudo: animation.effect?.pseudoElement ?? null,
@@ -206,6 +207,7 @@ function fold(runs) {
     animationsRunning: running.length,
     animationsRunningEndless: running.filter(animation => animation.endless).length,
     animationsRunningInsideSvg: running.filter(animation => animation.insideSvg).length,
+    animationsRunningAsCss: running.filter(animation => animation.api === "css").length,
     animationsRunningOutOfView: running.filter(animation => !animation.inViewport).length,
     layers: layers ? { total: layers.layers, drawing: layers.drawingLayers, drawingPixels: layers.drawingLayerPixels } : null,
     mainThreadMsPerSecond: Object.fromEntries(["scripting", "style", "layout", "paint", "other", "total"].map(key => [key, pick(`traced.mainThreadMsPerSecond.${key}`)])),

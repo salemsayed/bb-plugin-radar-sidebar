@@ -64,6 +64,7 @@ import {
 import { RadarBulkBar } from "./RadarBulkBar";
 import { problem } from "./listFeedback";
 import { BotsView } from "./BotsView";
+import { setCrewMotionEnabled } from "./crew/motion";
 import { BotDeskMenu, BotDeskMenuProvider } from "./BotDeskMenu";
 import { useBotSidebar } from "./useBotTasks";
 import { needRows } from "@/lib/botTasks";
@@ -162,6 +163,7 @@ function RadarThreadsList({
   const { query, setQuery, lifecycle, statusFilter, switchPending } = view;
   const settings = useListSettings();
   const { density, grouping } = settings;
+  useEffect(() => { setCrewMotionEnabled(settings.motion); }, [settings.motion]);
   const [projectOrder, setProjectOrder] = useState<string[]>(() =>
     readStringArray(PROJECT_ORDER_KEY),
   );

@@ -94,13 +94,8 @@
   border-radius: 50%;
   background: currentColor;
   vertical-align: 1px;
-  animation: stage-status-pulse 1.8s ease-in-out infinite;
 }
 .stage-row[data-tone="blocked"] .stage-line::before { content: "!"; font-weight: 700; margin-inline-end: 5px; }
-@keyframes stage-status-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) {
-  .stage-row[data-tone="busy"] .stage-line::before { animation: none; }
-}
 .stage-row[data-here] { background: color-mix(in oklab, var(--stage-selection-fill) 60%, transparent); }
 .stage-row[data-here]::before {
   content: "";
@@ -221,19 +216,8 @@
 .stage-row[data-tone="ask"] .stage-line { color: var(--stage-ask); font-weight: 600; }
 .stage-row[data-tone="blocked"] .stage-line { color: var(--stage-blocked); }
 .stage-row[data-tone="busy"] .stage-line::before { color: var(--stage-busy); }
-@media (prefers-reduced-motion: no-preference) {
-  .stage-face[data-pose="working"] .stage-body { animation: stage-type 0.9s ease-in-out infinite; }
-  .stage-face[data-pose="working"] .stage-busy-lines { animation: stage-blink 0.9s steps(2) infinite; }
-  .stage-face[data-pose="asking"] .stage-ask { animation: stage-bob 1.6s ease-in-out infinite; transform-origin: 38px 16px; }
-  .bot-hero .stage-face[data-pose="idle"] .stage-body { animation: stage-breathe 4s ease-in-out infinite; transform-origin: 22px 40px; }
-  .stage-face[data-pose="blocked"] .stage-smoke { animation: stage-rise 2.4s ease-out infinite; }
-}
-@keyframes stage-type { 50% { transform: translateY(0.6px); } }
 @keyframes stage-blink { 50% { opacity: 0; } }
 @keyframes stage-pulse { 50% { opacity: .35; } }
-@keyframes stage-bob { 50% { transform: translateY(-1.5px) rotate(-6deg); } }
-@keyframes stage-breathe { 50% { transform: scale(1.02, 0.985); } }
-@keyframes stage-rise { from { transform: translateY(1px); opacity: 0.8; } to { transform: translateY(-2px); opacity: 0.3; } }
 .stage-work-pill {
   display: inline-flex;
   justify-content: center;
@@ -300,7 +284,7 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
 .bot-item-done .bot-item-title::before { content: "✓"; color: var(--stage-good, #2d7346); }
 .bot-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--foreground); transform: translateY(-1px); }
 .bot-quiet, .bot-panel-empty { margin: 0 10px; color: var(--muted-foreground); }
-@media (prefers-reduced-motion: no-preference) { .bot-live-dot { animation: stage-pulse 1.4s ease-in-out infinite; } }
+@media (prefers-reduced-motion: no-preference) { .bot-live-dot { animation: stage-pulse 1.6s step-end infinite; } }
 .dispatch-panel[data-caret] { overflow: visible; }
 .dispatch-panel[data-caret]::before {
   content: "";
@@ -409,7 +393,6 @@ button.bot-item:hover { background: color-mix(in oklab, var(--foreground) 5%, tr
   background: var(--foreground);
   box-shadow: 0 0 0 2px var(--sidebar, var(--background));
 }
-@media (prefers-reduced-motion: no-preference) { .radar-rail-working { animation: stage-status-pulse 1.8s ease-in-out infinite; } }
 .radar-rail-unread {
   position: absolute;
   bottom: 1px;

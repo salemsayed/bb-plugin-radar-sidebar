@@ -42,7 +42,7 @@ export function RadarBotCard({ thread, name, botKey, hue, state, activity, rollo
       data-thread-id={thread.id}
     >
       <a className="radar-bot-main" href={thread.href} onClick={() => onNavigate()} aria-label={`${name}, ${label.text}${activity ? ` · ${botActivityText(activity)}` : ""}${rolloverBlocked ? " · Handover blocked" : ""}`} title={line}>
-        <BotAvatar botKey={botKey} name={name} context={context} state={rolloverBlocked ? state : undefined} unread={activity?.unread ?? thread.isUnread} updates={activity?.updates} />
+        <BotAvatar botKey={botKey} name={name} context={context} state={rolloverBlocked ? state : undefined} unread={activity?.unread ?? thread.isUnread} updates={activity?.updates} motion={motion} orbit={state === "working"} />
         <span className="radar-bot-body">
           <span className="radar-bot-head">
             <span className="radar-bot-name">{short}</span>
