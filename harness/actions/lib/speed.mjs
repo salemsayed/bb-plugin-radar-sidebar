@@ -41,20 +41,24 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
   start = performance.now();
   const send = page.locator(mode === "busy" ? '[data-scroll-footer] button:is([title^="Queue"], [aria-label^="Queue"]):visible' : '[data-scroll-footer] button:is([title^="Submit"], [aria-label^="Submit"]):visible').last();
   if (mode === "busy") await send.waitFor({ state: "visible", timeout: 3500 });
-  await page.evaluate(text => {
+  await page.evaluate(({text, busy}) => {
     const stamp = () => Math.round(performance.timeOrigin + performance.now());
     const sample = { armedAt: stamp() };
     window.sendSample = sample;
     function frame() {
-      const nodes = document.evaluate('//*[text()="' + text + '"]', document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const nodes = document.evaluate('//*[not(*) and normalize-space(.)="' + text + '"]', document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       for (let index = 0; index < nodes.snapshotLength; index++) {
-        const node = nodes.snapshotItem(index);
+        const match = nodes.snapshotItem(index);
+        if (match.closest('[contenteditable], textarea, script, style')) continue;
+        const queue = busy && document.querySelector('button[aria-label="Toggle queued messages"]');
+        const node = queue || match;
         const box = node.getBoundingClientRect();
-        if (node.closest('[contenteditable], textarea, script, style') || !box.height || box.top >= innerHeight || box.bottom <= 0) continue;
+        if (!box.height || box.top >= innerHeight || box.bottom <= 0) continue;
         const x = Math.max(0, Math.min(innerWidth - 1, box.left + box.width / 2));
         const y = (Math.max(0, box.top) + Math.min(innerHeight, box.bottom)) / 2;
         if (node.contains(document.elementFromPoint(x, y))) {
           sample.visibleAt = stamp();
+          sample.receiptKind = queue ? "queue indicator" : "message";
           return;
         }
       }
@@ -65,7 +69,7 @@ async function measure(driver, bot, taskId, chipSeq, mode, index) {
       requestAnimationFrame(frame);
     }, { once: true, capture: true });
     document.addEventListener("click", () => { sample.clickAt = stamp(); }, { once: true, capture: true });
-  }, marker);
+  }, {text: marker, busy: mode === "busy"});
   if (driver.phone) await send.tap();
   else await send.click();
   const sendTapMs = Math.round(performance.now() - start);

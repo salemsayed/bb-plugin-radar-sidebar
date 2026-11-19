@@ -23,11 +23,23 @@ export function ComposerFill() {
         return;
       }
       prepared.current = request;
-      return;
     }
-    if (composer.isSubmittingBlocked) return;
-    clearFill(request);
-    composer.submit().then(() => reportFill(request, "sent"), () => reportFill(request, "failed"));
+    let retry = 0;
+    const submit = () => {
+      if (pendingFill() !== request) return;
+      if (composer.isSubmittingBlocked) {
+        retry = window.setTimeout(submit, 50);
+        return;
+      }
+      clearFill(request);
+      if (composer.draft.text !== request.draft.text) {
+        reportFill(request, "draft");
+        return;
+      }
+      composer.submit().then(() => reportFill(request, "sent"), () => reportFill(request, "failed"));
+    };
+    const frame = requestAnimationFrame(submit);
+    return () => { cancelAnimationFrame(frame); clearTimeout(retry); };
   }, [request, composers]);
   return null;
 }
