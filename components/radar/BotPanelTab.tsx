@@ -1,3 +1,4 @@
+import { DeskHistory } from "./DeskHistory";
 import { useBotRoster } from "./useBotRoster";
 import { DeskThreads } from "./DeskThreads";
 import { Icon } from "@/components/ui/icon";
@@ -192,6 +193,7 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
         <h3>Waiting</h3>
         <div role="list">{waiting.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={waitWhen(t, now, bot.name)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}</div>
       </section> : null}
+      <DeskHistory key={bot.key} bot={bot.key} onOpen={go} />
       <DeskThreads desks={bot.desks} now={now} onOpen={go} />
       {(claims.byBot[bot.key] ?? []).length ? <section aria-label="Started by you">
         <h3>Started by you</h3>

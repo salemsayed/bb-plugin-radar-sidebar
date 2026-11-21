@@ -1,3 +1,4 @@
+import { DeskHistory } from "../DeskHistory";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
@@ -158,6 +159,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
         <BotMenu thread={target} botName={bot.name} sheet={isCompactViewport} onShowThreads={() => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); }} onClose={onClose} />
       </nav>
       {detailStatus !== "error" && <div className="dispatch-panel-body" ref={body} inert={detailStatus === "loading"} aria-busy={detailStatus === "loading"}>
+        {!detailStatus && <DeskHistory key={bot.key} bot={bot.key} onOpen={onNavigate} />}
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}

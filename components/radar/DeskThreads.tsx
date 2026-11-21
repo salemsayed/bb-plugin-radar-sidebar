@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { deskShown, deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { deskFinished, deskShown, deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
 import { deskStatus } from "./panel/status";
 import { elapsed } from "./elapsed";
 import { deskNeedLine } from "./stage";
@@ -19,8 +19,8 @@ export function deskHeadline(desks: readonly BotDesk[]): string {
 
 export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; now: number; onOpen: (id: string) => void; bare?: boolean }>(function DeskThreads({ desks, now, onOpen, bare = false }, ref) {
   const visible = desks.filter(desk => deskShown(desk, now));
-  const open = sortDesks(visible.filter(desk => desk.status !== "done"));
-  const done = sortDesks(visible.filter(desk => desk.status === "done"));
+  const open = sortDesks(visible.filter(desk => !deskFinished(desk)));
+  const done = sortDesks(visible.filter(deskFinished));
   const row = (desk: BotDesk) => {
     const asking = needsYou(desk);
     const title = asking ? deskNeedLine(desk) : plainNote(deskTitle(desk)).replace(CHANNEL_TAG, "");
