@@ -1,5 +1,5 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { isClosed, isSameLocalDay, needsYou, sortDesks, type Attempt, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
+import { deskShown, isClosed, isSameLocalDay, needsYou, sortDesks, type Attempt, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
 import { elapsed } from "../elapsed";
 import { isQuestionRow, isStepAsk, needsTopic, questionTopic } from "../questions";
 import { stageText, stageTitle } from "../stage";
@@ -29,7 +29,6 @@ export interface PanelModel {
   stepsOnly: boolean;
 }
 
-const DAY_MS = 86_400_000;
 const TEST_TASK = /^TEST\b/;
 const TEST_OUTCOME = /^TEST fixture\b/i;
 
@@ -114,7 +113,7 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   const asks = items.filter(item => item.status.group === "needs");
   const askTitles = new Set(asks.map(item => stageTitle(item.task.title).toLowerCase()));
   const shadowed = (item: TaskItem) => item.task.displayState === "waiting" && item.status.group !== "later" && askTitles.has(stageTitle(item.task.title).toLowerCase());
-  const visibleDesks = bot.desks.filter(desk => desk.status !== "done" && desk.status !== "info" || desk.quietSince === null || now - desk.quietSince < DAY_MS);
+  const visibleDesks = bot.desks.filter(desk => deskShown(desk, now));
   const desks = sortDesks(visibleDesks).map(desk => deskItem(desk, now));
   const unlinked = bot.unlinked.map((worker): ThreadItem => ({ kind: "thread", key: `worker:${worker.threadId}`, title: taskHeadline(plainWorkerTitle(worker.title || "Worker")), status: { group: "working", mark: "working", words: "Working", note: "on its own, not filed as a task" }, at: now, threadId: worker.threadId }));
   const group = (name: Group): WorkItem[] => [...items.filter(item => item.status.group === name && !shadowed(item)), ...desks.filter(item => item.status.group === name)];

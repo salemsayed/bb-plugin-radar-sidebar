@@ -78,6 +78,12 @@ export function deskLater(desk: Pick<BotDesk, "question">): boolean {
   return desk.question?.state === "later";
 }
 
+const FINISHED_DESK_SHOWN_MS = 7 * 86_400_000;
+
+export function deskShown(desk: Pick<BotDesk, "status" | "quietSince">, now: number): boolean {
+  return desk.status !== "done" && desk.status !== "info" || desk.quietSince === null || now - desk.quietSince < FINISHED_DESK_SHOWN_MS;
+}
+
 export function sortDesks(desks: readonly BotDesk[]): BotDesk[] {
   return [...desks].sort((a, b) => DESK_RANK[a.status] - DESK_RANK[b.status]
     || (needsYou(a) ? a.updatedAt - b.updatedAt : b.updatedAt - a.updatedAt));

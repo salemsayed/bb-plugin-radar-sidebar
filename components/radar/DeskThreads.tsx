@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { deskShown, deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
 import { deskStatus } from "./panel/status";
 import { elapsed } from "./elapsed";
 import { deskNeedLine } from "./stage";
@@ -8,8 +8,6 @@ import { plainNote } from "./workText";
 
 const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)\s+·\s+(?=\S)/i;
 import { askedAgo } from "./NeedsSummary";
-
-const DAY_MS = 86_400_000;
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
   const need = desks.filter(needsYou).length;
@@ -20,8 +18,7 @@ export function deskHeadline(desks: readonly BotDesk[]): string {
 }
 
 export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; now: number; onOpen: (id: string) => void; bare?: boolean }>(function DeskThreads({ desks, now, onOpen, bare = false }, ref) {
-  const quiet = (desk: BotDesk) => desk.status === "done" || desk.status === "info";
-  const visible = desks.filter(desk => !quiet(desk) || desk.quietSince === null || now - desk.quietSince < DAY_MS);
+  const visible = desks.filter(desk => deskShown(desk, now));
   const open = sortDesks(visible.filter(desk => desk.status !== "done"));
   const done = sortDesks(visible.filter(desk => desk.status === "done"));
   const row = (desk: BotDesk) => {
@@ -43,6 +40,6 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   return <section className="radar-desks" aria-label="Desks" ref={ref}>
     <header className="dispatch-section-head"><h3>Desks</h3>{headline ? <span data-needs-you={open.some(needsYou) || undefined}>{headline}</span> : null}</header>
     {open.map(row)}
-    {done.length ? <details className="radar-desks-done"><summary>{done.length} done in the last 24 h</summary>{done.map(row)}</details> : null}
+    {done.length ? <details className="radar-desks-done"><summary>{done.length} done this week</summary>{done.map(row)}</details> : null}
   </section>;
 });
