@@ -93,7 +93,18 @@ export function takePendingRestore(threadId: string) {
     return marker?.threadId === threadId && typeof marker.at === "number" && Date.now() - marker.at < PENDING_MS;
   } catch { return false; }
 }
+let linkHold: { threadId: string; until: number } | null = null;
+
+export function holdLink(threadId: string, ms: number) {
+  linkHold = { threadId, until: Date.now() + ms };
+}
+
+export function dropLinkHold(threadId: string) {
+  if (linkHold?.threadId === threadId) linkHold = null;
+}
+
 export function explicitLink(threadId: string) {
+  if (linkHold?.threadId === threadId && Date.now() < linkHold.until) return true;
   return /^#msg=/.test(location.hash) && ownedRouteHash(threadId) !== location.hash;
 }
 let veil: { threadId: string; at: number; timer: number | null; lifted: boolean } | null = null;

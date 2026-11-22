@@ -2,6 +2,7 @@ export const ROW = "[data-timeline-row-id]";
 const ROWS = `${ROW}, [data-notification-thread]`;
 const USER_SEED = /^[^:]+:user-seed:(\d+)(?:-\d+)?$/;
 const FIBER_DEPTH = 6;
+const SIDEBAR = ".radar-list-shell, [data-testid=\"nav-rail-sidebar-body\"]";
 
 type RowData = { id?: unknown; threadId?: unknown; kind?: unknown; messageSeq?: unknown };
 type Fiber = { memoizedProps?: { row?: RowData } | null; return?: Fiber | null };
@@ -86,4 +87,14 @@ export function threadOfRows(root: ParentNode) {
 export function threadRows(threadId: string) {
   const id = CSS.escape(threadId);
   return `[data-notification-thread="${id}"], [data-timeline-row-id^="${id}:"]`;
+}
+
+export function newestTimelineSeq(threadId: string) {
+  let newest = 0;
+  for (const el of document.querySelectorAll<HTMLElement>(`[data-timeline-row-id^="${CSS.escape(threadId)}:"]`)) {
+    if (el.closest(SIDEBAR)) continue;
+    const info = read(el);
+    if (info.thread === threadId && info.seq > newest) newest = info.seq;
+  }
+  return newest;
 }
