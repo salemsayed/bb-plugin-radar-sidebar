@@ -316,6 +316,12 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     }
     onOpen(id, messageSeq);
   };
+  const openDeskOrThread = (id: string, messageSeq?: number) => {
+    const detail = { threadId: id, handled: false };
+    window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:open-desk", { detail }));
+    if (detail.handled) return;
+    open(id, messageSeq);
+  };
   const threadNeeds = outsideItems(data, byId);
   const showPanel = (key: string, desks: boolean, from: string | null = null) => (point: PanelAnchor) => {
     opener.current = document.activeElement as HTMLElement;
@@ -365,7 +371,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     onFocus={event => { if (inside(event.target)) setKeysIn((event.target as HTMLElement).matches(":focus-visible")); }}
     onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeysIn(false); }}>
     <div className="stage-needs-slot" ref={slot}><div ref={slotInner}>
-      <NeedsSummary data={data} extra={threadNeeds} hold={pointerIn || keysIn || touchIn} watching={watching} seen={visible} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
+      <NeedsSummary data={data} extra={threadNeeds} hold={pointerIn || keysIn || touchIn} watching={watching} seen={visible} now={now} activeThreadId={activeThreadId} onOpen={(id, seq, item) => { if (item?.kind === "desk") { openDeskOrThread(id, seq); return; } if (item?.kind === "ask" && !item.state) armItem(item); open(id, seq); }}
         onAnswer={(item, label) => { armItem(item); requestFill(item.threadId, label, boxAnswers(item), true, item.id); open(item.threadId, item.messageSeq); }}
         checking={!fresh && !unreachable} cold={!held.current}
         stale={unreachable ? staleNote : null}
@@ -394,7 +400,9 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} fromItem={fromItem} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
-      onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }} onClose={close} /> : null}
+      onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }}
+      onOpenDesk={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); openDeskOrThread(id, messageSeq); }}
+      onClose={close} /> : null}
     <NotNowToastView toast={later.toast} scope={scope} layout={sheet ?? ""} inline={inlineUndo} />
   </div>;
 }

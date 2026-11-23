@@ -21,14 +21,15 @@ function Copy({ item }: { item: WorkItem }) {
   </span>;
 }
 
-export function WorkRow({ item, bot, context, current, onNavigate, onPark }: { item: WorkItem; bot: BotTasksBot; context: DetailContext; current: boolean; onNavigate: Navigate; onPark: Park }) {
+export function WorkRow({ item, bot, context, current, onNavigate, onOpenDesk, onPark }: { item: WorkItem; bot: BotTasksBot; context: DetailContext; current: boolean; onNavigate: Navigate; onOpenDesk?: Navigate; onPark: Park }) {
   const [open, setOpen] = useState(false);
   const spoken = `${item.title}. ${[item.status.words, item.status.note].filter(Boolean).join(", ")}`;
   if (item.kind !== "task") {
     const threadId = item.kind === "desk" ? item.desk.threadId : item.threadId;
     const parked = item.kind === "desk" && item.desk.question?.state === "later";
+    const go = item.kind === "desk" ? (onOpenDesk ?? onNavigate) : onNavigate;
     return <li className="panel-row" data-item={item.key} data-mark={item.status.mark} data-acts={parked ? "park" : undefined}>
-      <button type="button" className="panel-row-main" disabled={!threadId} aria-current={current ? "page" : undefined} aria-label={`${spoken}. Open its chat`} onClick={() => { if (threadId) onNavigate(threadId, item.kind === "desk" ? item.desk.question?.messageSeq : undefined); }}>
+      <button type="button" className="panel-row-main" disabled={!threadId} aria-current={current ? "page" : undefined} aria-label={`${spoken}. Open its chat`} onClick={() => { if (threadId) go(threadId, item.kind === "desk" ? item.desk.question?.messageSeq : undefined); }}>
         <StatusMark mark={item.status.mark} /><Copy item={item} />
         {threadId && !parked ? <Icon name="ChevronRight" className="panel-row-go" aria-hidden="true" /> : null}
       </button>

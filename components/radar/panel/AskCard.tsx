@@ -148,7 +148,7 @@ export function TaskAskCard({ item, bot, context, current, from = false, onNavig
   </AskShell>;
 }
 
-export function DeskAskCard({ item, botKey, botName, now, current, from = false, onNavigate, onPark }: { item: DeskItem; botKey: string; botName: string; now: number; current: boolean; from?: boolean; onNavigate: Navigate; onPark: Park }) {
+export function DeskAskCard({ item, botKey, botName, now, current, from = false, onNavigate, onOpenDesk, onPark }: { item: DeskItem; botKey: string; botName: string; now: number; current: boolean; from?: boolean; onNavigate: Navigate; onOpenDesk?: Navigate; onPark: Park }) {
   const sdk = useSdk();
   const { desk } = item;
   const [changed, setChanged] = useState(false);
@@ -165,7 +165,7 @@ export function DeskAskCard({ item, botKey, botName, now, current, from = false,
   const showFull = !long || expanded === draftKey;
   const options = draft ? (desk.question?.options ?? []).slice(0, ANSWERS_SHOWN) : [];
   const labels = options.map(option => plainNote(option));
-  const open = () => { if (desk.threadId) onNavigate(desk.threadId, changed ? undefined : messageSeq); };
+  const open = () => { if (desk.threadId) (onOpenDesk ?? onNavigate)(desk.threadId, changed ? undefined : messageSeq); };
   const answer = async (label: string) => {
     if (!desk.threadId || checking || !showFull) return;
     setChecking(true);

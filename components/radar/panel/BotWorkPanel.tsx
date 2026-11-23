@@ -59,9 +59,9 @@ function Section({ group, title, aside, children }: { group: Group | "yours"; ti
   </section>;
 }
 
-export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, fromItem = null, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onClose, onShowThreads, askerOf, originalOf }: {
+export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, fromItem = null, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onOpenDesk, onClose, onShowThreads, askerOf, originalOf }: {
   bot: BotTasksBot; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; fromItem?: string | null; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
-  onNavigate: Navigate; onClose: () => void; onShowThreads?: () => void;
+  onNavigate: Navigate; onOpenDesk?: Navigate; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
   const panel = useRef<HTMLDivElement>(null);
@@ -120,7 +120,8 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
   };
   const jump = (group: Group) => body.current?.querySelector<HTMLElement>(`[data-group="${group}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
   const isCurrent = (item: WorkItem) => !!activeThreadId && (item.kind === "task" ? item.task.conversationThreadId === activeThreadId : item.kind === "desk" ? item.desk.threadId === activeThreadId : item.threadId === activeThreadId);
-  const rows = (items: readonly WorkItem[]) => <ul className="panel-rows">{items.map(item => <WorkRow key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onPark={park} />)}</ul>;
+  const deskNavigate = onOpenDesk ?? onNavigate;
+  const rows = (items: readonly WorkItem[]) => <ul className="panel-rows">{items.map(item => <WorkRow key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onOpenDesk={deskNavigate} onPark={park} />)}</ul>;
   const workersNote = model.workers ? `${model.workers} ${model.workers === 1 ? "worker" : "workers"} running` : undefined;
   const busy = (model.workers ?? 0) > 0 || model.chatting || model.working.length > 0;
   const anchored = anchor && !isCompactViewport;
@@ -159,11 +160,11 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
         <BotMenu thread={target} botName={bot.name} sheet={isCompactViewport} onShowThreads={() => { window.dispatchEvent(new Event("radar:show-all-threads")); onShowThreads?.(); }} onClose={onClose} />
       </nav>
       {detailStatus !== "error" && <div className="dispatch-panel-body" ref={body} inert={detailStatus === "loading"} aria-busy={detailStatus === "loading"}>
-        {!detailStatus && <DeskHistory key={bot.key} bot={bot.key} onOpen={onNavigate} />}
+        {!detailStatus && <DeskHistory key={bot.key} bot={bot.key} onOpen={deskNavigate} />}
         {model.asks.length || model.deskAsks.length ? <Section group="needs" title={GROUP_TITLE.needs} aside={model.asks.length + model.deskAsks.length}>
           <div className="panel-asks">
             {model.asks.map(item => <TaskAskCard key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}
-            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botKey={bot.key} botName={bot.name} now={now} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onPark={park} />)}
+            {model.deskAsks.map(item => <DeskAskCard key={item.key} item={item} botKey={bot.key} botName={bot.name} now={now} current={isCurrent(item)} from={item.key === fromItem} onNavigate={onNavigate} onOpenDesk={deskNavigate} onPark={park} />)}
           </div>
         </Section> : null}
         {model.stuck.length ? <Section group="stuck" title={GROUP_TITLE.stuck} aside={model.stuck.length}>{rows(model.stuck)}</Section> : null}
