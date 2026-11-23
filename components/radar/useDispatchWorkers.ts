@@ -11,7 +11,7 @@ type Sdk = ReturnType<typeof useSdk>;
 async function chatting(sdk: Sdk, bots: BotTasksData["bots"]): Promise<Set<string> | null> {
   if (!bots.length) return new Set();
   try {
-    const threads = await sdk.threads.list({ threadIds: bots.map(bot => bot.coordinatorThreadId), includeHidden: true });
+    const threads = await listThreads(sdk, bots.map(bot => bot.coordinatorThreadId));
     const live = new Set(threads.filter(t => LIVE.includes(t.status)).map(t => t.id));
     return new Set(bots.filter(bot => live.has(bot.coordinatorThreadId)).map(bot => bot.key));
   } catch { return null; }
@@ -50,7 +50,10 @@ export function withNamedWorkers(snapshot: WorkerSnapshot, bots: BotTasksData["b
 const THREAD_LIST_MAX_IDS = 200;
 async function listThreads(sdk: Sdk, ids: readonly string[]) {
   const rows: Awaited<ReturnType<Sdk["threads"]["list"]>> = [];
-  for (let at = 0; at < ids.length; at += THREAD_LIST_MAX_IDS) rows.push(...await sdk.threads.list({ threadIds: ids.slice(at, at + THREAD_LIST_MAX_IDS), includeHidden: true }));
+  for (let at = 0; at < ids.length; at += THREAD_LIST_MAX_IDS) {
+    const threadIds = ids.slice(at, at + THREAD_LIST_MAX_IDS);
+    rows.push(...await sdk.threads.list({ threadIds, includeHidden: true, limit: threadIds.length }));
+  }
   return rows;
 }
 

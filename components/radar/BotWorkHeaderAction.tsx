@@ -18,7 +18,7 @@ export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof use
     const bots = useBotRoster(true).filter(bot => threadIds.includes(bot.current));
     return useBotSidebar(bots.length > 0).data;
   },
-  item: ({ thread, data, experimental_panel }) => {
+  item: ({ thread, data, panel }) => {
     const bot = data?.bots.find(bot => bot.coordinatorThreadId === thread.id);
     if (!bot) return null;
     const count = bot.tasks.filter(task => !isClosed(task.displayState)).length;
@@ -26,7 +26,7 @@ export const botWorkAction: PluginThreadActionRegistration<ReturnType<typeof use
       label: botWorkLabel(count),
       icon: "Bot",
       run: () => {
-        if (!experimental_panel.openTab({ tab: BOT_TAB })) {
+        if (!panel.openTab({ tab: BOT_TAB })) {
           throw new Error("Open the bot's thread to view its work.");
         }
       },

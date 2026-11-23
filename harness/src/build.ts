@@ -179,7 +179,7 @@ function quietBot(key: BotKey): BotContent {
 function sidebarThread(fields: Pick<PluginSidebarThread, "id" | "projectId" | "displayTitle" | "latestAttentionAt"> & Partial<PluginSidebarThread>): PluginSidebarThread {
   return {
     title: fields.displayTitle, titleFallback: null, parentThreadId: null, lifecycleOwnerThreadId: null, parentNotifications: "auto", sourceThreadId: null, sectionId: null, originKind: null, originPluginId: null,
-    providerId: "claude-code", status: "idle", runtimeStatus: "idle", queuedWork: "none", hasPendingInteraction: false, activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 0, planMode: 0, goals: 0 },
+    providerId: "claude-code", status: "idle", runtimeStatus: "idle", queuedWork: "none", hasPendingInteraction: false, activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 0, planMode: 0 },
     indicator: "none", indicatorLabel: null, isUnread: false, isPinned: false, pinnedAt: null, pinSortKey: null, isArchived: false, archivedAt: null, href: `/threads/${fields.id}`, isHidden: false, environment: null, host: null,
     createdAt: fields.latestAttentionAt - DAY, updatedAt: fields.latestAttentionAt, lastReadAt: fields.latestAttentionAt,
     ...fields,
