@@ -15,9 +15,11 @@ import type { DetailContext } from "./taskDetail";
 
 function Copy({ item }: { item: WorkItem }) {
   const { words, note } = item.status;
+  const origin = item.kind === "task" && item.sourceDesk ? `from ${item.sourceDesk.label}` : "";
+  const fullNote = [note, origin].filter(Boolean).join(" · ");
   return <span className="panel-row-copy">
     <b className="panel-row-title" dir="auto">{item.kind === "task" ? <FitLines className="panel-row-fit" forms={titleForms(item.title)} /> : <span className="panel-row-fit panel-row-plain"><Isolated text={item.title} /></span>}</b>
-    <span className="panel-row-status"><span className="panel-row-words"><Isolated text={words} /></span>{note ? <span className="panel-row-note">{" · "}<Isolated text={note} /></span> : null}</span>
+    <span className="panel-row-status"><span className="panel-row-words"><Isolated text={words} /></span>{fullNote ? <span className="panel-row-note">{" · "}<Isolated text={fullNote} /></span> : null}</span>
   </span>;
 }
 
@@ -58,6 +60,7 @@ export function WorkRow({ item, bot, context, current, onNavigate, onOpenDesk, o
     </span>
     {open ? <div className="panel-details" id={detailsId}>
       <TaskDetails item={item} context={context} onOpen={onNavigate} />
+      {item.sourceDesk ? <div className="panel-links"><button type="button" className="panel-link" onClick={() => (onOpenDesk ?? onNavigate)(item.sourceDesk!.threadId)}>Open source desk ({item.sourceDesk.label})</button></div> : null}
       {closed ? <div className="panel-links"><button type="button" className="panel-link" onClick={() => onNavigate(task.conversationThreadId ?? bot.coordinatorThreadId)}>Open the chat where this was done</button></div> : null}
       {parked ? <div className="panel-links"><button type="button" className="panel-link" onClick={proceed}>{task.later?.messageSeq !== undefined || task.needs?.messageSeq !== undefined ? "Open question in chat" : "Continue in chat"}</button></div> : null}
     </div> : null}

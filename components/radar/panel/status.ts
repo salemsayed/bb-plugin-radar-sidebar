@@ -5,7 +5,7 @@ import { deskNeedLine, laterNoteHead } from "../stage";
 import { capitalFirst, plainNote } from "../workText";
 import { cardStatus, checksLine, dayAndTime, type IdleWait } from "./taskWords";
 
-export type Group = "needs" | "stuck" | "working" | "waiting" | "later" | "done";
+export type Group = "needs" | "stuck" | "working" | "waiting" | "desks" | "later" | "done";
 export type Mark = "ask" | "stuck" | "working" | "waiting" | "queued" | "later" | "info" | "done" | "ended";
 
 export interface Status {
@@ -15,7 +15,7 @@ export interface Status {
   note: string;
 }
 
-export const GROUP_TITLE: Record<Group, string> = { needs: "Needs you", stuck: "Stuck", working: "Working", waiting: "Waiting", later: "Later", done: "Done" };
+export const GROUP_TITLE: Record<Group, string> = { needs: "Needs you", stuck: "Stuck", working: "Working", waiting: "Waiting", desks: "Active desks", later: "Later", done: "Done" };
 
 const QUEUED = "Queued for a free worker";
 

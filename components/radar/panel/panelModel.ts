@@ -9,7 +9,8 @@ import { capitalFirst, cardOrder, plainNote, plainQueue, plainWorkerTitle, taskH
 import { deskParts, deskStatus, taskStatus, type Group, type Status } from "./status";
 import type { IdleWait } from "./taskWords";
 
-export interface TaskItem { kind: "task"; key: string; title: string; status: Status; at: number; task: BotTaskRow; attempts: Attempt[]; running: Attempt[]; waitsOn: IdleWait | null; reason: string; ownsReason: boolean }
+export interface SourceDeskRef { threadId: string; label: string }
+export interface TaskItem { kind: "task"; key: string; title: string; status: Status; at: number; task: BotTaskRow; attempts: Attempt[]; running: Attempt[]; waitsOn: IdleWait | null; reason: string; ownsReason: boolean; sourceDesk?: SourceDeskRef }
 export interface DeskItem { kind: "desk"; key: string; title: string; status: Status; at: number; desk: BotDesk }
 export interface ThreadItem { kind: "thread"; key: string; title: string; status: Status; at: number; threadId: string }
 export type WorkItem = TaskItem | DeskItem | ThreadItem;
@@ -20,6 +21,7 @@ export interface PanelModel {
   stuck: WorkItem[];
   working: WorkItem[];
   waiting: WorkItem[];
+  desks: DeskItem[];
   yours: ThreadItem[];
   later: WorkItem[];
   doneToday: WorkItem[];
@@ -91,6 +93,43 @@ export interface PanelInput {
   yours: readonly PluginSidebarThread[];
 }
 
+const REF_CODE_RE = /\b(?:R|MR|WO|EX|SO|INV|PO|BQ)-\d{2,}\b|\b(?:Feedback|Bricks|Redemption|Support)\s*#\d+\b|(?<!\w)#\d{4,}\b/gi;
+
+function extractRefCodes(...texts: (string | null | undefined)[]): Set<string> {
+  const out = new Set<string>();
+  for (const text of texts) {
+    if (!text) continue;
+    for (const match of text.matchAll(REF_CODE_RE)) {
+      out.add(match[0]!.toLowerCase().replace(/\s+/g, " ").trim());
+    }
+  }
+  return out;
+}
+
+function deskOriginLabel(desk: BotDesk): string {
+  const { channel, person } = deskParts(desk);
+  return person ? `${channel} · ${person}` : channel;
+}
+
+function matchDeskToTask(desk: DeskItem, activeTasks: readonly TaskItem[]): TaskItem | null {
+  const deskThread = desk.desk.threadId;
+  if (deskThread) {
+    const direct = activeTasks.find(
+      item => item.task.conversationThreadId === deskThread || item.task.ask?.ref.threadId === deskThread,
+    );
+    if (direct) return direct;
+  }
+  const deskRefs = extractRefCodes(desk.title, desk.desk.title, desk.desk.key);
+  if (!deskRefs.size) return null;
+  for (const task of activeTasks) {
+    const taskRefs = extractRefCodes(task.title, task.task.title, task.task.outcome, task.task.line);
+    for (const ref of deskRefs) {
+      if (taskRefs.has(ref)) return task;
+    }
+  }
+  return null;
+}
+
 export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelModel {
   const open = cardOrder(bot.tasks.filter(task => !isClosed(task.displayState)));
   const closed = bot.tasks.filter(task => isClosed(task.displayState) && !TEST_TASK.test(task.title) && !TEST_OUTCOME.test(task.outcome ?? "")).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -116,19 +155,33 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   const visibleDesks = bot.desks.filter(desk => deskShown(desk, now));
   const desks = sortDesks(visibleDesks).map(desk => deskItem(desk, now));
   const unlinked = bot.unlinked.map((worker): ThreadItem => ({ kind: "thread", key: `worker:${worker.threadId}`, title: taskHeadline(plainWorkerTitle(worker.title || "Worker")), status: { group: "working", mark: "working", words: "Working", note: "on its own, not filed as a task" }, at: now, threadId: worker.threadId }));
-  const group = (name: Group): WorkItem[] => [...items.filter(item => item.status.group === name && !shadowed(item)), ...desks.filter(item => item.status.group === name)];
-  const done = group("done").sort((a, b) => b.at - a.at);
+  const taskGroup = (name: Group): TaskItem[] => items.filter(item => item.status.group === name && !shadowed(item));
+  const activeTaskPool = [...taskGroup("working"), ...taskGroup("stuck")];
+  const activeDesks: DeskItem[] = [];
+  for (const desk of desks) {
+    if (desk.status.group !== "working" && desk.status.group !== "waiting") continue;
+    const linked = matchDeskToTask(desk, activeTaskPool);
+    if (linked && desk.desk.threadId) {
+      if (!linked.sourceDesk) {
+        linked.sourceDesk = { threadId: desk.desk.threadId, label: deskOriginLabel(desk.desk) };
+      }
+      continue;
+    }
+    activeDesks.push(desk);
+  }
+  const done: WorkItem[] = [...taskGroup("done"), ...desks.filter(item => item.status.group === "done")].sort((a, b) => b.at - a.at);
   return {
     asks,
     deskAsks: desks.filter(item => item.status.group === "needs"),
-    stuck: group("stuck"),
-    working: [...group("working"), ...unlinked],
-    waiting: group("waiting").sort(bySoonest),
+    stuck: [...taskGroup("stuck"), ...desks.filter(item => item.status.group === "stuck")],
+    working: [...taskGroup("working"), ...unlinked],
+    waiting: taskGroup("waiting").sort(bySoonest),
+    desks: activeDesks,
     yours: yours.map((thread): ThreadItem => {
       const age = shortAgo(thread.latestAttentionAt, now);
       return { kind: "thread", key: `yours:${thread.id}`, title: plainNote(thread.displayTitle), status: { group: "waiting", mark: "info", words: "Your chat", note: age ? `active ${age === "now" ? "just now" : `${age} ago`}` : "" }, at: thread.latestAttentionAt, threadId: thread.id };
     }),
-    later: group("later"),
+    later: [...taskGroup("later"), ...desks.filter(item => item.status.group === "later")],
     doneToday: done.filter(item => isSameLocalDay(item.at, now)),
     doneEarlier: done.filter(item => !isSameLocalDay(item.at, now)),
     workers: snapshot.known.has(bot.key) ? snapshot.byBot[bot.key]?.length ?? 0 : null,
@@ -146,6 +199,7 @@ export function panelTally(model: PanelModel): Tally[] {
     { group: "stuck", count: model.stuck.length, label: "stuck" },
     { group: "working", count: model.working.length, label: "working" },
     { group: "waiting", count: model.waiting.length, label: "waiting" },
+    { group: "desks", count: model.desks.length, label: model.desks.length === 1 ? "desk" : "desks" },
     { group: "later", count: model.later.length, label: "later" },
   ];
   return parts.filter(part => part.count > 0);

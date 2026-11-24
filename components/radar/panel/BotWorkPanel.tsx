@@ -28,7 +28,7 @@ const PANEL_WIDTH = 400;
 const EDGE = 12;
 const PREFERRED_PANEL = 760;
 const SETTLE_MS = 450;
-const TALLY_MARK = { needs: "ask", stuck: "stuck", working: "working", waiting: "waiting", later: "later", done: "done" } as const;
+const TALLY_MARK = { needs: "ask", stuck: "stuck", working: "working", waiting: "waiting", desks: "info", later: "later", done: "done" } as const;
 
 function anchoredStyle(anchor: PanelAnchor): CSSProperties {
   const left = anchor.align === "end" ? anchor.x - PANEL_WIDTH : anchor.x;
@@ -107,7 +107,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
   const model = panelModel({ bot, snapshot, now, yours: claims.byBot[bot.key] ?? [] });
   const tally = panelTally(model);
   const context: DetailContext = { now, botName: bot.name, askerOf, originalOf };
-  const openCount = model.asks.length + model.deskAsks.length + model.stuck.length + model.working.length + model.waiting.length + model.later.length + model.yours.length;
+  const openCount = model.asks.length + model.deskAsks.length + model.stuck.length + model.working.length + model.waiting.length + model.desks.length + model.later.length + model.yours.length;
   const lastDone = model.doneToday[0] ?? model.doneEarlier[0];
   const park: Park = (from, act) => {
     const holder = from.closest<HTMLElement>("[data-item]");
@@ -170,6 +170,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
         {model.stuck.length ? <Section group="stuck" title={GROUP_TITLE.stuck} aside={model.stuck.length}>{rows(model.stuck)}</Section> : null}
         {model.working.length ? <Section group="working" title={GROUP_TITLE.working} aside={workersNote ?? model.working.length}>{rows(model.working)}</Section> : null}
         {model.waiting.length ? <Section group="waiting" title={GROUP_TITLE.waiting} aside={model.waiting.length}>{rows(model.waiting)}</Section> : null}
+        {model.desks.length ? <Section group="desks" title={GROUP_TITLE.desks} aside={model.desks.length}>{rows(model.desks)}</Section> : null}
         {model.yours.length ? <Section group="yours" title="Started by you" aside={model.yours.length}>{rows(model.yours)}</Section> : null}
         {model.later.length ? <Section group="later" title={GROUP_TITLE.later} aside={model.later.length}>{rows(model.later)}</Section> : null}
         {openCount || detailStatus ? null : <p className="panel-quiet">{quietLine}</p>}
