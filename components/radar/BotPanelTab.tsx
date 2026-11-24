@@ -146,6 +146,12 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
     if (id !== here) navigate.toThread(id);
     if (messageSeq !== undefined) showMessage(id, messageSeq);
   };
+  const openDeskOrThread = (id: string, messageSeq?: number) => {
+    const detail = { threadId: id, handled: false };
+    window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:open-desk", { detail }));
+    if (detail.handled) return;
+    go(id, messageSeq);
+  };
   const shortName = shortBotName(bot.name);
   const cont = (task: BotTaskRow) => () => window.dispatchEvent(new CustomEvent("bb:orchestrator-mode:continue-task", { detail: { threadId: bot.coordinatorThreadId, taskId: task.id, label: stageTitle(task.title).slice(0, 80) } }));
   const lineOf = (task: BotTaskRow) => {
@@ -193,8 +199,8 @@ function BotPanel({ bot, here, stale }: { bot: BotTasksBot; here: string; stale:
         <h3>Waiting</h3>
         <div role="list">{waiting.map(t => <Row key={t.id} title={stageTitle(t.title)} meta={waitWhen(t, now, bot.name)} detail={lineOf(t)} target={t.conversationThreadId ?? null} here={here} onOpen={go} onContinue={cont(t)} />)}</div>
       </section> : null}
-      <DeskHistory key={bot.key} bot={bot.key} onOpen={go} />
-      <DeskThreads desks={bot.desks} now={now} onOpen={go} />
+      <DeskHistory key={bot.key} bot={bot.key} onOpen={openDeskOrThread} />
+      <DeskThreads desks={bot.desks} now={now} onOpen={openDeskOrThread} />
       {(claims.byBot[bot.key] ?? []).length ? <section aria-label="Started by you">
         <h3>Started by you</h3>
         <div role="list">{(claims.byBot[bot.key] ?? []).map(thread => <Row key={thread.id} title={thread.displayTitle} meta={thread.latestAttentionAt ? `Your chat · active ${ago(thread.latestAttentionAt, now)}` : "Your chat"} target={thread.id} here={here} onOpen={go} />)}</div>

@@ -1,12 +1,8 @@
 import { forwardRef } from "react";
-import { deskFinished, deskShown, deskTitle, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
-import { deskStatus } from "./panel/status";
+import { deskFinished, deskShown, needsYou, sortDesks, type BotDesk } from "@/lib/botTasks";
+import { deskParts, deskStatus } from "./panel/status";
 import { elapsed } from "./elapsed";
-import { deskNeedLine } from "./stage";
 import { Isolated } from "./Isolated";
-import { plainNote } from "./workText";
-
-const CHANNEL_TAG = /^(?:chat|whatsapp|dm|desk|email|ticket chat)\s+·\s+(?=\S)/i;
 import { askedAgo } from "./NeedsSummary";
 
 export function deskHeadline(desks: readonly BotDesk[]): string {
@@ -23,13 +19,14 @@ export const DeskThreads = forwardRef<HTMLElement, { desks: readonly BotDesk[]; 
   const done = sortDesks(visible.filter(deskFinished));
   const row = (desk: BotDesk) => {
     const asking = needsYou(desk);
-    const title = asking ? deskNeedLine(desk) : plainNote(deskTitle(desk)).replace(CHANNEL_TAG, "");
+    const { channel, person, subject } = deskParts(desk);
+    const title = person ? `${person} · ${subject}` : subject;
     const status = deskStatus(desk, now);
     return <button type="button" key={desk.id} className="radar-desk-row" data-status={desk.status} data-needs-you={asking || undefined}
       disabled={!desk.threadId} onClick={() => desk.threadId && onOpen(desk.threadId)}>
       <span aria-hidden="true" className="radar-desk-mark" data-status={desk.status} />
       <span className="radar-desk-copy"><b dir="auto"><Isolated text={title} /></b>
-        {asking ? <small className="radar-desk-asked">{askedAgo(elapsed(desk.updatedAt, now))}</small>
+        {asking ? <small className="radar-desk-asked">{channel} · {askedAgo(elapsed(desk.updatedAt, now))}</small>
           : <small title={desk.deferredReason ?? undefined}><span className="radar-desk-state">{status.words}</span>{status.note ? ` \u00b7 ${status.note}` : ""}</small>}
       </span>
     </button>;

@@ -62,11 +62,22 @@ export function taskStatus({ task, running, now, waitsOn, botName }: TaskStatusI
 }
 
 const CHANNEL = /^(?:chat|whatsapp|dm|desk|email|ticket chat)$/i;
+const TICKET_DESK = /^(Feedback|Bricks|Redemption|Support)\s*(#\d+)\s*(?:[·:]|-)\s*(.+)$/i;
 
 export interface DeskParts { channel: string; person: string; subject: string }
 
 export function deskParts(desk: Pick<BotDesk, "label" | "title">): DeskParts {
-  const parts = plainNote(deskTitle(desk)).split(/\s+·\s+/).map(part => part.trim()).filter(Boolean);
+  const clean = plainNote(deskTitle(desk)).trim();
+  const ticket = TICKET_DESK.exec(clean);
+  if (ticket) {
+    const kind = capitalFirst(ticket[1]!.toLowerCase());
+    return {
+      channel: `${kind} ${ticket[2]!}`,
+      person: "",
+      subject: capitalFirst(ticket[3]!.trim()),
+    };
+  }
+  const parts = clean.split(/\s+·\s+/).map(part => part.trim()).filter(Boolean);
   const label = desk.label.trim();
   const named = parts.length > 1 && (CHANNEL.test(parts[0]!) || parts[0]!.toLowerCase() === label.toLowerCase());
   const channel = named ? parts.shift()! : label;
