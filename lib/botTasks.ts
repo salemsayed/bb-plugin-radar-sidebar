@@ -56,6 +56,8 @@ export const deskSchema = z.object({
   status: z.enum(["draft", "blocked", "working", "waiting", "info", "done", "deferred"]),
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),
   waitingOn: z.string().nullable().optional(),
+  active: z.boolean().optional(),
+  linkedWorkerIds: z.array(z.string()).optional(),
   wake: z.object({ at: z.number().nullable(), state: z.string() }).optional(),
   question: z.object({ id: z.string(), state: z.enum(["open", "later"]), laterAt: z.number().optional(),
     draft: z.string().optional(), options: z.array(z.string()).optional(), messageSeq: z.number().optional() }).optional(),

@@ -92,7 +92,10 @@ export function deskStatus(desk: BotDesk, now: number): Status {
   if (deskLater(desk)) return { group: "later", mark: "later", words: "Not now", note: "back when the desk changes" };
   if (desk.status === "done") return { group: "done", mark: "done", words: "Done", note: dayAndTime(desk.updatedAt, now) };
   if (desk.status === "info") return { group: "done", mark: "info", words: "For your info", note: dayAndTime(desk.updatedAt, now) };
-  if (desk.status === "working") return { group: "working", mark: "working", words: "Working", note: moved };
+  if (desk.status === "working") {
+    if (desk.active === false) return { group: "waiting", mark: "info", words: "Open", note: moved };
+    return { group: "working", mark: "working", words: "Working", note: moved };
+  }
   if (desk.status === "deferred") return { group: "waiting", mark: "queued", words: QUEUED, note: desk.deadline !== null ? `due ${clearsLine(desk.deadline, now).replace(/^overdue since/, "since")}` : channel };
   const wakeAt = deskWakeAt(desk);
   if (wakeAt !== null && wakeAt < now) return { group: "stuck", mark: "stuck", words: "Check overdue", note: clearsLine(wakeAt, now).replace(/^overdue /, "") };

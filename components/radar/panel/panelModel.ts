@@ -112,10 +112,24 @@ function deskOriginLabel(desk: BotDesk): string {
 }
 
 function matchDeskToTask(desk: DeskItem, activeTasks: readonly TaskItem[]): TaskItem | null {
+  const linkedWorkers = desk.desk.linkedWorkerIds;
+  if (linkedWorkers?.length) {
+    const workerSet = new Set(linkedWorkers);
+    const byWorker = activeTasks.find(
+      item =>
+        item.running.some(a => workerSet.has(a.threadId)) ||
+        item.attempts.some(a => workerSet.has(a.threadId)) ||
+        (item.task.conversationThreadId !== null && workerSet.has(item.task.conversationThreadId)),
+    );
+    if (byWorker) return byWorker;
+  }
   const deskThread = desk.desk.threadId;
   if (deskThread) {
     const direct = activeTasks.find(
-      item => item.task.conversationThreadId === deskThread || item.task.ask?.ref.threadId === deskThread,
+      item =>
+        item.task.conversationThreadId === deskThread ||
+        item.task.ask?.ref.threadId === deskThread ||
+        item.attempts.some(a => a.threadId === deskThread),
     );
     if (direct) return direct;
   }
@@ -157,6 +171,7 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   const unlinked = bot.unlinked.map((worker): ThreadItem => ({ kind: "thread", key: `worker:${worker.threadId}`, title: taskHeadline(plainWorkerTitle(worker.title || "Worker")), status: { group: "working", mark: "working", words: "Working", note: "on its own, not filed as a task" }, at: now, threadId: worker.threadId }));
   const taskGroup = (name: Group): TaskItem[] => items.filter(item => item.status.group === name && !shadowed(item));
   const activeTaskPool = [...taskGroup("working"), ...taskGroup("stuck")];
+  const workingDesks: DeskItem[] = [];
   const activeDesks: DeskItem[] = [];
   for (const desk of desks) {
     if (desk.status.group !== "working" && desk.status.group !== "waiting") continue;
@@ -167,14 +182,18 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
       }
       continue;
     }
-    activeDesks.push(desk);
+    if (desk.status.group === "working" && desk.desk.active !== false) {
+      workingDesks.push(desk);
+    } else {
+      activeDesks.push(desk);
+    }
   }
   const done: WorkItem[] = [...taskGroup("done"), ...desks.filter(item => item.status.group === "done")].sort((a, b) => b.at - a.at);
   return {
     asks,
     deskAsks: desks.filter(item => item.status.group === "needs"),
     stuck: [...taskGroup("stuck"), ...desks.filter(item => item.status.group === "stuck")],
-    working: [...taskGroup("working"), ...unlinked],
+    working: [...taskGroup("working"), ...workingDesks, ...unlinked],
     waiting: taskGroup("waiting").sort(bySoonest),
     desks: activeDesks,
     yours: yours.map((thread): ThreadItem => {

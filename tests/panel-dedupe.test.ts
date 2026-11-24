@@ -146,3 +146,115 @@ test("panelModel separates desks from working/waiting tasks and deduplicates des
     ],
   );
 });
+
+test("panelModel puts genuinely active non-duplicated desks in Working, dedupes by linkedWorkerIds, and keeps idle desks out of Working", () => {
+  const now = Date.parse("2026-11-24T17:05:00+02:00");
+  const wPrice = { threadId: "thr_w_price", title: "Master price sheet", state: "running" as const, model: null, effort: null, startedAt: now - 360_000, endedAt: null, latest: true };
+  const wCylinder = { threadId: "thr_w_cyl", title: "Cylinder color job", state: "running" as const, model: null, effort: null, startedAt: now - 180_000, endedAt: null, latest: true };
+  const bot: BotTasksBot = {
+    key: "erbareeq",
+    name: "ERBareeq Bot",
+    order: 0,
+    coordinatorThreadId: "thr_coord",
+    tasksV2: true,
+    summary: { needs: 0, working: 2, queued: 0, offline: 0, waiting: 0, done: 0, notStarted: 0 },
+    unlinked: [],
+    tasks: [
+      {
+        id: "t_price",
+        bot: "erbareeq",
+        title: "Master price sheet",
+        displayState: "working",
+        line: "Working for 6m",
+        ageMs: 360_000,
+        conversationThreadId: "thr_coord",
+        tags: [],
+        origin: "verified",
+      },
+      {
+        id: "t_cyl",
+        bot: "erbareeq",
+        title: "Update cylinder color",
+        displayState: "working",
+        line: "Working for 3m",
+        ageMs: 180_000,
+        conversationThreadId: "thr_coord",
+        tags: [],
+        origin: "verified",
+      },
+    ],
+    desks: [
+      // 1. Actively running Feedback #37 (e.g. running pnpm test:gate, no duplicate coordinator task) -> MUST appear in Working!
+      {
+        id: "feedback:37",
+        desk: "feedback",
+        label: "Feedback",
+        key: "37",
+        threadId: "thr_fb37",
+        title: "Feedback #37 · Warranty renewal from stock counts live",
+        status: "working",
+        active: true,
+        updatedAt: now - 180_000,
+        quietSince: now - 180_000,
+        deadline: null,
+        deferredReason: null,
+      },
+      // 2. Managed chat desk with NO ref code in title, but exact linkedWorkerIds matching t_cyl -> MUST dedupe onto t_cyl!
+      {
+        id: "chat:hassan",
+        desk: "chat",
+        label: "Chat",
+        key: "hassan",
+        threadId: "thr_hassan",
+        title: "Chat · شيخ حسن · Cylinder question",
+        status: "working",
+        active: true,
+        linkedWorkerIds: ["thr_w_cyl"],
+        updatedAt: now - 120_000,
+        quietSince: now - 120_000,
+        deadline: null,
+        deferredReason: null,
+      },
+      // 3. Idle desk left marked "working" with active: false -> MUST stay in Active desks as "Open", NOT Working!
+      {
+        id: "chat:zombie",
+        desk: "chat",
+        label: "Chat",
+        key: "zombie",
+        threadId: "thr_zombie",
+        title: "Chat · هندسة · Leftover open thread",
+        status: "working",
+        active: false,
+        updatedAt: now - 3_600_000,
+        quietSince: now - 3_600_000,
+        deadline: null,
+        deferredReason: null,
+      },
+    ],
+  };
+  const snapshot: WorkerSnapshot = {
+    byBot: { erbareeq: [wPrice, wCylinder] },
+    byTask: { t_price: [wPrice], t_cyl: [wCylinder] },
+    known: new Set(["erbareeq"]),
+    failedChecks: new Set(),
+    chat: new Set(),
+  };
+
+  const model = panelModel({ bot, snapshot, now, yours: [] });
+
+  // Working has the 2 tasks PLUS genuinely active Feedback #37 (3 total)
+  assert.deepEqual(
+    model.working.map(i => i.key),
+    ["task:t_price", "task:t_cyl", "desk:feedback:37"],
+  );
+
+  // Hassan desk was deduplicated via exact linkedWorkerIds onto t_cyl
+  const cyl = model.working.find(i => i.kind === "task" && i.task.id === "t_cyl");
+  assert.equal(cyl?.kind, "task");
+  if (cyl?.kind === "task") {
+    assert.deepEqual(cyl.sourceDesk, { threadId: "thr_hassan", label: "Chat · شيخ حسن" });
+  }
+
+  // Idle "working" desk sits in Active desks labeled "Open" instead of falsely showing in Working
+  assert.deepEqual(model.desks.map(d => [d.desk.id, d.status.words]), [["chat:zombie", "Open"]]);
+});

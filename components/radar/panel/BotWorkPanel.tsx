@@ -123,6 +123,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
   const deskNavigate = onOpenDesk ?? onNavigate;
   const rows = (items: readonly WorkItem[]) => <ul className="panel-rows">{items.map(item => <WorkRow key={item.key} item={item} bot={bot} context={context} current={isCurrent(item)} onNavigate={onNavigate} onOpenDesk={deskNavigate} onPark={park} />)}</ul>;
   const workersNote = model.workers ? `${model.workers} ${model.workers === 1 ? "worker" : "workers"} running` : undefined;
+  const workingAside = model.working.some(item => item.kind !== "task") ? `${model.working.length} active` : workersNote ?? model.working.length;
   const busy = (model.workers ?? 0) > 0 || model.chatting || model.working.length > 0;
   const anchored = anchor && !isCompactViewport;
   const quietLine = model.chatting ? "Nothing else is open."
@@ -168,7 +169,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
           </div>
         </Section> : null}
         {model.stuck.length ? <Section group="stuck" title={GROUP_TITLE.stuck} aside={model.stuck.length}>{rows(model.stuck)}</Section> : null}
-        {model.working.length ? <Section group="working" title={GROUP_TITLE.working} aside={workersNote ?? model.working.length}>{rows(model.working)}</Section> : null}
+        {model.working.length ? <Section group="working" title={GROUP_TITLE.working} aside={workingAside}>{rows(model.working)}</Section> : null}
         {model.waiting.length ? <Section group="waiting" title={GROUP_TITLE.waiting} aside={model.waiting.length}>{rows(model.waiting)}</Section> : null}
         {model.desks.length ? <Section group="desks" title={GROUP_TITLE.desks} aside={model.desks.length}>{rows(model.desks)}</Section> : null}
         {model.yours.length ? <Section group="yours" title="Started by you" aside={model.yours.length}>{rows(model.yours)}</Section> : null}
