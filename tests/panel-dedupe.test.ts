@@ -258,3 +258,120 @@ test("panelModel puts genuinely active non-duplicated desks in Working, dedupes 
   // Idle "working" desk sits in Active desks labeled "Open" instead of falsely showing in Working
   assert.deepEqual(model.desks.map(d => [d.desk.id, d.status.words]), [["chat:zombie", "Open"]]);
 });
+
+test("panelModel deduplicates waiting desks against waiting tasks by explicit desk tag or person+topic/wake without merging unrelated desks", () => {
+  const now = Date.parse("2026-11-24T18:35:00+02:00");
+  const tomorrow10 = Date.parse("2026-11-25T10:00:00+02:00");
+  const bot: BotTasksBot = {
+    key: "erbareeq",
+    name: "ERBareeq Bot",
+    order: 0,
+    coordinatorThreadId: "thr_coord",
+    tasksV2: true,
+    summary: { needs: 0, working: 0, queued: 0, offline: 0, waiting: 2, done: 0, notStarted: 0 },
+    unlinked: [],
+    tasks: [
+      {
+        id: "t_video",
+        bot: "erbareeq",
+        title: "Factory video",
+        outcome: "Sherif approves the factory video tutorial",
+        displayState: "waiting",
+        line: "Waiting for someone else: The video is with Sherif; waiting for his comments or approval.",
+        waitOn: "Sherif's comments or approval",
+        wakeAt: tomorrow10,
+        ageMs: 3_600_000,
+        conversationThreadId: null,
+        tags: [],
+        origin: "verified",
+      },
+      {
+        id: "t_tagged",
+        bot: "erbareeq",
+        title: "Credit note in ERP",
+        displayState: "waiting",
+        line: "Waiting on Mido",
+        waitOn: "Mido",
+        wakeAt: tomorrow10 + 3_600_000,
+        ageMs: 3_600_000,
+        conversationThreadId: null,
+        tags: ["desk:thr_mido_desk"],
+        origin: "verified",
+      },
+    ],
+    desks: [
+      // Matches t_video via person (Sherif) + topic ("factory video") / wake
+      {
+        id: "chat:sherif",
+        desk: "chat",
+        label: "Chat",
+        key: "sherif",
+        threadId: "thr_sherif",
+        title: "Chat · Sherif · Factory video sent, awaiting his review",
+        status: "waiting",
+        waitingOn: "Sherif",
+        active: false,
+        wake: { at: tomorrow10, state: "pending" },
+        updatedAt: now - 600_000,
+        quietSince: now - 600_000,
+        deadline: null,
+        deferredReason: null,
+      },
+      // Matches t_tagged via explicit desk:<threadId> tag even though title differs
+      {
+        id: "chat:mido",
+        desk: "chat",
+        label: "Chat",
+        key: "mido",
+        threadId: "thr_mido_desk",
+        title: "Chat · Mido · Accounting question",
+        status: "waiting",
+        waitingOn: "Mido",
+        active: false,
+        updatedAt: now - 600_000,
+        quietSince: now - 600_000,
+        deadline: null,
+        deferredReason: null,
+      },
+      // Unrelated desk with same person Sherif, different topic & different wake -> MUST NOT merge!
+      {
+        id: "chat:sherif-payroll",
+        desk: "chat",
+        label: "Chat",
+        key: "sherif-payroll",
+        threadId: "thr_sherif_payroll",
+        title: "Chat · Sherif · Payroll spreadsheet check",
+        status: "waiting",
+        waitingOn: "Sherif",
+        active: false,
+        wake: { at: tomorrow10 + 7_200_000, state: "pending" },
+        updatedAt: now - 600_000,
+        quietSince: now - 600_000,
+        deadline: null,
+        deferredReason: null,
+      },
+    ],
+  };
+  const snapshot: WorkerSnapshot = {
+    byBot: {},
+    byTask: {},
+    known: new Set(["erbareeq"]),
+    failedChecks: new Set(),
+    chat: new Set(),
+  };
+
+  const model = panelModel({ bot, snapshot, now, yours: [] });
+  assert.equal(model.waiting.length, 2);
+  const video = model.waiting.find(i => i.kind === "task" && i.task.id === "t_video");
+  const tagged = model.waiting.find(i => i.kind === "task" && i.task.id === "t_tagged");
+  assert.equal(video?.kind, "task");
+  assert.equal(tagged?.kind, "task");
+  if (video?.kind === "task") {
+    assert.deepEqual(video.sourceDesk, { threadId: "thr_sherif", label: "Chat · Sherif" });
+  }
+  if (tagged?.kind === "task") {
+    assert.deepEqual(tagged.sourceDesk, { threadId: "thr_mido_desk", label: "Chat · Mido" });
+  }
+  // Only the unrelated Sherif payroll desk stays in Active desks!
+  assert.deepEqual(model.desks.map(d => d.desk.id), ["chat:sherif-payroll"]);
+});

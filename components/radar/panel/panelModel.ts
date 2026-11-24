@@ -106,16 +106,35 @@ function extractRefCodes(...texts: (string | null | undefined)[]): Set<string> {
   return out;
 }
 
+function normalizePhrase(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function containsWholeWord(haystack: string, needle: string): boolean {
+  if (needle.length < 3) return false;
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(needle)}(?![\\p{L}\\p{N}])`, "iu").test(haystack);
+}
+
 function deskOriginLabel(desk: BotDesk): string {
   const { channel, person } = deskParts(desk);
   return person ? `${channel} · ${person}` : channel;
 }
 
-function matchDeskToTask(desk: DeskItem, activeTasks: readonly TaskItem[]): TaskItem | null {
+function matchDeskToTask(desk: DeskItem, tasks: readonly TaskItem[], allowWaitingHeuristic = false): TaskItem | null {
+  const deskThread = desk.desk.threadId;
+  if (deskThread) {
+    const deskTag = `desk:${deskThread}`;
+    const byTag = tasks.find(item => item.task.tags.includes(deskTag));
+    if (byTag) return byTag;
+  }
   const linkedWorkers = desk.desk.linkedWorkerIds;
   if (linkedWorkers?.length) {
     const workerSet = new Set(linkedWorkers);
-    const byWorker = activeTasks.find(
+    const byWorker = tasks.find(
       item =>
         item.running.some(a => workerSet.has(a.threadId)) ||
         item.attempts.some(a => workerSet.has(a.threadId)) ||
@@ -123,9 +142,8 @@ function matchDeskToTask(desk: DeskItem, activeTasks: readonly TaskItem[]): Task
     );
     if (byWorker) return byWorker;
   }
-  const deskThread = desk.desk.threadId;
   if (deskThread) {
-    const direct = activeTasks.find(
+    const direct = tasks.find(
       item =>
         item.task.conversationThreadId === deskThread ||
         item.task.ask?.ref.threadId === deskThread ||
@@ -134,12 +152,33 @@ function matchDeskToTask(desk: DeskItem, activeTasks: readonly TaskItem[]): Task
     if (direct) return direct;
   }
   const deskRefs = extractRefCodes(desk.title, desk.desk.title, desk.desk.key);
-  if (!deskRefs.size) return null;
-  for (const task of activeTasks) {
-    const taskRefs = extractRefCodes(task.title, task.task.title, task.task.outcome, task.task.line);
-    for (const ref of deskRefs) {
-      if (taskRefs.has(ref)) return task;
+  if (deskRefs.size) {
+    for (const task of tasks) {
+      const taskRefs = extractRefCodes(task.title, task.task.title, task.task.outcome, task.task.line);
+      for (const ref of deskRefs) {
+        if (taskRefs.has(ref)) return task;
+      }
     }
+  }
+  if (!allowWaitingHeuristic) return null;
+  const { person, subject } = deskParts(desk.desk);
+  const personCandidates = [desk.desk.waitingOn, person]
+    .map(p => (p ?? "").replace(/\s*\([^)]*\)\s*/g, " ").trim())
+    .filter(p => p.length >= 3);
+  if (!personCandidates.length) return null;
+  const deskText = normalizePhrase(`${desk.title} ${desk.desk.title} ${subject}`);
+  const deskWake = desk.desk.wake?.state === "pending" ? desk.desk.wake.at : null;
+  for (const task of tasks) {
+    const taskBlob = `${task.title} ${task.task.title} ${task.task.waitOn ?? ""} ${task.task.outcome ?? ""} ${task.task.line}`;
+    if (!personCandidates.some(p => containsWholeWord(taskBlob, p))) continue;
+    const wakeMatches =
+      deskWake !== null &&
+      task.task.wakeAt !== undefined &&
+      Math.abs(deskWake - task.task.wakeAt) <= 60_000;
+    const taskPhrase = normalizePhrase(task.task.title || task.title);
+    const titleWords = taskPhrase.split(" ").filter(w => w.length >= 3);
+    const topicMatches = titleWords.length >= 2 && deskText.includes(taskPhrase);
+    if (wakeMatches || topicMatches) return task;
   }
   return null;
 }
@@ -171,11 +210,14 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   const unlinked = bot.unlinked.map((worker): ThreadItem => ({ kind: "thread", key: `worker:${worker.threadId}`, title: taskHeadline(plainWorkerTitle(worker.title || "Worker")), status: { group: "working", mark: "working", words: "Working", note: "on its own, not filed as a task" }, at: now, threadId: worker.threadId }));
   const taskGroup = (name: Group): TaskItem[] => items.filter(item => item.status.group === name && !shadowed(item));
   const activeTaskPool = [...taskGroup("working"), ...taskGroup("stuck")];
+  const waitingTasks = taskGroup("waiting");
   const workingDesks: DeskItem[] = [];
   const activeDesks: DeskItem[] = [];
   for (const desk of desks) {
     if (desk.status.group !== "working" && desk.status.group !== "waiting") continue;
-    const linked = matchDeskToTask(desk, activeTaskPool);
+    const linked =
+      matchDeskToTask(desk, activeTaskPool) ??
+      (desk.status.group === "waiting" ? matchDeskToTask(desk, waitingTasks, true) : null);
     if (linked && desk.desk.threadId) {
       if (!linked.sourceDesk) {
         linked.sourceDesk = { threadId: desk.desk.threadId, label: deskOriginLabel(desk.desk) };
@@ -194,7 +236,7 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
     deskAsks: desks.filter(item => item.status.group === "needs"),
     stuck: [...taskGroup("stuck"), ...desks.filter(item => item.status.group === "stuck")],
     working: [...taskGroup("working"), ...workingDesks, ...unlinked],
-    waiting: taskGroup("waiting").sort(bySoonest),
+    waiting: waitingTasks.sort(bySoonest),
     desks: activeDesks,
     yours: yours.map((thread): ThreadItem => {
       const age = shortAgo(thread.latestAttentionAt, now);

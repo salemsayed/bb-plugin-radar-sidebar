@@ -477,11 +477,11 @@ export const CASES = [
       const deskIds = Object.fromEntries((driver.iso.bot(bot.key)?.desks ?? []).map(desk => [desk.threadId ?? desk.key, desk]));
       const at = threadId => { const desk = deskIds[threadId]; return desk ? state.items.find(item => item.key === `desk:${desk.id}`) : undefined; };
       const deferred = (driver.iso.bot(bot.key)?.desks ?? []).find(desk => /Nour/.test(desk.title));
-      const want = [[world.draftDesk, "needs"], [world.blockedDesk, "needs"], [world.workingDesk, "working"], [world.waitingDesk, "waiting"], [world.lateDesk, "waiting"], [world.infoDesk, "done"], [world.doneDesk, "done"]];
+      const want = [[world.draftDesk, "needs"], [world.blockedDesk, "needs"], [world.workingDesk, "desks"], [world.waitingDesk, "desks"], [world.lateDesk, "desks"], [world.infoDesk, "done"], [world.doneDesk, "done"]];
       const deferredItem = deferred ? state.items.find(item => item.key === `desk:${deferred.id}`) : undefined;
       return [...want.map(([desk, group]) => check(`${desk.threadId} in ${group}`, at(desk.threadId)?.group === group, at(desk.threadId) ? `${at(desk.threadId).group}: ${at(desk.threadId).text}` : `missing (core status ${deskIds[desk.threadId]?.status})`)),
         check("desk whose wake came due while bb was off got its wake when bb started", woken.length > 0, woken.map(m => `#${m.seq} ${short(m.text)}`)),
-        check("deferred desk queued in Waiting", deferredItem?.group === "waiting" && /Queued/.test(deferredItem.text), deferredItem ?? `core: ${deferred?.status ?? "no deferred desk"}`)];
+        check("deferred desk queued in Active desks", deferredItem?.group === "desks" && /Queued/.test(deferredItem.text), deferredItem ?? `core: ${deferred?.status ?? "no deferred desk"}`)];
     },
   },
   {
@@ -585,6 +585,40 @@ export const CASES = [
       const nav = await navigatedTo(driver, world.workingDesk.threadId);
       await driver.rightPanelClosed();
       return [check("tab lists the working desk", true, text), ...nav];
+    },
+  },
+  {
+    scenario: "desks", id: "desks-cockpit", action: "Open the Desks cockpit, inspect a draft desk, and send a note via Enter", expect: "Desks queue loads, selecting a desk renders DeskWorkspace with its draft, and pressing Enter in the composer delivers to the desk thread with zero page errors",
+    async run({ iso, world, driver }) {
+      const errorsBefore = driver.errors.length;
+      await driver.closePanel();
+      await driver.page.goto(`${iso.url}/plugins/orchestrator-mode/desks`, { waitUntil: "domcontentloaded" });
+      const sidebar = driver.page.locator(".desk-sidebar").first();
+      await sidebar.waitFor({ state: "visible", timeout: 20_000 });
+      const lailaRow = sidebar.locator(".desk-queue-row", { hasText: /Laila Hassan|6102/ }).first();
+      const hasRow = await lailaRow.waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
+      if (!hasRow) {
+        await driver.home();
+        return [check("Desks queue lists Laila Hassan draft desk", false, short(await sidebar.innerText().catch(() => "")))];
+      }
+      await driver.press(lailaRow);
+      const workspace = driver.page.locator(".desk-workspace").first();
+      await workspace.waitFor({ state: "visible", timeout: 15_000 });
+      const draftVisible = await poll(async () => /on the van/i.test(await workspace.innerText().catch(() => "")), 15_000, 400);
+      const after = iso.lastSeq(world.sendDesk.threadId);
+      const composer = workspace.locator("textarea").first();
+      await composer.waitFor({ state: "visible", timeout: 10_000 });
+      await composer.fill("Smoke check note via Enter");
+      await composer.press("Enter");
+      const landed = await poll(() => iso.messages(world.sendDesk.threadId, after).find(m => m.from !== "bot" && m.text.includes("Smoke check note via Enter")), 20_000);
+      const newErrors = driver.errors.slice(errorsBefore);
+      await driver.home();
+      return [
+        check("Desks queue lists Laila Hassan draft desk", hasRow, "visible"),
+        check("DeskWorkspace renders header and bot draft text", !!draftVisible, short(await workspace.innerText().catch(() => ""))),
+        check("Composer Enter delivers message to desk thread", !!landed, landed ? `#${landed.seq} (${landed.from}): ${short(landed.text)}` : `none after #${after}`),
+        check("zero page errors in Desks cockpit", newErrors.length === 0, newErrors),
+      ];
     },
   },
   {
