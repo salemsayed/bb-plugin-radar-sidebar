@@ -1,13 +1,5 @@
 import type { ActivityCoverage } from "./botScope";
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -16,8 +8,6 @@ import {
   TouchSensor,
   closestCenter,
   defaultKeyboardCoordinateGetter,
-  useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -35,7 +25,6 @@ import type {
   PluginSidebarThread,
   experimental_useProviders,
 } from "@get-bb/plugin-sdk/app";
-import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { RadarThreadRow } from "./RadarThreadRow";
@@ -48,288 +37,34 @@ import { NeedsYouLane } from "./NeedsYouList";
 import type { useVisibleBots } from "./botVisibility";
 import { activityTime, effectiveIndicator, isRunningThread, timeAgo } from "./time";
 import { GroupHeader, SortableGroupSection } from "./RadarGroupHeader";
-import { RadarMenu } from "./RadarMenu";
 import type { SubtreeCounts, ThreadGroup } from "./useThreadGroups";
 import {
-  COLLAPSED_KEY,
-  COLLAPSED_THREADS_KEY,
   PROJECT_ORDER_KEY,
-  usePersistedSet,
   writeStored,
   type Grouping,
   type ListSettings,
   type LifecycleFilter,
 } from "./useListSettings";
 import { nThreads, reportBulk } from "./listFeedback";
+import {
+  DroppableSectionSection,
+  Fold,
+  renderSubtree,
+  summarizeCrewActivity,
+  type GroupMenuAnchor,
+  type RenderRow,
+  type RowDragHandle,
+} from "./groupHelpers";
 
-/** Row drag affordance handed to a thread row's grip handle. */
-export interface RowDragHandle {
-  attributes: ReturnType<typeof useDraggable>["attributes"];
-  listeners: ReturnType<typeof useDraggable>["listeners"];
-  isDragging: boolean;
-}
-
-export type RenderRow = (
-  thread: PluginSidebarThread,
-  depth: number,
-  groupProjectId: string | null,
-  isLastChild: boolean,
-  dragHandle: RowDragHandle | null,
-  hidden: boolean,
-) => ReactNode;
-
-const EMPTY_ID_SET: ReadonlySet<string> = new Set();
-
-/**
- * A section group that accepts a dragged thread. Highlighting is driven by
- * dnd-kit's `isOver`, so the drop target is unmistakable before release.
- */
-function DroppableSectionSection({
-  group,
-  draggingThreadId,
-  onDropThread,
-  children,
-}: {
-  group: ThreadGroup;
-  draggingThreadId: string | null;
-  onDropThread: (threadId: string, sectionId: string | null) => void;
-  children: ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: group.id,
-    data: { sectionId: group.sectionId },
-  });
-  const dragged = draggingThreadId
-    ? group.roots.find((root) => root.id === draggingThreadId)
-    : null;
-  // No point offering a thread its own current section.
-  const alreadyHere =
-    dragged != null && (dragged.sectionId ?? null) === group.sectionId;
-  return (
-    // A plain div: the wrapped group already renders the labelled <section>.
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "radar-group",
-        "radar-group-section",
-        isOver && draggingThreadId && !alreadyHere && "radar-group-drop-active",
-        isOver && draggingThreadId && alreadyHere && "radar-group-drop-same",
-      )}
-      onDrop={(event) => {
-        if (!draggingThreadId) return;
-        event.preventDefault();
-        onDropThread(draggingThreadId, group.sectionId);
-      }}
-      onDragOver={(event) => {
-        if (draggingThreadId) event.preventDefault();
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Wraps a row so its grip can start a drag onto a section header. */
-function DraggableThreadRow({
-  threadId,
-  renderRow,
-}: {
-  threadId: string;
-  renderRow: (handle: RowDragHandle) => ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `thread:${threadId}`,
-    data: { threadId },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn("radar-row-draggable", isDragging && "radar-row-dragging")}
-    >
-      {renderRow({ attributes, listeners, isDragging })}
-    </div>
-  );
-}
-
-/** Outlasts the `.radar-fold` collapse transition (280ms in styles/groups.css). */
-const FOLD_UNMOUNT_MS = 320;
-
-/**
- * A collapsible group or family body. Its rows stay mounted only while open
- * and through the closing animation, so a folded group costs nothing: no
- * rows, no per-row host subscriptions, no pull-request lookups. Opening
- * mounts them in the same commit the grid starts growing, so it animates.
- */
-export function Fold({
-  collapsed,
-  role,
-  label,
-  children,
-}: {
-  collapsed: boolean;
-  role: "list" | "group";
-  label: string;
-  children: () => ReactNode;
-}) {
-  const [closed, setClosed] = useState(collapsed);
-  useEffect(() => {
-    if (!collapsed) {
-      setClosed(false);
-      return;
-    }
-    const timer = setTimeout(() => setClosed(true), FOLD_UNMOUNT_MS);
-    return () => clearTimeout(timer);
-  }, [collapsed]);
-  return (
-    <div
-      className={cn("radar-fold", collapsed && "radar-fold-collapsed")}
-      aria-hidden={collapsed || undefined}
-      inert={collapsed || undefined}
-    >
-      <div className="radar-fold-inner" role={role} aria-label={label}>
-        {collapsed && closed ? null : children()}
-      </div>
-    </div>
-  );
-}
-
-export function renderSubtree(
-  thread: PluginSidebarThread,
-  depth: number,
-  renderRow: RenderRow,
-  children: Map<string, PluginSidebarThread[]>,
-  groupProjectId: string | null,
-  collapsedIds: ReadonlySet<string>,
-  isLastChild: boolean,
-  draggable: boolean,
-  /** Inside a closing group or family fold: still mounted, no longer shown. */
-  hidden: boolean,
-): ReactNode {
-  const kids = depth > 25 ? [] : (children.get(thread.id) ?? []);
-  const folded = collapsedIds.has(thread.id);
-  const rowNode =
-    draggable && depth === 0 ? (
-      <DraggableThreadRow
-        threadId={thread.id}
-        renderRow={(handle) =>
-          renderRow(thread, depth, groupProjectId, isLastChild, handle, hidden)
-        }
-      />
-    ) : (
-      renderRow(thread, depth, groupProjectId, isLastChild, null, hidden)
-    );
-  const node = (
-    <Fragment key={thread.id}>
-      {rowNode}
-      {kids.length === 0 ? null : (
-        <Fold collapsed={folded} role="group" label="Replies">
-          {() =>
-            kids.map((child, index) =>
-              renderSubtree(
-                child,
-                depth + 1,
-                renderRow,
-                children,
-                groupProjectId,
-                collapsedIds,
-                index === kids.length - 1,
-                false,
-                hidden || folded,
-              ),
-            )
-          }
-        </Fold>
-      )}
-    </Fragment>
-  );
-
-  if (depth === 0) {
-    return (
-      <div key={thread.id} className="radar-thread-cluster" role="listitem">
-        {node}
-      </div>
-    );
-  }
-
-  return node;
-}
-
-/**
- * Which groups and families are folded (persisted per client), and the
- * expand/collapse-all controls over the groups on screen. Filtering forces
- * everything open so matches never hide inside folds.
- */
-export function useGroupFolds({
-  isFiltering,
-  needsYouGroup,
-  botGroups,
-  pinnedGroup,
-  groups,
-}: {
-  isFiltering: boolean;
-  needsYouGroup: ThreadGroup | null;
-  botGroups: ThreadGroup[];
-  pinnedGroup: ThreadGroup | null;
-  groups: ThreadGroup[];
-}) {
-  const [collapsed, setCollapsed] = usePersistedSet(COLLAPSED_KEY);
-  const [collapsedThreads, setCollapsedThreads] = usePersistedSet(COLLAPSED_THREADS_KEY);
-  const collapseIds: ReadonlySet<string> =
-    isFiltering ? EMPTY_ID_SET : collapsedThreads;
-  const collapsedGroupIds: ReadonlySet<string> =
-    isFiltering ? EMPTY_ID_SET : collapsed;
-
-  const allGroupIds = useMemo(
-    () => [
-      ...(needsYouGroup ? [needsYouGroup.id] : []),
-      ...botGroups.map((g) => g.id),
-      ...(pinnedGroup ? [pinnedGroup.id] : []),
-      ...groups.map((g) => g.id),
-    ],
-    [needsYouGroup, botGroups, pinnedGroup, groups],
-  );
-
-  const areAllGroupsCollapsed = useMemo(() => {
-    if (allGroupIds.length === 0) return false;
-    return allGroupIds.every((id) => collapsedGroupIds.has(id));
-  }, [allGroupIds, collapsedGroupIds]);
-
-  const toggleAllGroups = useCallback(() => {
-    setCollapsed((previous) =>
-      allGroupIds.every((id) => previous.has(id))
-        ? new Set<string>()
-        : new Set(allGroupIds),
-    );
-  }, [allGroupIds, setCollapsed]);
-
-  const expandAllGroups = useCallback(() => {
-    setCollapsed(new Set<string>());
-  }, [setCollapsed]);
-
-  const collapseAllGroups = useCallback(() => {
-    setCollapsed(new Set(allGroupIds));
-  }, [allGroupIds, setCollapsed]);
-
-  const toggleThreadCollapse = useCallback((id: string) => {
-    setCollapsedThreads((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, [setCollapsedThreads]);
-
-  return {
-    setCollapsed,
-    collapseIds,
-    collapsedGroupIds,
-    areAllGroupsCollapsed,
-    toggleAllGroups,
-    expandAllGroups,
-    collapseAllGroups,
-    toggleThreadCollapse,
-  };
-}
+export {
+  Fold,
+  renderSubtree,
+  useGroupFolds,
+  type GroupMenuAnchor,
+  type RenderRow,
+  type RowDragHandle,
+} from "./groupHelpers";
+export { GroupMenu } from "./GroupMenu";
 
 /** One stable row renderer: rows are memoised, so it only changes when
  * something every row reads changes. */
@@ -381,7 +116,10 @@ export function useRowRenderer({
   onCommitRename: (thread: PluginSidebarThread, title: string) => void;
   onCancelRename: () => void;
   onUnarchive: (thread: PluginSidebarThread) => void;
-  providerById: Map<string, ReturnType<typeof experimental_useProviders>["providers"][number]>;
+  providerById: Map<
+    string,
+    ReturnType<typeof experimental_useProviders>["providers"][number]
+  >;
   primaryHostId: string | null;
   shownChildren: Map<string, PluginSidebarThread[]>;
   childrenOf: Map<string, PluginSidebarThread[]>;
@@ -412,17 +150,19 @@ export function useRowRenderer({
           ? {
               collapsed: collapseIds.has(thread.id),
               hiddenTotal: counts.total - 1,
-              hiddenUnread:
-                counts.unread - (thread.isUnread ? 1 : 0),
+              hiddenUnread: counts.unread - (thread.isUnread ? 1 : 0),
               hiddenLive: counts.live - Number(isRunningThread(thread)) > 0,
               hiddenNeedsUser:
                 counts.needsUser -
-                  Number(thread.indicator === "waiting-for-input") > 0,
+                  Number(thread.indicator === "waiting-for-input") >
+                0,
               hiddenFailed:
-                counts.failed - Number(
-                  effectiveIndicator(thread) === "unread-error" ||
-                  thread.indicator === "queued-failed",
-                ) > 0,
+                counts.failed -
+                  Number(
+                    effectiveIndicator(thread) === "unread-error" ||
+                      thread.indicator === "queued-failed",
+                  ) >
+                0,
               hiddenKids: counts.kids,
               onToggle: () => toggleThreadCollapse(thread.id),
             }
@@ -519,13 +259,6 @@ export function useRowRenderer({
   );
 }
 
-export interface GroupMenuAnchor {
-  x: number;
-  y: number;
-  /** Opened on a bot card: offers to hide that bot. */
-  botKey?: string;
-}
-
 type VisibleBots = ReturnType<typeof useVisibleBots>;
 
 /**
@@ -599,7 +332,11 @@ export function RadarGroupList({
   needsItems: readonly NeedsItem[] | null;
   /** The lane's items: a selected bot's own, otherwise everyone's. */
   laneItems: readonly NeedsItem[] | null;
-  onUpdateNeed: (id: string, action: "done" | "snooze" | "reopen", until?: string) => Promise<void>;
+  onUpdateNeed: (
+    id: string,
+    action: "done" | "snooze" | "reopen",
+    until?: string,
+  ) => Promise<void>;
   onOpenNeed: (threadId: string) => void;
   onReplyToNeed: (threadId: string, text: string) => void;
   visible: VisibleBots;
@@ -618,18 +355,12 @@ export function RadarGroupList({
   allowMoves: () => void;
 }) {
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
-  const [draggingThreadId, setDraggingThreadId] = useState<string | null>(
-    null,
-  );
+  const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const draggingThreadIds = useRef<string[]>([]);
   const justDragged = useRef(false);
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
-    }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter:
         grouping === "project"
@@ -643,15 +374,18 @@ export function RadarGroupList({
     [groups, dragActiveId],
   );
 
-  const toggleGroup = useCallback((id: string) => {
-    if (justDragged.current) return;
-    setCollapsed((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, [setCollapsed]);
+  const toggleGroup = useCallback(
+    (id: string) => {
+      if (justDragged.current) return;
+      setCollapsed((previous) => {
+        const next = new Set(previous);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [setCollapsed],
+  );
 
   /** File the dragged thread or its selection via BB's own update API. */
   const moveThreadToSection = useCallback(
@@ -736,18 +470,13 @@ export function RadarGroupList({
   const renderGroup = useCallback(
     (group: ThreadGroup, isSortable = false, draggable = false) => {
       const isCollapsed = collapsedGroupIds.has(group.id);
-
       const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
         onGroupMenu({ x: event.clientX, y: event.clientY });
       };
 
       const foldContent = (
-        <Fold
-          collapsed={isCollapsed}
-          role="list"
-          label={`${group.label} threads`}
-        >
+        <Fold collapsed={isCollapsed} role="list" label={`${group.label} threads`}>
           {() =>
             group.roots.length === 0 ? (
               <p className="radar-group-empty">Drop a thread here to file it.</p>
@@ -840,31 +569,51 @@ export function RadarGroupList({
     ],
   );
 
-  // Saved asks and alerts stay in the lane even while a search or status filter
-  // narrows the threads; a bot's view gets only that bot's items.
-  const lane = settings.needsYouLane
-    ? <NeedsYouLane items={laneItems ?? []} roster={roster} now={now} open={needsLane.open} onToggle={needsLane.toggle}
-      onUpdate={onUpdateNeed} onOpen={onOpenNeed} onReply={onReplyToNeed}
+  const lane = settings.needsYouLane ? (
+    <NeedsYouLane
+      items={laneItems ?? []}
+      roster={roster}
+      now={now}
+      open={needsLane.open}
+      onToggle={needsLane.toggle}
+      onUpdate={onUpdateNeed}
+      onOpen={onOpenNeed}
+      onReply={onReplyToNeed}
       waitingCount={needsYouGroup?.roots.length ?? 0}
-      waiting={needsYouGroup ? <div role="list" aria-label="Needs you threads">
-        {needsYouGroup.roots.map((root, index) =>
-          renderSubtree(root, 0, renderRow, shownChildren, needsYouGroup.projectId, collapseIds, index === needsYouGroup.roots.length - 1, false, false))}
-      </div> : null} />
-    : null;
+      waiting={
+        needsYouGroup ? (
+          <div role="list" aria-label="Needs you threads">
+            {needsYouGroup.roots.map((root, index) =>
+              renderSubtree(
+                root,
+                0,
+                renderRow,
+                shownChildren,
+                needsYouGroup.projectId,
+                collapseIds,
+                index === needsYouGroup.roots.length - 1,
+                false,
+                false,
+              ),
+            )}
+          </div>
+        ) : null
+      }
+    />
+  ) : null;
 
-  // Crew describes the full roster, independently of saved row preferences,
-  // search/status filters and missing coordinator rows.
   const crewBots = settings.botsDeck && !settings.botRail ? roster : [];
-  const crewActivity = crewBots.map(bot => botActivity(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage));
-  const crewSummary = crewActivity.length ? crewActivity.reduce((sum, next) => ({
-    unread: sum.unread || next.unread, updates: sum.updates + next.updates,
-    workers: sum.workers + next.workers, hiddenWorkers: sum.hiddenWorkers + next.hiddenWorkers,
-    active: sum.active + next.active, questions: sum.questions + next.questions, decisions: sum.decisions + next.decisions,
-    lastKnownWorkers: (sum.lastKnownWorkers ?? 0) + (next.lastKnownWorkers ?? 0),
-    lastKnownActive: (sum.lastKnownActive ?? 0) + (next.lastKnownActive ?? 0),
-    lastKnownQuestions: (sum.lastKnownQuestions ?? 0) + (next.lastKnownQuestions ?? 0),
-    complete: sum.complete !== false && next.complete !== false,
-  })) : null;
+  const crewSummary = summarizeCrewActivity(
+    crewBots.map((bot) =>
+      botActivity(
+        botThreads,
+        bot,
+        attentionPulses.get(bot.current) ?? null,
+        activityCoverage,
+      ),
+    ),
+  );
+
   return (
     <>
       {deferredQuery.trim() !== "" || statusFilter !== "all" ? (
@@ -874,34 +623,82 @@ export function RadarGroupList({
       ) : null}
       {lane}
       {crewBots.length > 0 ? (
-        <div className="radar-crew-header" role="status" onContextMenu={(event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY }); }}>
+        <div
+          className="radar-crew-header"
+          role="status"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onGroupMenu({ x: event.clientX, y: event.clientY });
+          }}
+        >
           <span className="radar-crew-label">Crew</span>
           <span className="radar-crew-digest">
-            {crewDigest(crewBots.map(bot => botRailState(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage)), needsItems)}
+            {crewDigest(
+              crewBots.map((bot) =>
+                botRailState(
+                  botThreads,
+                  bot,
+                  attentionPulses.get(bot.current) ?? null,
+                  activityCoverage,
+                ),
+              ),
+              needsItems,
+            )}
             {crewSummary ? ` · ${botActivityText(crewSummary)}` : null}
           </span>
           {visible.hiddenBots.map((bot) => (
-            <button key={bot.key} type="button" className="radar-crew-action" onClick={() => visible.unhide(bot.key)} aria-label={`Show ${bot.name} again`}>
+            <button
+              key={bot.key}
+              type="button"
+              className="radar-crew-action"
+              onClick={() => visible.unhide(bot.key)}
+              aria-label={`Show ${bot.name} again`}
+            >
               Show {shortBotName(bot.name)}
             </button>
           ))}
         </div>
       ) : null}
-      {missingBots.map(bot => <RadarMissingBotCard key={bot.key} bot={bot}
-        activity={botActivity(botThreads, bot, attentionPulses.get(bot.current) ?? null, activityCoverage)} onNavigate={onNavigate} />)}
+      {missingBots.map((bot) => (
+        <RadarMissingBotCard
+          key={bot.key}
+          bot={bot}
+          activity={botActivity(
+            botThreads,
+            bot,
+            attentionPulses.get(bot.current) ?? null,
+            activityCoverage,
+          )}
+          onNavigate={onNavigate}
+        />
+      ))}
       {botGroups.map((group) => {
         const root = group.roots[0]!;
-        const style = botStyle(roster.find((entry) => entry.current === root.id)?.key ?? root.id, root.displayTitle);
-        const isCollapsed = collapsedGroupIds.has(group.id);
         const bot = roster.find((entry) => entry.current === root.id);
+        const style = botStyle(bot?.key ?? root.id, root.displayTitle);
+        const isCollapsed = collapsedGroupIds.has(group.id);
         const pulse = attentionPulses.get(root.id) ?? null;
         const kids = shownChildren.get(root.id) ?? [];
         return (
           <section
             key={group.id}
             aria-label={group.label}
-            className={cn("radar-group radar-bot-group", isCollapsed ? "radar-group-collapsed" : "radar-group-expanded")}
-            onContextMenu={bot ? (event) => { event.preventDefault(); onGroupMenu({ x: event.clientX, y: event.clientY, botKey: bot.key }); } : undefined}
+            className={cn(
+              "radar-group radar-bot-group",
+              isCollapsed ? "radar-group-collapsed" : "radar-group-expanded",
+            )}
+            onContextMenu={
+              bot
+                ? (event) => {
+                    event.preventDefault();
+                    onGroupMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                      botKey: bot.key,
+                    });
+                  }
+                : undefined
+            }
           >
             <RadarBotCard
               thread={root}
@@ -909,9 +706,21 @@ export function RadarGroupList({
               botKey={bot?.key ?? root.id}
               hue={style.hue}
               motion={settings.motion}
-              activity={bot ? botActivity(botThreads, bot, pulse, activityCoverage) : undefined}
+              activity={
+                bot
+                  ? botActivity(botThreads, bot, pulse, activityCoverage)
+                  : undefined
+              }
               rolloverBlocked={bot?.rolloverBlocked}
-              state={bot ? botRailState(botThreads, bot, pulse, activityCoverage) : botState(root, pulse, null, { live: group.live - (isRunningThread(root) ? 1 : 0), needsUser: group.needsUser, failed: group.failed })}
+              state={
+                bot
+                  ? botRailState(botThreads, bot, pulse, activityCoverage)
+                  : botState(root, pulse, null, {
+                      live: group.live - (isRunningThread(root) ? 1 : 0),
+                      needsUser: group.needsUser,
+                      failed: group.failed,
+                    })
+              }
               pulse={pulse}
               group={group}
               isCollapsed={isCollapsed}
@@ -921,10 +730,24 @@ export function RadarGroupList({
               onNavigate={onNavigate}
             />
             {kids.length > 0 ? (
-              <Fold collapsed={isCollapsed} role="list" label={`${group.label} threads`}>
+              <Fold
+                collapsed={isCollapsed}
+                role="list"
+                label={`${group.label} threads`}
+              >
                 {() =>
                   kids.map((child, index) =>
-                    renderSubtree(child, 1, renderRow, shownChildren, null, collapseIds, index === kids.length - 1, false, isCollapsed),
+                    renderSubtree(
+                      child,
+                      1,
+                      renderRow,
+                      shownChildren,
+                      null,
+                      collapseIds,
+                      index === kids.length - 1,
+                      false,
+                      isCollapsed,
+                    ),
                   )
                 }
               </Fold>
@@ -940,11 +763,14 @@ export function RadarGroupList({
           onDragStart={(event) => {
             const id = event.active.data.current?.threadId;
             setDraggingThreadId(typeof id === "string" ? id : null);
-            draggingThreadIds.current = typeof id === "string"
-              ? selectedIds.has(id)
-                ? [...selectedIds].filter((selected) => visibleThreadIds.has(selected))
-                : [id]
-              : [];
+            draggingThreadIds.current =
+              typeof id === "string"
+                ? selectedIds.has(id)
+                  ? [...selectedIds].filter((selected) =>
+                      visibleThreadIds.has(selected),
+                    )
+                  : [id]
+                : [];
           }}
           onDragEnd={(event) => {
             const threadId = event.active.data.current?.threadId;
@@ -954,11 +780,13 @@ export function RadarGroupList({
             setDraggingThreadId(null);
             if (typeof threadId !== "string") return;
             if (!target || typeof target !== "object") return;
-            const sectionId = (target as { sectionId?: string | null })
-              .sectionId;
-            // A drop is a deliberate move: show it despite the hover.
+            const sectionId = (target as { sectionId?: string | null }).sectionId;
             allowMoves();
-            moveThreadToSection(threadId, sectionId ?? null, ids.length ? ids : [threadId]);
+            moveThreadToSection(
+              threadId,
+              sectionId ?? null,
+              ids.length ? ids : [threadId],
+            );
           }}
           onDragCancel={() => {
             draggingThreadIds.current = [];
@@ -971,10 +799,7 @@ export function RadarGroupList({
               <div className="radar-thread-drag-preview">
                 <Icon name="DragDropVertical" aria-hidden="true" />
                 <span>
-                  {
-                    rowById.get(draggingThreadId)?.displayTitle ??
-                    "Thread"
-                  }
+                  {rowById.get(draggingThreadId)?.displayTitle ?? "Thread"}
                 </span>
               </div>
             ) : null}
@@ -1018,7 +843,10 @@ export function RadarGroupList({
                   </span>
                 ) : null}
                 <span className="radar-group-count">{activeGroup.total}</span>
-                <span className="radar-group-new-thread-preview" aria-hidden="true">
+                <span
+                  className="radar-group-new-thread-preview"
+                  aria-hidden="true"
+                >
                   <Icon name="MessageSquarePlus" />
                 </span>
               </div>
@@ -1031,97 +859,3 @@ export function RadarGroupList({
     </>
   );
 }
-
-/** Right-click on a group header, the Crew header or a bot card. */
-export function GroupMenu({
-  anchor,
-  roster,
-  visible,
-  hasProjectOrder,
-  onExpandAll,
-  onCollapseAll,
-  onResetProjectOrder,
-  onClose,
-}: {
-  anchor: GroupMenuAnchor;
-  roster: readonly RosterBot[];
-  visible: VisibleBots;
-  hasProjectOrder: boolean;
-  onExpandAll: () => void;
-  onCollapseAll: () => void;
-  onResetProjectOrder: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <RadarMenu
-      x={anchor.x}
-      y={anchor.y}
-      items={[
-        ...(anchor.botKey
-          ? [{
-              kind: "item" as const,
-              id: `hide-bot:${anchor.botKey}`,
-              label: `Hide ${roster.find((bot) => bot.key === anchor.botKey)?.name ?? "bot"}`,
-              icon: "EyeOff",
-              // Attention overrides hiding, so Hide would change nothing until the ask or failure is handled.
-              ...(visible.isProtected(anchor.botKey)
-                ? { disabled: true, title: "Handle its open question or unread failure before hiding it." }
-                : {}),
-            }]
-          : []),
-        ...visible.hiddenBots.map((bot) => ({
-          kind: "item" as const,
-          id: `show-bot:${bot.key}`,
-          label: `Show ${bot.name}`,
-          icon: "Eye",
-        })),
-        ...(anchor.botKey || visible.hiddenBots.length > 0 ? [{ kind: "separator" as const }] : []),
-        {
-          kind: "item",
-          id: "expand-all-groups",
-          label: "Expand all folders",
-          icon: "Expand",
-        },
-        {
-          kind: "item",
-          id: "collapse-all-groups",
-          label: "Collapse all folders",
-          icon: "Collapse",
-        },
-        ...(hasProjectOrder
-          ? [
-              { kind: "separator" as const },
-              {
-                kind: "item" as const,
-                id: "reset-project-order",
-                label: "Reset project order",
-                icon: "ArrowReloadHorizontal",
-              },
-            ]
-          : []),
-      ]}
-      onSelect={(id) => {
-        onClose();
-        if (id.startsWith("hide-bot:")) {
-          visible.hide(id.slice("hide-bot:".length));
-        } else if (id.startsWith("show-bot:")) {
-          visible.unhide(id.slice("show-bot:".length));
-        } else if (id === "expand-all-groups") {
-          onExpandAll();
-        } else if (id === "collapse-all-groups") {
-          onCollapseAll();
-        } else if (id === "reset-project-order") {
-          try {
-            localStorage.removeItem(PROJECT_ORDER_KEY);
-          } catch {
-            // Ignore storage failure.
-          }
-          onResetProjectOrder();
-          toast.success("Project order reset to default");
-        }
-      }}
-      onClose={onClose}
-    />
-  );
-}
-

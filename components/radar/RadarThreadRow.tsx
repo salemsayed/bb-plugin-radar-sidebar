@@ -7,12 +7,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import {
   ThreadTitle,
   experimental_Icon as HostIcon,
-  experimental_ProviderIcon as ProviderIcon,
   experimental_useSidebarThreadSplit,
   useBbNavigate,
   useSidebarThreadDraft,
@@ -48,251 +46,43 @@ import {
   type SwipeActionId,
   type SwipeActionView,
 } from "@/lib/swipe";
+import type { RowDragHandle } from "./groupHelpers";
+import {
+  HELD_LABEL,
+  HELD_VISUAL,
+  HELD_WORD,
+  MENTION,
+  RETRIED_LABEL,
+  foldedKidsText,
+  projectHue,
+  rowStatusToneClass,
+  sameCollapse,
+  statusVisualFor,
+  statusWordFor,
+  stripLeadingEmoji,
+  type RowCollapse,
+  type RowProviderIcon,
+  type StatusVisual,
+} from "./rowViewModel";
+import {
+  RowBranchLine,
+  RowFoldedKids,
+  RowGutter,
+  RowKidsRollupPill,
+  RowLead,
+  RowStatusBadge,
+  RowSubtitle,
+  RowSwipeUnderlay,
+} from "./RowParts";
 
-/** Family folding for threads with shown children (null for leaves). */
-export interface RowCollapse {
-  collapsed: boolean;
-  hiddenTotal: number;
-  hiddenUnread: number;
-  hiddenLive: boolean;
-  hiddenNeedsUser: boolean;
-  hiddenFailed: boolean;
-  hiddenKids: { id: string; title: string; dot: string | null }[];
-  onToggle: () => void;
-}
-
-/** Loudest hidden state first: failed, needs-you, then live. */
-function hiddenRollupDotClass(collapse: RowCollapse): string | null {
-  if (collapse.hiddenFailed) return "radar-dot-error";
-  if (collapse.hiddenNeedsUser) return "radar-dot-attention";
-  if (collapse.hiddenLive) return "radar-dot-running radar-dot-pulse";
-  return null;
-}
-
-function foldedKidsText(collapse: RowCollapse): string {
-  const names = collapse.hiddenKids.map((kid) => kid.title).join(", ");
-  const overflow = collapse.hiddenTotal - collapse.hiddenKids.length;
-  return `Hidden replies: ${names}${overflow > 0 ? `, +${overflow} more` : ""}`;
-}
-
-function hiddenSummary(collapse: RowCollapse): string {
-  const parts = [
-    `${collapse.hiddenTotal} hidden`,
-    collapse.hiddenUnread > 0 ? `${collapse.hiddenUnread} unread` : null,
-  ].filter((part): part is string => !!part);
-  return parts.join(", ");
-}
-
-/** Minimal provider record for the agent icon (extra fields ignored). */
-export interface RowProviderIcon {
-  id: string;
-  logoUrl?: string | null;
-  icon?: { glyph: string } | string | null;
-}
-
-/**
- * Map the host-resolved indicator to a status visual. Unknown → none.
- * One color per meaning: blue is running (a spinner, or one pulsing icon for
- * background work), green is done, amber needs you, red failed, and muted is
- * queued. Only running visuals move.
- */
-type StatusVisual =
-  | { kind: "spinner" }
-  | { kind: "dot"; className: string }
-  | { kind: "icon"; name: string; className: string }
-  | null;
-
-function statusVisualFor(indicator: string): StatusVisual {
-  switch (indicator) {
-    case "runtime":
-      return { kind: "spinner" };
-    case "background-agent":
-      return {
-        kind: "icon",
-        name: "Bot",
-        className: "radar-tone-running radar-icon-pulse",
-      };
-    case "background-command":
-      return {
-        kind: "icon",
-        name: "Terminal",
-        className: "radar-tone-running radar-icon-pulse",
-      };
-    case "workflow":
-      return {
-        kind: "icon",
-        name: "Workflow",
-        className: "radar-tone-running radar-icon-pulse",
-      };
-    case "goal":
-      return {
-        kind: "icon",
-        name: "Target",
-        className: "radar-tone-running radar-icon-pulse",
-      };
-    case "plan-mode":
-      return {
-        kind: "icon",
-        name: "ListTodo",
-        className: "radar-tone-running radar-icon-pulse",
-      };
-    case "working-draft":
-      return { kind: "dot", className: "radar-dot-running radar-dot-pulse" };
-    case "waiting-for-input":
-      return { kind: "dot", className: "radar-dot-attention" };
-    case "queued-waiting":
-      return { kind: "icon", name: "Clock", className: "radar-tone-muted" };
-    case "unread-error":
-    case "queued-failed":
-      return { kind: "icon", name: "CircleX", className: "radar-tone-error" };
-    case "unread-success":
-      return { kind: "icon", name: "CircleCheck", className: "radar-tone-success" };
-    case "draft":
-    case "none":
-    default:
-      return null;
-  }
-}
-
-const HELD_LABEL = "Message held until you send it";
-/** A failed thread that a retry is running again: bb still says "unread-error" until it is read. */
-const RETRIED_LABEL = "Working again after a failure";
-const HELD_VISUAL: StatusVisual = { kind: "icon", name: "Pause", className: "radar-tone-muted" };
-const HELD_WORD = { text: "Held", tone: "radar-tone-muted" };
-
-/** Human label for a pull request: attention first, then bare state. */
-function prLabel(state: string, attention: string): string {
-  switch (attention) {
-    case "ready_to_merge":
-      return "Ready to merge";
-    case "changes_requested":
-      return "Changes requested";
-    case "checks_failed":
-      return "Checks failed";
-    case "checks_pending":
-      return "Checks pending";
-    case "conflicts":
-      return "Conflicts";
-    case "blocked":
-      return "Blocked";
-    case "review_requested":
-      return "Review requested";
-    case "merged":
-      return "Merged";
-    case "draft":
-      return "Draft";
-    case "closed":
-      return "Closed";
-    case "none":
-    default:
-      break;
-  }
-  switch (state) {
-    case "open":
-      return "Open";
-    case "draft":
-      return "Draft";
-    case "merged":
-      return "Merged";
-    case "closed":
-      return "Closed";
-    default:
-      return state;
-  }
-}
-
-function prToneClass(attention: string): string {
-  switch (attention) {
-    case "checks_failed":
-    case "conflicts":
-      return "radar-tone-error";
-    case "changes_requested":
-    case "blocked":
-      return "radar-tone-warning";
-    case "review_requested":
-    case "checks_pending":
-      return "radar-tone-info";
-    case "ready_to_merge":
-    case "merged":
-      return "radar-tone-success";
-    default:
-      return "radar-tone-muted";
-  }
-}
-
-function prBadgeClass(state: string, attention: string): string {
-  if (state === "merged" || attention === "merged") return "radar-pr-merged";
-  if (state === "closed" || attention === "closed") return "radar-pr-closed";
-  if (state === "draft" || attention === "draft") return "radar-pr-draft";
-  return "radar-pr-open";
-}
-
-function prIconName(state: string, attention: string): string {
-  if (state === "merged" || attention === "merged") return "GitMerge";
-  if (state === "closed" || attention === "closed") return "GitPullRequestClosed";
-  if (state === "draft" || attention === "draft") return "GitPullRequestDraft";
-  return "GitPullRequest";
-}
-
-/** Tiny explicit word for the status slot. Unknown indicators get none. */
-function statusWordFor(
-  indicator: string,
-): { text: string; tone: string } | null {
-  switch (indicator) {
-    case "runtime":
-    case "working-draft":
-      return { text: "Working", tone: "radar-tone-running" };
-    case "background-agent":
-      return { text: "Agent", tone: "radar-tone-running" };
-    case "background-command":
-      return { text: "Command", tone: "radar-tone-running" };
-    case "workflow":
-      return { text: "Workflow", tone: "radar-tone-running" };
-    case "goal":
-      return { text: "Goal", tone: "radar-tone-running" };
-    case "plan-mode":
-      return { text: "Plan", tone: "radar-tone-running" };
-    case "waiting-for-input":
-      return { text: "Needs you", tone: "radar-tone-warning" };
-    case "queued-waiting":
-      return { text: "Queued", tone: "radar-tone-muted" };
-    case "unread-error":
-    case "queued-failed":
-      return { text: "Failed", tone: "radar-tone-error" };
-    case "unread-success":
-      return { text: "Done", tone: "radar-tone-success" };
-    default:
-      return null;
-  }
-}
-
-/** Chip hues avoid red through amber, which mean Failed and Needs you. */
-export const CHIP_HUE_MIN = 75;
-export const CHIP_HUE_MAX = 325;
-
-/** Stable hue per project id, so chips keep identity across renames. */
-export function projectHue(projectId: string): number {
-  let hash = 0;
-  for (let i = 0; i < projectId.length; i += 1) {
-    hash = (hash * 31 + projectId.charCodeAt(i)) | 0;
-  }
-  return CHIP_HUE_MIN + (Math.abs(hash) % (CHIP_HUE_MAX - CHIP_HUE_MIN));
-}
-
-// One leading emoji (with any skin tone, variation selector or ZWJ joins)
-// and the space after it. Bot threads prefix their state (🟢 ✅ ❌ ⏳); the
-// row already shows state in colour, so the prefix only crowds the title.
-const LEADING_EMOJI =
-  /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})[\u{1F3FB}-\u{1F3FF}]?\uFE0F?(?:\u200D(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})[\u{1F3FB}-\u{1F3FF}]?\uFE0F?)*\s*/u;
-
-/** The title without one leading status emoji; unchanged if nothing is left. */
-export function stripLeadingEmoji(title: string): string {
-  const stripped = title.replace(LEADING_EMOJI, "");
-  return stripped.trim() === "" ? title : stripped;
-}
-
-// A raw title with mentions needs bb's ThreadTitle to draw its chips.
-const MENTION = /@(?:project|section|thread):/;
+export {
+  CHIP_HUE_MAX,
+  CHIP_HUE_MIN,
+  projectHue,
+  stripLeadingEmoji,
+  type RowCollapse,
+  type RowProviderIcon,
+} from "./rowViewModel";
 
 let hoverCapable: boolean | null = null;
 
@@ -304,19 +94,6 @@ function canHoverPreview(): boolean {
       window.matchMedia("(hover: hover)").matches;
   }
   return hoverCapable;
-}
-
-function rowStatusToneClass(tone: string | undefined): string {
-  switch (tone) {
-    case "running":
-      return "radar-tone-running";
-    case "success":
-      return "radar-tone-success";
-    case "error":
-      return "radar-tone-error";
-    default:
-      return "radar-tone-muted";
-  }
 }
 
 function RadarThreadRowImpl({
@@ -402,7 +179,7 @@ function RadarThreadRowImpl({
   isKeyboardFocused?: boolean;
   onToggleSelect?: (event: React.MouseEvent, threadId: string) => void;
   /** Grip affordance for drag-to-section (section grouping only). */
-  dragHandle?: import("./RadarGroupList").RowDragHandle | null;
+  dragHandle?: RowDragHandle | null;
   /** Touch swipe actions per direction; "none" leaves that side inert. */
   swipeRight?: SwipeActionId;
   swipeLeft?: SwipeActionId;
@@ -443,11 +220,23 @@ function RadarThreadRowImpl({
   const shortcut = useSidebarThreadShortcut(thread.id);
   const pullRequest = useRowPullRequest(thread);
 
-  const viewport = useRowViewport(rowRef,
-    isEditing || isKeyboardFocused || menuOpen || hoverCard !== null || !!dragHandle?.isDragging ||
+  const viewport = useRowViewport(
+    rowRef,
+    isEditing ||
+      isKeyboardFocused ||
+      menuOpen ||
+      hoverCard !== null ||
+      !!dragHandle?.isDragging ||
       rowRef.current?.hasAttribute("data-swipe-phase") === true,
-    JSON.stringify([density, collapse?.collapsed,
-      thread.displayTitle, thread.environment?.branchName, depth, sectionName, projectTag]),
+    JSON.stringify([
+      density,
+      collapse?.collapsed,
+      thread.displayTitle,
+      thread.environment?.branchName,
+      depth,
+      sectionName,
+      projectTag,
+    ]),
     setRowElement,
   );
 
@@ -457,33 +246,108 @@ function RadarThreadRowImpl({
 
   const actionTarget = threadActionTarget(thread);
   const requestRename = () => onStartRename(thread);
-  const registeredActions = experimental_useThreadActions(actionTarget, { requestRename,
-    keys: viewport.renderContents ? undefined : ["bb--core/archive", "bb--core/delete"],
+  const registeredActions = experimental_useThreadActions(actionTarget, {
+    requestRename,
+    keys: viewport.renderContents
+      ? undefined
+      : ["bb--core/archive", "bb--core/delete"],
   });
-  useLayoutEffect(() => actions.register(thread.id, registeredActions), [actions, thread.id, registeredActions]);
+  useLayoutEffect(
+    () => actions.register(thread.id, registeredActions),
+    [actions, thread.id, registeredActions],
+  );
   // Hidden workers (relayed results, routine runs) only show with the view
   // option on; any worker can be tucked away or brought back from its menu.
   const isWorker = !!(thread.parentThreadId || thread.lifecycleOwnerThreadId);
-  const inlineActions = useMemo<PluginThreadActionsInlineItem[]>(() => [
-    ...(thread.isHidden ? [{
-      key: "radar-sidebar/show", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Show thread", icon: "Eye", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "visible" }); hiddenChanged(); } },
-    } satisfies PluginThreadActionsInlineItem] : isWorker ? [{
-      key: "radar-sidebar/hide", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Hide", icon: "EyeOff", run: async () => { await sdk.threads.update({ threadId: thread.id, visibility: "hidden" }); hiddenChanged(); } },
-    } satisfies PluginThreadActionsInlineItem] : []),
-    ...(hasChildren || thread.parentThreadId ? [{
-      key: "radar-sidebar/family-read", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Mark family read", icon: "MailOpen", run: () => onMarkFamilyRead(thread) },
-    } satisfies PluginThreadActionsInlineItem] : []),
-    ...(registeredActions.some(entry => entry.key === "thread-list/move") ? [] : [{
-      key: "radar-sidebar/move", group: experimental_THREAD_ACTION_GROUPS.organize,
-      action: { label: "Move to section", icon: "Folder", choices: { heading: "Move to section", items: [
-        ...sections.map(section => ({ id: section.id, label: section.name, selected: section.id === thread.sectionId })),
-        { id: "none", label: "No section", selected: thread.sectionId === null },
-      ] }, run: async ({ value }) => { if (value) await sdk.threads.update({ threadId: thread.id, sectionId: value === "none" ? null : value }); } },
-    } satisfies PluginThreadActionsInlineItem]),
-  ], [hasChildren, isWorker, thread, sections, sdk, registeredActions, onMarkFamilyRead]);
+  const inlineActions = useMemo<PluginThreadActionsInlineItem[]>(
+    () => [
+      ...(thread.isHidden
+        ? [
+            {
+              key: "radar-sidebar/show",
+              group: experimental_THREAD_ACTION_GROUPS.organize,
+              action: {
+                label: "Show thread",
+                icon: "Eye",
+                run: async () => {
+                  await sdk.threads.update({
+                    threadId: thread.id,
+                    visibility: "visible",
+                  });
+                  hiddenChanged();
+                },
+              },
+            } satisfies PluginThreadActionsInlineItem,
+          ]
+        : isWorker
+          ? [
+              {
+                key: "radar-sidebar/hide",
+                group: experimental_THREAD_ACTION_GROUPS.organize,
+                action: {
+                  label: "Hide",
+                  icon: "EyeOff",
+                  run: async () => {
+                    await sdk.threads.update({
+                      threadId: thread.id,
+                      visibility: "hidden",
+                    });
+                    hiddenChanged();
+                  },
+                },
+              } satisfies PluginThreadActionsInlineItem,
+            ]
+          : []),
+      ...(hasChildren || thread.parentThreadId
+        ? [
+            {
+              key: "radar-sidebar/family-read",
+              group: experimental_THREAD_ACTION_GROUPS.organize,
+              action: {
+                label: "Mark family read",
+                icon: "MailOpen",
+                run: () => onMarkFamilyRead(thread),
+              },
+            } satisfies PluginThreadActionsInlineItem,
+          ]
+        : []),
+      ...(registeredActions.some((entry) => entry.key === "thread-list/move")
+        ? []
+        : [
+            {
+              key: "radar-sidebar/move",
+              group: experimental_THREAD_ACTION_GROUPS.organize,
+              action: {
+                label: "Move to section",
+                icon: "Folder",
+                choices: {
+                  heading: "Move to section",
+                  items: [
+                    ...sections.map((section) => ({
+                      id: section.id,
+                      label: section.name,
+                      selected: section.id === thread.sectionId,
+                    })),
+                    {
+                      id: "none",
+                      label: "No section",
+                      selected: thread.sectionId === null,
+                    },
+                  ],
+                },
+                run: async ({ value }) => {
+                  if (value)
+                    await sdk.threads.update({
+                      threadId: thread.id,
+                      sectionId: value === "none" ? null : value,
+                    });
+                },
+              },
+            } satisfies PluginThreadActionsInlineItem,
+          ]),
+    ],
+    [hasChildren, isWorker, thread, sections, sdk, registeredActions, onMarkFamilyRead],
+  );
 
   useLayoutEffect(() => {
     if (!moreEnabled || !requestedMore.current) return;
@@ -516,7 +380,6 @@ function RadarThreadRowImpl({
             })) ?? [],
         };
       } catch {
-        // A thread that never ran a turn has no usage: the card shows that.
         return null;
       }
     },
@@ -537,26 +400,15 @@ function RadarThreadRowImpl({
       return;
     }
     hoverCardTimer.current = window.setTimeout(() => {
-      if (!isHoveringCard.current) {
-        setHoverCard(null);
-      }
+      if (!isHoveringCard.current) setHoverCard(null);
     }, 220);
   }, []);
 
   useEffect(() => {
     return () => {
-      if (copiedTimer.current !== null) {
-        clearTimeout(copiedTimer.current);
-        copiedTimer.current = null;
-      }
-      if (hoverTimer.current !== null) {
-        clearTimeout(hoverTimer.current);
-        hoverTimer.current = null;
-      }
-      if (hoverCardTimer.current !== null) {
-        clearTimeout(hoverCardTimer.current);
-        hoverCardTimer.current = null;
-      }
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
+      if (hoverCardTimer.current !== null) clearTimeout(hoverCardTimer.current);
     };
   }, []);
 
@@ -568,9 +420,7 @@ function RadarThreadRowImpl({
   useEffect(() => {
     if (!hoverOpen) return;
     const close = () => {
-      if (!isHoveringCard.current) {
-        setHoverCard(null);
-      }
+      if (!isHoveringCard.current) setHoverCard(null);
     };
     document.addEventListener("scroll", close, true);
     window.addEventListener("blur", close);
@@ -581,14 +431,12 @@ function RadarThreadRowImpl({
   }, [hoverOpen]);
 
   const scheduleHoverCard = () => {
-    if (!allowHoverCard || !isVisible) return;
-    if (!canHoverPreview()) return;
+    if (!allowHoverCard || !isVisible || !canHoverPreview()) return;
     if (hoverTimer.current !== null || hoverCard) return;
     hoverTimer.current = window.setTimeout(() => {
       hoverTimer.current = null;
       const rect = rowRef.current?.getBoundingClientRect();
       if (!rect) return;
-      // The card places and clamps itself once it knows its own size.
       setHoverCard({
         anchor: {
           top: rect.top,
@@ -676,33 +524,36 @@ function RadarThreadRowImpl({
   const swipeReveal = useRowSwipe({
     rowRef,
     rowElement,
-    enabled: isVisible && viewport.renderContents && !isEditing && !selectionActive && !!(rightSwipe || leftSwipe),
+    enabled:
+      isVisible &&
+      viewport.renderContents &&
+      !isEditing &&
+      !selectionActive &&
+      !!(rightSwipe || leftSwipe),
     right: rightSwipe,
     left: leftSwipe,
     restoreKey: `${thread.isArchived}`,
-    onStart: () => { setMoreEnabled(true); closeHoverCard(true); },
+    onStart: () => {
+      setMoreEnabled(true);
+      closeHoverCard(true);
+    },
     onCommit: runSwipeAction,
   });
 
-  // BB marks a message parked on an idle thread `queued-waiting` too; it
-  // will not run until the user sends it, so it reads as held, not queued.
   const held = thread.indicator === "queued-waiting" && isHeldThread(thread);
   const indicator = effectiveIndicator(thread);
-  // A retried thread keeps bb's "unread-error" label; once it runs again it is labelled by what it is doing.
-  const statusLabel = held ? HELD_LABEL : indicator === thread.indicator ? (thread.indicatorLabel ?? null) : RETRIED_LABEL;
+  const statusLabel = held
+    ? HELD_LABEL
+    : indicator === thread.indicator
+      ? (thread.indicatorLabel ?? null)
+      : RETRIED_LABEL;
   const visual: StatusVisual = held ? HELD_VISUAL : statusVisualFor(indicator);
-  // Only action states get the wash + left bar + glow, read or not: a tinted
-  // row always means "act on this". Plain unread is a bold title only.
   const needsUser = thread.indicator === "waiting-for-input";
-  const failed =
-    indicator === "unread-error" ||
-    indicator === "queued-failed";
-  // Glow is reserved for rows that need action; done and queued stay static.
+  const failed = indicator === "unread-error" || indicator === "queued-failed";
   const actionPulseClass =
     thread.indicator === "waiting-for-input"
       ? "radar-row-pulse-amber"
-      : indicator === "unread-error" ||
-          indicator === "queued-failed"
+      : failed
         ? "radar-row-pulse-red"
         : null;
   const foldedSummary =
@@ -718,16 +569,14 @@ function RadarThreadRowImpl({
     .filter((part): part is string => !!part)
     .join(" — ");
   const statusWord = held ? HELD_WORD : statusWordFor(indicator);
-  // Drawn by the row only when it drops a leading emoji from a title without
-  // mentions; otherwise bb's ThreadTitle. Tooltips and labels keep it all.
-  // Hidden rows are fetched by Radar, not in bb's feed, so ThreadTitle would draw nothing.
   const strippedTitle = stripLeadingEmoji(thread.displayTitle);
-  const shownTitle = thread.isHidden ||
-    (strippedTitle !== thread.displayTitle && !MENTION.test(thread.title ?? thread.titleFallback ?? "")) ? strippedTitle : null;
+  const shownTitle =
+    thread.isHidden ||
+    (strippedTitle !== thread.displayTitle &&
+      !MENTION.test(thread.title ?? thread.titleFallback ?? ""))
+      ? strippedTitle
+      : null;
 
-  // Model + thinking only while the thread is in flight. The options
-  // endpoint resolves *defaults*, so it reports a model for any thread at
-  // all; showing it on an idle one reads as fabricated.
   const showExecution = isLiveThread(thread);
   const execution = useThreadExecution(
     thread.id,
@@ -759,63 +608,52 @@ function RadarThreadRowImpl({
     splitProps.onPointerDown?.(event);
   };
   const handleMouseDown = (event: React.MouseEvent<HTMLElement>) => {
-    // A touch tap emits compatibility mouse events after touchend. Native
-    // focus in between can scroll the drawer or replace a deferred link,
-    // leaving mouseup/click on its container. Keep the tap's target in place;
-    // mouse and keyboard focus retain their normal behavior.
     if (touchPointer.current && event.button === 0) event.preventDefault();
   };
 
   if (!viewport.renderContents) {
-    return <div ref={viewport.ref}
-      className={cn("radar-row radar-row-placeholder", density === "compact" && "radar-row-compact",
-        depth === 0 && "radar-row-root", depth === 1 && "radar-row-child", depth > 1 && "radar-row-deep",
-        depth > 0 && isLastChild && "radar-row-last", isActive && "radar-row-active", isSelected && "radar-row-selected",
-        thread.isHidden && "radar-row-hidden")}
-      data-has-branch={depth === 0 && !!thread.environment?.branchName || undefined}
-      style={viewport.height === undefined ? undefined : { height: viewport.height }}
-      onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}>
-      <a href={thread.href} data-sidebar-thread-id={thread.id}
-        data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
-        aria-label={rowLabel} aria-current={isActive ? "page" : undefined}
-        aria-keyshortcuts={shortcut?.ariaKeyshortcuts} {...splitProps}
-        onPointerDown={handlePointerDown} onMouseDown={handleMouseDown}
-        className="radar-row-main" onClick={handleNavigate}>
-      </a>
-    </div>;
+    return (
+      <div
+        ref={viewport.ref}
+        className={cn(
+          "radar-row radar-row-placeholder",
+          density === "compact" && "radar-row-compact",
+          depth === 0 && "radar-row-root",
+          depth === 1 && "radar-row-child",
+          depth > 1 && "radar-row-deep",
+          depth > 0 && isLastChild && "radar-row-last",
+          isActive && "radar-row-active",
+          isSelected && "radar-row-selected",
+          thread.isHidden && "radar-row-hidden",
+        )}
+        data-has-branch={(depth === 0 && !!thread.environment?.branchName) || undefined}
+        style={viewport.height === undefined ? undefined : { height: viewport.height }}
+        onFocusCapture={viewport.onFocusCapture}
+        onBlurCapture={viewport.onBlurCapture}
+      >
+        <a
+          href={thread.href}
+          data-sidebar-thread-id={thread.id}
+          data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
+          aria-label={rowLabel}
+          aria-current={isActive ? "page" : undefined}
+          aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
+          {...splitProps}
+          onPointerDown={handlePointerDown}
+          onMouseDown={handleMouseDown}
+          className="radar-row-main"
+          onClick={handleNavigate}
+        />
+      </div>
+    );
   }
 
   const branch = thread.environment?.branchName ?? null;
   const hostName = thread.host?.name ?? null;
   const hasBranchLine = depth === 0 && !!branch;
-  // The home host is noise on the row (it stays in the tooltip); branches
-  // and away-from-home hosts are always shown.
   const showHost =
     hostName && (!primaryHostId || thread.host?.id !== primaryHostId);
-  // Branches live on their own third line; line two keeps everything else.
   const where = showHost ? hostName : null;
-  // The project lives on the title line as a chip; time does too so
-  // neither truncates away. Children inherit context: model • thinking.
-  const contextSegments: ReactNode[] =
-    depth === 0
-      ? [
-          ...(sectionName && sectionId
-            ? [
-                <span
-                  key="section"
-                  className="radar-section-chip"
-                  style={{ "--radar-section-hue": projectHue(`section:${sectionId}`) } as CSSProperties}
-                  title={sectionName}
-                >
-                  {sectionName}
-                </span>,
-              ]
-            : []),
-          ...(where ? [<span key="where">{where}</span>] : []),
-        ]
-      : [];
-  // The provider icon identifies the provider, so its name isn't echoed in
-  // the subtitle — except when no icon is available, or in the tooltip.
   const needsProviderText = !providerIcon;
   const thinking =
     execution && execution.reasoningLevel !== "none"
@@ -833,248 +671,72 @@ function RadarThreadRowImpl({
   ]
     .filter((part): part is string => !!part)
     .join(" • ");
-  const subtitleSegments: ReactNode[] = [];
-  if (needsProviderText && execution) {
-    subtitleSegments.push(<span key="provider">{providerName}</span>);
-  }
-  if (execution && showExecution) {
-    subtitleSegments.push(
-      <span key="model" className="radar-subtitle-model">
-        <span className="radar-model-chip" title={modelName ?? undefined}>
-          <Icon name="Bot" aria-hidden="true" />
-          {modelName}
-        </span>{" "}
-        {thinking ? (
-          <span
-            className="radar-model-chip radar-thinking-chip"
-            title={`Thinking: ${thinking}`}
-          >
-            <Icon name="Brain" aria-hidden="true" />
-            {thinking}
-          </span>
-        ) : null}
-      </span>,
-    );
-  }
-  subtitleSegments.push(...contextSegments);
+  const executionLoaded =
+    execution === undefined ? "loading" : execution ? "ready" : "none";
+
   const subtitleNode = (
-    <span className="radar-row-subtitle" title={fullSubtitle}>
-      {showExecution && execution === undefined ? (
-        <>
-          {needsProviderText ? <>{providerName} • </> : null}
-          <span className="radar-model-loading" aria-hidden="true" />
-          {contextSegments.length > 0 ? (
-            <>
-              {" • "}
-              {contextSegments.map((segment, index) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <span key={index}>
-                  {index > 0 ? " • " : null}
-                  {segment}
-                </span>
-              ))}
-            </>
-          ) : null}
-        </>
-      ) : (
-        subtitleSegments.map((segment, index) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={index}>
-            {index > 0 ? <span className="radar-subtitle-sep"> • </span> : null}
-            {segment}
-          </span>
-        ))
-      )}
-    </span>
+    <RowSubtitle
+      depth={depth}
+      sectionName={sectionName}
+      sectionId={sectionId}
+      where={where}
+      providerName={providerName}
+      needsProviderText={needsProviderText}
+      showExecution={showExecution}
+      executionLoaded={executionLoaded}
+      modelName={modelName}
+      thinking={thinking}
+      fullSubtitle={fullSubtitle}
+    />
   );
-  const timeNode = (
-    <span className="radar-row-time" title={timeText}>{timeText}</span>
-  );
+
   const isWorktree = thread.environment?.isWorktree === true;
   const handleCopyBranch = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     if (!branch) return;
-    void navigator.clipboard.writeText(branch).then(() => {
-      setCopiedBranch(true);
-      toast.success(`Copied branch: ${branch}`);
-      copiedTimer.current = window.setTimeout(
-        () => setCopiedBranch(false),
-        1600,
-      );
-    }).catch(() => {
-      toast.error("Could not copy branch");
-    });
+    void navigator.clipboard
+      .writeText(branch)
+      .then(() => {
+        setCopiedBranch(true);
+        toast.success(`Copied branch: ${branch}`);
+        copiedTimer.current = window.setTimeout(() => setCopiedBranch(false), 1600);
+      })
+      .catch(() => {
+        toast.error("Could not copy branch");
+      });
   };
 
-  const branchNode = hasBranchLine ? (
-    <span
-      className="radar-branch-line"
-      title={
-        branch && isWorktree ? `${branch} (worktree)` : (branch ?? undefined)
-      }
-    >
-      <button
-        type="button"
-        tabIndex={-1}
-        className={cn(
-          "radar-branch-btn",
-          copiedBranch && "radar-branch-copied",
-        )}
-        title={copiedBranch ? "Copied branch to clipboard!" : `Click to copy branch: ${branch}`}
-        aria-label={`Copy branch name ${branch}`}
-        onClick={handleCopyBranch}
-      >
-        <Icon
-          name={copiedBranch ? "Check" : (isWorktree ? "FolderGit" : "GitBranch")}
-          aria-hidden="true"
-          className={cn(copiedBranch && "radar-tone-success")}
-        />
-        <span className="radar-branch-text">{branch}</span>
-        {copiedBranch ? (
-          <span className="radar-branch-copied-badge">Copied</span>
-        ) : null}
-      </button>
-      {pullRequest ? (
-        <button
-          type="button"
-          tabIndex={-1}
-          className={cn(
-            "radar-pr-link",
-            prBadgeClass(pullRequest.state, pullRequest.attention),
-            prToneClass(pullRequest.attention),
-          )}
-          title={`${pullRequest.title} — open PR #${pullRequest.number} (${prLabel(pullRequest.state, pullRequest.attention)})`}
-          aria-label={`Open pull request ${pullRequest.number}: ${pullRequest.title}`}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            navigate.openUrl(pullRequest.url);
-          }}
-        >
-          <Icon name={prIconName(pullRequest.state, pullRequest.attention)} aria-hidden="true" />
-          <span>
-            #{pullRequest.number} ·{" "}
-            {prLabel(pullRequest.state, pullRequest.attention)}
-          </span>
-        </button>
-      ) : null}
-    </span>
-  ) : null;
+  const branchNode =
+    hasBranchLine && branch ? (
+      <RowBranchLine
+        branch={branch}
+        isWorktree={isWorktree}
+        copiedBranch={copiedBranch}
+        pullRequest={pullRequest}
+        onCopyBranch={handleCopyBranch}
+        onOpenPr={navigate.openUrl}
+      />
+    ) : null;
+
   const leadNode = (
-    <span
-      className="radar-row-lead"
-      aria-hidden={selectionActive || isSelected ? undefined : true}
-      title={providerIcon ? providerName : undefined}
-    >
-      {selectionActive || isSelected ? (
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label={isSelected ? "Deselect thread" : "Select thread"}
-          className={cn(
-            "radar-select-checkbox",
-            isSelected && "radar-select-checkbox-checked",
-          )}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSelect?.(event, thread.id);
-          }}
-        >
-          <Icon name={isSelected ? "Check" : "Circle"} aria-hidden="true" />
-        </button>
-      ) : providerIcon ? (
-        <span className="radar-provider-icon">
-          <ProviderIcon providerKind="agent" provider={providerIcon} />
-        </span>
-      ) : null}
-    </span>
+    <RowLead
+      selectionActive={selectionActive}
+      isSelected={isSelected}
+      providerIcon={providerIcon}
+      providerName={providerName}
+      onToggleSelect={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggleSelect?.(event, thread.id);
+      }}
+    />
   );
-  const gutterNode = (
-    <span
-      className="radar-tree-gutter"
-      onClick={collapse ? () => collapse.onToggle() : undefined}
-      aria-hidden={collapse || dragHandle ? undefined : true}
-    >
-      {dragHandle ? (
-        <button
-          type="button"
-          className="radar-row-grip"
-          aria-label="Drag onto a section header to file this thread"
-          title="Drag onto a section header to file this thread"
-          onClick={(event) => event.preventDefault()}
-          {...dragHandle.attributes}
-          {...dragHandle.listeners}
-        >
-          <Icon name="DragDropVertical" aria-hidden="true" />
-        </button>
-      ) : collapse ? (
-        <button
-          type="button"
-          className="radar-tree-toggle"
-          aria-expanded={!collapse.collapsed}
-          aria-label={collapse.collapsed ? "Expand replies" : "Collapse replies"}
-          title={collapse.collapsed ? "Expand replies" : "Collapse replies"}
-        >
-          <Icon
-            name={collapse.collapsed ? "ChevronRight" : "ChevronDown"}
-            aria-hidden="true"
-          />
-        </button>
-      ) : null}
-    </span>
-  );
+
+  const gutterNode = <RowGutter collapse={collapse} dragHandle={dragHandle} />;
   const familyFolded = !!collapse?.collapsed && collapse.hiddenTotal > 0;
-  const faceKids = collapse?.hiddenKids.slice(0, 3) ?? [];
-  const faceRemainder =
-    (collapse?.hiddenTotal ?? 0) - faceKids.length;
-  const kidsNode = collapse && familyFolded ? (
-    <span className="radar-kids-line" title={foldedKidsText(collapse)}>
-      <span className="radar-face-stack" aria-hidden="true">
-        {faceKids.map((kid) => (
-          <span key={kid.id} className="radar-face">
-            <Icon name="UserRound" aria-hidden="true" />
-          </span>
-        ))}
-      </span>
-      {faceRemainder > 0 ? (
-        <span className="radar-kids-count">+{faceRemainder}</span>
-      ) : null}
-    </span>
-  ) : null;
-  const statusBadge = visual || statusWord ? (
-    <span
-      className={cn(
-        "radar-row-status-badge",
-        celebrate && "radar-celebrate",
-      )}
-      title={statusLabel ?? undefined}
-    >
-      {visual?.kind === "spinner" ? (
-        <span key="spinner" className="radar-spinner radar-tone-running">
-          <Icon name="Loading" aria-hidden="true" />
-        </span>
-      ) : visual?.kind === "icon" ? (
-        <span
-          key={visual.name}
-          className={cn("radar-status-icon", visual.className)}
-        >
-          <Icon name={visual.name} aria-hidden="true" />
-        </span>
-      ) : visual ? (
-        <span key="dot" className={cn("radar-dot", visual.className)} />
-      ) : null}
-      {statusWord ? (
-        <span
-          key={statusWord.text}
-          className={cn("radar-status-word", statusWord.tone)}
-        >
-          {statusWord.text}
-        </span>
-      ) : null}
-    </span>
-  ) : null;
+  const kidsNode =
+    collapse && familyFolded ? <RowFoldedKids collapse={collapse} /> : null;
 
   const commit = () => {
     if (cancelledRef.current) return;
@@ -1083,8 +745,12 @@ function RadarThreadRowImpl({
 
   if (isEditing) {
     return (
-      <div ref={viewport.ref} onFocusCapture={viewport.onFocusCapture} onBlurCapture={viewport.onBlurCapture}
-        className={cn("radar-row", isActive && "radar-row-active")}>
+      <div
+        ref={viewport.ref}
+        onFocusCapture={viewport.onFocusCapture}
+        onBlurCapture={viewport.onBlurCapture}
+        className={cn("radar-row", isActive && "radar-row-active")}
+      >
         {gutterNode}
         <div className="radar-row-main">
           {leadNode}
@@ -1118,311 +784,311 @@ function RadarThreadRowImpl({
   }
 
   return (
-    <ThreadActionsContextMenu thread={actionTarget} inline={inlineActions} requestRename={requestRename}
-      disabled={!isVisible || selectionActive} dragging={dragHandle?.isDragging ?? false}
-      onOpenChange={open => { setMenuOpen(open); if (open) closeHoverCard(true); }}>
-    <div
-      className={cn(
-        "radar-row",
-        isActive && "radar-row-active",
-        isKeyboardFocused && "radar-row-keyboard-focused",
-        isSelected && "radar-row-selected",
-        density === "compact" && "radar-row-compact",
-        depth === 0 && "radar-row-root",
-        depth === 1 && "radar-row-child",
-        depth > 1 && "radar-row-deep",
-        depth > 0 && isLastChild && "radar-row-last",
-        collapse && "radar-row-parent",
-        splitLayout && "radar-row-split",
-        thread.isUnread && !needsUser && !failed && "radar-row-unread",
-        needsUser && "radar-row-needs-user",
-        failed && "radar-row-failed",
-        thread.isHidden && "radar-row-hidden",
-        actionPulseClass,
-      )}
-      ref={viewport.ref}
-      onFocusCapture={() => { setMoreEnabled(true); viewport.onFocusCapture(); }}
-      onBlurCapture={viewport.onBlurCapture}
-      draggable={!isEditing}
-      onDragStart={(event) => {
-        if (isEditing) return;
-        closeHoverCard(true);
-        const idsToDrag =
-          isSelected && selectedIds && selectedIds.size > 0
-            ? Array.from(selectedIds)
-            : [thread.id];
-        event.dataTransfer.setData(
-          "application/json",
-          JSON.stringify({
-            type: "bb-thread-drag",
-            threadIds: idsToDrag,
-            title: thread.displayTitle,
-          }),
-        );
-        event.dataTransfer.setData("text/plain", thread.id);
-        event.dataTransfer.effectAllowed = "move";
-      }}
-      onPointerEnter={(event) => {
-        // iOS sends compatibility hover events before click and can consume
-        // the tap if they reveal or replace content. Only a mouse prepares
-        // the hover actions; touch opens the existing More trigger directly.
-        if (event.pointerType !== "mouse") return;
-        event.currentTarget.dataset.radarHover = "mouse";
-        setMoreEnabled(true);
-        scheduleHoverCard();
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType !== "mouse") return;
-        delete event.currentTarget.dataset.radarHover;
-        closeHoverCard(false);
+    <ThreadActionsContextMenu
+      thread={actionTarget}
+      inline={inlineActions}
+      requestRename={requestRename}
+      disabled={!isVisible || selectionActive}
+      dragging={dragHandle?.isDragging ?? false}
+      onOpenChange={(open) => {
+        setMenuOpen(open);
+        if (open) closeHoverCard(true);
       }}
     >
-      {swipeReveal?.action ? (
-        <span
-          className={cn(
-            "radar-swipe-underlay",
-            `radar-swipe-${swipeReveal.action.id}`,
-          )}
-          data-side={swipeReveal.side}
-          aria-hidden="true"
-        >
-          <span className="radar-swipe-content">
-            <Icon name={swipeReveal.action.icon} aria-hidden="true" />
-            <span className="radar-swipe-label">{swipeReveal.action.label}</span>
-          </span>
-        </span>
-      ) : null}
-      {gutterNode}
-      <a
-        href={thread.href}
-        data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
-        data-sidebar-thread-id={thread.id}
-        aria-label={rowLabel}
-        aria-current={isActive ? "page" : undefined}
-        aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
-        title={thread.displayTitle}
-        {...splitProps}
-        onPointerDown={handlePointerDown}
-        onMouseDown={handleMouseDown}
-        onClick={handleNavigate}
-        className="radar-row-main"
+      <div
+        className={cn(
+          "radar-row",
+          isActive && "radar-row-active",
+          isKeyboardFocused && "radar-row-keyboard-focused",
+          isSelected && "radar-row-selected",
+          density === "compact" && "radar-row-compact",
+          depth === 0 && "radar-row-root",
+          depth === 1 && "radar-row-child",
+          depth > 1 && "radar-row-deep",
+          depth > 0 && isLastChild && "radar-row-last",
+          collapse && "radar-row-parent",
+          splitLayout && "radar-row-split",
+          thread.isUnread && !needsUser && !failed && "radar-row-unread",
+          needsUser && "radar-row-needs-user",
+          failed && "radar-row-failed",
+          thread.isHidden && "radar-row-hidden",
+          actionPulseClass,
+        )}
+        ref={viewport.ref}
+        onFocusCapture={() => {
+          setMoreEnabled(true);
+          viewport.onFocusCapture();
+        }}
+        onBlurCapture={viewport.onBlurCapture}
+        draggable={!isEditing}
+        onDragStart={(event) => {
+          if (isEditing) return;
+          closeHoverCard(true);
+          const idsToDrag =
+            isSelected && selectedIds && selectedIds.size > 0
+              ? Array.from(selectedIds)
+              : [thread.id];
+          event.dataTransfer.setData(
+            "application/json",
+            JSON.stringify({
+              type: "bb-thread-drag",
+              threadIds: idsToDrag,
+              title: thread.displayTitle,
+            }),
+          );
+          event.dataTransfer.setData("text/plain", thread.id);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+        onPointerEnter={(event) => {
+          if (event.pointerType !== "mouse") return;
+          event.currentTarget.dataset.radarHover = "mouse";
+          setMoreEnabled(true);
+          scheduleHoverCard();
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType !== "mouse") return;
+          delete event.currentTarget.dataset.radarHover;
+          closeHoverCard(false);
+        }}
       >
-        {leadNode}
-        <span className="radar-row-text">
-          <span className="radar-row-title">
-            <span className="radar-row-title-text">
-              {depth > 0 ? (
-                <Icon
-                  name="UserRound"
-                  aria-hidden="true"
-                  className="radar-child-glyph"
-                />
-              ) : null}
-              {thread.isPinned ? (
-                <span
-                  className="radar-pin-marker"
-                  title="Pinned"
-                  role="img"
-                  aria-label="Pinned"
-                >
-                  <Icon name="Pin" aria-hidden="true" />
-                </span>
-              ) : null}
-              <span className="radar-thread-title">
-                {shownTitle !== null ? <span>{shownTitle}</span> : <ThreadTitle threadId={thread.id} />}
-              </span>
-              {thread.isHidden ? (
-                <span className="radar-hidden-chip" title="Hidden from bb's list">hidden</span>
-              ) : null}
-            </span>
-            {(() => {
-              if (!collapse?.collapsed || collapse.hiddenTotal === 0) {
-                return null;
-              }
-              const dot = hiddenRollupDotClass(collapse);
-              if (collapse.hiddenUnread === 0 && !dot) return null;
-              return (
-                <span
-                  className={cn(
-                    "radar-kids-pill",
-                    collapse.hiddenUnread > 0 && "radar-kids-pill-unread",
+        <RowSwipeUnderlay reveal={swipeReveal} />
+        {gutterNode}
+        <a
+          href={thread.href}
+          data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
+          data-sidebar-thread-id={thread.id}
+          aria-label={rowLabel}
+          aria-current={isActive ? "page" : undefined}
+          aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
+          title={thread.displayTitle}
+          {...splitProps}
+          onPointerDown={handlePointerDown}
+          onMouseDown={handleMouseDown}
+          onClick={handleNavigate}
+          className="radar-row-main"
+        >
+          {leadNode}
+          <span className="radar-row-text">
+            <span className="radar-row-title">
+              <span className="radar-row-title-text">
+                {depth > 0 ? (
+                  <Icon
+                    name="UserRound"
+                    aria-hidden="true"
+                    className="radar-child-glyph"
+                  />
+                ) : null}
+                {thread.isPinned ? (
+                  <span
+                    className="radar-pin-marker"
+                    title="Pinned"
+                    role="img"
+                    aria-label="Pinned"
+                  >
+                    <Icon name="Pin" aria-hidden="true" />
+                  </span>
+                ) : null}
+                <span className="radar-thread-title">
+                  {shownTitle !== null ? (
+                    <span>{shownTitle}</span>
+                  ) : (
+                    <ThreadTitle threadId={thread.id} />
                   )}
-                  title={hiddenSummary(collapse)}
-                  aria-label={hiddenSummary(collapse)}
-                >
-                  {collapse.hiddenUnread > 0 ? (
-                    <>
-                      <span className="radar-unread" aria-hidden="true" />
-                      {collapse.hiddenUnread}
-                    </>
-                  ) : null}
-                  {dot ? (
-                    <span
-                      className={cn("radar-dot", dot)}
-                      aria-hidden="true"
-                    />
-                  ) : null}
                 </span>
-              );
-            })()}
-            <span className="radar-row-meta">
-              {projectTag ? (
-                <span
-                  className="radar-row-project"
-                  title={projectTag}
-                  style={{
-                    "--radar-project-hue":
-                      projectColorHue ?? projectHue(thread.projectId),
-                  } as CSSProperties}
-                >
-                  {projectTag}
+                {thread.isHidden ? (
+                  <span
+                    className="radar-hidden-chip"
+                    title="Hidden from bb's list"
+                  >
+                    hidden
+                  </span>
+                ) : null}
+              </span>
+              <RowKidsRollupPill collapse={collapse} />
+              <span className="radar-row-meta">
+                {projectTag ? (
+                  <span
+                    className="radar-row-project"
+                    title={projectTag}
+                    style={
+                      {
+                        "--radar-project-hue":
+                          projectColorHue ?? projectHue(thread.projectId),
+                      } as CSSProperties
+                    }
+                  >
+                    {projectTag}
+                  </span>
+                ) : null}
+                <span className="radar-row-time" title={timeText}>
+                  {timeText}
                 </span>
-              ) : null}
-              {timeNode}
+              </span>
             </span>
-          </span>
-          <span className="radar-row-extra">
-            <span className="radar-row-extra-inner">
-              {kidsNode ?? subtitleNode}
+            <span className="radar-row-extra">
+              <span className="radar-row-extra-inner">
+                {kidsNode ?? subtitleNode}
+              </span>
             </span>
+            {branchNode}
           </span>
-          {branchNode}
-        </span>
-        <span className="radar-row-badges">
-          {statusBadge}
-          {shortcut ? (
-            <kbd className="radar-kbd">{shortcut.label}</kbd>
-          ) : null}
-          {rowStatus ? (
-            <span
-              className={cn("radar-badge-icon", rowStatusToneClass(rowStatus.tone))}
-              title={rowStatus.label}
-              role="img"
-              aria-label={rowStatus.label}
+          <span className="radar-row-badges">
+            <RowStatusBadge
+              visual={visual}
+              statusWord={statusWord}
+              statusLabel={statusLabel}
+              celebrate={celebrate}
+            />
+            {shortcut ? <kbd className="radar-kbd">{shortcut.label}</kbd> : null}
+            {rowStatus ? (
+              <span
+                className={cn(
+                  "radar-badge-icon",
+                  rowStatusToneClass(rowStatus.tone),
+                )}
+                title={rowStatus.label}
+                role="img"
+                aria-label={rowStatus.label}
+              >
+                <HostIcon name={rowStatus.icon} aria-hidden="true" />
+              </span>
+            ) : hasUnsubmittedDraft ? (
+              <span
+                className="radar-draft-pip"
+                title="Unsent draft"
+                role="img"
+                aria-label="Unsent draft"
+              />
+            ) : null}
+            {thread.isUnread && thread.indicator !== "unread-success" ? (
+              <span
+                className="radar-unread"
+                role="img"
+                aria-label="Unread"
+                title="Unread"
+              />
+            ) : null}
+          </span>
+        </a>
+        <span className="radar-row-actions">
+          {moreEnabled ? (
+            <ThreadActionsMenu
+              thread={actionTarget}
+              inline={inlineActions}
+              requestRename={requestRename}
+              side="right"
+              align="start"
+              sideOffset={8}
+              onOpenChange={(open) => {
+                setMenuOpen(open);
+                if (open) closeHoverCard(true);
+              }}
+              trigger={(props) => {
+                activateMore.current = () => {
+                  if (props.onClick) menuTriggerRef.current?.click();
+                  else
+                    menuTriggerRef.current?.dispatchEvent(
+                      new KeyboardEvent("keydown", {
+                        key: "ArrowDown",
+                        bubbles: true,
+                        cancelable: true,
+                      }),
+                    );
+                };
+                return (
+                  <button
+                    {...props}
+                    type="button"
+                    tabIndex={-1}
+                    aria-label="More actions"
+                    title="More actions"
+                    ref={(node) => {
+                      menuTriggerRef.current = node;
+                      if (typeof props.ref === "function") props.ref(node);
+                      else if (props.ref) props.ref.current = node;
+                    }}
+                    className={cn(props.className, "radar-action radar-action-more")}
+                    onClick={(event) => {
+                      props.onClick?.(event);
+                      event.stopPropagation();
+                    }}
+                  >
+                    <Icon name="MoreHorizontal" aria-hidden="true" />
+                  </button>
+                );
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="More actions"
+              title="More actions"
+              aria-haspopup="menu"
+              className="radar-action radar-action-more"
+              ref={menuTriggerRef}
+              onPointerDown={(event) => {
+                touchPointer.current = event.pointerType === "touch";
+              }}
+              onMouseDown={handleMouseDown}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                requestedMore.current = true;
+                setMoreEnabled(true);
+              }}
             >
-              <HostIcon name={rowStatus.icon} aria-hidden="true" />
-            </span>
-          ) : hasUnsubmittedDraft ? (
-            <span
-              className="radar-draft-pip"
-              title="Unsent draft"
-              role="img"
-              aria-label="Unsent draft"
-            />
-          ) : null}
-          {/* One unread signal: a DONE badge already says "finished, unseen". */}
-          {thread.isUnread && thread.indicator !== "unread-success" ? (
-            <span
-              className="radar-unread"
-              role="img"
-              aria-label="Unread"
-              title="Unread"
-            />
-          ) : null}
+              <Icon name="MoreHorizontal" aria-hidden="true" />
+            </button>
+          )}
         </span>
-      </a>
-      {/* Only ⋯ on hover: a strip of buttons overlaid the row's text and took
-          clicks meant for it. Pin, rename and archive live in the menu, the
-          context menu and swipes. */}
-      <span className="radar-row-actions">
-        {moreEnabled ? <ThreadActionsMenu thread={actionTarget} inline={inlineActions} requestRename={requestRename}
-          side="right" align="start" sideOffset={8} onOpenChange={open => { setMenuOpen(open); if (open) closeHoverCard(true); }}
-          trigger={props => {
-            // Compact drawers supply a click handler; desktop menus supply
-            // keyboard/pointer handlers. Use one activation so ArrowDown does
-            // not leak into the list's navigation when opening a drawer.
-            activateMore.current = () => {
-              if (props.onClick) menuTriggerRef.current?.click();
-              else menuTriggerRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
-            };
-            return <button {...props} type="button" tabIndex={-1} aria-label="More actions" title="More actions"
-            ref={node => { menuTriggerRef.current = node; if (typeof props.ref === "function") props.ref(node); else if (props.ref) props.ref.current = node; }}
-            className={cn(props.className, "radar-action radar-action-more")}
-            onClick={event => { props.onClick?.(event); event.stopPropagation(); }}>
-            <Icon name="MoreHorizontal" aria-hidden="true" />
-          </button>;
-          }} /> : <button type="button" tabIndex={-1} aria-label="More actions" title="More actions"
-            aria-haspopup="menu" className="radar-action radar-action-more" ref={menuTriggerRef}
-            onPointerDown={event => { touchPointer.current = event.pointerType === "touch"; }}
-            onMouseDown={handleMouseDown}
-            onClick={event => {
-              event.preventDefault();
-              event.stopPropagation();
-              requestedMore.current = true;
-              setMoreEnabled(true);
-            }}>
-            <Icon name="MoreHorizontal" aria-hidden="true" />
-          </button>}
-      </span>
-      {hoverCard
-        ? createPortal(
-            <RadarHoverCard
-              thread={thread}
-              anchor={hoverCard.anchor}
-              branch={branch}
-              isWorktree={isWorktree}
-              pullRequest={pullRequest}
-              facts={{
-                providerName,
-                providerIcon,
-                modelName,
-                thinking,
-                projectName,
-                sectionName,
-                hostName,
-                timeText,
-                statusWord: statusWord?.text ?? null,
-                statusTone: statusWord?.tone ?? null,
-                hiddenKids: collapse?.hiddenKids ?? [],
-                hiddenTotal: collapse?.hiddenTotal ?? 0,
-              }}
-              onOpen={() => {
-                actions.open(thread.id);
-                onNavigate();
-                setHoverCard(null);
-              }}
-              onOpenSplit={() => {
-                openInSplit();
-                setHoverCard(null);
-              }}
-              onTogglePin={togglePin}
-              onArchive={toggleArchive}
-              onMouseEnter={() => {
-                isHoveringCard.current = true;
-              }}
-              onMouseLeave={() => {
-                isHoveringCard.current = false;
-                closeHoverCard(true);
-              }}
-              getContext={fetchThreadContext}
-            />,
-            document.body,
-          )
-        : null}
-    </div>
+        {hoverCard
+          ? createPortal(
+              <RadarHoverCard
+                thread={thread}
+                anchor={hoverCard.anchor}
+                branch={branch}
+                isWorktree={isWorktree}
+                pullRequest={pullRequest}
+                facts={{
+                  providerName,
+                  providerIcon,
+                  modelName,
+                  thinking,
+                  projectName,
+                  sectionName,
+                  hostName,
+                  timeText,
+                  statusWord: statusWord?.text ?? null,
+                  statusTone: statusWord?.tone ?? null,
+                  hiddenKids: collapse?.hiddenKids ?? [],
+                  hiddenTotal: collapse?.hiddenTotal ?? 0,
+                }}
+                onOpen={() => {
+                  actions.open(thread.id);
+                  onNavigate();
+                  setHoverCard(null);
+                }}
+                onOpenSplit={() => {
+                  openInSplit();
+                  setHoverCard(null);
+                }}
+                onTogglePin={togglePin}
+                onArchive={toggleArchive}
+                onMouseEnter={() => {
+                  isHoveringCard.current = true;
+                }}
+                onMouseLeave={() => {
+                  isHoveringCard.current = false;
+                  closeHoverCard(true);
+                }}
+                getContext={fetchThreadContext}
+              />,
+              document.body,
+            )
+          : null}
+      </div>
     </ThreadActionsContextMenu>
-  );
-}
-
-function sameCollapse(a: RowCollapse | null, b: RowCollapse | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  // `onToggle` is deliberately not compared: it only closes over the row's own
-  // id and a stable toggler, so a fresh closure never changes behaviour.
-  return (
-    a.collapsed === b.collapsed &&
-    a.hiddenTotal === b.hiddenTotal &&
-    a.hiddenUnread === b.hiddenUnread &&
-    a.hiddenLive === b.hiddenLive &&
-    a.hiddenNeedsUser === b.hiddenNeedsUser &&
-    a.hiddenFailed === b.hiddenFailed &&
-    a.hiddenKids.length === b.hiddenKids.length &&
-    a.hiddenKids.every((kid, index) => {
-      const other = b.hiddenKids[index];
-      return (
-        kid.id === other.id && kid.title === other.title && kid.dot === other.dot
-      );
-    })
   );
 }
 
