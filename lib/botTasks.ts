@@ -51,7 +51,7 @@ function closedWhileRunning<T extends { displayState: DisplayState; line: string
 }
 
 export const deskSchema = z.object({
-  id: z.string(), desk: z.enum(["chat", "bricks", "whatsapp", "campaign", "redemption", "feedback"]),
+  id: z.string(), desk: z.enum(["chat", "bricks", "whatsapp", "campaign", "redemption", "feedback", "support"]).catch("chat"),
   label: z.string(), key: z.string(), threadId: z.string().nullable(), title: z.string(),
   status: z.enum(["draft", "blocked", "working", "waiting", "info", "done", "deferred"]),
   updatedAt: z.number(), quietSince: z.number().nullable(), deadline: z.number().nullable(), deferredReason: z.string().nullable(),

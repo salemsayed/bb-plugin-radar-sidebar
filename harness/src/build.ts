@@ -123,7 +123,7 @@ export type DeskStatus = DeskInput["status"];
 
 export function desk(bot: BotKey, kind: DeskInput["desk"], who: string, subject: string, status: DeskStatus, extra: { updated?: number; quiet?: number | null; waitingOn?: string; wakeAt?: number; deadline?: number; deferredReason?: string; later?: number; draft?: string } = {}): DeskInput {
   const id = nextId("desk");
-  const label = { chat: "Chat", whatsapp: "WhatsApp", bricks: "Bricks", campaign: "Campaign", redemption: "Redemption", feedback: "Feedback" }[kind];
+  const label = { chat: "Chat", whatsapp: "WhatsApp", bricks: "Bricks", campaign: "Campaign", redemption: "Redemption", feedback: "Feedback", support: "Support" }[kind];
   const updatedAt = ago(extra.updated ?? 5 * MINUTE);
   return { id, desk: kind, label, key: id, threadId: `thr_${id}`, title: [label, who, subject].filter(Boolean).join(" · "), status, updatedAt,
     quietSince: extra.quiet === null ? null : ago(extra.quiet ?? extra.updated ?? 5 * MINUTE), deadline: extra.deadline ?? null, deferredReason: extra.deferredReason ?? null, waitingOn: extra.waitingOn ?? null,
