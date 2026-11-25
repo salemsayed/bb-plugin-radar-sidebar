@@ -588,23 +588,48 @@ export const CASES = [
     },
   },
   {
-    scenario: "desks", id: "desks-cockpit", action: "Open the Desks cockpit, inspect a draft desk, and send a note via Enter", expect: "Desks queue loads, selecting a desk renders DeskWorkspace with its draft, and pressing Enter in the composer delivers to the desk thread with zero page errors",
+    scenario: "desks", id: "desks-cockpit", action: "Open the Desks cockpit, inspect blocked + draft desks, check layout/focus invariants, and send a note via Enter", expect: "Desks queue loads cleanly with no overflow or clipped focus ring, blocked questions render unclamped with 1-tap buttons, draft desk renders, and Enter delivers with zero page errors",
     async run({ iso, world, driver }) {
       const errorsBefore = driver.errors.length;
       await driver.closePanel();
       await driver.page.goto(`${iso.url}/plugins/orchestrator-mode/desks`, { waitUntil: "domcontentloaded" });
-      const sidebar = driver.page.locator(".desk-sidebar").first();
-      await sidebar.waitFor({ state: "visible", timeout: 20_000 });
-      const lailaRow = sidebar.locator(".desk-queue-row", { hasText: /Laila Hassan|6102/ }).first();
+      const queue = driver.phone ? driver.page.locator(".desk-mobile-queue").first() : driver.page.locator(".desk-sidebar").first();
+      await queue.waitFor({ state: "visible", timeout: 20_000 });
+      const hanyRow = queue.locator(".desk-queue-row", { hasText: /Hany Fawzy|40 drums/ }).first();
+      const hasHany = await hanyRow.waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
+      let blockedOk = false;
+      let blockedDetail = "Hany row missing";
+      let focusOk = true;
+      let focusDetail = "phone";
+      if (hasHany) {
+        await driver.press(hanyRow);
+        const workspace = driver.page.locator(".desk-workspace").first();
+        await workspace.waitFor({ state: "visible", timeout: 15_000 });
+        const yesVisible = await poll(async () => workspace.locator(".desk-choices button", { hasText: "Yes, go ahead" }).isVisible().catch(() => false), 10_000, 300);
+        const showAll = await workspace.locator(".desk-botmsg button", { hasText: /Show all/i }).count();
+        blockedOk = !!yesVisible && showAll === 0;
+        blockedDetail = `yesBtn=${!!yesVisible} showAll=${showAll}`;
+        if (!driver.phone) {
+          await hanyRow.focus();
+          const st = await hanyRow.evaluate((el) => { const cs = getComputedStyle(el); return { outline: cs.outlineStyle, radius: cs.borderRadius }; });
+          focusOk = st.outline === "none" && st.radius !== "0px";
+          focusDetail = JSON.stringify(st);
+        } else {
+          await driver.press(driver.page.locator('button[aria-label="Back to desks"]').first());
+          await queue.waitFor({ state: "visible", timeout: 10_000 });
+        }
+      }
+      const lailaRow = queue.locator(".desk-queue-row", { hasText: /Laila Hassan|6102/ }).first();
       const hasRow = await lailaRow.waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
       if (!hasRow) {
         await driver.home();
-        return [check("Desks queue lists Laila Hassan draft desk", false, short(await sidebar.innerText().catch(() => "")))];
+        return [check("Desks queue lists Laila Hassan draft desk", false, short(await queue.innerText().catch(() => "")))];
       }
       await driver.press(lailaRow);
       const workspace = driver.page.locator(".desk-workspace").first();
       await workspace.waitFor({ state: "visible", timeout: 15_000 });
       const draftVisible = await poll(async () => /on the van/i.test(await workspace.innerText().catch(() => "")), 15_000, 400);
+      const overflow = await driver.page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth));
       const after = iso.lastSeq(world.sendDesk.threadId);
       const composer = workspace.locator("textarea").first();
       await composer.waitFor({ state: "visible", timeout: 10_000 });
@@ -614,6 +639,9 @@ export const CASES = [
       const newErrors = driver.errors.slice(errorsBefore);
       await driver.home();
       return [
+        check("Desks blocked desk renders unclamped with 1-tap Yes/No buttons", blockedOk, blockedDetail),
+        check("Desks queue row has clean inset focus without clipped outline", focusOk, focusDetail),
+        check("Desks cockpit has zero horizontal overflow", overflow <= 2, `overflow=${overflow}px`),
         check("Desks queue lists Laila Hassan draft desk", hasRow, "visible"),
         check("DeskWorkspace renders header and bot draft text", !!draftVisible, short(await workspace.innerText().catch(() => ""))),
         check("Composer Enter delivers message to desk thread", !!landed, landed ? `#${landed.seq} (${landed.from}): ${short(landed.text)}` : `none after #${after}`),

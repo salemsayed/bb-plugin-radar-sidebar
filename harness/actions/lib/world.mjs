@@ -114,6 +114,7 @@ export const SCENARIOS = [
       w.staleDraftSeq = await bot.deskSays(w.staleDesk.threadId, "**Draft reply:**\n> Karim, 12 floodlights are EGP 4,800 in total.");
       bot.deskStatus(w.staleDesk.threadId, "draft");
       w.blockedDesk = await bot.desk({ key: "chat:hany-2", title: "Chat · Hany Fawzy · Wholesale price for 40 drums" });
+      await bot.deskSays(w.blockedDesk.threadId, "Hany asked for a 12% wholesale discount on 40 drums.\n\nShould we allow 12% on this order? I recommend yes for a 40-drum commitment. If you agree, I'll stage the reply.");
       bot.deskStatus(w.blockedDesk.threadId, "blocked");
       w.workingDesk = await bot.desk({ key: "chat:sara-3", title: "Chat · Sara Nabil · Invoice copy for October" });
       bot.deskStatus(w.workingDesk.threadId, "working");
