@@ -1,5 +1,5 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { deskShown, isClosed, isSameLocalDay, needsYou, sortDesks, type Attempt, type BotDesk, type BotTaskRow, type BotTasksBot } from "@/lib/botTasks";
+import { deskShown, isClosed, isSameLocalDay, needsYou, sortDesks, type Attempt, type BotDesk, type BotTaskRow, type BotTasksBot, type CanonicalDeskLink } from "@/lib/botTasks";
 import { elapsed } from "../elapsed";
 import { isQuestionRow, isStepAsk, needsTopic, questionTopic } from "../questions";
 import { stageText, stageTitle } from "../stage";
@@ -91,6 +91,7 @@ export interface PanelInput {
   snapshot: WorkerSnapshot;
   now: number;
   yours: readonly PluginSidebarThread[];
+  canonicalLinks?: readonly CanonicalDeskLink[];
 }
 
 const REF_CODE_RE = /\b(?:R|MR|WO|EX|SO|INV|PO|BQ)-\d{2,}\b|\b(?:Feedback|Bricks|Redemption|Support)\s*#\d+\b|(?<!\w)#\d{4,}\b/gi;
@@ -124,7 +125,14 @@ function deskOriginLabel(desk: BotDesk): string {
   return person ? `${channel} · ${person}` : channel;
 }
 
-function matchDeskToTask(desk: DeskItem, tasks: readonly TaskItem[], allowWaitingHeuristic = false): TaskItem | null {
+function matchDeskToTask(desk: DeskItem, tasks: readonly TaskItem[], allowWaitingHeuristic = false, canonicalLinks?: readonly CanonicalDeskLink[]): TaskItem | null {
+  if (canonicalLinks?.length) {
+    const serverLink = canonicalLinks.find(link => link.deskId === desk.desk.id);
+    if (serverLink) {
+      const byServer = tasks.find(item => item.task.id === serverLink.taskId);
+      if (byServer) return byServer;
+    }
+  }
   const deskThread = desk.desk.threadId;
   if (deskThread) {
     const deskTag = `desk:${deskThread}`;
@@ -183,7 +191,7 @@ function matchDeskToTask(desk: DeskItem, tasks: readonly TaskItem[], allowWaitin
   return null;
 }
 
-export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelModel {
+export function panelModel({ bot, snapshot, now, yours, canonicalLinks }: PanelInput): PanelModel {
   const open = cardOrder(bot.tasks.filter(task => !isClosed(task.displayState)));
   const closed = bot.tasks.filter(task => isClosed(task.displayState) && !TEST_TASK.test(task.title) && !TEST_OUTCOME.test(task.outcome ?? "")).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const reasonOwner = new Map<string, string>();
@@ -216,8 +224,8 @@ export function panelModel({ bot, snapshot, now, yours }: PanelInput): PanelMode
   for (const desk of desks) {
     if (desk.status.group !== "working" && desk.status.group !== "waiting") continue;
     const linked =
-      matchDeskToTask(desk, activeTaskPool) ??
-      (desk.status.group === "waiting" ? matchDeskToTask(desk, waitingTasks, true) : null);
+      matchDeskToTask(desk, activeTaskPool, false, canonicalLinks) ??
+      (desk.status.group === "waiting" ? matchDeskToTask(desk, waitingTasks, true, canonicalLinks) : null);
     if (linked && desk.desk.threadId) {
       if (!linked.sourceDesk) {
         linked.sourceDesk = { threadId: desk.desk.threadId, label: deskOriginLabel(desk.desk) };

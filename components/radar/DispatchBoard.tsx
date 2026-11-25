@@ -363,7 +363,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     const workers = snapshot.byBot[b.key] ?? [];
     const look = rowLook(b, { running: workers.length, runningTitle: workers[0]?.title, failedChecks: snapshot.failedChecks, chatting: snapshot.chat.has(b.key), unread, now, lastReply: byId.get(b.coordinatorThreadId)?.latestAttentionAt });
     const current = opening ? opening === b.coordinatorThreadId : activeThreadId === b.coordinatorThreadId;
-    return { bot: b, unread, look, current, here: !opening && hereKey === b.key, needs: needsCount(b) };
+    return { bot: b, unread, look, current, here: !opening && hereKey === b.key, needs: needsCount(b, data.tallies) };
   });
   return <div className="stage" ref={root}
     onPointerEnter={event => { if (event.pointerType === "mouse" && inside(event.target)) setPointerIn(true); }}
@@ -397,7 +397,7 @@ export function DispatchBoard({ data: raw, state, activeThreadId, isCompactViewp
     <CollapsedBots root={root} scope={scope} onOpen={open} threads={collapsedThreads} bots={rows.map(({ bot: b, unread, look, current, here, needs }) => ({
       key: b.key, name: b.name, pose: look.pose, status: look.ask ?? [look.whole ?? look.line, look.extra].filter(Boolean).join(" · "), needs, unread, working: look.tone === "busy", current, here, threadId: b.coordinatorThreadId,
     }))} />
-    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} fromItem={fromItem} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
+    {bot ? <BotWorkPanel key={`${bot.key}:${focusDesks}`} bot={bot} canonicalLinks={scoped.data?.canonicalLinks?.[bot.key] ?? data.canonicalLinks?.[bot.key]} detailStatus={detailStatus} retryDetail={retryDetail} stale={panelStale} originalOf={originalOf} askerOf={threadId => botOfThread(threadId, data, byId) ?? data.bots.find(b => b.key === ownerOf(threadId, data, snapshot, byId))?.name} anchor={anchor} focusNeeds={focusDesks} fromItem={fromItem} keyboard={keyboardOpen} snapshot={snapshot} activeThreadId={activeThreadId} isCompactViewport={isCompactViewport} now={now}
       onShowThreads={onShowThreads}
       scope={scope}
       onNavigate={(id, messageSeq) => { flushSync(() => setSheet(null)); opener.current?.focus(); open(id, messageSeq); }}

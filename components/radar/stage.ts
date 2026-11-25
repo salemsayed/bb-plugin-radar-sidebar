@@ -399,7 +399,9 @@ export function deskNeedLine(desk: Pick<BotDesk, "status" | "label" | "title"> &
   return desk.status === "draft" ? `Approve ${lowerFirst(rest)}?` : `${rest} · needs your answer`;
 }
 
-export function needsCount(bot: BotTasksBot): number {
+export function needsCount(bot: BotTasksBot, tallies?: { perBotNeeds?: Record<string, number> }): number {
+  const fromSnapshot = tallies?.perBotNeeds?.[bot.key];
+  if (typeof fromSnapshot === "number") return fromSnapshot;
   return bot.tasks.filter(task => task.displayState === "needs").length + bot.desks.filter(needsYou).length;
 }
 

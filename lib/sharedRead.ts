@@ -20,6 +20,8 @@ export interface SharedReadOptions<T> {
   refreshMs: number;
   events: readonly string[];
   key?: (data: T) => string;
+  /** Return true if an incoming response is older than the currently published copy and must be discarded. */
+  isStale?: (incoming: T, current: T) => boolean;
 }
 
 export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T> {
@@ -49,8 +51,11 @@ export function createSharedRead<T>(options: SharedReadOptions<T>): SharedRead<T
     try {
       const data = await options.load();
       failures = 0;
-      const text = key(data);
       const previous = current();
+      if (previous.data !== null && !previous.cached && options.isStale?.(data, previous.data)) {
+        return;
+      }
+      const text = key(data);
       if (text === serialized && previous.data !== null) {
         if (previous.status !== "ready") publish({ data: previous.data, status: "ready", cached: false });
         return;

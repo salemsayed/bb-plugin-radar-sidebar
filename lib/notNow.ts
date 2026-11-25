@@ -109,5 +109,22 @@ export function applyNotNow(data: BotTasksData, view: NotNowView): BotTasksData 
     }),
   }));
   const questions = data.questions.map(q => { const at = q.state === "open" ? parked(q.id) : null; return at === null ? q : { ...q, state: "later" as const, laterAt: at }; });
-  return { ...data, bots, questions };
+  if (!data.tallies) return { ...data, bots, questions };
+  const perBotNeeds = { ...data.tallies.perBotNeeds };
+  for (const bot of bots) {
+    perBotNeeds[bot.key] = bot.tasks.filter(t => t.displayState === "needs").length + bot.desks.filter(d => d.question?.state === "open").length;
+  }
+  const outsideNeeds = questions.filter(q => q.bot === null && q.state === "open").length;
+  const totalBotNeeds = Object.values(perBotNeeds).reduce((sum, n) => sum + n, 0);
+  return {
+    ...data,
+    bots,
+    questions,
+    tallies: {
+      ...data.tallies,
+      perBotNeeds,
+      outsideNeeds,
+      globalNeedsWithOutside: totalBotNeeds + outsideNeeds,
+    },
+  };
 }

@@ -2,7 +2,7 @@ import { DeskHistory } from "../DeskHistory";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
-import type { BotTasksBot } from "@/lib/botTasks";
+import type { BotTasksBot, CanonicalDeskLink } from "@/lib/botTasks";
 import { automationsHref } from "../automationsLink";
 import { useCoordinatorTarget } from "../BotDeskMenu";
 import { BotMenu } from "../BotMenu";
@@ -59,8 +59,8 @@ function Section({ group, title, aside, children }: { group: Group | "yours"; ti
   </section>;
 }
 
-export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeeds = false, fromItem = null, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onOpenDesk, onClose, onShowThreads, askerOf, originalOf }: {
-  bot: BotTasksBot; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; fromItem?: string | null; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
+export function BotWorkPanel({ bot, canonicalLinks, detailStatus, retryDetail, anchor, focusNeeds = false, fromItem = null, keyboard = false, snapshot, activeThreadId, isCompactViewport, now, scope, stale = null, onNavigate, onOpenDesk, onClose, onShowThreads, askerOf, originalOf }: {
+  bot: BotTasksBot; canonicalLinks?: readonly CanonicalDeskLink[]; detailStatus?: "loading" | "error"; retryDetail?: () => void; anchor?: PanelAnchor; stale?: StaleNote | null; askerOf?: (threadId: string) => string | undefined; originalOf?: OriginalOf; focusNeeds?: boolean; fromItem?: string | null; keyboard?: boolean; snapshot: WorkerSnapshot; activeThreadId: string | null; isCompactViewport: boolean; now: number; scope?: string;
   onNavigate: Navigate; onOpenDesk?: Navigate; onClose: () => void; onShowThreads?: () => void;
 }) {
   const claims = useThreadClaims();
@@ -104,7 +104,7 @@ export function BotWorkPanel({ bot, detailStatus, retryDetail, anchor, focusNeed
     return () => elements.forEach((node, i) => { node.style.overflow = previous[i]!; });
   }, [isCompactViewport]);
 
-  const model = panelModel({ bot, snapshot, now, yours: claims.byBot[bot.key] ?? [] });
+  const model = panelModel({ bot, snapshot, now, yours: claims.byBot[bot.key] ?? [], canonicalLinks });
   const tally = panelTally(model);
   const context: DetailContext = { now, botName: bot.name, askerOf, originalOf };
   const openCount = model.asks.length + model.deskAsks.length + model.stuck.length + model.working.length + model.waiting.length + model.desks.length + model.later.length + model.yours.length;

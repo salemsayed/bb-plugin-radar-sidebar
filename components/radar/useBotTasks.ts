@@ -46,20 +46,27 @@ function writeCache(key: string, data: BotTasksData | null): void {
 function tasksKey(data: BotTasksData): string {
   return JSON.stringify(data, (name, value: unknown) => {
     if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-    const row = value as { observedAt?: unknown; ageMs?: unknown };
-    if (name === "") return { ...row, observedAt: undefined };
+    const row = value as { observedAt?: unknown; ageMs?: unknown; revision?: unknown };
+    if (name === "") return { ...row, observedAt: undefined, revision: undefined };
     if (typeof row.observedAt === "number" && typeof row.ageMs === "number") return { ...row, observedAt: undefined, ageMs: undefined, startedAt: row.observedAt - row.ageMs };
     return value;
   });
 }
+const isMissingMethodError = (error: unknown) => /unknown.*method|has no rpc method|method.*not found|has no answer for/i.test(String(error));
 let latestSdk: ReturnType<typeof useSdk> | null = null;
 function tasksRead(bot?: string, sidebar = false) {
   const cacheKey = sidebar ? "radar.botSidebar.v1" : bot ? `${CACHE_KEY}.${bot}` : CACHE_KEY;
   return createSharedRead<BotTasksData>({
     load: async () => {
+      try {
+        const input: Record<string, string | boolean> = sidebar ? { sidebar: true } : bot ? { bot } : {};
+        return await latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_panel_snapshot", input, outputSchema: botTasksSchema });
+      } catch (error) {
+        if (!isMissingMethodError(error)) throw error;
+      }
       if (sidebar) {
         try { return await latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_sidebar", input: {}, outputSchema: botTasksSchema }); }
-        catch (error) { if (!/unknown.*method|has no rpc method|method.*not found/i.test(String(error))) throw error; }
+        catch (error) { if (!isMissingMethodError(error)) throw error; }
       }
       return latestSdk!.plugins.callRpc({ pluginId: TASKS_PLUGIN, method: "bot_tasks", input: bot ? { bot } : {}, outputSchema: botTasksSchema });
     },
@@ -69,6 +76,10 @@ function tasksRead(bot?: string, sidebar = false) {
     refreshMs: BOT_TASKS_REFRESH_MS,
     events: ["focus", NEEDS_CHANGED],
     key: tasksKey,
+    isStale: (incoming, current) =>
+      incoming.revision !== undefined &&
+      current.revision !== undefined &&
+      incoming.revision < current.revision,
   });
 }
 const fleet = tasksRead();

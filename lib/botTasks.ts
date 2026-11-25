@@ -145,7 +145,8 @@ type ParsedBot = z.infer<typeof botSchema>;
 function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[]; observedAt: number }>(data: T): T {
   const bots = data.bots.map(bot => {
     const desks = bot.desks.map(desk => {
-      const q = data.questions.find(q => q.bot === bot.key && q.deskId === desk.id);
+      const deskQs = data.questions.filter(q => q.bot === bot.key && q.deskId === desk.id);
+      const q = deskQs.find(x => x.state === "open") ?? deskQs[0];
       return q ? { ...desk, question: { id: q.id, state: q.state, ...(q.messageSeq !== undefined ? { messageSeq: q.messageSeq } : {}), ...(q.laterAt !== undefined ? { laterAt: q.laterAt } : {}), ...(deskDraft(q) ?? {}) } } : desk;
     });
     const rows = data.questions.filter(q => q.bot === bot.key && isOwnQuestion(q)).flatMap(q => {
@@ -157,11 +158,38 @@ function withQuestionRecords<T extends { bots: ParsedBot[]; questions: Question[
   return { ...data, bots };
 }
 
+export const canonicalDeskLinkSchema = z.object({
+  taskId: z.string(),
+  deskId: z.string(),
+  deskThreadId: z.string().nullable(),
+  label: z.string(),
+});
+export type CanonicalDeskLink = z.infer<typeof canonicalDeskLinkSchema>;
+
+export const panelSnapshotTalliesSchema = z.object({
+  globalDesksNeeds: z.number().int().nonnegative(),
+  globalDesksWorking: z.number().int().nonnegative(),
+  globalDesksTotal: z.number().int().nonnegative(),
+  perBotNeeds: z.record(z.string(), z.number().int().nonnegative()),
+  outsideNeeds: z.number().int().nonnegative(),
+  globalNeedsWithOutside: z.number().int().nonnegative(),
+  globalWorking: z.object({
+    tasks: z.number().int().nonnegative(),
+    sideJobs: z.number().int().nonnegative(),
+    alerts: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type PanelSnapshotTallies = z.infer<typeof panelSnapshotTalliesSchema>;
+
 export const botTasksSchema = z.object({
   bots: z.array(botSchema),
   questions: questionsSchema,
   notFiled: z.array(z.object({ threadId: z.string(), title: z.string().default(""), suggestedBot: z.string().optional() })).default([]),
   observedAt: z.number().default(() => Date.now()),
+  revision: z.number().int().nonnegative().optional(),
+  tallies: panelSnapshotTalliesSchema.optional(),
+  canonicalLinks: z.record(z.string(), z.array(canonicalDeskLinkSchema)).optional(),
 }).transform(withQuestionRecords);
 
 export type BotTasksData = z.infer<typeof botTasksSchema>;

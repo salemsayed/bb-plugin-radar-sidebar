@@ -515,7 +515,7 @@ export const CASES = [
       await driver.openPanel(bot);
       const item = driver.item(deskKey(iso, bot, world.staleDesk.threadId));
       await item.locator(".panel-ask-draft").waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
-      const refresh = url => /bot_tasks|bots_version/.test(url.href);
+      const refresh = url => /bot_tasks|bot_sidebar|bot_panel_snapshot|bots_version/.test(url.href);
       await driver.page.route(refresh, route => route.abort());
       const newSeq = await bot.deskSays(world.staleDesk.threadId, "**Draft reply:**\n> Karim, 12 floodlights are EGP 5,400 in total with delivery.");
       const shown = short(await item.locator(".panel-ask-draft").innerText().catch(() => ""));
